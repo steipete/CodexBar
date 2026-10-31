@@ -18,27 +18,27 @@ extension StatusItemController {
         var countdownResetDates: [Date] = []
         var absoluteResetDates: [Date] = []
         for provider in providers {
-            let resolution = self.renderedMenuBarLayoutResolution(for: provider)
+            let resolution = self.renderedMenuBarLayoutResolution(forInstanceID: provider)
             if !resolution.usesLegacyRendering,
                self.settings.menuBarIconStyle == .iconAndPercent
             {
-                countdownResetDates += self.menuBarLayoutResetDates(for: provider, now: now, absolute: false)
-                absoluteResetDates += self.menuBarLayoutResetDates(for: provider, now: now, absolute: true)
+                countdownResetDates += self.menuBarLayoutResetDates(forInstanceID: provider, now: now, absolute: false)
+                absoluteResetDates += self.menuBarLayoutResetDates(forInstanceID: provider, now: now, absolute: true)
                 delays += self.menuBarConditionalResetDelays(
                     provider: provider,
                     resolution: resolution,
                     now: now)
-                delays += self.menuBarConditionalElapsedDelays(
-                    provider: provider,
-                    resolution: resolution,
-                    now: now)
+                if let builtIn = provider.firstPartyProvider {
+                    delays += self.menuBarConditionalElapsedDelays(
+                        provider: builtIn, resolution: resolution, now: now)
+                }
                 continue
             }
 
             guard self.settings.menuBarShowsBrandIconWithPercent,
-                  displayMode == .resetTime || smartExhaustedActive
-            else { continue }
-            let resetDates = self.menuBarDisplayedResetDates(for: provider, now: now)
+                  displayMode == .resetTime || smartExhaustedActive,
+                  let builtIn = provider.firstPartyProvider else { continue }
+            let resetDates = self.menuBarDisplayedResetDates(for: builtIn, now: now)
             switch self.settings.resetTimeDisplayStyle {
             case .countdown:
                 countdownResetDates.append(contentsOf: resetDates)
@@ -57,9 +57,9 @@ extension StatusItemController {
             // the reset itself, whichever comes first; the next icon update schedules any later boundary.
             delays.append(delay)
         }
-        delays += self.menuBarPaceRefreshDelays(providers: providers, now: now)
+        delays += self.menuBarPaceRefreshDelays(providers: providers.compactMap(\.firstPartyProvider), now: now)
 
-        if self.menuBarObservesCodexReset(providers: providers) {
+        if self.menuBarObservesCodexReset(providers: providers.compactMap(\.firstPartyProvider)) {
             let projection = self.store.codexConsumerProjection(surface: .menuBar, now: now)
             if let resetAt = projection.nextMenuBarStateChangeAt {
                 delays.append(max(
@@ -122,7 +122,7 @@ extension StatusItemController {
     /// refresh. Run-out predicates are deliberately excluded: their estimate drifts with usage rather
     /// than crossing a fixed instant, and `menuBarPaceRefreshDelays` already covers that lane.
     private func menuBarConditionalResetDelays(
-        provider: UsageProvider,
+        provider: ProviderInstanceID,
         resolution: MenuBarLayoutResolution,
         now: Date)
         -> [TimeInterval]
@@ -132,17 +132,14 @@ extension StatusItemController {
             .filter { $0.metric.kind == .hours && $0.metric != .runsOutIn }
         guard !predicates.isEmpty else { return [] }
 
-        let snapshot = self.menuBarUsageSource(for: provider).snapshot
-        let windows = self.menuBarLayoutWindows(provider: provider, snapshot: snapshot, now: now)
-        let scopedWeekly = MenuBarLayoutSemanticWindowResolver
-            .scopedWeeklyNamedWindow(snapshot: snapshot)?.window
+        let data = self.menuBarLayoutRenderData(for: provider, now: now)
         return predicates.compactMap { predicate -> TimeInterval? in
-            let window: RateWindow? = switch predicate.metric {
-            case .sessionResetsIn: windows.session
-            case .weeklyResetsIn: windows.weekly
-            case .scopedWeeklyResetsIn: scopedWeekly
-            case .automaticResetsIn: windows.automatic
-            case .spendResetsIn: windows.spend
+            let window: MenuBarLayoutRenderWindow? = switch predicate.metric {
+            case .sessionResetsIn: data.session
+            case .weeklyResetsIn: data.weekly
+            case .scopedWeeklyResetsIn: data.scopedWeekly
+            case .automaticResetsIn: data.automatic
+            case .spendResetsIn: data.spend
             default: nil
             }
             guard let resetsAt = window?.resetsAt else { return nil }
@@ -153,14 +150,14 @@ extension StatusItemController {
         }
     }
 
-    private func menuBarRefreshProviders() -> [UsageProvider] {
+    private func menuBarRefreshProviders() -> [ProviderInstanceID] {
         if let stackedProviders = self.stackedMergeIconProvidersIfActive() {
-            return [stackedProviders.top, stackedProviders.bottom]
+            return [stackedProviders.top.instanceID, stackedProviders.bottom.instanceID]
         }
         if self.shouldMergeIcons {
-            return [self.primaryProviderForUnifiedIcon()].compactMap(\.firstPartyProvider)
+            return [self.primaryProviderForUnifiedIcon()]
         }
-        return UsageProvider.allCases.filter(self.isVisible)
+        return UsageProvider.allCases.filter(self.isVisible).map(\.instanceID)
     }
 
     private func menuBarObservesCodexReset(providers: [UsageProvider]) -> Bool {

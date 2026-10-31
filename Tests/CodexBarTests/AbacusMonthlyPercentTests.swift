@@ -171,7 +171,7 @@ struct AbacusMonthlyPercentTests {
         let automatic = MenuBarMetricWindowResolver.rateWindow(
             preference: .automatic, provider: provider, snapshot: snapshot, supportsAverage: false)
         let data = MenuBarLayoutRenderData(
-            provider: provider,
+            provider: provider.instanceID,
             iconKey: provider.rawValue,
             providerName: ProviderDefaults.metadata[provider]?.displayName,
             accountLabel: nil,

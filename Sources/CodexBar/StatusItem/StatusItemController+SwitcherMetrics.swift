@@ -18,6 +18,15 @@ extension StatusItemController {
         showUsed: Bool,
         preference: MenuBarPercentWindowPreference = .automatic) -> Double?
     {
+        guard let window = self.pluginMetricWindow(snapshot: snapshot, preference: preference) else { return nil }
+        let used = min(100, max(0, window.usedPercent))
+        return showUsed ? used : 100 - used
+    }
+
+    nonisolated static func pluginMetricWindow(
+        snapshot: UsageSnapshot?,
+        preference: MenuBarPercentWindowPreference = .automatic) -> RateWindow?
+    {
         let selected: RateWindow? = switch preference {
         case .session: snapshot?.primary
         case .weekly: snapshot?.secondary
@@ -30,12 +39,10 @@ extension StatusItemController {
         }
         let windows = ([snapshot?.primary, snapshot?.secondary, snapshot?.tertiary].compactMap(\.self) +
             (snapshot?.extraRateWindows ?? []).filter(\.usageKnown).map(\.window))
-            .filter(\.usedPercent.isFinite)
+            .filter { $0.usedPercent.isFinite && !$0.isSyntheticPlaceholder }
         let weekly = windows.filter { $0.windowMinutes == 7 * 24 * 60 }
             .max { $0.usedPercent < $1.usedPercent }
-        guard let window = availableSelection ?? weekly ?? windows.first else { return nil }
-        let used = min(100, max(0, window.usedPercent))
-        return showUsed ? used : 100 - used
+        return availableSelection ?? weekly ?? windows.first
     }
 
     nonisolated static func switcherWeeklyMetricPercent(

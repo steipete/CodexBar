@@ -106,12 +106,8 @@ extension StatusItemController {
     {
         guard self.settings.menuBarShowsBrandIconWithPercent,
               self.settings.menuBarIconStyle == .iconAndPercent,
-              let button = self.statusItem.button
-        else {
-            self.statusItem.length = NSStatusItem.variableLength
-            return nil
-        }
-        guard let topRow = self.renderStackedProviderRow(provider: top, now: now),
+              let button = self.statusItem.button,
+              let topRow = self.renderStackedProviderRow(provider: top, now: now),
               let bottomRow = self.renderStackedProviderRow(provider: bottom, now: now)
         else {
             self.statusItem.length = NSStatusItem.variableLength
@@ -154,9 +150,9 @@ extension StatusItemController {
             options: options)
     }
 
-    private func isStatusItemHighlighted(for provider: UsageProvider, button: NSButton?) -> Bool {
+    private func isStatusItemHighlighted(forInstanceID instanceID: ProviderInstanceID, button: NSButton?) -> Bool {
         // Tracking sessions start before openMenus is populated and end before AppKit clears its highlight.
-        if let menu = self.shouldMergeIcons ? self.mergedMenu : self.providerMenus[provider.instanceID] {
+        if let menu = self.shouldMergeIcons ? self.mergedMenu : self.providerMenus[instanceID] {
             return self.menuSession.menuInteractionGeneration(for: ObjectIdentifier(menu)) != nil
         }
         return button?.isHighlighted == true
@@ -176,6 +172,16 @@ extension StatusItemController {
         forceStackedStyle: Bool = false)
         -> MenuBarLayoutRenderOptions
     {
+        self.menuBarLayoutRenderOptions(
+            forInstanceID: provider.instanceID, button: button, now: now, forceStackedStyle: forceStackedStyle)
+    }
+
+    func menuBarLayoutRenderOptions(
+        forInstanceID instanceID: ProviderInstanceID,
+        button: NSButton?,
+        now: Date,
+        forceStackedStyle: Bool = false) -> MenuBarLayoutRenderOptions
+    {
         let appearanceName = (button?.effectiveAppearance ?? NSApp.effectiveAppearance).name.rawValue
         return MenuBarLayoutRenderOptions(
             size: self.settings.menuBarLayoutSize,
@@ -186,8 +192,9 @@ extension StatusItemController {
             conditionals: self.settings.menuBarLayoutConditionals,
             appearanceName: appearanceName,
             isDebugApp: Self.isDebugApp(bundleIdentifier: Bundle.main.bundleIdentifier),
-            isStale: self.menuBarIsStale(for: provider),
-            isHighlighted: self.isStatusItemHighlighted(for: provider, button: button),
+            isStale: instanceID.firstPartyProvider.map { self.menuBarIsStale(for: $0) }
+                ?? (self.store.errors[instanceID] != nil),
+            isHighlighted: self.isStatusItemHighlighted(forInstanceID: instanceID, button: button),
             now: now,
             verticalAdjustment: self.settings.menuBarLayoutVerticalAdjustment,
             colorPace: self.settings.menuBarColorPace,
@@ -278,14 +285,21 @@ extension StatusItemController {
         now: Date,
         absolute: Bool? = nil) -> [Date]
     {
-        let snapshot = self.menuBarUsageSource(for: provider).snapshot
-        let windows = self.menuBarLayoutWindows(provider: provider, snapshot: snapshot, now: now)
-        let tokens = self.renderedMenuBarLayoutResolution(for: provider).layout
+        self.menuBarLayoutResetDates(forInstanceID: provider.instanceID, now: now, absolute: absolute)
+    }
+
+    func menuBarLayoutResetDates(
+        forInstanceID instanceID: ProviderInstanceID,
+        now: Date,
+        absolute: Bool? = nil) -> [Date]
+    {
+        let data = self.menuBarLayoutRenderData(for: instanceID, now: now)
+        let tokens = self.renderedMenuBarLayoutResolution(forInstanceID: instanceID).layout
             .flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
         let selections = Set(tokens.filter { absolute == nil || $0.resetIsAbsolute == absolute }
             .compactMap(\.resetWindow))
         return PercentWindow.allCases.filter(selections.contains).compactMap {
-            windows.resetWindow($0, snapshot: snapshot)?.resetsAt
+            MenuBarLayoutRenderer.window($0, data: data)?.resetsAt
         }
     }
 
@@ -377,7 +391,7 @@ extension UsageStore {
         let automatic = MenuBarLayoutRenderWindow(windows.automatic)
 
         return MenuBarLayoutRenderData(
-            provider: provider,
+            provider: provider.instanceID,
             quotaIsEstimated: snapshot?.dataConfidence == .estimated,
             iconKey: iconKey,
             providerName: providerName,

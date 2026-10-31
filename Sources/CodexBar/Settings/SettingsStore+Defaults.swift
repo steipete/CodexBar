@@ -456,9 +456,8 @@ extension SettingsStore {
     }
 
     func menuBarLayout(forPlugin instanceID: ProviderInstanceID) -> MenuBarLayout {
-        // Plugins keep their automatic default independently of built-in/global layouts.
-        self.defaultsState.menuBarLayoutOverridesRaw[instanceID.rawValue]
-            ?? MenuBarLayout(lines: [[.percent(window: .automatic)]])
+        // Preserve every saved plugin layout, including the percentage-only default saved in 0.82.0.
+        self.defaultsState.menuBarLayoutOverridesRaw[instanceID.rawValue] ?? self.menuBarLayout
     }
 
     func setMenuBarLayout(_ layout: MenuBarLayout, forInstanceID instanceID: ProviderInstanceID) {

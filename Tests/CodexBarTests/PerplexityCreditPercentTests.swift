@@ -120,7 +120,7 @@ struct PerplexityCreditPercentTests {
         let automatic = MenuBarMetricWindowResolver.rateWindow(
             preference: .automatic, provider: provider, snapshot: snapshot, supportsAverage: false)
         return MenuBarLayoutRenderData(
-            provider: provider,
+            provider: provider.instanceID,
             iconKey: provider.rawValue,
             providerName: ProviderDefaults.metadata[provider]?.displayName,
             accountLabel: nil,
@@ -183,10 +183,14 @@ struct PerplexityCreditPercentTests {
                     resetDescription: description))
                 let countdown = MenuBarLayoutResetText(
                     window: window,
-                    provider: provider,
+                    provider: provider.instanceID,
                     now: self.now,
                     absolute: false)
-                let absolute = MenuBarLayoutResetText(window: window, provider: provider, now: self.now, absolute: true)
+                let absolute = MenuBarLayoutResetText(
+                    window: window,
+                    provider: provider.instanceID,
+                    now: self.now,
+                    absolute: true)
                 let fallback: String? = [.codex, .deepseek].contains(provider) ? description : nil
                 #expect(countdown.value == (hasDate ? "in 2h" : fallback))
                 #expect(absolute

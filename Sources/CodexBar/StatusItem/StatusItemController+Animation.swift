@@ -267,11 +267,6 @@ extension StatusItemController {
             guard let plugin = UserProviderPluginRegistry.plugin(for: selected) else { return false }
             let snapshot = self.store.menuBarSnapshot(for: selected)
             let showUsed = self.settings.usageBarsShowUsed
-            let percent = Self.pluginSwitcherMetricPercent(
-                snapshot: snapshot,
-                showUsed: showUsed,
-                preference: MenuBarPercentWindowPreference.current(
-                    in: self.settings.menuBarLayout(forPlugin: selected)) ?? .automatic)
             let lanes = Self.pluginMeterPercents(snapshot: snapshot, showUsed: showUsed)
             let showBrand = self.settings.menuBarShowsBrandIconWithPercent
             // Returning to a built-in provider must redraw even if its last quota is unchanged.
@@ -283,10 +278,14 @@ extension StatusItemController {
                 stale: self.store.errors[selected] != nil,
                 style: .combined,
                 hideCritters: true)
+            if let result = self.applyPluginMenuBarLayout(instanceID: selected, icon: image) {
+                self.noteIconPerfRender(skipped: result)
+                return result
+            }
             self.statusItem.length = NSStatusItem.variableLength
             self.setButtonContent(
                 image: image,
-                title: showBrand ? percent.map(UsageFormatter.percentString) ?? "—" : nil,
+                title: nil,
                 tint: nil,
                 for: button)
             self.noteIconPerfRender(skipped: false)
@@ -596,8 +595,8 @@ extension StatusItemController {
     }
 
     func quotaWarningFlashActive(provider: UsageProvider, now: Date = Date()) -> Bool {
-        guard !self.menuBarUsageSource(for: provider).isFleet else { return false }
-        guard let until = self.quotaWarningFlashUntil[provider.instanceID] else { return false }
+        guard !self.menuBarUsageSource(for: provider).isFleet,
+              let until = self.quotaWarningFlashUntil[provider.instanceID] else { return false }
         if until > now {
             return true
         }
@@ -832,17 +831,15 @@ extension StatusItemController {
                     .creditsString(from: creditsRemaining)
                     .replacingOccurrences(of: " left", with: "")
         }
-        if let combinedLanes, mode == .percent {
-            if let combinedText = MenuBarDisplayText.combinedSessionWeeklyPercentText(
-                sessionWindow: combinedLanes.session,
-                weeklyWindow: combinedLanes.weekly,
-                showUsed: self.settings.usageBarsShowUsed,
-                resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
-                showsResetTimeWhenExhausted: self.settings.menuBarShowsResetTimeWhenExhausted,
-                now: now)
-            {
-                return combinedText
-            }
+        if let combinedLanes, mode == .percent, let combinedText = MenuBarDisplayText.combinedSessionWeeklyPercentText(
+            sessionWindow: combinedLanes.session,
+            weeklyWindow: combinedLanes.weekly,
+            showUsed: self.settings.usageBarsShowUsed,
+            resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
+            showsResetTimeWhenExhausted: self.settings.menuBarShowsResetTimeWhenExhausted,
+            now: now)
+        {
+            return combinedText
         }
 
         let displayPercentWindow: RateWindow? = if let combinedLanes {
@@ -978,12 +975,11 @@ extension StatusItemController {
         -> String?
     {
         guard snapshot.detailRow(label: "Credits total")?.value != "0" else { return percentFallback }
-        guard snapshot.detailRow(label: "Credits left")?.value == "0" else { return fallback }
-        guard
-            snapshot.detailRow(label: "Overages")?.value
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased()
-                .hasPrefix("enabled") == true
+        guard snapshot.detailRow(label: "Credits left")?.value == "0",
+              snapshot.detailRow(label: "Overages")?.value
+                  .trimmingCharacters(in: .whitespacesAndNewlines)
+                  .lowercased()
+                  .hasPrefix("enabled") == true
         else {
             return fallback
         }

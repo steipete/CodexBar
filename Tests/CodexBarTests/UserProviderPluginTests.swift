@@ -876,6 +876,48 @@ struct UserProviderPluginTests {
 
 extension UserProviderPluginTests {
     @MainActor
+    @Test
+    func `plugin layout renders reset tokens and observes reset only refreshes`() throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        _ = try fixture.write(name: "layout.js", source: Self.menuPlugin(id: "layout-meter", name: "Layout Meter"))
+        let plugin = try #require(UserProviderPluginRegistry.refresh(
+            loader: fixture.loader(transport: RecordingTransport(responseJSON: "{}"))).first?.plugin)
+        let (controller, store, settings) = Self.makePluginMenuController(
+            suiteName: "UserProviderPluginTests.layout",
+            selectedPluginID: plugin.manifest.id,
+            enabledPluginIDs: [plugin.manifest.id],
+            approvalStore: fixture.approvals)
+        defer { controller.releaseStatusItemsForTesting() }
+        settings.menuBarShowsBrandIconWithPercent = true
+        settings.usageBarsShowUsed = true
+        settings.setMenuBarLayout(MenuBarLayout(lines: [[
+            .providerName, .space, .percent(window: .session), .separatorDot, .windowResetCountdown(window: .session),
+        ]]), for: nil)
+        let now = Date()
+        func snapshot(reset: Date) -> UsageSnapshot {
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 37, windowMinutes: 300, resetsAt: reset, resetDescription: nil),
+                secondary: nil,
+                updatedAt: now)
+        }
+        store.snapshots[plugin.manifest.id] = snapshot(reset: now.addingTimeInterval(3650))
+        controller.updateIcons()
+        let button = try #require(controller.statusItem.button)
+        #expect(button.accessibilityTitle()?.contains("Layout Meter") == true)
+        #expect(button.accessibilityTitle()?.contains("37%") == true)
+        #expect(button.accessibilityTitle()?.contains("1h") == true)
+        #expect(controller._test_isMenuBarCountdownRefreshScheduled())
+        let before = controller.storeIconObservationSignature()
+        store.snapshots[plugin.manifest.id] = snapshot(reset: now.addingTimeInterval(7250))
+        #expect(controller.storeIconObservationSignature() != before)
+        controller.updateIcons()
+        #expect(button.accessibilityTitle()?.contains("2h") == true)
+    }
+}
+
+extension UserProviderPluginTests {
+    @MainActor
     @Test(arguments: [nil, true, false] as [Bool?])
     func `plugin placement respects default explicit override and unmerged menus`(topLevel: Bool?) throws {
         let fixture = try Fixture()
@@ -1318,8 +1360,8 @@ private struct Fixture {
     }
 }
 
+@MainActor
 extension UserProviderPluginTests {
-    @MainActor
     @Test
     func `top level plugin becomes a stable provider switcher segment`() throws {
         let fixture = try Fixture()

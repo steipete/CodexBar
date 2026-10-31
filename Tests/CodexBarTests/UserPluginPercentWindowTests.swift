@@ -6,6 +6,37 @@ import Testing
 
 struct UserPluginPercentWindowTests {
     @Test
+    func `automatic ignores synthetic placeholder windows`() {
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 100,
+                windowMinutes: 300,
+                resetsAt: nil,
+                resetDescription: nil,
+                isSyntheticPlaceholder: true),
+            secondary: RateWindow(usedPercent: 42, windowMinutes: 1440, resetsAt: nil, resetDescription: nil),
+            updatedAt: .distantPast)
+        #expect(StatusItemController.pluginSwitcherMetricPercent(snapshot: snapshot, showUsed: true) == 42)
+    }
+
+    @Test
+    @MainActor
+    func `unset plugin layouts inherit global while saved automatic remains exact`() throws {
+        let defaults = InMemoryUserDefaults()
+        let settings = testSettingsStore(suiteName: "plugin-layout-inheritance", userDefaults: defaults)
+        let plugin = try #require(ProviderInstanceID(rawValue: "layout-example"))
+        let global = MenuBarLayout(lines: [[.icon, .percent(window: .weekly), .separatorDot, .resetCountdown]])
+        settings.setMenuBarLayout(global, for: nil)
+        #expect(settings.menuBarLayout(forPlugin: plugin) == global)
+        let shippedChoice = MenuBarLayout(lines: [[.percent(window: .automatic)]])
+        settings.setMenuBarLayout(shippedChoice, forInstanceID: plugin)
+        let reloaded = testSettingsStore(suiteName: "plugin-layout-inheritance-reloaded", userDefaults: defaults)
+        #expect(reloaded.menuBarLayout(forPlugin: plugin) == shippedChoice)
+        reloaded.removeMenuBarLayoutOverride(forInstanceID: plugin)
+        #expect(reloaded.menuBarLayout(forPlugin: plugin) == global)
+    }
+
+    @Test
     func `monthly selection shows 77 percent after the weekly reset`() throws {
         let snapshot = Self.pooledSnapshot
         let percent = try #require(StatusItemController.pluginSwitcherMetricPercent(
@@ -58,7 +89,7 @@ struct UserPluginPercentWindowTests {
         let settings = testSettingsStore(suiteName: "plugin-window", userDefaults: defaults)
         let plugin = try #require(ProviderInstanceID(rawValue: "example-pool"))
         let other = try #require(ProviderInstanceID(rawValue: "other-pool"))
-        let global = MenuBarLayout(lines: [[.balance]])
+        let global = MenuBarLayout(lines: [[.icon, .percent(window: .automatic), .balance]])
         settings.setMenuBarLayout(global, for: nil)
         let view = ProviderMenuBarPercentWindowSettingsView(
             instanceID: plugin, settings: settings, snapshot: Self.pooledSnapshot)

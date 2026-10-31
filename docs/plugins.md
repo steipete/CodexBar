@@ -27,6 +27,16 @@ built-in provider behavior.
 
 ## Menu-bar percentage
 
+With merged icons and **Current selection**, plugins use the shared menu-bar layout renderer. A plugin without a
+saved override inherits the global layout, including token order, separators, window-specific percentages, reset
+countdowns and conditional branches. Existing plugin overrides are preserved exactly: a saved percentage-only
+layout from 0.82.0 remains percentage-only. Removing an override restores global inheritance.
+
+Window titles, named extra windows and reset descriptions come from the plugin's own snapshot. Reset-only changes
+redraw the layout, and countdowns update when their displayed text changes. Branding never changes the provider
+identity or borrows another provider's window or account data. Tokens for data the plugin does not supply remain
+unavailable; prepaid balances are not enabled by this layout integration.
+
 In **Settings → Plugins**, each installed plugin has a **Menu bar metric** picker. **Auto** keeps the existing default:
 the most-used reported seven-day window, otherwise the first available primary, secondary, tertiary, or extra window.
 Choose **Primary**, **Secondary**, **Tertiary**, or a named extra window to use that quota for both the Icon & percent

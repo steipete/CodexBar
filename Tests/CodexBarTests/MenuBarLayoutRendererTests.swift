@@ -2447,7 +2447,9 @@ struct MenuBarLayoutRendererTests {
         for token in [MenuBarLayoutToken.spendAmount, .spendBudget] {
             let rendered = self.renderToken(token, data: data)
             #expect(rendered.attributedTitle.string == "–")
-            #expect(rendered.accessibilityLabel == L("%@ unavailable", token.editorLabel(provider: data.provider)))
+            #expect(rendered.accessibilityLabel == L(
+                "%@ unavailable",
+                token.editorLabel(provider: data.provider.firstPartyProvider)))
         }
     }
 
@@ -2493,7 +2495,7 @@ struct MenuBarLayoutRendererTests {
         -> MenuBarLayoutRenderData
     {
         MenuBarLayoutRenderData(
-            provider: provider,
+            provider: provider.instanceID,
             iconKey: "codex",
             providerName: ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName,
             accountLabel: accountLabel,

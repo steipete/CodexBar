@@ -112,7 +112,7 @@ struct MenuBarAutomaticWindowLabelsTests {
                 resetDescription: nil))) : nil
         let provider: UsageProvider = monthly ? .opencodego : namedAllowance ? .cursor : .claude
         return MenuBarLayoutRenderData(
-            provider: provider,
+            provider: provider.instanceID,
             iconKey: "synthetic-auto-label",
             providerName: nil,
             accountLabel: nil,

@@ -58,7 +58,7 @@ struct MenuBarLayoutRenderMetrics: Hashable {
 }
 
 struct MenuBarLayoutRenderData: Hashable {
-    let provider: UsageProvider
+    let provider: ProviderInstanceID
     var quotaIsEstimated = false
     let iconKey: String
     let providerName: String?
@@ -101,8 +101,13 @@ struct MenuBarLayoutRenderData: Hashable {
     var spendBudget: String?
     var spendCurrencySymbol = "$"
 
+    var descriptor: ProviderDescriptor? {
+        self.provider.firstPartyProvider.map { ProviderDescriptorRegistry.descriptor(for: $0) }
+    }
+
     func extraTitle(_ id: String) -> String? {
-        ProviderDescriptorRegistry.descriptor(for: self.provider).menuBarMetrics.namedExtras[id].map { title in
+        guard let descriptor else { return self.extraRateWindows.first { $0.id == id }?.title }
+        return descriptor.menuBarMetrics.namedExtras[id].map { title in
             self.extraRateWindows.first { $0.id == id }?.title ?? L(title)
         }
     }
@@ -224,10 +229,11 @@ struct MenuBarLayoutRenderKey: Hashable {
 struct MenuBarLayoutResetText: Hashable {
     let value: String?
 
-    init(window: MenuBarLayoutRenderWindow?, provider: UsageProvider, now: Date, absolute: Bool) {
-        let metadata = ProviderDescriptorRegistry.descriptor(for: provider).metadata
+    init(window: MenuBarLayoutRenderWindow?, provider: ProviderInstanceID, now: Date, absolute: Bool) {
+        let metadata = provider.firstPartyProvider.map { ProviderDescriptorRegistry.descriptor(for: $0).metadata }
         // Balance-only providers keep their documented legacy reset-token balance aliases.
-        let fallback = metadata.usesDetailBackedWindow && !metadata.balanceOnly ? nil : window?.resetDescription
+        let fallback = metadata?.usesDetailBackedWindow == true && metadata?.balanceOnly != true ? nil : window?
+            .resetDescription
         self.value = window?.resetsAt.map { date in
             absolute
                 ? UsageFormatter.resetDescription(from: date, now: now)
@@ -344,7 +350,8 @@ final class MenuBarLayoutRenderer {
         let outcomes = Dictionary(
             options.conditionals.map { ($0.id, $0.evaluatesTrue(data: data, now: options.now)) },
             uniquingKeysWith: { first, _ in first })
-        let accentColor = options.colorByProvider ? ProviderAccentPalette.color(for: data.provider).hexString : nil
+        let accentColor = options.colorByProvider
+            ? data.provider.firstPartyProvider.map { ProviderAccentPalette.color(for: $0).hexString } : nil
         let key = MenuBarLayoutRenderKey(
             layout: layout,
             data: data,
@@ -454,7 +461,7 @@ final class MenuBarLayoutRenderer {
         let font = options.monospacedDigits
             ? NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: isStacked ? .medium : .regular)
             : NSFont.systemFont(ofSize: fontSize, weight: isStacked ? .medium : .regular)
-        let providerTintColor = Self.effectiveProviderTintColor(for: data.provider, options: options)
+        let providerTintColor = Self.effectiveProviderTintColor(for: data.provider.firstPartyProvider, options: options)
         let foregroundColor = providerTintColor ?? Self.neutralForegroundColor(options)
         let isTintActive = providerTintColor != nil
         let paragraphStyle = NSMutableParagraphStyle()
@@ -655,6 +662,16 @@ final class MenuBarLayoutRenderer {
         depth: Int = 0)
         -> MenuBarLayoutToken?
     {
+        if data.provider.firstPartyProvider == nil {
+            let missing: Bool = switch token {
+            case let .percent(window) where window == .session || window == .weekly:
+                self.window(window, data: data) == nil
+            case .lanePercent(lane: .tertiary): data.tertiary == nil
+            case let .extraPercent(id): data.extraWindow(id) == nil
+            default: false
+            }
+            if missing { return .percent(window: .automatic) }
+        }
         switch token {
         case .hidden: return nil
         case let .extraPercent(id): return data.extraTitle(id) == nil ? nil : token
@@ -718,11 +735,10 @@ final class MenuBarLayoutRenderer {
             let title = data.laneLabels.label(for: lane)
             return (self.laneShortLabel(lane, data: data) ?? String(title.prefix(1)).uppercased(), title)
         }
-        guard laneMatches.isEmpty else { return nil }
-        guard extraMatches.count == 1, let extra = extraMatches.first, let title = data.extraTitle(extra.id)
+        guard laneMatches.isEmpty, extraMatches.count == 1, let extra = extraMatches.first,
+              let title = data.extraTitle(extra.id)
         else { return nil }
-        let short = ProviderDescriptorRegistry.descriptor(for: data.provider).menuBarMetrics
-            .namedExtraShortLabels[extra.id] ?? title
+        let short = data.descriptor?.menuBarMetrics.namedExtraShortLabels[extra.id] ?? title
         return (short, title)
     }
 
@@ -779,7 +795,7 @@ final class MenuBarLayoutRenderer {
         case let .percent(window):
             return self.renderPercent(window, data: data, style: style, options: options)
         case let .pace(window):
-            let accessibilityPrefix = item.editorLabel(provider: data.provider)
+            let accessibilityPrefix = item.editorLabel(provider: data.provider.firstPartyProvider)
             let pace = Self.pace(window, data: data)
             let neutralColor = Self.neutralForegroundColor(options)
             var attributes = style.attributes
@@ -816,7 +832,9 @@ final class MenuBarLayoutRenderer {
                 absolute: item.resetIsAbsolute).value
             return self.optionalTextToken(
                 value,
-                unavailableLabel: qualified ? L("%@ unavailable", item.editorLabel(provider: data.provider))
+                unavailableLabel: qualified ? L(
+                    "%@ unavailable",
+                    item.editorLabel(provider: data.provider.firstPartyProvider))
                     : (item.resetIsAbsolute ? L("Reset time unavailable") : L("Reset countdown unavailable")),
                 accessibilityText: value.map { qualified ? L("%@: %@", label, $0) : "\(label) \($0)" },
                 attributes: style.attributes)
@@ -978,10 +996,12 @@ final class MenuBarLayoutRenderer {
             self.primaryLabel(data: data).flatMap(\.first).map { String($0).uppercased() }
                 ?? Self.sessionPrefix(self.window(window, data: data))
         case .weekly:
-            PercentWindow.weekly.providerLabel(provider: data.provider)
+            (data.provider.firstPartyProvider == nil ? data.laneLabels.secondary
+                : PercentWindow.weekly.providerLabel(provider: data.provider.firstPartyProvider))
                 .flatMap(\.first).map { String($0).uppercased() } ?? "W"
         case .scopedWeekly:
-            data.scopedWeeklyTitle.map { String($0.prefix(1)).uppercased() } ?? "F"
+            data.scopedWeeklyTitle.map { String($0.prefix(1)).uppercased() }
+                ?? (data.provider.firstPartyProvider == nil ? "" : "F")
         case .automatic:
             ""
         case .spend:
@@ -996,7 +1016,8 @@ final class MenuBarLayoutRenderer {
         }
         return switch window {
         case .session: self.primaryLabel(data: data) ?? L("Session")
-        case .weekly: PercentWindow.weekly.providerLabel(provider: data.provider) ?? L("Weekly")
+        case .weekly: data.provider.firstPartyProvider == nil ? data.laneLabels.secondary
+            : PercentWindow.weekly.providerLabel(provider: data.provider.firstPartyProvider) ?? L("Weekly")
         case .scopedWeekly: data.scopedWeeklyTitle ?? L("Scoped weekly")
         case .automatic: L("Usage")
         case .spend: L("Spend")
@@ -1037,7 +1058,7 @@ final class MenuBarLayoutRenderer {
         case .spendAmount, .spendBudget:
             self.optionalTextToken(
                 item == .spendBudget ? data.spendBudget : data.spendAmount,
-                unavailableLabel: L("%@ unavailable", item.editorLabel(provider: data.provider)),
+                unavailableLabel: L("%@ unavailable", item.editorLabel(provider: data.provider.firstPartyProvider)),
                 accessibilityPrefix: L("Spend"),
                 attributes: attributes)
         case .tokensPerMinute:
@@ -1092,8 +1113,7 @@ final class MenuBarLayoutRenderer {
         let accessibility = resolvedValue.isAvailable
             ? L("%@ %@", title, resolvedValue.text)
             : L("%@ unavailable", title)
-        let shortLabel = ProviderDescriptorRegistry.descriptor(for: data.provider)
-            .menuBarMetrics.namedExtraShortLabels[id]
+        let shortLabel = data.descriptor?.menuBarMetrics.namedExtraShortLabels[id]
         return self.textToken(
             L("%@ %@", shortLabel ?? title, resolvedValue.text),
             accessibilityText: accessibility,
@@ -1186,10 +1206,10 @@ final class MenuBarLayoutRenderer {
 
     /// Provider color is decoration; native monochrome owns stale, selected and accessible states.
     static func effectiveProviderTintColor(
-        for provider: UsageProvider,
+        for provider: UsageProvider?,
         options: MenuBarLayoutRenderOptions) -> NSColor?
     {
-        guard options.colorByProvider, !options.isHighlighted, !options.isStale, !options.highContrast,
+        guard let provider, options.colorByProvider, !options.isHighlighted, !options.isStale, !options.highContrast,
               !options.appearanceName.localizedCaseInsensitiveContains("accessibility")
         else { return nil }
         let accent = ProviderAccentPalette.color(for: provider)
@@ -1242,7 +1262,7 @@ final class MenuBarLayoutRenderer {
         (NSAttributedString(string: value, attributes: attributes), accessibilityText)
     }
 
-    private static func window(
+    static func window(
         _ percentWindow: PercentWindow,
         data: MenuBarLayoutRenderData)
         -> MenuBarLayoutRenderWindow?
@@ -1296,12 +1316,13 @@ final class MenuBarLayoutRenderer {
     }
 
     private static func primaryLabel(data: MenuBarLayoutRenderData) -> String? {
-        let descriptor = ProviderDescriptorRegistry.descriptor(for: data.provider)
+        guard let provider = data.provider.firstPartyProvider, let descriptor = data.descriptor
+        else { return data.laneLabels.primary }
         if let label = descriptor.presentation.menuBarLayoutPrimaryLabel { return L(label) }
         let lane: MenuBarLayoutLane = descriptor.presentation.primarySemanticWindow == .session ? .primary : .secondary
         let label = data.laneLabels.label(for: lane)
         let renamedTaggedLane = !descriptor.menuBarMetrics.laneShortLabels.isEmpty
-            && label != MenuBarLayoutLaneLabels(provider: data.provider, snapshot: nil).label(for: lane)
+            && label != MenuBarLayoutLaneLabels(provider: provider, snapshot: nil).label(for: lane)
         guard (descriptor.metadata.usesDetailBackedWindow && data.session?.windowMinutes == nil) || renamedTaggedLane
         else { return nil }
         return label
@@ -1359,9 +1380,10 @@ extension MenuBarLayoutRenderer {
     /// Provider-declared menu bar tag for a lane; nil keeps the lane's percentage bare. A snapshot-dependent
     /// lane label (Cursor's X Subscription "Weekly" pool) means the static tag no longer names that lane.
     private static func laneShortLabel(_ lane: MenuBarLayoutLane, data: MenuBarLayoutRenderData) -> String? {
-        let labels = ProviderDescriptorRegistry.descriptor(for: data.provider).menuBarMetrics.laneShortLabels
+        guard let provider = data.provider.firstPartyProvider, let descriptor = data.descriptor else { return nil }
+        let labels = descriptor.menuBarMetrics.laneShortLabels
         guard !labels.isEmpty else { return nil }
-        let staticLabels = MenuBarLayoutLaneLabels(provider: data.provider, snapshot: nil)
+        let staticLabels = MenuBarLayoutLaneLabels(provider: provider, snapshot: nil)
         guard data.laneLabels.label(for: lane) == staticLabels.label(for: lane) else { return nil }
         return switch lane {
         case .primary: labels[.primary]
@@ -1376,7 +1398,7 @@ extension MenuBarLayoutRenderer {
         _ window: PercentWindow,
         data: MenuBarLayoutRenderData) -> MenuBarLayoutLane?
     {
-        let presentation = ProviderDescriptorRegistry.descriptor(for: data.provider).presentation
+        guard let presentation = data.descriptor?.presentation else { return nil }
         let primaryWindow = PercentWindow.forSemanticWindow(presentation.primarySemanticWindow)
         let lane: MenuBarLayoutLane? = if window == primaryWindow {
             .primary

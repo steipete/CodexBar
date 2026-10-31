@@ -472,7 +472,7 @@ struct MenuBarLayoutProviderBalanceTests {
             supportsAverage: false,
             now: self.now))
         return MenuBarLayoutRenderData(
-            provider: provider,
+            provider: provider.instanceID,
             iconKey: provider.rawValue,
             providerName: provider.rawValue,
             accountLabel: nil,

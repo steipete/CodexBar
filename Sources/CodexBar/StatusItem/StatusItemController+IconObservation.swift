@@ -52,8 +52,9 @@ extension StatusItemController {
             let percent = Self.pluginSwitcherMetricPercent(
                 snapshot: self.store.menuBarSnapshot(for: instanceID), showUsed: self.settings.usageBarsShowUsed)
             let source = UserProviderPluginRegistry.plugin(for: instanceID)?.sourceHash ?? ""
+            let layout = showBrandPercent ? self.menuBarLayoutRenderData(for: instanceID, now: Date()).hashValue : 0
             return "\(instanceID.rawValue)|percent=\(Self.iconSignatureValue(percent))" +
-                "|error=\(self.store.errors[instanceID] != nil)|source=\(source)"
+                "|error=\(self.store.errors[instanceID] != nil)|source=\(source)|layout=\(layout)"
         }
         let snapshot = self.menuBarUsageSource(for: provider).snapshot
         let style = self.store.style(for: provider)
