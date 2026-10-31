@@ -39,14 +39,11 @@ extension CodexBarCLI {
         #if os(macOS)
         let domain = values.options["defaultsDomain"]?.last ?? PreferencesDocument.defaultsDomain
         do {
-            let defaults: UserDefaults = try {
-                guard let suite = UserDefaults(suiteName: domain) else {
-                    throw PreferencesDocument.Error.invalid("Cannot open preferences domain")
-                }
-                // Pick up values the running app may have written moments ago.
-                suite.synchronize()
-                return suite
-            }()
+            guard let defaults = UserDefaults(suiteName: domain) else {
+                throw PreferencesDocument.Error.invalid("Cannot open preferences domain")
+            }
+            // Pick up values the running app may have written moments ago.
+            defaults.synchronize()
             let state = try Self.configHostsState(in: defaults)
             var next = state
             var changed = false
@@ -55,12 +52,13 @@ extension CodexBarCLI {
                 guard let argument = values.positional.first, !argument.isEmpty else {
                     throw PreferencesDocument.Error.invalid("\(action) requires one <host> argument")
                 }
-                host = argument
                 let mutation = action == .add
                     ? try Self.addedConfigHost(argument, to: state, cost: values.flags.contains("cost"))
                     : try Self.removedConfigHost(argument, from: state, costOnly: values.flags.contains("cost"))
                 next = mutation.state
                 changed = mutation.changed
+                // Report and check the host as it is stored, never the raw argument.
+                host = mutation.host
                 if changed {
                     try Self.queueConfigHosts(next, in: defaults)
                     if domain == PreferencesDocument.defaultsDomain {
@@ -97,9 +95,7 @@ extension CodexBarCLI {
                 var result = ConfigHostsMutationResult(
                     host: host,
                     changed: changed,
-                    costUsage: next.costUsageHosts.contains {
-                        $0.caseInsensitiveCompare(host) == .orderedSame
-                    },
+                    costUsage: next.costUsageHosts.contains { Self.configHostKey($0) == Self.configHostKey(host) },
                     check: nil)
                 if values.flags.contains("check") {
                     let checks = try await Self.runHostsCheck([host])
@@ -134,28 +130,37 @@ extension CodexBarCLI {
 
     /// One Ctrl-C must cancel the check and reap SSH children, like the cost report.
     private static func runHostsCheck(_ hosts: [String]) async throws -> [ConfigHostsCheckResult] {
-        let cancellation = CodexHostCostCancellation()
-        let monitor = CLITerminationSignalMonitor { cancellation.request(signal: $0) }
-        let operation = Task { try await Self.checkConfigHosts(hosts) }
-        cancellation.bind { operation.cancel() }
-        let result = await operation.result
-        monitor.cancel()
-        if let signal = cancellation.signal {
-            CLITerminationSignalMonitor.terminateActiveHelpersAndReraise(signal)
-        }
-        return try result.get()
+        try await CLICodexHostsTerminationCleanup.run { try await Self.checkConfigHosts(hosts) }
     }
 
     // MARK: Pure host-list logic
 
-    /// Hosts as the app resolves them: persisted values merged with any queued CLI import.
+    /// Hosts as the app resolves them: persisted values overridden by any queued CLI import,
+    /// with the app's load-time spend filter applied.
     static func configHostsState(in defaults: UserDefaults) throws -> ConfigHostsState {
-        let document = try PreferencesDocument(defaults: defaults)
-        let manual: String = try document.value("agentSessionsManualHosts") ?? ""
-        let cost: [String] = try document.value("costUsageHosts") ?? []
+        var manualRaw = defaults.string(forKey: "agentSessionsManualHosts") ?? ""
+        var costRaw = defaults.stringArray(forKey: "costUsageHosts") ?? []
+        if let pending = try defaults.data(forKey: PreferencesDocument.pendingImportKey)
+            .map({ try PreferencesDocument(data: $0) })
+        {
+            // Hosts are deliberately outside the portable export allowlist; a queued import
+            // still carries them, and it is newer than the persisted values.
+            if let value: String = try pending.value("agentSessionsManualHosts") { manualRaw = value }
+            if let value: [String] = try pending.value("costUsageHosts") { costRaw = value }
+        }
+        let manualHosts = RemoteSessionFetcher.sanitizedHosts(manualRaw.components(separatedBy: ","))
         return ConfigHostsState(
-            manualHosts: RemoteSessionFetcher.sanitizedHosts(manual.components(separatedBy: ",")),
-            costUsageHosts: RemoteSessionFetcher.sanitizedHosts(cost))
+            manualHosts: manualHosts,
+            // Mirror of the app's load: spend hosts are valid manual hosts the user selected.
+            costUsageHosts: RemoteCodexCostFetcher.costUsageCandidates(in: manualHosts)
+                .filter { candidate in costRaw.contains { Self.configHostKey($0) == Self.configHostKey(candidate) } })
+    }
+
+    /// The identity `RemoteSessionFetcher.sanitizedHosts` deduplicates on: case-insensitive
+    /// host part, case-sensitive SSH username.
+    static func configHostKey(_ host: String) -> String {
+        guard let separator = host.lastIndex(of: "@") else { return host.lowercased() }
+        return String(host[...separator]) + host[host.index(after: separator)...].lowercased()
     }
 
     static func configHostsEntries(_ state: ConfigHostsState) -> [ConfigHostsEntry] {
@@ -163,9 +168,7 @@ extension CodexBarCLI {
             ConfigHostsEntry(
                 host: host,
                 valid: (try? RemoteCodexCostFetcher.validateHost(host)) != nil,
-                costUsage: state.costUsageHosts.contains {
-                    $0.caseInsensitiveCompare(host) == .orderedSame
-                },
+                costUsage: state.costUsageHosts.contains { Self.configHostKey($0) == Self.configHostKey(host) },
                 check: nil)
         }
     }
@@ -174,7 +177,7 @@ extension CodexBarCLI {
         _ rawHost: String,
         to state: ConfigHostsState,
         cost: Bool)
-        throws -> (state: ConfigHostsState, changed: Bool)
+        throws -> (state: ConfigHostsState, changed: Bool, host: String)
     {
         guard let host = RemoteSessionFetcher.sanitizedHosts([rawHost]).first else {
             throw PreferencesDocument.Error.invalid(RemoteCodexCostError.invalidHost.localizedDescription)
@@ -182,28 +185,34 @@ extension CodexBarCLI {
         try RemoteCodexCostFetcher.validateHost(host)
         var next = state
         var changed = false
-        if !next.manualHosts.contains(where: { $0.caseInsensitiveCompare(host) == .orderedSame }) {
+        // Keep the stored spelling; `devbox` and a stored `DevBox` are one host.
+        let canonical: String
+        if let existing = next.manualHosts.first(where: { Self.configHostKey($0) == Self.configHostKey(host) }) {
+            canonical = existing
+        } else {
+            canonical = host
             next.manualHosts.append(host)
             changed = true
         }
         if cost {
             // The spend list stays a subset of valid manual hosts, as the app's setter enforces.
-            let candidates = Set(RemoteCodexCostFetcher.costUsageCandidates(in: next.manualHosts))
-            var spend = next.costUsageHosts.filter { candidates.contains($0) }
-            if !spend.contains(where: { $0.caseInsensitiveCompare(host) == .orderedSame }) {
-                spend.append(host)
+            let candidates = Set(RemoteCodexCostFetcher.costUsageCandidates(in: next.manualHosts)
+                .map(Self.configHostKey))
+            var spend = next.costUsageHosts.filter { candidates.contains(Self.configHostKey($0)) }
+            if !spend.contains(where: { Self.configHostKey($0) == Self.configHostKey(canonical) }) {
+                spend.append(canonical)
                 changed = true
             }
             next.costUsageHosts = spend
         }
-        return (next, changed)
+        return (next, changed, canonical)
     }
 
     static func removedConfigHost(
         _ rawHost: String,
         from state: ConfigHostsState,
         costOnly: Bool)
-        throws -> (state: ConfigHostsState, changed: Bool)
+        throws -> (state: ConfigHostsState, changed: Bool, host: String)
     {
         guard let host = RemoteSessionFetcher.sanitizedHosts([rawHost]).first else {
             throw PreferencesDocument.Error.invalid(RemoteCodexCostError.invalidHost.localizedDescription)
@@ -211,19 +220,21 @@ extension CodexBarCLI {
         var next = state
         var changed = false
         let spend = next.costUsageHosts
+        let canonical = next.manualHosts.first { Self.configHostKey($0) == Self.configHostKey(host) } ?? host
         if costOnly {
-            next.costUsageHosts = spend.filter { $0.caseInsensitiveCompare(host) != .orderedSame }
+            next.costUsageHosts = spend.filter { Self.configHostKey($0) != Self.configHostKey(host) }
             changed = spend != next.costUsageHosts
         } else {
             // Removal may address hosts Settings typed without strict validation.
             let manual = next.manualHosts
-            next.manualHosts = manual.filter { $0.caseInsensitiveCompare(host) != .orderedSame }
+            next.manualHosts = manual.filter { Self.configHostKey($0) != Self.configHostKey(host) }
             changed = manual != next.manualHosts
-            let candidates = Set(RemoteCodexCostFetcher.costUsageCandidates(in: next.manualHosts))
-            next.costUsageHosts = spend.filter { candidates.contains($0) }
+            let candidates = Set(RemoteCodexCostFetcher.costUsageCandidates(in: next.manualHosts)
+                .map(Self.configHostKey))
+            next.costUsageHosts = spend.filter { candidates.contains(Self.configHostKey($0)) }
             changed = changed || spend != next.costUsageHosts
         }
-        return (next, changed)
+        return (next, changed, canonical)
     }
 
     static func queueConfigHosts(_ state: ConfigHostsState, in defaults: UserDefaults) throws {
@@ -236,10 +247,10 @@ extension CodexBarCLI {
     // MARK: Host check
 
     static let hostCheckFailureMessage =
-        "Could not check the host over SSH. Verify noninteractive SSH access and a trusted host key, " +
-        "and that the host's CodexBar CLI supports schema-2 --identified-only."
+        "Could not check the host over SSH. Verify noninteractive SSH access and a trusted host key."
 
-    /// Reuses the one-shot identified-usage SSH fetch over today's UTC window so far.
+    /// Reuses the one-shot identified-usage SSH fetch over today's UTC window so far. The fetch
+    /// itself validates the host and reports an outdated remote CLI, so the error keeps its cause.
     static func checkConfigHosts(
         _ hosts: [String],
         now: @Sendable () -> Date = { Date() },
@@ -258,26 +269,30 @@ extension CodexBarCLI {
             for (index, host) in hosts.enumerated() {
                 group.addTask {
                     do {
-                        // Invalid hosts fail here without ever reaching SSH.
-                        try RemoteCodexCostFetcher.validateHost(host)
                         try await resolvedFetch(host)
                         return (index, ConfigHostsCheckResult(ok: true, error: nil))
                     } catch is CancellationError {
                         throw CancellationError()
                     } catch {
                         try Task.checkCancellation()
-                        let message = (error as? RemoteCodexCostError) == .invalidHost
-                            ? RemoteCodexCostError.invalidHost.localizedDescription
-                            : Self.hostCheckFailureMessage
-                        return (index, ConfigHostsCheckResult(ok: false, error: message))
+                        return (index, ConfigHostsCheckResult(ok: false, error: Self.hostCheckError(error)))
                     }
                 }
             }
-            var results = [ConfigHostsCheckResult?](repeating: nil, count: hosts.count)
-            for try await (index, result) in group {
-                results[index] = result
+            var indexed: [(Int, ConfigHostsCheckResult)] = []
+            for try await result in group {
+                indexed.append(result)
             }
-            return results.map { $0 ?? ConfigHostsCheckResult(ok: false, error: Self.hostCheckFailureMessage) }
+            return indexed.sorted { $0.0 < $1.0 }.map(\.1)
+        }
+    }
+
+    /// Keep the named cause: an invalid host and an outdated remote CLI stay distinguishable.
+    static func hostCheckError(_ error: Error) -> String {
+        if let remoteError = error as? RemoteCodexCostError {
+            remoteError.localizedDescription
+        } else {
+            Self.hostCheckFailureMessage
         }
     }
 
@@ -312,6 +327,25 @@ extension CodexBarCLI {
             line += check.ok ? " Check: ok" : " Check: failed — \(check.error ?? "")"
         }
         return line
+    }
+}
+
+/// Shared Ctrl-C cleanup for one-shot SSH collections; the cost report and the host check
+/// use the same monitor/bind/cancel/reraise lifecycle.
+enum CLICodexHostsTerminationCleanup {
+    static func run<Value: Sendable>(
+        _ operation: @escaping @Sendable () async throws -> Value) async throws -> Value
+    {
+        let cancellation = CodexHostCostCancellation()
+        let monitor = CLITerminationSignalMonitor { cancellation.request(signal: $0) }
+        let task = Task { try await operation() }
+        cancellation.bind { task.cancel() }
+        let result = await task.result
+        monitor.cancel()
+        if let signal = cancellation.signal {
+            CLITerminationSignalMonitor.terminateActiveHelpersAndReraise(signal)
+        }
+        return try result.get()
     }
 }
 
@@ -354,20 +388,9 @@ struct ConfigHostsCheckResult: Codable, Equatable, Sendable {
     let ok: Bool
     let error: String?
 
-    init(ok: Bool, error: String?) {
-        self.ok = ok
-        self.error = error
-    }
-
     enum CodingKeys: String, CodingKey {
         case ok
         case error
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.ok = try container.decode(Bool.self, forKey: .ok)
-        self.error = try container.decodeIfPresent(String.self, forKey: .error)
     }
 
     func encode(to encoder: Encoder) throws {

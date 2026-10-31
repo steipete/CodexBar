@@ -1,6 +1,5 @@
 import CodexBarCore
 import Commander
-import Foundation
 #if os(Linux)
 import CoreFoundation
 #endif
@@ -11,6 +10,7 @@ import Glibc
 #elseif canImport(Musl)
 import Musl
 #endif
+import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
@@ -393,9 +393,10 @@ enum CodexBarCLI {
         guard let identifier = self.linuxTimeZoneBootstrapIdentifier(
             currentValue: currentValue,
             localTimeReadable: localTimeReadable,
-            resolvedLocalTimePath: resolvedLocalTimePath), self.primeCoreFoundationTimeZone(
-            identifier: identifier,
-            filePath: "/etc/localtime") else { return }
+            resolvedLocalTimePath: resolvedLocalTimePath)
+        else { return }
+
+        guard self.primeCoreFoundationTimeZone(identifier: identifier, filePath: "/etc/localtime") else { return }
 
         // FoundationEssentials reads the IANA identifier while legacy formatters use the
         // CoreFoundation cache primed above when /usr/share/zoneinfo is unavailable.
@@ -405,13 +406,14 @@ enum CodexBarCLI {
 
     static func primeCoreFoundationTimeZone(identifier: String, filePath: String) -> Bool {
         #if os(Linux)
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: filePath)), !data.isEmpty,
-              let name = identifier.withCString({
-                  CFStringCreateWithCString(nil, $0, CFStringBuiltInEncodings.UTF8.rawValue)
-              }), let timeZoneData = data.withUnsafeBytes({ rawBuffer -> CFData? in
-                  let bytes = rawBuffer.bindMemory(to: UInt8.self)
-                  return CFDataCreate(nil, bytes.baseAddress, bytes.count)
-              }) else { return false }
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: filePath)), !data.isEmpty else { return false }
+        guard let name = identifier.withCString({
+            CFStringCreateWithCString(nil, $0, CFStringBuiltInEncodings.UTF8.rawValue)
+        }) else { return false }
+        guard let timeZoneData = data.withUnsafeBytes({ rawBuffer -> CFData? in
+            let bytes = rawBuffer.bindMemory(to: UInt8.self)
+            return CFDataCreate(nil, bytes.baseAddress, bytes.count)
+        }) else { return false }
         return CFTimeZoneCreate(nil, name, timeZoneData) != nil
         #else
         return false

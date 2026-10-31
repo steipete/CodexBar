@@ -52,7 +52,7 @@ public struct PreferencesDocument: Codable, Sendable {
     private static var keys: Set<String> {
         self.boolKeys.union(self.stringChoices.keys).union(self.thresholdKeys).union([
             "weeklyProgressWorkDays", "preferredCurrencyCode", "mergedOverviewSelectedProviders",
-            "switcherShortcuts", "agentSessionsManualHosts", "costUsageHosts",
+            "switcherShortcuts",
         ])
     }
 

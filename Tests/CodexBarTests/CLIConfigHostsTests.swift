@@ -110,6 +110,8 @@ struct CLIConfigHostsTests {
         let rerun = try CodexBarCLI.addedConfigHost(" devbox ", to: state, cost: false)
         #expect(rerun.state == state)
         #expect(!rerun.changed)
+        // Reporting and checks use the stored spelling, never the raw argument.
+        #expect(rerun.host == "DevBox")
 
         let withCost = try CodexBarCLI.addedConfigHost("devbox", to: state, cost: true)
         #expect(withCost.state == state)
@@ -119,6 +121,41 @@ struct CLIConfigHostsTests {
         #expect(added.state.manualHosts == ["DevBox", "mini"])
         #expect(added.state.costUsageHosts == ["DevBox", "mini"])
         #expect(added.changed)
+        #expect(added.host == "mini")
+    }
+
+    @Test
+    func `case variant cost membership uses the stored spelling`() throws {
+        let state = ConfigHostsState(manualHosts: ["DevBox"], costUsageHosts: [])
+        let result = try CodexBarCLI.addedConfigHost("devbox", to: state, cost: true)
+
+        #expect(result.state.costUsageHosts == ["DevBox"])
+        #expect(result.changed)
+        #expect(result.host == "DevBox")
+    }
+
+    @Test
+    func `distinct ssh usernames stay distinct`() throws {
+        let state = ConfigHostsState(manualHosts: ["Alice@devbox", "alice@devbox"], costUsageHosts: [])
+        let result = try CodexBarCLI.removedConfigHost("alice@devbox", from: state, costOnly: false)
+
+        #expect(result.state.manualHosts == ["Alice@devbox"])
+        #expect(result.changed)
+
+        let added = try CodexBarCLI.addedConfigHost("alice@DevBox", to: result.state, cost: false)
+        #expect(added.state.manualHosts == ["Alice@devbox", "alice@DevBox"])
+    }
+
+    @Test
+    func `host state ignores unrelated invalid stored preferences`() throws {
+        let defaults = InMemoryUserDefaults()
+        defaults.set("tomorrow", forKey: "refreshFrequency")
+        defaults.set("devbox, mini", forKey: "agentSessionsManualHosts")
+        defaults.set(["mini"], forKey: "costUsageHosts")
+
+        let state = try CodexBarCLI.configHostsState(in: defaults)
+        #expect(state.manualHosts == ["devbox", "mini"])
+        #expect(state.costUsageHosts == ["mini"])
     }
 
     @Test
@@ -273,11 +310,13 @@ struct CLIConfigHostsTests {
     // MARK: Check
 
     @Test
-    func `check reports per host results without SSH for invalid hosts`() async throws {
+    func `check keeps the named failure cause per host`() async throws {
         let results = try await CodexBarCLI.checkConfigHosts(
             ["devbox", "weird;host", "brokenbox"],
             fetch: { host in
-                if host == "brokenbox" { throw RemoteCodexCostError.unavailable }
+                // The real fetch validates hosts before SSH and fails closed on old CLIs.
+                do { try RemoteCodexCostFetcher.validateHost(host) } catch { throw error }
+                if host == "brokenbox" { throw RemoteCodexCostError.invalidReport }
             })
 
         #expect(results.count == 3)
@@ -285,7 +324,8 @@ struct CLIConfigHostsTests {
         #expect(results[1].ok == false)
         #expect(results[1].error == "Enter one SSH host alias or user@host.")
         #expect(results[2].ok == false)
-        #expect(results[2].error?.contains("--identified-only") == true)
+        #expect(results[2].error == RemoteCodexCostError.invalidReport.localizedDescription)
+        #expect(CodexBarCLI.hostCheckError(CancellationError()) == CodexBarCLI.hostCheckFailureMessage)
     }
 
     @Test
@@ -322,14 +362,48 @@ struct ConfigHostsPreferencesImportTests {
     }
 
     @Test
-    func `CLI preferences export carries host keys from defaults`() throws {
+    func `portable export excludes machine-local host keys`() throws {
         let defaults = InMemoryUserDefaults()
         defaults.set("devbox, mini", forKey: "agentSessionsManualHosts")
         defaults.set(["devbox"], forKey: "costUsageHosts")
 
         let document = try PreferencesDocument(defaults: defaults)
-        #expect(try document.value("agentSessionsManualHosts", as: String.self) == "devbox, mini")
-        #expect(try document.value("costUsageHosts", as: [String].self) == ["devbox"])
+        #expect(try document.value("agentSessionsManualHosts", as: String.self) == nil)
+        #expect(try document.value("costUsageHosts", as: [String].self) == nil)
+    }
+
+    @Test
+    func `session only add cannot resurrect a removed spend selection`() throws {
+        let defaults = InMemoryUserDefaults()
+        defaults.set("devbox", forKey: "agentSessionsManualHosts")
+        defaults.set(["devbox"], forKey: "costUsageHosts")
+
+        let removed = try CodexBarCLI.removedConfigHost(
+            "devbox", from: CodexBarCLI.configHostsState(in: defaults), costOnly: false)
+        try CodexBarCLI.queueConfigHosts(removed.state, in: defaults)
+        let added = try CodexBarCLI.addedConfigHost(
+            "devbox", to: CodexBarCLI.configHostsState(in: defaults), cost: false)
+        try CodexBarCLI.queueConfigHosts(added.state, in: defaults)
+
+        let settings = self.store("resurrect", defaults: defaults)
+        settings.consumePendingPreferencesImport()
+        #expect(settings.agentSessionsManualHosts == "devbox")
+        #expect(settings.costUsageHosts.isEmpty)
+    }
+
+    @Test
+    func `case variant cost membership survives app pickup`() throws {
+        let defaults = InMemoryUserDefaults()
+        defaults.set("DevBox", forKey: "agentSessionsManualHosts")
+
+        let added = try CodexBarCLI.addedConfigHost(
+            "devbox", to: CodexBarCLI.configHostsState(in: defaults), cost: true)
+        try CodexBarCLI.queueConfigHosts(added.state, in: defaults)
+
+        let settings = self.store("case-variant", defaults: defaults)
+        settings.consumePendingPreferencesImport()
+        #expect(settings.agentSessionsManualHosts == "DevBox")
+        #expect(settings.costUsageHosts == ["DevBox"])
     }
 
     @Test

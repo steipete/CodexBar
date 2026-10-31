@@ -290,7 +290,9 @@ a second identifier is an error. For an option value beginning with a dash, use 
     or an outdated remote CLI (`--identified-only`, schema 2).
   - Writes queue like `config preferences import`: a running app applies them immediately;
     a closed app reads them at next launch. `--defaults-domain` selects an alternate domain
-    for testing. `config preferences export` includes the two host keys.
+    for testing. The host keys are queue-only: `config preferences export` omits them, since
+    host lists belong to one machine. Applying a queued host change needs CodexBar 0.83.0+;
+    an older app rejects the queued document until it is updated.
   - Set up hosts from an agent:
     `codexbar config hosts add devbox --cost --check --format json`, then
     `codexbar config hosts list --check --format json --pretty` to confirm every machine.
