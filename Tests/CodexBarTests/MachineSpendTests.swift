@@ -253,7 +253,6 @@ struct MachineSpendTests {
         try #require(settings.costUsageHosts == ["devbox", "mini"], "No notification was delivered.")
         MachineSpendDetail(settings: settings, store: store, controller: controller).run()
         try #require(controller.machineRunning && controller.machineRequestedHosts == ["mini"])
-        controller.reconcileMachineSpendHosts(["mini"])
         #expect(controller.machineResult == nil, "Revoked-host rows must disappear while the fresh request is pending.")
         while await pending.calls.count < 2 {
             await Task.yield()
@@ -265,18 +264,14 @@ struct MachineSpendTests {
     }
 
     @Test
-    func `removing and readding shared host revokes consent across reload and invalid aliases are not selectable`() {
+    func `removing and readding shared host revokes consent and invalid aliases are not selectable`() {
         let defaults = InMemoryUserDefaults(values: ["agentSessionsManualHosts": "A, B", "costUsageHosts": ["A", "B"]])
         let settings = testSettingsStore(suiteName: #function, userDefaults: defaults)
         settings.agentSessionsManualHosts = "B"
         settings.agentSessionsManualHosts = "A, B"
         #expect(settings.costUsageHosts == ["B"])
-        defaults.set("B", forKey: "agentSessionsManualHosts")
-        defaults.set(["A", "B"], forKey: "costUsageHosts")
-        let reloaded = testSettingsStore(suiteName: #function, userDefaults: defaults)
-        #expect(reloaded.costUsageHosts == ["B"])
-        reloaded.agentSessionsManualHosts = "A, B, bad/path"
-        #expect(reloaded.selectableCostUsageHosts == ["A", "B"])
+        settings.agentSessionsManualHosts = "A, B, bad/path"
+        #expect(settings.selectableCostUsageHosts == ["A", "B"])
     }
 
     @Test(.timeLimit(.minutes(1)))

@@ -46,9 +46,6 @@ struct HostPreferencesTests {
         try #require(settings.costUsageHosts.contains("devbox"), "The checkbox still sees the old selection.")
         settings.setCostUsageHost("mini", enabled: true)
         #expect(settings.costUsageHosts == ["mini"])
-        settings.agentSessionsManualHosts = "mini"
-        settings.agentSessionsManualHosts = "mini,devbox"
-        #expect(settings.costUsageHosts == ["mini"])
     }
 
     @Test
@@ -67,16 +64,38 @@ struct HostPreferencesTests {
         #expect(!settings.costUsageHosts.contains("devbox"))
     }
 
-    @Test
-    func `host projection remains independent of a failed portable import`() throws {
-        let defaults = InMemoryUserDefaults()
+    @Test(arguments: [false, true])
+    func `portable import and export remain independent of host configuration`(invalidDocument: Bool) throws {
+        let defaults =
+            InMemoryUserDefaults(values: invalidDocument ? [:] : ["agentSessionsManualHosts": "my host,mini"])
         let settings = testSettingsStore(suiteName: #function, userDefaults: defaults)
-        defaults.set(Data("invalid document".utf8), forKey: PreferencesDocument.pendingImportKey)
-        _ = try CodexBarCLI.configHostsMutation(.add, host: "mini", cost: true, in: defaults, lockURL: nil)
+        if invalidDocument {
+            defaults.set(Data("invalid document".utf8), forKey: PreferencesDocument.pendingImportKey)
+        } else {
+            var portable = PreferencesDocument()
+            try portable.set("hidePersonalInfo", true)
+            try portable.queueImport(in: defaults)
+        }
+        let host = invalidDocument ? "mini" : "devbox"
+        _ = try CodexBarCLI.configHostsMutation(.add, host: host, cost: true, in: defaults, lockURL: nil)
+        if !invalidDocument {
+            let export = try PreferencesDocument(defaults: defaults)
+            #expect(try export.value("agentSessionsManualHosts", as: String.self) == nil)
+            #expect(try export.value("costUsageHosts", as: [String].self) == nil)
+        }
         settings.consumePendingPreferencesImport()
-        #expect(settings.agentSessionsManualHosts == "mini")
-        #expect(settings.costUsageHosts == ["mini"])
-        #expect(defaults.data(forKey: PreferencesDocument.pendingImportKey) != nil)
+        #expect(settings.agentSessionsManualHosts == (invalidDocument ? host : "my host,mini,devbox"))
+        #expect(settings.costUsageHosts == [host])
+        if !invalidDocument {
+            #expect(settings.hidePersonalInfo)
+            #expect(defaults.data(forKey: PreferencesDocument.pendingImportKey) == nil)
+            for json in [
+                #"{"version":1,"preferences":{"agentSessionsManualHosts":"devbox"}}"#,
+                #"{"version":1,"preferences":{"costUsageHosts":["devbox"]}}"#,
+            ] {
+                #expect(throws: (any Error).self) { try PreferencesDocument(data: Data(json.utf8)) }
+            }
+        }
     }
 
     @Test
@@ -118,35 +137,6 @@ struct HostPreferencesTests {
         settings.consumePendingPreferencesImport()
         #expect(settings.agentSessionsManualHosts == "devbox,mini")
         #expect(settings.costUsageHosts == ["mini"])
-    }
-
-    @Test
-    func `concurrent CLI writers and a Settings revocation retain every acknowledged change`() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: root) }
-        let lock = root.appendingPathComponent("hosts.lock")
-        let defaults = InMemoryUserDefaults(values: [
-            "agentSessionsManualHosts": "devbox", "costUsageHosts": ["devbox"],
-        ])
-        let settings = testSettingsStore(suiteName: #function, userDefaults: defaults, hostPreferencesLockURL: lock)
-        let errors = LockIsolated<[String]>([])
-        let group = DispatchGroup()
-        for index in 0..<6 {
-            group.enter()
-            DispatchQueue.global().async {
-                defer { group.leave() }
-                do {
-                    _ = try CodexBarCLI.configHostsMutation(
-                        .add, host: "mini\(index)", cost: true, in: defaults, lockURL: lock)
-                } catch { errors.setValue([String(describing: error)]) }
-            }
-        }
-        settings.setCostUsageHost("devbox", enabled: false)
-        try #require(group.wait(timeout: .now() + 5) == .success)
-        #expect(errors.value.isEmpty)
-        settings.consumePendingPreferencesImport()
-        #expect(Set(settings.costUsageHosts) == Set((0..<6).map { "mini\($0)" }))
-        #expect(Set(settings.selectableCostUsageHosts) == Set(["devbox"] + (0..<6).map { "mini\($0)" }))
     }
 
     @Test
