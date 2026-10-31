@@ -1314,7 +1314,7 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\noppure incolla solo il valore di session_id";
 "Clear" = "Cancella";
 "No matching providers" = "Nessun provider corrispondente";
-"Search providers" = "Cerca provider";
+"Search settings" = "Cerca nelle impostazioni";
 
 "Request quota: %@ / %@" = "Quota richieste: %@ / %@";
 "language_arabic" = "العربية";

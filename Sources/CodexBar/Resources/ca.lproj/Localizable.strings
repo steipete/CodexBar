@@ -1149,7 +1149,7 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\no enganxeu només el valor de session_id";
 "Clear" = "Esborreu";
 "No matching providers" = "No hi ha proveïdors coincidents";
-"Search providers" = "Cerca proveïdors";
+"Search settings" = "Cerca a la configuració";
 
 "language_vietnamese" = "Vietnamita";
 "language_turkish" = "Türkçe";

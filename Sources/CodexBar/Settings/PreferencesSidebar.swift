@@ -15,7 +15,7 @@ struct SettingsSidebarView: View {
     var body: some View {
         if #available(macOS 26.0, *) {
             self.content
-                .searchable(text: self.$searchText, placement: .sidebar, prompt: L("Search providers"))
+                .searchable(text: self.$searchText, placement: .sidebar, prompt: L("Search settings"))
                 .toolbar {
                     SettingsSidebarSortToolbar(
                         isOn: self.$settings.providersSortedAlphabetically,
@@ -62,20 +62,37 @@ struct SettingsSidebarView: View {
         }
     }
 
+    private static let appPanes: [SettingsSidebarAppPane] = [
+        SettingsSidebarAppPane(pane: .general, systemImage: "gearshape.fill", color: .gray),
+        SettingsSidebarAppPane(pane: .iCloudSync, systemImage: "icloud.fill", color: .blue),
+        SettingsSidebarAppPane(pane: .usageSpend, systemImage: "chart.bar.fill", color: .green),
+        SettingsSidebarAppPane(pane: .notifications, systemImage: "bell.badge.fill", color: .red),
+        SettingsSidebarAppPane(pane: .menuBar, systemImage: "menubar.rectangle", color: .blue),
+        SettingsSidebarAppPane(pane: .menu, systemImage: "filemenu.and.selection", color: .teal),
+        SettingsSidebarAppPane(pane: .advanced, systemImage: "slider.horizontal.3", color: .purple),
+        SettingsSidebarAppPane(pane: .hooks, systemImage: "bolt.horizontal.circle.fill", color: .orange),
+        SettingsSidebarAppPane(pane: .plugins, systemImage: "puzzlepiece.extension.fill", color: .indigo),
+        SettingsSidebarAppPane(pane: .about, systemImage: "info.circle.fill", color: .green),
+        SettingsSidebarAppPane(pane: .debug, systemImage: "ladybug.fill", color: .red),
+    ]
+
+    private var availableAppPanes: [SettingsSidebarAppPane] {
+        Self.appPanes.filter { $0.pane != .debug || self.settings.debugMenuEnabled }
+    }
+
+    private var filteredAppPanes: [SettingsSidebarAppPane] {
+        let matching = Set(SettingsSearch.filteredPanes(self.availableAppPanes.map(\.pane), query: self.searchText))
+        return self.availableAppPanes.filter { matching.contains($0.pane) }
+    }
+
     private var appPanesSection: some View {
         Section {
-            SettingsSidebarPaneRow(pane: .general, systemImage: "gearshape.fill", color: .gray)
-            SettingsSidebarPaneRow(pane: .iCloudSync, systemImage: "icloud.fill", color: .blue)
-            SettingsSidebarPaneRow(pane: .usageSpend, systemImage: "chart.bar.fill", color: .green)
-            SettingsSidebarPaneRow(pane: .notifications, systemImage: "bell.badge.fill", color: .red)
-            SettingsSidebarPaneRow(pane: .menuBar, systemImage: "menubar.rectangle", color: .blue)
-            SettingsSidebarPaneRow(pane: .menu, systemImage: "filemenu.and.selection", color: .teal)
-            SettingsSidebarPaneRow(pane: .advanced, systemImage: "slider.horizontal.3", color: .purple)
-            SettingsSidebarPaneRow(pane: .hooks, systemImage: "bolt.horizontal.circle.fill", color: .orange)
-            SettingsSidebarPaneRow(pane: .plugins, systemImage: "puzzlepiece.extension.fill", color: .indigo)
-            SettingsSidebarAboutRow(onSelect: self.onSelectAbout)
-            if self.settings.debugMenuEnabled {
-                SettingsSidebarPaneRow(pane: .debug, systemImage: "ladybug.fill", color: .red)
+            ForEach(self.filteredAppPanes, id: \.pane) { item in
+                if item.pane == .about {
+                    SettingsSidebarAboutRow(onSelect: self.onSelectAbout)
+                } else {
+                    SettingsSidebarPaneRow(pane: item.pane, systemImage: item.systemImage, color: item.color)
+                }
             }
         }
     }
@@ -95,7 +112,7 @@ struct SettingsSidebarView: View {
                 }
             }
 
-            if visibleProviders.isEmpty {
+            if visibleProviders.isEmpty, self.filteredAppPanes.isEmpty || !self.hasSearchQuery {
                 Text(L("No matching providers"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -156,9 +173,12 @@ struct SettingsSidebarView: View {
         })
     }
 
+    private var hasSearchQuery: Bool {
+        !self.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     private var canReorderProviders: Bool {
-        !self.settings.providersSortedAlphabetically && !self.settings.providersEnabledOnly
-            && self.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !self.settings.providersSortedAlphabetically && !self.settings.providersEnabledOnly && !self.hasSearchQuery
     }
 
     private func enabledBinding(for provider: UsageProvider) -> Binding<Bool> {
@@ -169,6 +189,12 @@ struct SettingsSidebarView: View {
                 self.settings.setProviderEnabled(provider: provider, metadata: meta, enabled: newValue)
             })
     }
+}
+
+private struct SettingsSidebarAppPane: Hashable {
+    let pane: SettingsPane
+    let systemImage: String
+    let color: Color
 }
 
 @MainActor
@@ -355,7 +381,7 @@ private struct SettingsSidebarSearchField: View {
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
 
-            TextField(L("Search providers"), text: self.$searchText)
+            TextField(L("Search settings"), text: self.$searchText)
                 .textFieldStyle(.plain)
 
             if !self.searchText.isEmpty {

@@ -1134,7 +1134,7 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\nou pega só o valor session_id";
 "Clear" = "Limpar";
 "No matching providers" = "Non hai provedores coincidentes";
-"Search providers" = "Buscar provedores";
+"Search settings" = "Buscar na configuración";
 
 "language_vietnamese" = "Vietnamita";
 "language_turkish" = "Türkçe";

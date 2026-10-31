@@ -1295,7 +1295,7 @@
 "CodexBar could not update managed account storage." = "CodexBar kunde inte uppdatera hanterad kontolagring.";
 "Clear" = "Rensa";
 "No matching providers" = "Inga matchande leverantörer";
-"Search providers" = "Sök leverantörer";
+"Search settings" = "Sök i inställningar";
 
 "language_vietnamese" = "Vietnamesiska";
 "language_arabic" = "العربية";

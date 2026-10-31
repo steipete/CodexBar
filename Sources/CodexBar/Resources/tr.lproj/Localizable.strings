@@ -1306,7 +1306,7 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\nveya yalnızca session_id değerini yapıştırın";
 "Clear" = "Temizle";
 "No matching providers" = "Eşleşen sağlayıcı yok";
-"Search providers" = "Sağlayıcı ara";
+"Search settings" = "Ayarlarda ara";
 "Re-login at claude.ai" = "claude.ai'da yeniden oturum aç";
 "Request quota: %@ / %@" = "İstek kotası: %@ / %@";
 "display_mode_reset_time" = "Sıfırlama zamanı";

@@ -1303,7 +1303,7 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\nили вставьте только значение session_id";
 "Clear" = "Очистить";
 "No matching providers" = "Нет подходящих провайдеров";
-"Search providers" = "Поиск провайдеров";
+"Search settings" = "Поиск в настройках";
 
 "language_vietnamese" = "Tiếng Việt";
 "language_indonesian" = "Bahasa Indonesia";

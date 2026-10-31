@@ -1265,7 +1265,7 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\n또는 session_id 값만 붙여넣으세요";
 "Clear" = "지우기";
 "No matching providers" = "일치하는 공급자 없음";
-"Search providers" = "공급자 검색";
+"Search settings" = "설정 검색";
 "language_vietnamese" = "베트남어";
 "language_turkish" = "Türkçe";
 "language_indonesian" = "인도네시아어";

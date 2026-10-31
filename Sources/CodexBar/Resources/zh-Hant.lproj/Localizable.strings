@@ -1165,7 +1165,7 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\n或只貼上 session_id 值";
 "Clear" = "清除";
 "No matching providers" = "沒有相符的提供者";
-"Search providers" = "搜尋提供者";
+"Search settings" = "搜尋設定";
 
 "language_vietnamese" = "越南語";
 "reset_tomorrow_format" = "明天 %@";

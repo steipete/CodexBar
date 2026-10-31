@@ -1298,7 +1298,7 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\nof plak alleen de session_id-waarde";
 "Clear" = "Duidelijk";
 "No matching providers" = "Geen overeenkomende aanbieders";
-"Search providers" = "Zoekaanbieders";
+"Search settings" = "Instellingen zoeken";
 "language_arabic" = "العربية";
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";

@@ -1315,7 +1315,7 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\natau tempel hanya nilai session_id";
 "Clear" = "Hapus";
 "No matching providers" = "Tidak ada penyedia cocok";
-"Search providers" = "Cari penyedia";
+"Search settings" = "Cari pengaturan";
 
 "Request quota: %@ / %@" = "Kuota permintaan: %@ / %@";
 "language_arabic" = "العربية";

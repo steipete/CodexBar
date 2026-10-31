@@ -1299,7 +1299,7 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\nабо вставте лише значення session_id";
 "Clear" = "Очистити";
 "No matching providers" = "Немає відповідних постачальників";
-"Search providers" = "Пошук постачальників";
+"Search settings" = "Пошук у налаштуваннях";
 "language_arabic" = "العربية";
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";

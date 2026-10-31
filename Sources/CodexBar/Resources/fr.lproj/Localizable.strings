@@ -1298,7 +1298,7 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\nou collez uniquement la valeur session_id";
 "Clear" = "Effacer";
 "No matching providers" = "Aucun fournisseur correspondant";
-"Search providers" = "Fournisseurs de recherche";
+"Search settings" = "Rechercher dans les réglages";
 "language_arabic" = "العربية";
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";

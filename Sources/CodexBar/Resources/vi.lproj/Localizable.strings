@@ -1294,7 +1294,7 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\nhoặc chỉ dán giá trị session_id";
 "Clear" = "Xóa";
 "No matching providers" = "Không có nhà cung cấp phù hợp";
-"Search providers" = "Tìm kiếm nhà cung cấp";
+"Search settings" = "Tìm kiếm cài đặt";
 
 "language_vietnamese" = "Tiếng Việt";
 "language_turkish" = "Türkçe";

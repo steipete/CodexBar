@@ -1150,7 +1150,7 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\no pega solo el valor de session_id";
 "Clear" = "Borrar";
 "No matching providers" = "No hay proveedores coincidentes";
-"Search providers" = "Buscar proveedores";
+"Search settings" = "Buscar en ajustes";
 
 "language_vietnamese" = "Vietnamita";
 "language_turkish" = "Türkçe";

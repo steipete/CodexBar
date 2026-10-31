@@ -1314,7 +1314,7 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\nalbo wklej samą wartość session_id";
 "Clear" = "Wyczyść";
 "No matching providers" = "Brak pasujących dostawców";
-"Search providers" = "Szukaj dostawców";
+"Search settings" = "Szukaj w ustawieniach";
 
 "Request quota: %@ / %@" = "Limit żądań: %@ / %@";
 "language_arabic" = "العربية";

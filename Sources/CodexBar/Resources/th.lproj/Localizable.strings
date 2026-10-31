@@ -1312,7 +1312,7 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=... \n\n หรือวางเฉพาะค่า session_id";
 "Clear" = "ล้างค่าการค้นหา";
 "No matching providers" = "ไม่มีผู้ให้บริการที่ตรงกัน";
-"Search providers" = "ผู้ให้บริการการค้นหา";
+"Search settings" = "ค้นหาการตั้งค่า";
 
 "language_vietnamese" = "เวียดนาม";
 "language_indonesian" = "บาฮาซาอินโดนีเซีย";
