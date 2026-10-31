@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 110 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 111 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -95,7 +95,7 @@ complete when the available scan window covers fewer days.
 | Kimi | Kimi Code API key (`api`), then `kimi-auth` cookie/manual token/env fallback (`web`). |
 | Kilo | API token from config/env → usage API (`api`); auto falls back to CLI session auth (`cli`). |
 | Copilot | Device-flow/env/config token → `copilot_internal` API (`api`). |
-| Kiro | CLI command via `kiro-cli chat --no-interactive "/usage"` (`cli`). |
+| Kiro | Existing CLI token → `GetUsageLimits` API, then V2 CLI report (`cli`). |
 | Vertex AI | Google ADC OAuth (gcloud) → Cloud Monitoring quota usage (`oauth`). |
 | Augment | `auggie` CLI first, then browser-cookie web fallback (`cli`, `web`). |
 | JetBrains AI | Local XML quota file (`local`). |
@@ -173,7 +173,7 @@ complete when the available scan window covers fewer days.
 | [X API](xapi.md) | Browser or manual console.x.com cookies for prepaid and free credits, including negative balances. |
 | [Future AGI](futureagi.md) | API key and secret key (billing-period usage, allowances, and estimated cost). |
 | [LithosAI](lithosai.md) | Browser or manual console cookies for prepaid USD balance and optional UTC spend. |
-| [WorkBuddy](workbuddy.md) | Chrome or manual www.workbuddy.cn cookies for the monthly credits allowance, plan name, and cycle reset. |
+| [WorkBuddy](workbuddy.md) | Chrome or manual www.workbuddy.cn cookies for the monthly credits allowance, plan name, cycle reset, and the platform reward credits. |
 | [Tavily](tavily.md) | API key for account-plan, per-key, and pay-as-you-go credit totals. |
 | [Linkup](linkup.md) | API key for the current prepaid USD credit balance. |
 | [TinyApi](tinyapi.md) | Browser or manual session cookies for aggregate available credits. |
@@ -190,6 +190,7 @@ complete when the available scan window covers fewer days.
 | [Trae CN](traecn.md) | Browser session for account credit usage. |
 | [Chatbox AI](chatbox.md) | API token |
 | [abliteration.ai](abliteration.md) | API key for prepaid USD credits and cumulative usage. |
+| [OpenDesign](opendesign.md) | Browser or manual session cookies for the active workspace's five-hour and weekly subscription allowance. |
 
 <!-- End generated provider additions -->
 
@@ -692,6 +693,7 @@ JavaScriptCore is the macOS rollback engine. The committed `.js` is generated fr
 - API key from config or `LITELLM_API_KEY`; base URL from config `enterpriseHost` or `LITELLM_BASE_URL`.
 - Reads `/key/info` first, then `/user/info?user_id=...` for user-bound keys or `/team/info?team_id=...` for team-only keys.
 - User-bound keys show personal budget usage as the primary window and the key's exact matching team as the secondary window.
+- When a team key has no personal budget, the primary window shows the team-member budget (the member's own, else the team default from `/team/info`) with the member's spend.
 - Team-only keys show the team budget as their sole usage window. Automatic menu-bar selection prefers the enforced team budget.
 - Spend remains visible in the API-spend row when LiteLLM has no budget limit configured.
 - Accepts base URLs with or without a `/v1` suffix; management requests are sent to the proxy root.

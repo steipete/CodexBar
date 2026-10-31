@@ -23,6 +23,7 @@ public struct ProviderCLIConfig: Sendable {
         _ settings: ProviderSettingsSnapshot?) -> Bool
 
     public let name: String
+    public let loginCommand: String?
     public let aliases: [String]
     public let binaryLocator: (@Sendable ([String: String]) -> String?)?
     public let versionDetector: (@Sendable (BrowserDetection) -> String?)?
@@ -34,6 +35,7 @@ public struct ProviderCLIConfig: Sendable {
 
     public init(
         name: String,
+        loginCommand: String? = nil,
         aliases: [String] = [],
         binaryLocator: (@Sendable ([String: String]) -> String?)? = nil,
         versionDetector: (@Sendable (BrowserDetection) -> String?)?,
@@ -44,6 +46,7 @@ public struct ProviderCLIConfig: Sendable {
         browserSupportExemption: @escaping BrowserSupportExemption = { _, _, _ in false })
     {
         self.name = name
+        self.loginCommand = loginCommand
         self.aliases = aliases
         self.binaryLocator = binaryLocator
         self.versionDetector = versionDetector

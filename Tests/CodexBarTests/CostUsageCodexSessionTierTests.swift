@@ -199,6 +199,76 @@ struct CostUsageCodexSessionTierTests {
         #expect(parsed.rows.allSatisfy { $0.pricingMode == "priority" })
     }
 
+    @Test(arguments: [0, 6, 10])
+    func `resumed turn contexts refresh the tier without repricing earlier requests`(prefixCount: Int) throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 10, day: 1)
+        func record(_ type: String, _ payload: [String: Any], second: Int) -> [String: Any] {
+            ["type": type, "timestamp": env.isoString(for: day.addingTimeInterval(Double(second))), "payload": payload]
+        }
+        func settings(_ tier: String, second: Int) -> [String: Any] {
+            record(
+                "event_msg",
+                ["type": "thread_settings_applied", "thread_settings": ["service_tier": tier]],
+                second: second)
+        }
+        func context(second: Int) -> [String: Any] {
+            record("turn_context", ["model": "gpt-6.1-sol", "turn_id": "resumed-turn"], second: second)
+        }
+        func usage(second: Int) -> [String: Any] {
+            record(
+                "event_msg",
+                ["type": "token_count", "turn_id": "resumed-turn", "info": ["last_token_usage": [
+                    "input_tokens": 1000, "cached_input_tokens": 800, "output_tokens": 100,
+                ]]],
+                second: second)
+        }
+        let records = [
+            record("session_meta", ["id": "synthetic-resumed-tier"], second: 0),
+            settings("default", second: 1),
+            record("event_msg", ["type": "task_started", "turn_id": "resumed-turn"], second: 2),
+            context(second: 3), usage(second: 4), settings("priority", second: 5),
+            context(second: 6), usage(second: 7), settings("default", second: 8),
+            context(second: 9), usage(second: 10),
+        ]
+        let file = try env.writeCodexSessionFile(
+            day: day,
+            filename: "resumed-tier.jsonl",
+            contents: env.jsonl(prefixCount > 0 ? Array(records.prefix(prefixCount)) : records))
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing-traces.sqlite"))
+        options.refreshMinIntervalSeconds = 0
+        if prefixCount > 0 {
+            _ = CostUsageScanner.loadDailyReport(provider: .codex, since: day, until: day, now: day, options: options)
+            let handle = try FileHandle(forWritingTo: file)
+            try handle.seekToEnd()
+            try handle.write(contentsOf: Data(env.jsonl(Array(records.dropFirst(prefixCount))).utf8))
+            try handle.close()
+        }
+        let report = CostUsageScanner.loadDailyReport(
+            provider: .codex, since: day, until: day, now: day.addingTimeInterval(20), options: options)
+        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+        #expect(cache.files[file.path]?.codexRows?.map(\.pricingMode) == ["standard", "priority", "standard"])
+        #expect(report.summary?.totalTokens == 3300)
+        #expect(try abs(#require(report.summary?.totalCostUSD) - 0.00592) < 1e-12)
+
+        // Older parsers pinned each row to the tier observed at task_started.
+        cache.files[file.path]?.codexParserRevision = CostUsageFileUsage.currentCodexParserRevision - 1
+        for (index, mode) in ["standard", "standard", "priority"].enumerated() {
+            cache.files[file.path]?.codexRows?[index].pricingMode = mode
+        }
+        _ = CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, home: env.codexStoreHome, cache: cache)
+        let migrated = CostUsageScanner.loadDailyReport(
+            provider: .codex, since: day, until: day, now: day.addingTimeInterval(40), options: options)
+        let restored = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+        #expect(restored.files[file.path]?.codexRows?.map(\.pricingMode) == ["standard", "priority", "standard"])
+        #expect(migrated.summary?.totalTokens == 3300)
+        #expect(try abs(#require(migrated.summary?.totalCostUSD) - 0.00592) < 1e-12)
+    }
+
     private static func cost(serviceTier: String, usageKind: String) throws -> Double {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

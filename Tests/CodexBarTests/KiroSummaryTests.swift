@@ -49,7 +49,7 @@ struct KiroSummaryTests {
     }
 
     @Test(arguments: [false, true])
-    func `CLI summary reaches optional enrichment and survives its failure`(apiSucceeds: Bool) async throws {
+    func `API-first usage preserves identity and CLI summary survives API failure`(apiSucceeds: Bool) async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("codexbar-kiro-summary-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -78,7 +78,7 @@ struct KiroSummaryTests {
                 return Self.limits()
             }).fetch()
         let usage = snapshot.toUsageSnapshot()
-        #expect(snapshot.planName == "KIRO PRO MAX")
+        #expect(snapshot.planName == (apiSucceeds ? "Kiro" : "KIRO PRO MAX"))
         #expect(snapshot.accountEmail == "person@example.com")
         if apiSucceeds {
             #expect(snapshot.creditsUsed == 282.49)

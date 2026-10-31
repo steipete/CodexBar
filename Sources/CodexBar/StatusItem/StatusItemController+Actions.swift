@@ -351,7 +351,20 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         self.updater.checkForUpdates(nil)
     }
 
+    func userPluginDashboardURL(for instanceID: ProviderInstanceID) -> URL? {
+        guard instanceID.firstPartyProvider == nil,
+              let plugin = UserProviderPluginRegistry.plugin(for: instanceID) else { return nil }
+        return plugin.approvedDashboardURL(
+            settings: self.settings.pluginConfig(instanceID)?.pluginSettings ?? [:],
+            approvalStore: self.store.pluginApprovalStore)
+    }
+
     @objc func openDashboard() {
+        if let instanceID = self.lastMenuProvider, instanceID.firstPartyProvider == nil {
+            guard let url = self.userPluginDashboardURL(for: instanceID) else { return }
+            NSWorkspace.shared.open(url)
+            return
+        }
         // Provider-specific by design: Codex remains the historical action fallback when no provider is selected.
         let preferred = self.lastMenuProvider?.firstPartyProvider
             ?? (self.store.isEnabled(.codex) ? .codex : self.store.enabledFirstPartyProviders().first)

@@ -106,6 +106,7 @@ public enum ZaiProviderDescriptor {
                 extraRateWindowSelector: { snapshot in
                     (snapshot.extraRateWindows ?? []).filter { $0.id == "zai-mcp" }
                 },
+                menuBarBalanceDetailLabels: ["Account balance"],
                 automaticSelectionPrioritizesExhaustedWindow: false,
                 menuBarWindowResolver: { context in
                     guard context.metric == .automatic else { return .unhandled }

@@ -8,7 +8,7 @@ let useLocalSweetCookieKit =
 let sweetCookieKitDependency: Package.Dependency =
     useLocalSweetCookieKit && FileManager.default.fileExists(atPath: sweetCookieKitPath)
     ? .package(path: sweetCookieKitPath)
-    : .package(url: "https://github.com/steipete/SweetCookieKit", from: "0.5.10")
+    : .package(url: "https://github.com/steipete/SweetCookieKit", from: "0.5.11")
 
 let sqlite3LibDir = ProcessInfo.processInfo.environment["CODEXBAR_SQLITE3_LIB_DIR"]?
     .trimmingCharacters(in: .whitespacesAndNewlines)

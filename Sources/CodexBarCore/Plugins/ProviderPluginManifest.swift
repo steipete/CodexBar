@@ -79,6 +79,11 @@ public enum ProviderPluginPercentPolicy: String, Sendable {
     }
 }
 
+enum ProviderPluginDashboardLink: Sendable {
+    case fixed(String)
+    case setting(String)
+}
+
 public struct ProviderPluginManifest: Sendable {
     public let id: ProviderInstanceID
     public let name: String
@@ -89,6 +94,7 @@ public struct ProviderPluginManifest: Sendable {
     public let settings: [ProviderPluginSetting]
     public let capabilities: Set<ProviderPluginCapability>
     public let cookieDomains: Set<String>
+    let dashboardLink: ProviderPluginDashboardLink?
     public let percentPolicy: ProviderPluginPercentPolicy
     public let cookiePolicy: ProviderPluginCookiePolicy?
     public var usesCookieJar: Bool {
@@ -225,6 +231,22 @@ public struct ProviderPluginManifest: Sendable {
             }
         }
         self.settings = settings
+        if let dashboard = definition.property("dashboardURL"), !dashboard.isUndefined, !dashboard.isNull {
+            if dashboard.isString {
+                let raw = try Self.optionalBoundedString(definition, property: "dashboardURL", maximumLength: 2048)
+                if let raw { _ = try Self.validatedDashboardURL(raw) }
+                self.dashboardLink = raw.map(ProviderPluginDashboardLink.fixed)
+            } else {
+                let key = try Self.requiredString(dashboard, property: "setting")
+                guard settings.first(where: { $0.key == key })?.kind == .plain else {
+                    throw ProviderPluginError.invalidManifest(
+                        "endpoint setting '\(key)' must be declared as a plain setting")
+                }
+                self.dashboardLink = .setting(key)
+            }
+        } else {
+            self.dashboardLink = nil
+        }
 
         if let authValue = definition.property("auth"), !authValue.isUndefined, !authValue.isNull {
             guard authValue.isObject else {
@@ -576,6 +598,28 @@ enum ProviderPluginTransientHTTPFailure {
 }
 
 extension ProviderPluginManifest {
+    private static func validatedDashboardURL(_ raw: String) throws -> URL {
+        guard raw.utf8.count <= 2048, let url = URL(string: raw) else {
+            throw ProviderPluginError.networkPolicy("URL does not satisfy the declared endpoint policy")
+        }
+        _ = try ProviderPluginOrigin.normalizedOrigin(of: url, policy: .httpsOrPrivateNetworkHTTP)
+        return url
+    }
+
+    func dashboardURL(settings: [String: String]) throws -> URL? {
+        let raw: String?
+        switch self.dashboardLink {
+        case let .fixed(value)?: raw = value
+        case let .setting(key)?: raw = settings[key]
+        case nil: return nil
+        }
+        guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
+        let url = try Self.validatedDashboardURL(raw)
+        if try self.allowedOrigin(for: url, settings: settings) { return url }
+        if case .fixed? = self.dashboardLink, url.scheme?.lowercased() == "https" { return url }
+        throw ProviderPluginError.networkPolicy("URL does not satisfy the declared endpoint policy")
+    }
+
     func allowedOrigin(for url: URL, settings: [String: String]) throws -> Bool {
         for endpoint in self.endpoints {
             switch endpoint {

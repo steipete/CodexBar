@@ -161,8 +161,62 @@ defineProvider({
       email = userEmail || alias || preferred;
       personal = budget(user, "Personal");
       if (root.teams != null && !Array.isArray(root.teams)) return fail("invalid teams");
-      const teams = _nullishCoalesce(root.teams, () => []).map((value) => budget(value, "Team", true));
+      const rawTeams = _nullishCoalesce(root.teams, () => []).map(object);
+      const teams = rawTeams.map((value) => budget(value, "Team", true));
       team = teamID ? teams.find((value) => value.id === teamID) : undefined;
+      if (teamID && !personal.window) {
+        try {
+          const member = (rows) =>
+            Array.isArray(rows)
+              ? rows
+                  .map(object)
+                  .find(
+                    ({ user_id, team_id }) => text(user_id) === userID && (team_id == null || text(team_id) === teamID),
+                  )
+              : undefined;
+          const mine = member(
+            _optionalChain([
+              rawTeams,
+              "access",
+              (_4) => _4.find,
+              "call",
+              (_5) => _5((value) => text(value.team_id) === teamID),
+              "optionalAccess",
+              (_6) => _6.team_memberships,
+            ]),
+          );
+          let table = object(
+            _nullishCoalesce(_optionalChain([mine, "optionalAccess", (_7) => _7.litellm_budget_table]), () => ({})),
+          );
+          let spend = number(_optionalChain([mine, "optionalAccess", (_8) => _8.spend]));
+          if (number(table.max_budget) === undefined || spend === undefined) {
+            const response = await request("team/info", `?team_id=${encodeURIComponent(teamID)}`, true);
+            const root = object(_nullishCoalesce(response, () => ({})));
+            const info = object(root.team_info);
+            const responseID = _nullishCoalesce(text(info.team_id), () => text(root.team_id));
+            if (responseID !== undefined && responseID !== teamID) throw new Error("team_id mismatch");
+            const fallback = member(_nullishCoalesce(info.team_memberships, () => root.team_memberships));
+            if (table.max_budget == null) {
+              table = object(
+                _nullishCoalesce(
+                  _optionalChain([fallback, "optionalAccess", (_9) => _9.litellm_budget_table]),
+                  () => ({}),
+                ),
+              );
+              if (table.max_budget == null) table = object(_nullishCoalesce(info.team_member_budget_table, () => ({})));
+            }
+            if (spend === undefined) spend = number(_optionalChain([fallback, "optionalAccess", (_10) => _10.spend]));
+          }
+          const limit = number(table.max_budget);
+          // User-wide spend must never be compared with a team-member limit.
+          if (limit !== undefined && limit > 0 && spend !== undefined) {
+            personal = budget({ spend, max_budget: limit, budget_reset_at: table.budget_reset_at }, "Personal");
+          }
+        } catch (error) {
+          // Membership data is optional; retain the personal and team budgets already read.
+          void error;
+        }
+      }
     } else {
       const root = object(await request("team/info", `?team_id=${encodeURIComponent(teamID)}`));
       const rootID = nonempty(root.team_id);
@@ -229,12 +283,16 @@ defineProvider({
     const details =
       userID && ctx.settings.get("LITELLM_MODEL_USAGE_ENABLED") === "true" ? await modelActivity().catch(() => []) : [];
     return {
-      primary: _optionalChain([personal, "optionalAccess", (_4) => _4.window]),
-      secondary: _optionalChain([team, "optionalAccess", (_5) => _5.window]),
+      primary: _optionalChain([personal, "optionalAccess", (_11) => _11.window]),
+      secondary: _optionalChain([team, "optionalAccess", (_12) => _12.window]),
       cost: _nullishCoalesce(personal, () => team).cost,
       details,
       subscriptionExpiresAt: expires,
-      identity: { email, organization: _optionalChain([team, "optionalAccess", (_6) => _6.alias]), loginMethod: "api" },
+      identity: {
+        email,
+        organization: _optionalChain([team, "optionalAccess", (_13) => _13.alias]),
+        loginMethod: "api",
+      },
     };
   },
 });

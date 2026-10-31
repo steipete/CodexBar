@@ -246,7 +246,7 @@ struct CostUsageFairSchedulingTests {
     }
 
     @Test
-    func `production SQLite adoption preserves real partial rows resume state and scoped report`() async throws {
+    func `production SQLite adoption preserves partial rows and drops stale reports`() async throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
         let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
@@ -261,6 +261,7 @@ struct CostUsageFairSchedulingTests {
         let range = CostUsageScanner.CostUsageDayRange(since: day, until: day, calendar: options.calendar)
         partial.codexPreviousReport = CostUsageCodexPreviousReport(
             report: report, cache: complete, reportSinceKey: range.sinceKey, reportUntilKey: range.untilKey)
+        #expect(partial.codexPreviousReport != nil)
         #expect(partial.files.values.first?.codexScanComplete == false)
         #expect(partial.files.values.first?.codexRows?.isEmpty == false)
         #expect(partial.files.values.first?.codexJSONLResumeState != nil)
@@ -277,15 +278,15 @@ struct CostUsageFairSchedulingTests {
             calendar: options.calendar,
             requestedScanWindow: (range.scanSinceKey, range.scanUntilKey),
             reportWindow: (range.sinceKey, range.untilKey))
-        let before = await predecessor.readSnapshot()
+        var expected = await predecessor.readSnapshot()
+        expected.metadata.previousReportPayload = nil
         let current = CostUsageStore(cacheRoot: upgradedRoot, home: env.codexStoreHome)
-        #expect(await current.readSnapshot() == before)
+        #expect(await current.readSnapshot() == expected)
         #expect(await current.rebuildCount == 0)
         let adopted = current.syncLoadCodexCache(calendar: options.calendar)
         #expect(adopted.files.mapValues(\.parsedBytes) == partial.files.mapValues(\.parsedBytes))
         #expect(adopted.files.mapValues(\.codexJSONLResumeState) == partial.files.mapValues(\.codexJSONLResumeState))
-        #expect(adopted.codexPreviousReport == partial.codexPreviousReport)
-        #expect(adopted.codexPreviousReport?.report.data == report.data)
+        #expect(adopted.codexPreviousReport == nil)
     }
 
     private static func scan(day: Date, pass: Int, options: CostUsageScanner.Options) -> CostUsageDailyReport {

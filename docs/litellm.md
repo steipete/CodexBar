@@ -46,13 +46,26 @@ The provider calls:
 
 1. `GET /key/info` to discover the authenticated key's `user_id` and `team_id`.
 2. `GET /user/info?user_id=<user_id>` to read personal spend, budget, and teams.
-3. For team-only keys without a `user_id`, `GET /team/info?team_id=<team_id>` to read team spend and budget.
+3. `GET /team/info?team_id=<team_id>` for team-only keys, or to fill missing member budgets and team-scoped spend for user-bound team keys.
 
 All requests use `Authorization: Bearer <apiKey>`. CodexBar does not request or store a LiteLLM master key.
 
 For user-bound keys, personal usage is shown as the primary window. If the key has a team, its exact matching team
 budget is shown as the secondary window and becomes the automatic menu bar metric because that budget is enforced for
-the key. Team-only keys show that team budget as their sole usage window. Spend remains visible as an API-spend row
+the key.
+
+By default, LiteLLM applies team and team-member budgets to team keys; deployments that enable
+`apply_user_budget_to_team_keys` also enforce the personal user budget. CodexBar keeps a configured personal budget
+as the primary window. When it is absent and the key has a team, the primary window shows the member's own
+`max_budget_in_team` from a matching membership in `/user/info` (`teams[].team_memberships[].litellm_budget_table`)
+or `/team/info` (`team_memberships[].litellm_budget_table`), then the team's default
+(`team_info.team_member_budget_table`). An override already read from `/user/info` takes precedence. It pairs the limit
+and reset date with
+spend from the matching user and team membership in either response. User-wide spend is never substituted for
+team-scoped spend; if no matching spend is available, no member budget is shown. The extra request is best effort:
+unavailable or mismatched membership data preserves the personal spend and team budget already read.
+
+Team-only keys show the team budget as their sole usage window. Spend remains visible as an API-spend row
 when LiteLLM does not configure a budget.
 
 CLI text/cards and native menus show budget amounts as details, with actual reset dates separately; an absent reset

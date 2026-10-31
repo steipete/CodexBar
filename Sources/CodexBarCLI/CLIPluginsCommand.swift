@@ -103,6 +103,9 @@ extension CodexBarCLI {
         for origin in binding.origins {
             writeStderr("  origin: \(origin)\n")
         }
+        if let dashboardURL = binding.dashboardURL {
+            writeStderr("  \(UsageFormatter.localized("Usage Dashboard")): \(dashboardURL)\n")
+        }
         writeStderr("  auth: \(binding.authMode)\n")
         writeStderr("  capabilities: \(binding.capabilities.joined(separator: ", "))\n")
         writeStderr("  secrets: \(binding.secretNames.joined(separator: ", "))\n")
