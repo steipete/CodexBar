@@ -332,6 +332,7 @@ CLI install:
 
 - [Starbridge](https://github.com/T0mSIlver/starbridge) — Community-maintained Android and web app that displays quota windows from the CodexBar CLI on macOS and Linux, with optional quota alerts.
 - [Notify! CodexBar](https://github.com/simplytoast1/notify-codexbar) — Community-maintained macOS companion that reads CodexBar CLI or local `codexbar serve` output and sends selected usage through [Notify!](https://getnotifyapp.com/) for iPhone/iPad widgets, Live Activities, and quota notifications.
+- [BarPeek](https://apps.apple.com/app/id6804954863) — Free iPhone app that reads quota windows, reset times and cost from `codexbar serve` (Direct API or the token-protected Dashboard Snapshot endpoint), with configurable Home Screen widgets. Read-only viewer: provider credentials stay in CodexBar on the Mac.
 
 ## Credits
 Inspired by [ccusage](https://github.com/ryoppippi/ccusage) (MIT), specifically the cost usage tracking.
