@@ -10,7 +10,7 @@ struct PluginCookieProviderSpecTests {
     func `automatic cookie guidance names the provider browser policy and manual alternative`() throws {
         let fixture = try ProviderSettingsDescriptorTests().makeSettingsFixture(suite: #function)
         fixture.settings.debugDisableKeychainAccess = false
-        for provider in [UsageProvider.museai, .raycast, .perplexity, .parallel] {
+        for provider in [UsageProvider.museai, .raycast, .perplexity, .parallel, .opendesign] {
             let implementation = try #require(ProviderCatalog.implementation(for: provider))
             let picker = try #require(implementation.settingsPickers(
                 context: fixture.settingsContext(provider: provider)).first)
@@ -29,7 +29,7 @@ struct PluginCookieProviderSpecTests {
 
     private static let providers: [UsageProvider] = [
         .helmcode, .hyper, .manus, .perplexity, .qoder, .raycast, .sakana, .t3chat, .lithosai, .workbuddy,
-        .claudeplatform,
+        .claudeplatform, .opendesign,
     ]
 
     @Test

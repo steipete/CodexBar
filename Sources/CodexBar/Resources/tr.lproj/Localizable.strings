@@ -1059,11 +1059,8 @@
 "Today cash" = "Bugünkü nakit";
 "DeepSeek 30 day token usage trend" = "DeepSeek 30 günlük token kullanım trendi";
 "DeepSeek this month token usage trend" = "DeepSeek bu ayki token kullanım trendi";
-"Chrome profile" = "Chrome profili";
 "Choose which signed-in DeepSeek Platform session supplies detailed usage." = "Ayrıntılı kullanımı sağlayacak oturum açılmış DeepSeek Platform hesabını seçin.";
 "Detailed usage unavailable." = "Ayrıntılı kullanım kullanılamıyor.";
-"Sign in to DeepSeek Platform in Chrome for detailed usage." = "Ayrıntılı kullanım için Chrome'da DeepSeek Platform'a giriş yapın.";
-"Select a DeepSeek Chrome profile in Settings." = "Ayarlarda bir DeepSeek Chrome profili seçin.";
 "Select profile…" = "Profil seç…";
 "cache-hit input" = "önbellekten alınan girdi";
 "cache-miss input" = "önbellekte bulunmayan girdi";
@@ -2764,3 +2761,34 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Bu Mac’te kaydedilen OpenCode kullanımını Codex geçmişinde gösterir. Varsayılan olarak kapalıdır; kapsamı sınırlandırılmış veya alternatif CODEX_HOME konumları her zaman hariç tutulur.";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "Otomatik, etkin kayıtlı oturumu kullanır; yoksa bir API anahtarı veya tarayıcı çerezlerini kullanır.";
 "Store multiple Command Code subscription sessions." = "Birden fazla Command Code abonelik oturumunu depolayın.";
+
+/* OpenDesign */
+"OpenDesign" = "OpenDesign";
+"Show OpenDesign usage" = "OpenDesign kullanımını göster";
+"Sign in to OpenDesign, then refresh CodexBar." = "OpenDesign hesabınıza giriş yapın, ardından CodexBar’ı yenileyin.";
+"OpenDesign usage response format changed." = "OpenDesign kullanım yanıtının biçimi değişti.";
+"OpenDesign billing access was denied." = "OpenDesign fatura bilgilerine erişim reddedildi.";
+"OpenDesign request failed. Try again later." = "OpenDesign isteği başarısız oldu. Daha sonra tekrar deneyin.";
+"OpenDesign subscription usage is unavailable for this workspace." = "Bu çalışma alanı için OpenDesign abonelik kullanımı mevcut değil.";
+"upcoming_reset_notifications_title" = "Yaklaşan sıfırlama uyarıları";
+"upcoming_reset_notifications_subtitle" = "Codex için haftalık limit sıfırlanmadan önce, kota kullanılmamışken uyarır.";
+"upcoming_reset_notification_title" = "%1$@ %2$@ limiti yakında sıfırlanacak";
+"upcoming_reset_notification_body" = "Henüz %1$@ kota kullanılmadı. %2$@ içinde sıfırlanacak ve kullanılmayan kota kaybolacak.";
+"upcoming_reset_notification_body_with_account" = "Hesap %1$@. Henüz %2$@ kota kullanılmadı. %3$@ içinde sıfırlanacak ve kullanılmayan kota kaybolacak.";
+"Sign in to DeepSeek Platform in a Chromium-based browser for detailed usage." = "Ayrıntılı kullanım için Chromium tabanlı bir tarayıcıda DeepSeek Platform'a giriş yapın.";
+"Select a DeepSeek browser profile in Settings." = "Ayarlarda bir DeepSeek tarayıcı profili seçin.";
+"menu_bar_layout_token_separator_glyph_accessibility" = "Ayırıcı %@";
+"menu_bar_layout_separator_pipe" = "Dikey çizgi";
+"menu_bar_layout_separator_slash" = "Eğik çizgi";
+"menu_bar_layout_separator_hyphen" = "Kısa çizgi";
+"menu_bar_layout_separator_bullet" = "Madde imi";
+"menu_bar_layout_separator_diamond" = "Dolu baklava";
+"menu_bar_layout_separator_hollowDiamond" = "Boş baklava";
+"menu_bar_layout_separator_tilde" = "Yaklaşık işareti";
+"menu_bar_layout_separator_doubleBar" = "Çift dikey çizgi";
+"Rename" = "Yeniden adlandır";
+"Rename account" = "Hesabı yeniden adlandır";
+"Account name" = "Hesap adı";
+"Leave blank to use the default name." = "Varsayılan adı kullanmak için boş bırakın.";
+"Rewards" = "Ödüller";
+"Reward expiry" = "Ödüllerin son kullanma tarihi";

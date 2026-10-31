@@ -1063,10 +1063,7 @@
 "Today cash" = "اليوم نقدا";
 "DeepSeek 30 day token usage trend" = "DeepSeek اتجاه استخدام الرموز خلال 30 يوما";
 "Detailed usage unavailable." = "الاستخدام التفصيلي غير متاح.";
-"Sign in to DeepSeek Platform in Chrome for detailed usage." = "سجّل الدخول إلى منصة DeepSeek في Chrome لعرض الاستخدام التفصيلي.";
-"Select a DeepSeek Chrome profile in Settings." = "حدد ملف تعريف Chrome لـ DeepSeek في الإعدادات.";
 "DeepSeek this month token usage trend" = "اتجاه استخدام رموز DeepSeek لهذا الشهر";
-"Chrome profile" = "ملف تعريف Chrome";
 "Choose which signed-in DeepSeek Platform session supplies detailed usage." = "اختر جلسة DeepSeek Platform المسجّل دخولها التي توفّر تفاصيل الاستخدام.";
 "Select profile…" = "اختر ملفًا شخصيًا…";
 "cache-hit input" = "إدخال الضربات المؤقتة";
@@ -2765,3 +2762,34 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "اعرض استخدام OpenCode المسجّل على جهاز Mac هذا في سجل Codex. معطّل افتراضيًا؛ تُستثنى دائمًا مواقع CODEX_HOME محددة النطاق أو البديلة.";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "يستخدم الوضع التلقائي الجلسة المحفوظة النشطة، وإلا فيستخدم مفتاح API أو ملفات تعريف ارتباط المتصفح.";
 "Store multiple Command Code subscription sessions." = "احفظ عدة جلسات اشتراك في Command Code.";
+
+/* OpenDesign */
+"OpenDesign" = "OpenDesign";
+"Show OpenDesign usage" = "إظهار استخدام OpenDesign";
+"Sign in to OpenDesign, then refresh CodexBar." = "سجّل الدخول إلى OpenDesign، ثم حدّث CodexBar.";
+"OpenDesign usage response format changed." = "تغيّر تنسيق استجابة استخدام OpenDesign.";
+"OpenDesign billing access was denied." = "تم رفض الوصول إلى فوترة OpenDesign.";
+"OpenDesign request failed. Try again later." = "فشل طلب OpenDesign. حاول مرة أخرى لاحقًا.";
+"OpenDesign subscription usage is unavailable for this workspace." = "استخدام اشتراك OpenDesign غير متاح لمساحة العمل هذه.";
+"upcoming_reset_notifications_title" = "تحذيرات قبل إعادة التعيين";
+"upcoming_reset_notifications_subtitle" = "يحذّر قبل إعادة تعيين الحد الأسبوعي لدى Codex مع بقاء حصة غير مستخدمة.";
+"upcoming_reset_notification_title" = "حد %2$@ لدى %1$@ سيُعاد تعيينه قريبًا";
+"upcoming_reset_notification_body" = "لا يزال %1$@ من الحصة غير مستخدم. سيُعاد تعيين الحد خلال %2$@ وتضيع الحصة غير المستخدمة.";
+"upcoming_reset_notification_body_with_account" = "الحساب %1$@. لا يزال %2$@ من الحصة غير مستخدم. سيُعاد تعيين الحد خلال %3$@ وتضيع الحصة غير المستخدمة.";
+"Sign in to DeepSeek Platform in a Chromium-based browser for detailed usage." = "سجّل الدخول إلى منصة DeepSeek في متصفح مبني على Chromium لعرض الاستخدام التفصيلي.";
+"Select a DeepSeek browser profile in Settings." = "حدد ملف تعريف متصفح لـ DeepSeek في الإعدادات.";
+"menu_bar_layout_token_separator_glyph_accessibility" = "فاصل %@";
+"menu_bar_layout_separator_pipe" = "خط عمودي";
+"menu_bar_layout_separator_slash" = "شرطة مائلة";
+"menu_bar_layout_separator_hyphen" = "واصلة";
+"menu_bar_layout_separator_bullet" = "علامة تعداد نقطية";
+"menu_bar_layout_separator_diamond" = "معين ممتلئ";
+"menu_bar_layout_separator_hollowDiamond" = "معين مجوف";
+"menu_bar_layout_separator_tilde" = "علامة المد";
+"menu_bar_layout_separator_doubleBar" = "خط عمودي مزدوج";
+"Rename" = "إعادة تسمية";
+"Rename account" = "إعادة تسمية الحساب";
+"Account name" = "اسم الحساب";
+"Leave blank to use the default name." = "اتركه فارغًا لاستخدام الاسم الافتراضي.";
+"Rewards" = "المكافآت";
+"Reward expiry" = "انتهاء صلاحية المكافآت";

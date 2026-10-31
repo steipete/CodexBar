@@ -177,6 +177,9 @@ public struct UsageSnapshot: Codable, Sendable {
     /// Live provider-reported cost history supplied through the generic plugin contract.
     public let costUsage: CostUsageTokenSnapshot?
     public let details: [ProviderDetailSection]
+    /// Built-in branding requested by a plugin; does not change its identity or quota source.
+    public let iconProvider: UsageProvider?
+    public let menuBarItems: [ProviderMenuBarItem]
     public let deepseekDetailedUsageState: DeepSeekDetailedUsageState
     public let deepseekPlatformProfiles: [DeepSeekPlatformProfile]
     /// Live-only ownership proof; decoded usage cannot authorize browser balance retention.
@@ -206,6 +209,9 @@ public struct UsageSnapshot: Codable, Sendable {
     public let subscriptionExpiresAtIsDateOnly: Bool
     public let updatedAt: Date
     public let identity: ProviderIdentitySnapshot?
+    /// Raw plan provenance observed by the fetch that produced this snapshot. Nil when the
+    /// winning source did not report a plan identifier.
+    public let planObservation: ProviderPlanObservation?
     public let dataConfidence: UsageDataConfidence
 
     private enum CodingKeys: String, CodingKey {
@@ -215,6 +221,8 @@ public struct UsageSnapshot: Codable, Sendable {
         case extraRateWindows
         case providerCost
         case details
+        case iconProvider
+        case menuBarItems
         case throughput
         case openAIAPIUsage
         case codexResetCredits
@@ -226,6 +234,7 @@ public struct UsageSnapshot: Codable, Sendable {
         case subscriptionExpiresAtIsDateOnly
         case updatedAt
         case identity
+        case planObservation
         case dataConfidence
         case accountEmail
         case accountOrganization
@@ -240,6 +249,8 @@ public struct UsageSnapshot: Codable, Sendable {
         providerCost: ProviderCostSnapshot? = nil,
         costUsage: CostUsageTokenSnapshot? = nil,
         details: [ProviderDetailSection] = [],
+        iconProvider: UsageProvider? = nil,
+        menuBarItems: [ProviderMenuBarItem] = [],
         deepseekDetailedUsageState: DeepSeekDetailedUsageState = .notRequested,
         deepseekPlatformProfiles: [DeepSeekPlatformProfile] = [],
         deepseekPlatformBalanceOwner: DeepSeekPlatformBalanceOwner? = nil,
@@ -261,11 +272,13 @@ public struct UsageSnapshot: Codable, Sendable {
         subscriptionExpiresAtIsDateOnly: Bool = false,
         updatedAt: Date,
         identity: ProviderIdentitySnapshot? = nil,
+        planObservation: ProviderPlanObservation? = nil,
         dataConfidence: UsageDataConfidence = .unknown)
     {
         precondition(
             details.count <= ProviderDetailSection.maximumSectionsPerSnapshot,
             "UsageSnapshot details exceeds \(ProviderDetailSection.maximumSectionsPerSnapshot) sections")
+        precondition(menuBarItems.count <= ProviderMenuBarItem.maximumItems, "Too many plugin menu-bar items")
         self.primary = primary
         self.secondary = secondary
         self.tertiary = tertiary
@@ -273,6 +286,8 @@ public struct UsageSnapshot: Codable, Sendable {
         self.providerCost = providerCost
         self.costUsage = costUsage
         self.details = details
+        self.iconProvider = iconProvider
+        self.menuBarItems = menuBarItems
         self.deepseekDetailedUsageState = deepseekDetailedUsageState
         self.deepseekPlatformProfiles = deepseekPlatformProfiles
         self.deepseekPlatformBalanceOwner = deepseekPlatformBalanceOwner
@@ -294,6 +309,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.subscriptionExpiresAtIsDateOnly = subscriptionExpiresAtIsDateOnly
         self.updatedAt = updatedAt
         self.identity = identity
+        self.planObservation = planObservation
         self.dataConfidence = dataConfidence
     }
 
@@ -377,6 +393,11 @@ public struct UsageSnapshot: Codable, Sendable {
         self.extraRateWindows = try container.decodeIfPresent([NamedRateWindow].self, forKey: .extraRateWindows)
         self.providerCost = try container.decodeIfPresent(ProviderCostSnapshot.self, forKey: .providerCost)
         self.costUsage = nil // Live-only provider history; refresh from the authoritative source.
+        self.iconProvider = try container.decodeIfPresent(UsageProvider.self, forKey: .iconProvider)
+        self.menuBarItems = try container.decodeIfPresent([ProviderMenuBarItem].self, forKey: .menuBarItems) ?? []
+        guard self.menuBarItems.count <= ProviderMenuBarItem.maximumItems else {
+            throw ProviderDetailSection.ValidationError("snapshot.menuBarItems exceeds 8 entries")
+        }
         let details = try container.decodeIfPresent([ProviderDetailSection].self, forKey: .details) ?? []
         try ProviderDetailSection.validateSections(details)
         // Provider-specific by design: native Grok and Claude reset-credit rows are live-only inventory.
@@ -416,6 +437,10 @@ public struct UsageSnapshot: Codable, Sendable {
             self.dataConfidence = .unknown
         }
         self.identity = decodedIdentity
+        // Lenient decode: a newer source value must not discard an otherwise readable snapshot.
+        self.planObservation = try? container.decodeIfPresent(
+            ProviderPlanObservation.self,
+            forKey: .planObservation)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -426,6 +451,8 @@ public struct UsageSnapshot: Codable, Sendable {
         try container.encode(self.tertiary, forKey: .tertiary)
         try container.encodeIfPresent(self.extraRateWindows, forKey: .extraRateWindows)
         try container.encodeIfPresent(self.providerCost, forKey: .providerCost)
+        try container.encodeIfPresent(self.iconProvider, forKey: .iconProvider)
+        if !self.menuBarItems.isEmpty { try container.encode(self.menuBarItems, forKey: .menuBarItems) }
         if !self.details.isEmpty {
             try container.encode(self.details, forKey: .details)
         }
@@ -442,6 +469,7 @@ public struct UsageSnapshot: Codable, Sendable {
         if self.subscriptionExpiresAtIsDateOnly { try container.encode(true, forKey: .subscriptionExpiresAtIsDateOnly) }
         try container.encode(self.updatedAt, forKey: .updatedAt)
         try container.encodeIfPresent(self.identity, forKey: .identity)
+        try container.encodeIfPresent(self.planObservation, forKey: .planObservation)
         if self.dataConfidence != .unknown {
             try container.encode(self.dataConfidence, forKey: .dataConfidence)
         }
@@ -564,7 +592,9 @@ public struct UsageSnapshot: Codable, Sendable {
     }
 
     private func orderedPerplexityFallbackWindows() -> [RateWindow] {
-        let fallbackWindows = [self.tertiary, self.secondary].compactMap(\.self)
+        // Organization pool credits are drawn after the member's own credits.
+        let orgWindows = (self.extraRateWindows ?? []).filter(\.usageKnown).map(\.window)
+        let fallbackWindows = [self.tertiary, self.secondary].compactMap(\.self) + orgWindows
         let usableFallback = fallbackWindows.filter { $0.remainingPercent > 0 }
         let exhaustedFallback = fallbackWindows.filter { $0.remainingPercent <= 0 }
         return usableFallback + exhaustedFallback
@@ -628,6 +658,8 @@ public struct UsageSnapshot: Codable, Sendable {
             providerCost: providerCost.resolving(self.providerCost),
             costUsage: costUsage.resolving(self.costUsage),
             details: details.resolving(self.details),
+            iconProvider: self.iconProvider,
+            menuBarItems: self.menuBarItems,
             deepseekDetailedUsageState: deepseekDetailedUsageState.resolving(self.deepseekDetailedUsageState),
             deepseekPlatformProfiles: deepseekPlatformProfiles.resolving(self.deepseekPlatformProfiles),
             deepseekPlatformBalanceOwner: self.deepseekPlatformBalanceOwner,
@@ -651,6 +683,7 @@ public struct UsageSnapshot: Codable, Sendable {
                 .resolving(self.subscriptionExpiresAtIsDateOnly),
             updatedAt: self.updatedAt,
             identity: identity.resolving(self.identity),
+            planObservation: self.planObservation,
             dataConfidence: dataConfidence.resolving(self.dataConfidence))
     }
 }
@@ -674,15 +707,19 @@ public struct CodexCLIAccountSnapshot: Sendable {
     public let usage: UsageSnapshot?
     public let credits: CreditsSnapshot?
     public let identity: ProviderIdentitySnapshot?
+    /// Raw plan provenance observed by the RPC fetch, shared with credits-only snapshots.
+    public let planObservation: ProviderPlanObservation?
 
     public init(
         usage: UsageSnapshot?,
         credits: CreditsSnapshot?,
-        identity: ProviderIdentitySnapshot? = nil)
+        identity: ProviderIdentitySnapshot? = nil,
+        planObservation: ProviderPlanObservation? = nil)
     {
         self.usage = usage
         self.credits = credits
         self.identity = identity
+        self.planObservation = planObservation
     }
 }
 
@@ -1188,6 +1225,14 @@ public struct UsageFetcher: Sendable {
             let limits = limitsResponse.rateLimits
             let account = try? await rpc.fetchAccount()
             let rateLimitsPlan = Self.normalizedCodexAccountField(limits.planType)
+            let accountPlan = account?.account.flatMap { details in
+                if case let .chatgpt(_, plan) = details {
+                    plan
+                } else {
+                    nil
+                }
+            }
+            let observedAt = Date()
             // Provider-specific by design: Codex app-server responses construct Codex reconciled identity.
             let identity = ProviderIdentitySnapshot(
                 providerID: .codex,
@@ -1199,28 +1244,31 @@ public struct UsageFetcher: Sendable {
                     }
                 },
                 accountOrganization: nil,
-                loginMethod: rateLimitsPlan ?? account?.account.flatMap { details in
-                    if case let .chatgpt(_, plan) = details {
-                        plan
-                    } else {
-                        nil
-                    }
-                })
+                loginMethod: rateLimitsPlan ?? accountPlan)
+            let planObservation = ProviderPlanObservation(
+                rawPlan: rateLimitsPlan ?? Self.normalizedCodexAccountField(accountPlan),
+                source: .localRPC,
+                observedAt: observedAt)
             let credits = Self.makeCredits(from: limits, rateLimitsByLimitId: limitsResponse.rateLimitsByLimitId)
             let shouldReturnUnavailableUsage = credits == nil || rateLimitsPlan != nil
             let usage = CodexReconciledState.fromCLI(
                 primary: Self.makeWindow(from: limits.primary),
                 secondary: Self.makeWindow(from: limits.secondary),
-                identity: identity)?
+                identity: identity,
+                planObservation: planObservation,
+                updatedAt: observedAt)?
                 .toUsageSnapshot()
-                ?? (shouldReturnUnavailableUsage ? Self.emptyCodexUsageSnapshotIfIdentified(identity: identity) : nil)
+                ?? (shouldReturnUnavailableUsage ? Self.emptyCodexUsageSnapshotIfIdentified(
+                    identity: identity,
+                    planObservation: planObservation) : nil)
             guard usage != nil || credits != nil else {
                 throw UsageError.noRateLimitsFound
             }
             return CodexCLIAccountSnapshot(
                 usage: usage,
                 credits: credits,
-                identity: identity)
+                identity: identity,
+                planObservation: planObservation)
         } catch {
             let usage = Self.recoverUsageFromRPCError(error)
             let credits = Self.recoverCreditsFromRPCError(error)
@@ -1228,7 +1276,8 @@ public struct UsageFetcher: Sendable {
                 return CodexCLIAccountSnapshot(
                     usage: usage,
                     credits: credits,
-                    identity: usage?.identity)
+                    identity: usage?.identity,
+                    planObservation: usage?.planObservation)
             }
             throw CodexCLIBackendRateLimitError.classify(error, environment: self.environment) ?? error
         }
@@ -1403,28 +1452,39 @@ public struct UsageFetcher: Sendable {
         return trimmed
     }
 
-    private static func emptyCodexUsageSnapshotIfIdentified(identity: ProviderIdentitySnapshot) -> UsageSnapshot? {
+    private static func emptyCodexUsageSnapshotIfIdentified(
+        identity: ProviderIdentitySnapshot,
+        planObservation: ProviderPlanObservation? = nil) -> UsageSnapshot?
+    {
         guard identity.accountEmail != nil || identity.loginMethod != nil else { return nil }
         return UsageSnapshot(
             primary: nil,
             secondary: nil,
             tertiary: nil,
             updatedAt: Date(),
-            identity: identity)
+            identity: identity,
+            planObservation: planObservation)
     }
 
     private static func recoverUsageFromRPCError(_ error: Error) -> UsageSnapshot? {
         // Provider-specific by design: Codex RPC error bodies can still carry authoritative rate-limit payloads.
         guard let body = self.decodeRateLimitsErrorBody(from: error) else { return nil }
+        let observedAt = Date()
+        let rawPlan = self.normalizedCodexAccountField(body.planType)
         let identity = ProviderIdentitySnapshot(
             providerID: .codex,
             accountEmail: self.normalizedCodexAccountField(body.email),
             accountOrganization: nil,
-            loginMethod: self.normalizedCodexAccountField(body.planType))
+            loginMethod: rawPlan)
         guard let state = CodexReconciledState.fromCLI(
             primary: self.makeWindow(from: body.rateLimit?.primaryWindow),
             secondary: self.makeWindow(from: body.rateLimit?.secondaryWindow),
-            identity: identity)
+            identity: identity,
+            planObservation: ProviderPlanObservation(
+                rawPlan: rawPlan,
+                source: .localRPC,
+                observedAt: observedAt),
+            updatedAt: observedAt)
         else {
             return nil
         }
