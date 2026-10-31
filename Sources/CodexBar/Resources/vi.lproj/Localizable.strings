@@ -1347,11 +1347,8 @@
 "Share Stats…" = "Chia sẻ số liệu…";
 "Stats copied" = "Đã sao chép số liệu";
 "DeepSeek this month token usage trend" = "Xu hướng sử dụng token DeepSeek trong tháng này";
-"Chrome profile" = "Hồ sơ Chrome";
 "Choose which signed-in DeepSeek Platform session supplies detailed usage." = "Chọn phiên DeepSeek Platform đã đăng nhập để cung cấp thông tin sử dụng chi tiết.";
 "Detailed usage unavailable." = "Không có thông tin sử dụng chi tiết.";
-"Sign in to DeepSeek Platform in Chrome for detailed usage." = "Đăng nhập vào DeepSeek Platform trong Chrome để xem thông tin sử dụng chi tiết.";
-"Select a DeepSeek Chrome profile in Settings." = "Chọn một hồ sơ Chrome cho DeepSeek trong Cài đặt.";
 "Select profile…" = "Chọn hồ sơ…";
 
 "%@: %@" = "%@: %@";
@@ -2762,3 +2759,34 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Hiển thị mức sử dụng OpenCode được ghi lại trên máy Mac này trong lịch sử Codex. Mặc định tắt; luôn loại trừ các vị trí CODEX_HOME có phạm vi giới hạn hoặc vị trí thay thế.";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "Tự động sử dụng phiên đã lưu đang hoạt động, nếu không thì sử dụng khóa API hoặc cookie trình duyệt.";
 "Store multiple Command Code subscription sessions." = "Lưu trữ nhiều phiên đăng ký Command Code.";
+
+/* OpenDesign */
+"OpenDesign" = "OpenDesign";
+"Show OpenDesign usage" = "Hiển thị mức sử dụng OpenDesign";
+"Sign in to OpenDesign, then refresh CodexBar." = "Đăng nhập vào OpenDesign, sau đó làm mới CodexBar.";
+"OpenDesign usage response format changed." = "Định dạng phản hồi mức sử dụng OpenDesign đã thay đổi.";
+"OpenDesign billing access was denied." = "Quyền truy cập thông tin thanh toán OpenDesign bị từ chối.";
+"OpenDesign request failed. Try again later." = "Yêu cầu OpenDesign thất bại. Vui lòng thử lại sau.";
+"OpenDesign subscription usage is unavailable for this workspace." = "Không có dữ liệu sử dụng gói đăng ký OpenDesign cho không gian làm việc này.";
+"upcoming_reset_notifications_title" = "Cảnh báo trước khi đặt lại";
+"upcoming_reset_notifications_subtitle" = "Cảnh báo cho Codex trước khi giới hạn hàng tuần được đặt lại khi hạn mức còn chưa dùng.";
+"upcoming_reset_notification_title" = "%1$@: giới hạn %2$@ sắp được đặt lại";
+"upcoming_reset_notification_body" = "Còn %1$@ hạn mức chưa dùng. Giới hạn sẽ đặt lại sau %2$@ và hạn mức chưa dùng sẽ mất đi.";
+"upcoming_reset_notification_body_with_account" = "Tài khoản %1$@. Còn %2$@ hạn mức chưa dùng. Giới hạn sẽ đặt lại sau %3$@ và hạn mức chưa dùng sẽ mất đi.";
+"Sign in to DeepSeek Platform in a Chromium-based browser for detailed usage." = "Đăng nhập vào DeepSeek Platform trong trình duyệt dựa trên Chromium để xem thông tin sử dụng chi tiết.";
+"Select a DeepSeek browser profile in Settings." = "Chọn một hồ sơ trình duyệt cho DeepSeek trong Cài đặt.";
+"menu_bar_layout_token_separator_glyph_accessibility" = "Dấu phân cách %@";
+"menu_bar_layout_separator_pipe" = "Gạch đứng";
+"menu_bar_layout_separator_slash" = "Dấu gạch chéo";
+"menu_bar_layout_separator_hyphen" = "Dấu gạch nối";
+"menu_bar_layout_separator_bullet" = "Dấu đầu dòng";
+"menu_bar_layout_separator_diamond" = "Hình thoi đặc";
+"menu_bar_layout_separator_hollowDiamond" = "Hình thoi rỗng";
+"menu_bar_layout_separator_tilde" = "Dấu ngã";
+"menu_bar_layout_separator_doubleBar" = "Gạch đứng kép";
+"Rename" = "Đổi tên";
+"Rename account" = "Đổi tên tài khoản";
+"Account name" = "Tên tài khoản";
+"Leave blank to use the default name." = "Để trống để dùng tên mặc định.";
+"Rewards" = "Phần thưởng";
+"Reward expiry" = "Ngày hết hạn phần thưởng";

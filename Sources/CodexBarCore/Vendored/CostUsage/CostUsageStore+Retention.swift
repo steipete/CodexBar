@@ -324,12 +324,18 @@ extension CostUsageStore {
             if initialRows > Int64(rowLimit) || initialBytes > byteLimit,
                let sinceDay, let untilDay, sinceDay <= untilDay
             {
-                _ = try Self.prune(
-                    database,
-                    home: self.home,
-                    sinceDay: sinceDay,
-                    untilDay: untilDay,
-                    calendar: calendar)
+                // Budget eviction cannot reconstruct archived rows outside a smaller report window.
+                let hasArchives = try Self.readFiles(database, home: self.home).contains {
+                    CostUsageScanner.isArchivedCodexRollout($0.path)
+                }
+                if !hasArchives {
+                    _ = try Self.prune(
+                        database,
+                        home: self.home,
+                        sinceDay: sinceDay,
+                        untilDay: untilDay,
+                        calendar: calendar)
+                }
             }
 
             var catchUpRequired = false
@@ -420,7 +426,8 @@ extension CostUsageStore {
             } else {
                 false
             }
-            let protected = touchesWindow || recentlyActive
+            let archived = self.columnText(statement, at: 1).map(CostUsageScanner.isArchivedCodexRollout) == true
+            let protected = touchesWindow || recentlyActive || archived
             if !protected {
                 let fileID = sqlite3_column_int64(statement, 0)
                 try self.execute(database, "DELETE FROM files WHERE id = \(fileID)")

@@ -195,7 +195,7 @@ struct BedrockUsageStatsTests {
     }
 
     @Test
-    func `cost explorer data unavailable response returns zero usage`() async throws {
+    func `cost explorer data unavailable fails without inventing zero usage`() async throws {
         let registered = URLProtocol.registerClass(BedrockStubURLProtocol.self)
         defer {
             if registered {
@@ -217,14 +217,47 @@ struct BedrockUsageStatsTests {
             secretAccessKey: "testSecret",
             sessionToken: nil)
 
-        let usage = try await BedrockUsageFetcher.fetchUsage(
-            credentials: credentials,
+        let unavailable = ProviderFetchClassifiedError(kind: .providerUnavailable, message: "Spend unavailable")
+        await #expect(throws: unavailable) {
+            try await BedrockUsageFetcher.fetchUsage(
+                credentials: credentials,
+                region: "us-east-1",
+                budget: 100,
+                environment: [BedrockSettingsReader.apiURLKey: "https://bedrock.test"])
+        }
+        await #expect(throws: unavailable) {
+            try await BedrockUsageFetcher.fetchDailyReport(
+                credentials: credentials,
+                since: Date(timeIntervalSince1970: 1_791_849_600),
+                until: Date(timeIntervalSince1970: 1_791_936_000),
+                environment: [BedrockSettingsReader.apiURLKey: "https://bedrock.test"])
+        }
+    }
+
+    @Test
+    func `cost explorer measured zero remains a successful balance`() async throws {
+        let registered = URLProtocol.registerClass(BedrockStubURLProtocol.self)
+        defer {
+            if registered { URLProtocol.unregisterClass(BedrockStubURLProtocol.self) }
+            BedrockStubURLProtocol.handler = nil
+        }
+        BedrockStubURLProtocol.handler = { request in
+            let url = try #require(request.url)
+            return Self.makeResponse(
+                url: url,
+                body: #"""
+                {"ResultsByTime":[{"Groups":[{"Keys":["Amazon Bedrock"],
+                  "Metrics":{"UnblendedCost":{"Amount":"0.00000000","Unit":"USD"}}}]}]}
+                """#,
+                statusCode: 200)
+        }
+        let snapshot = try await BedrockUsageFetcher.fetchUsage(
+            credentials: Self.testCredentials,
             region: "us-east-1",
             budget: 100,
             environment: [BedrockSettingsReader.apiURLKey: "https://bedrock.test"])
-
-        #expect(usage.monthlySpend == 0)
-        #expect(usage.monthlyBudget == 100)
+        #expect(snapshot.monthlySpend == 0)
+        #expect(snapshot.toUsageSnapshot().providerCost?.used == 0)
     }
 
     @Test
@@ -418,7 +451,7 @@ struct BedrockUsageStatsTests {
     @Test
     func `current month range uses UTC calendar`() throws {
         let originalTimeZone = NSTimeZone.default
-        NSTimeZone.default = TimeZone(secondsFromGMT: 14 * 60 * 60)!
+        NSTimeZone.default = try #require(TimeZone(secondsFromGMT: 14 * 60 * 60))
         defer {
             NSTimeZone.default = originalTimeZone
         }

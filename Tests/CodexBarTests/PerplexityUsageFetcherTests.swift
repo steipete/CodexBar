@@ -421,4 +421,147 @@ struct PerplexityUsageFetcherTests {
 
         #expect(primary.usedPercent == 25.0)
     }
+
+    // MARK: - Organization pool credits
+
+    @Test
+    func `org member with exhausted seat credits shows available org credits`() async throws {
+        // Sanitized billing v2 response from #4826 (thread_usage and invoices removed).
+        let json = """
+        {
+          "balance_cents": 3342.28,
+          "renewal_date_ts": 1794405600,
+          "spending_limit_cents": null,
+          "global_cap_cents": 100000,
+          "current_period_purchased_cents": 0,
+          "org_pool_draws_cents": 24371,
+          "org_user_cap_cents": 300000,
+          "is_org_pool_depleted": false,
+          "is_fully_migrated_to_billing_v2": true,
+          "credit_grants": [
+            { "type": "recurring", "amount_cents": 500, "remaining_cents": 0,
+              "expires_at_ts": 1794405600, "effective_at_ts": 1791727200,
+              "amount_applied_prior_period_cents": 0, "is_admin_grant": null,
+              "is_manual_org_pool_reload": null, "priority": 30 }
+          ],
+          "meter_usage": [{ "meter_type": "asi_token_usage", "cost_cents": 24870.74 }],
+          "total_usage_cents": 24870.74
+        }
+        """
+        let usage = try await CookiePluginFixtures.perplexity(Data(json.utf8), now: Self.now)
+            .toUsageSnapshot()
+
+        #expect(usage.primary?.usedPercent == 100)
+        let org = try #require(usage.extraRateWindows?.first)
+        #expect(usage.extraRateWindows?.count == 1)
+        #expect(org.id == "org-credits")
+        #expect(org.title == "Organization")
+        #expect(abs(org.window.usedPercent - 24371 / (24371 + 3342.28) * 100) < 0.0001)
+        #expect(org.window.resetDescription == "24371/27713 credits")
+        #expect(usage.automaticPerplexityWindow() == org.window)
+        #expect(usage.orderedPerplexityDisplayWindows().first == org.window)
+    }
+
+    @Test
+    func `org member with seat credits left keeps recurring lane first`() async throws {
+        // 4000 of the 10000 seat credits used, nothing drawn from the org pool yet. balance_cents covers the
+        // 6000 seat credits left plus 5000 available from the org pool.
+        let json = """
+        {
+          "balance_cents": 11000,
+          "renewal_date_ts": \(Self.renewalTs),
+          "current_period_purchased_cents": 0,
+          "org_pool_draws_cents": 0,
+          "org_user_cap_cents": 300000,
+          "is_org_pool_depleted": false,
+          "credit_grants": [
+            { "type": "recurring", "amount_cents": 10000, "expires_at_ts": \(Self.futureTs) }
+          ],
+          "total_usage_cents": 4000
+        }
+        """
+        let snapshot = try await CookiePluginFixtures.perplexity(Data(json.utf8), now: Self.now)
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(snapshot.orgUsed == 0)
+        #expect(snapshot.orgAvailable == 5000)
+        #expect(usage.primary?.usedPercent == 40)
+        let org = try #require(usage.extraRateWindows?.first)
+        #expect(org.window.usedPercent == 0)
+        #expect(org.window.resetDescription == "0/5000 credits")
+        #expect(usage.automaticPerplexityWindow() == usage.primary)
+    }
+
+    @Test
+    func `org lane appears when only one org field is reported`() async throws {
+        let json = """
+        {
+          "balance_cents": 1000,
+          "renewal_date_ts": \(Self.renewalTs),
+          "current_period_purchased_cents": 0,
+          "org_pool_draws_cents": 3000,
+          "org_user_cap_cents": null,
+          "is_org_pool_depleted": null,
+          "credit_grants": [
+            { "type": "recurring", "amount_cents": 500, "expires_at_ts": \(Self.futureTs) }
+          ],
+          "total_usage_cents": 3500
+        }
+        """
+        let usage = try await CookiePluginFixtures.perplexity(Data(json.utf8), now: Self.now)
+            .toUsageSnapshot()
+        let org = try #require(usage.extraRateWindows?.first)
+
+        #expect(org.window.usedPercent == 75)
+        #expect(org.window.resetDescription == "3000/4000 credits")
+        #expect(usage.automaticPerplexityWindow() == org.window)
+    }
+
+    @Test
+    func `null org fields do not add an org lane`() async throws {
+        let json = """
+        {
+          "balance_cents": 0,
+          "renewal_date_ts": \(Self.renewalTs),
+          "current_period_purchased_cents": 0,
+          "org_pool_draws_cents": null,
+          "org_user_cap_cents": null,
+          "is_org_pool_depleted": null,
+          "credit_grants": [
+            { "type": "recurring", "amount_cents": 500, "expires_at_ts": \(Self.futureTs) }
+          ],
+          "total_usage_cents": 500
+        }
+        """
+        let usage = try await CookiePluginFixtures.perplexity(Data(json.utf8), now: Self.now)
+            .toUsageSnapshot()
+
+        #expect(usage.extraRateWindows == nil)
+        #expect(usage.automaticPerplexityWindow()?.remainingPercent == 0)
+    }
+
+    @Test
+    func `depleted org pool reads as exhausted`() async throws {
+        let json = """
+        {
+          "balance_cents": 120,
+          "renewal_date_ts": \(Self.renewalTs),
+          "current_period_purchased_cents": 0,
+          "org_pool_draws_cents": 300000,
+          "org_user_cap_cents": 300000,
+          "is_org_pool_depleted": true,
+          "credit_grants": [
+            { "type": "recurring", "amount_cents": 500, "expires_at_ts": \(Self.futureTs) }
+          ],
+          "total_usage_cents": 300500
+        }
+        """
+        let usage = try await CookiePluginFixtures.perplexity(Data(json.utf8), now: Self.now)
+            .toUsageSnapshot()
+        let org = try #require(usage.extraRateWindows?.first)
+
+        #expect(org.window.usedPercent == 100)
+        #expect(org.window.resetDescription == "300000/300000 credits")
+        #expect(usage.automaticPerplexityWindow()?.remainingPercent == 0)
+    }
 }

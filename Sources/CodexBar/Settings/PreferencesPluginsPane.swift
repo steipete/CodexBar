@@ -368,6 +368,10 @@ private struct PluginApprovalSheet: View {
                 GroupBox(L("Network authority")) {
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(binding.origins, id: \.self) { Text($0).textSelection(.enabled) }
+                        if let dashboardURL = binding.dashboardURL {
+                            Text(L("Usage Dashboard"))
+                            Text(dashboardURL).textSelection(.enabled)
+                        }
                         Text(L("Auth: %@", binding.authMode))
                         Text(L(
                             "Capabilities: %@",

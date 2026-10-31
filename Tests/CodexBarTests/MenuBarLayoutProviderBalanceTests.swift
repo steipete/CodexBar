@@ -8,6 +8,23 @@ struct MenuBarLayoutProviderBalanceTests {
     private let now = Date(timeIntervalSince1970: 1_752_768_000)
 
     @Test
+    func `zai balance uses shared renderer without replacing subscription quotas`() throws {
+        let balance = try ProviderDetailSection(title: "Quota details", rows: [
+            .init(label: "Account balance", value: "¥8.66"),
+        ])
+        let snapshot = UsageSnapshot(primary: nil, secondary: nil, details: [balance], updatedAt: self.now)
+        #expect(self.data(provider: .zai, snapshot: snapshot).balance == "¥8.66")
+        #expect(self.data(provider: .zai, snapshot: snapshot).automaticText == "¥8.66")
+        let quota = UsageSnapshot(
+            primary: .init(usedPercent: 42, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            details: [balance],
+            updatedAt: self.now)
+        #expect(self.data(provider: .zai, snapshot: quota).balance == "¥8.66")
+        #expect(self.data(provider: .zai, snapshot: quota).automaticText == nil)
+    }
+
+    @Test
     func `JetBrains top-up balance renders beside the unchanged monthly percentage`() throws {
         let snapshot = try JetBrainsTopUpIntegrationTests.xml().toUsageSnapshot()
         let data = self.data(provider: .jetbrains, snapshot: snapshot)

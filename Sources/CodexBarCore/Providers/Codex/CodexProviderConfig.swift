@@ -1,6 +1,11 @@
 import Foundation
 
 extension ProviderConfig {
+    public var codexAccountNames: [String: String]? {
+        get { self.extensionValue(forKey: "codexAccountNames") }
+        set { self.setExtensionValue(newValue, forKey: "codexAccountNames") }
+    }
+
     public var codexActiveSource: CodexActiveSource? {
         get { self.extensionValue(forKey: "codexActiveSource") }
         set { self.setExtensionValue(newValue, forKey: "codexActiveSource") }

@@ -433,8 +433,12 @@ public struct TTYCommandRunner {
         }
     }
 
-    static func locateBundledHelper(_ name: String) -> String? {
-        if let override = ProcessInfo.processInfo.environment["CODEXBAR_HELPER_\(name.uppercased())"],
+    static func locateBundledHelper(
+        _ name: String,
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        let key = "CODEXBAR_HELPER_\(name.uppercased())"
+        if let override = environment[key] ?? ProcessInfo.processInfo.environment[key],
            FileManager.default.isExecutableFile(atPath: override)
         {
             return override
@@ -531,7 +535,7 @@ public struct TTYCommandRunner {
         let executable: String
         let arguments: [String]
         if let watchdogName = ttyLaunch?.bundledWatchdogHelperName,
-           let watchdog = Self.locateBundledHelper(watchdogName)
+           let watchdog = Self.locateBundledHelper(watchdogName, environment: baseEnv)
         {
             executable = watchdog
             arguments = ["--", resolved] + options.extraArgs

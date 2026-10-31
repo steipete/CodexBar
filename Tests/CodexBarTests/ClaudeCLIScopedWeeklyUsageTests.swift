@@ -5,6 +5,60 @@ import Testing
 
 struct ClaudeCLIScopedWeeklyUsageTests {
     @Test
+    func `unavailable model breakdown keeps primary quotas and reports its cause`() async throws {
+        let notice = "Per-model breakdown unavailable (rate limited until 2:32pm)  r to retry"
+        let status = try ClaudeStatusProbe.parse(text: """
+        Settings  Status  Config  Usage  Stats
+        Current session
+        9% used
+        Current week (all models)
+        67% used
+        \(notice)
+        """)
+        let fetcher = ClaudeUsageFetcher(
+            browserDetection: BrowserDetection(cacheTTL: 0), environment: [:], dataSource: .cli)
+        let fetchOverride: ClaudeStatusProbe.FetchOverride = { _, _, _ in status }
+        let usage = try await ClaudeCLIResolver.withResolvedBinaryPathOverrideForTesting("/usr/bin/true") {
+            try await ClaudeStatusProbe.withFetchOverrideForTesting(fetchOverride) {
+                try await fetcher.loadLatestUsage(model: "sonnet")
+            }
+        }
+        let snapshot = ClaudeOAuthFetchStrategy._snapshotForTesting(from: usage)
+        #expect(snapshot.primary?.usedPercent == 9)
+        #expect(snapshot.secondary?.usedPercent == 67)
+        #expect(snapshot.extraRateWindows == nil)
+        let row = try #require(snapshot.details.flatMap(\.rows).first { $0.id == "claude-model-breakdown" })
+        #expect(row.label == "Status")
+        #expect(row.value == "Per-model breakdown unavailable (rate limited until 2:32pm)")
+        let roundTrip = try JSONDecoder().decode(UsageSnapshot.self, from: JSONEncoder().encode(snapshot))
+        #expect(roundTrip.details == snapshot.details)
+    }
+
+    @Test
+    func `complete latest panel clears an earlier unavailable breakdown notice`() {
+        let usage = ClaudeUsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            opus: nil,
+            updatedAt: Date(),
+            accountEmail: nil,
+            accountOrganization: nil,
+            loginMethod: nil,
+            rawText: """
+            Settings: Usage
+            Current session
+            9% used
+            Per-model breakdown unavailable (rate limited until 2:32pm)  r to retry
+            Settings: Usage
+            Current session
+            10% used
+            Current week (Fable)
+            42% used
+            """)
+        #expect(ClaudeOAuthFetchStrategy._snapshotForTesting(from: usage).details.isEmpty)
+    }
+
+    @Test
     func `CLI usage surfaces Fable scoped weekly limit`() async throws {
         let cliUsage = """
         Settings  Status  Config  Usage  Stats

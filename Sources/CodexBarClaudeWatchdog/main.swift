@@ -14,27 +14,33 @@ private func usageAndExit() -> Never {
     Darwin.exit(WatchdogExitCode.usage)
 }
 
-private func killProcessTree(childPID: pid_t, graceSeconds: TimeInterval = 0.5) {
-    let pgid = getpgid(childPID)
-    if pgid > 0 {
-        kill(-pgid, SIGTERM)
-    } else {
-        kill(childPID, SIGTERM)
+private func killProcessTree(childPID: pid_t, graceSeconds: TimeInterval = 0.5) -> Int32? {
+    let selfPgrp = getpgrp()
+    let spawnedGroup = childPID
+    let initialPgid = getpgid(childPID)
+    if spawnedGroup > 0, spawnedGroup != selfPgrp {
+        _ = kill(-spawnedGroup, SIGTERM)
+    }
+    if initialPgid != spawnedGroup {
+        _ = kill(childPID, SIGTERM)
     }
 
     let deadline = Date().addingTimeInterval(graceSeconds)
     var status: Int32 = 0
     while Date() < deadline {
         let rc = waitpid(childPID, &status, WNOHANG)
-        if rc == childPID { return }
+        if rc == childPID { return status }
         usleep(50000)
     }
 
-    if pgid > 0 {
-        kill(-pgid, SIGKILL)
-    } else {
-        kill(childPID, SIGKILL)
+    let currentPgid = getpgid(childPID)
+    if spawnedGroup > 0, spawnedGroup != selfPgrp {
+        _ = kill(-spawnedGroup, SIGKILL)
     }
+    if currentPgid != spawnedGroup {
+        _ = kill(childPID, SIGKILL)
+    }
+    return nil
 }
 
 private func exitCode(fromWaitStatus status: Int32) -> Int32 {
@@ -59,16 +65,47 @@ guard !childArgs.isEmpty else { usageAndExit() }
 let childBinary = childArgs[0]
 let childArgv = childArgs
 
+private func handleTerminationSignal(_ sig: Int32) {
+    globalShouldTerminate = sig
+}
+
+var watchdogSignalMask = sigset_t()
+sigemptyset(&watchdogSignalMask)
+_ = sigprocmask(SIG_SETMASK, &watchdogSignalMask, nil)
+
+signal(SIGTERM, handleTerminationSignal)
+signal(SIGINT, handleTerminationSignal)
+signal(SIGHUP, handleTerminationSignal)
+
 let spawnResult: Int32 = childArgv.withUnsafeBufferPointer { buffer in
     var cStrings: [UnsafeMutablePointer<CChar>?] = buffer
         .map { strdup($0) }
     cStrings.append(nil)
     defer { cStrings.forEach { if let p = $0 { free(p) } } }
 
+    var attributes: posix_spawnattr_t?
+    guard posix_spawnattr_init(&attributes) == 0 else {
+        return ENOMEM
+    }
+    defer { posix_spawnattr_destroy(&attributes) }
+
+    guard posix_spawnattr_setflags(
+        &attributes,
+        Int16(POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_SETSIGMASK)) == 0,
+        posix_spawnattr_setpgroup(&attributes, 0) == 0
+    else {
+        return EINVAL
+    }
+    var emptyMask = sigset_t()
+    sigemptyset(&emptyMask)
+    guard posix_spawnattr_setsigmask(&attributes, &emptyMask) == 0 else {
+        return EINVAL
+    }
+
     return cStrings.withUnsafeMutableBufferPointer { cBuffer in
         var pid: pid_t = 0
         let rc: Int32 = childBinary.withCString { childPath in
-            posix_spawnp(&pid, childPath, nil, nil, cBuffer.baseAddress, environ)
+            posix_spawnp(&pid, childPath, nil, &attributes, cBuffer.baseAddress, environ)
         }
         if rc == 0, pid > 0 {
             globalChildPID = pid
@@ -82,22 +119,6 @@ guard spawnResult == 0, globalChildPID > 0 else {
     Darwin.exit(WatchdogExitCode.spawnFailed)
 }
 
-_ = setpgid(globalChildPID, globalChildPID)
-
-private func terminateChild() {
-    if globalChildPID > 0 {
-        killProcessTree(childPID: globalChildPID)
-    }
-}
-
-private func handleTerminationSignal(_ sig: Int32) {
-    globalShouldTerminate = sig
-}
-
-signal(SIGTERM, handleTerminationSignal)
-signal(SIGINT, handleTerminationSignal)
-signal(SIGHUP, handleTerminationSignal)
-
 var status: Int32 = 0
 while true {
     let rc = waitpid(globalChildPID, &status, WNOHANG)
@@ -105,17 +126,15 @@ while true {
         Darwin.exit(exitCode(fromWaitStatus: status))
     }
 
-    if globalShouldTerminate != 0 {
-        let sig = globalShouldTerminate
-        terminateChild()
-        _ = waitpid(globalChildPID, &status, 0)
-        Darwin.exit(128 + sig)
-    }
-
-    if getppid() == 1 {
-        terminateChild()
-        _ = waitpid(globalChildPID, &status, 0)
-        Darwin.exit(exitCode(fromWaitStatus: status))
+    if globalShouldTerminate != 0 || getppid() == 1 {
+        let terminationSignal = globalShouldTerminate
+        if let reapedStatus = killProcessTree(childPID: globalChildPID) {
+            status = reapedStatus
+        } else {
+            _ = waitpid(globalChildPID, &status, 0)
+        }
+        let code = terminationSignal == 0 ? exitCode(fromWaitStatus: status) : 128 + terminationSignal
+        Darwin.exit(code)
     }
 
     usleep(200_000)
