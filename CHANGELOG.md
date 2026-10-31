@@ -2,6 +2,10 @@
 
 ## 0.83.1 — Unreleased
 
+### Fixed
+
+- Bedrock: cache AWS Cost Explorer responses on disk (default 6 hours, `CODEXBAR_BEDROCK_COST_CACHE_HOURS`, `0` disables) so periodic refreshes and relaunches stop paying $0.01 per request for unchanged data; credential or query changes and user-initiated refreshes bypass it.
+
 ## 0.83.0 — 2026-10-31
 
 ### Highlights

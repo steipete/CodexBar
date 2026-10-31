@@ -123,12 +123,15 @@ enum BedrockUsageFetcher {
         budget: Double?,
         environment: [String: String] = ProcessInfo.processInfo.environment,
         now: Date = Date(),
-        cloudWatchTransport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws
+        cloudWatchTransport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
+        costCache: BedrockCostExplorerCache = .shared) async throws
         -> BedrockUsageSnapshot
     {
         let spend = try await Self.fetchMonthlyCost(
             credentials: credentials,
-            environment: environment)
+            environment: environment,
+            costCache: costCache,
+            now: now)
 
         var activity: BedrockClaudeActivity?
         let cloudWatchOverride = environment[BedrockSettingsReader.cloudWatchAPIURLKey]
@@ -161,17 +164,19 @@ enum BedrockUsageFetcher {
         credentials: BedrockAWSSigner.Credentials,
         since: Date,
         until: Date,
-        environment: [String: String] = ProcessInfo.processInfo.environment) async throws
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        costCache: BedrockCostExplorerCache = .shared,
+        now: Date = Date()) async throws
         -> CostUsageDailyReport
     {
         let (startDate, endDate) = Self.dailyRange(since: since, until: until)
 
         let pages = try await Self.callCostExplorerPages(
-            startDate: startDate,
-            endDate: endDate,
-            granularity: "DAILY",
+            query: CostExplorerQuery(
+                startDate: startDate, endDate: endDate, granularity: "DAILY", nextPageToken: nil),
             credentials: credentials,
-            environment: environment)
+            environment: environment,
+            caching: (costCache, now))
 
         let entries = try Self.parseDailyResponses(pages)
         return CostUsageDailyReport(data: entries, summary: nil)
@@ -179,27 +184,50 @@ enum BedrockUsageFetcher {
 
     private static func fetchMonthlyCost(
         credentials: BedrockAWSSigner.Credentials,
-        environment: [String: String]) async throws -> Double
+        environment: [String: String],
+        costCache: BedrockCostExplorerCache,
+        now: Date) async throws -> Double
     {
-        let (startDate, endDate) = Self.currentMonthRange()
+        let (startDate, endDate) = Self.currentMonthRange(now: now)
 
         let pages = try await Self.callCostExplorerPages(
-            startDate: startDate,
-            endDate: endDate,
-            granularity: "MONTHLY",
+            query: CostExplorerQuery(
+                startDate: startDate, endDate: endDate, granularity: "MONTHLY", nextPageToken: nil),
             credentials: credentials,
-            environment: environment)
+            environment: environment,
+            caching: (costCache, now))
 
         return try Self.parseTotalCost(pages)
     }
 
     private static func callCostExplorerPages(
-        startDate: String,
-        endDate: String,
-        granularity: String,
+        query baseQuery: CostExplorerQuery,
         credentials: BedrockAWSSigner.Credentials,
-        environment: [String: String]) async throws -> [Data]
+        environment: [String: String],
+        caching: (cache: BedrockCostExplorerCache, now: Date)) async throws -> [Data]
     {
+        let (costCache, now) = caching
+        let (startDate, endDate, granularity) = (baseQuery.startDate, baseQuery.endDate, baseQuery.granularity)
+        // AWS bills each request, and Cost Explorer data only refreshes a few times a day: serve a persisted
+        // response while it is younger than the cache interval. A user-initiated refresh bypasses the lookup
+        // (and refreshes the stored copy); background refreshes, relaunches and cost-history scans do not.
+        let hasEndpointOverride = environment[BedrockSettingsReader.apiURLKey] != nil
+        let interval = hasEndpointOverride && !costCache.cachesEndpointOverrides
+            ? 0
+            : BedrockCostExplorerCache.interval(environment: environment)
+        let cacheKey = BedrockCostExplorerCache.key(
+            identity: BedrockCostExplorerCache.identity(credentials: credentials, environment: environment),
+            endpoint: SettingsValue.cleaned(environment[BedrockSettingsReader.apiURLKey]) ?? "",
+            granularity: granularity,
+            startDate: startDate,
+            endDate: endDate)
+        if ProviderInteractionContext.current != .userInitiated,
+           let cached = costCache.pages(forKey: cacheKey, interval: interval, now: now)
+        {
+            Self.log.debug("Serving AWS Cost Explorer \(granularity) from cache.")
+            return cached
+        }
+
         var pages: [Data] = []
         var nextPageToken: String?
         var seenPageTokens: Set<String> = []
@@ -220,6 +248,9 @@ enum BedrockUsageFetcher {
             }
         } while nextPageToken != nil
 
+        if interval > 0 {
+            costCache.store(pages: pages, forKey: cacheKey, now: now)
+        }
         return pages
     }
 
