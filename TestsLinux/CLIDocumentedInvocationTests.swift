@@ -152,9 +152,9 @@ struct CLIDocumentedInvocationTests {
             path: "cost",
             options: ["provider": ["codex"], "groupBy": ["session"]]),
         .init(
-            "cost --provider codex --identified-only --format json --days 30",
+            "cost --provider codex --identified-only --format json --days 30 --remote first --remote second",
             path: "cost",
-            options: ["provider": ["codex"], "format": ["json"], "days": ["30"]],
+            options: ["provider": ["codex"], "format": ["json"], "days": ["30"], "remote": ["first", "second"]],
             flags: ["identifiedOnly"]),
         .init("cost --provider cursor", path: "cost", options: ["provider": ["cursor"]]),
         .init("dashboard", path: "dashboard"),

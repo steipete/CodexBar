@@ -2797,3 +2797,8 @@
 "Leave blank to use the default name." = "برای استفاده از نام پیش‌فرض، این قسمت را خالی بگذارید.";
 "Rewards" = "پاداش‌ها";
 "Reward expiry" = "انقضای پاداش‌ها";
+"By machine" = "بر اساس دستگاه";
+"Machine %d" = "دستگاه %d";
+"Codex identified requests" = "درخواست‌های شناسایی‌شده Codex";
+"Shared requests count once." = "درخواست‌های مشترک یک بار شمرده می‌شوند.";
+"Other Codex homes on this Mac aren't included." = "پوشه‌های دیگر Codex در این Mac لحاظ نمی‌شوند.";

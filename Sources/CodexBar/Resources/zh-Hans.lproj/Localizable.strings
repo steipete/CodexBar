@@ -2785,3 +2785,8 @@
 "Leave blank to use the default name." = "留空以使用默认名称。";
 "Rewards" = "奖励";
 "Reward expiry" = "奖励到期日期";
+"By machine" = "按机器";
+"Machine %d" = "机器 %d";
+"Codex identified requests" = "已识别的 Codex 请求";
+"Shared requests count once." = "共享请求只计算一次。";
+"Other Codex homes on this Mac aren't included." = "不包含此 Mac 上的其他 Codex 主目录。";

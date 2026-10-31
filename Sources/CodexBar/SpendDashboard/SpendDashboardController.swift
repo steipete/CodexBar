@@ -662,7 +662,7 @@ enum SpendDashboardSource {
     }
 
     @MainActor
-    private static func codexHomes(
+    static func codexHomes(
         settings: SettingsStore,
         store: UsageStore) -> [(account: CodexVisibleAccount?, homePath: String?)]
     {
@@ -1093,6 +1093,14 @@ final class SpendDashboardController {
     typealias CachedLoader = @Sendable (SpendDashboardLoadRequest) async -> SpendDashboardLoadResult
     typealias PublicationHandler = @MainActor @Sendable (SpendDashboardPublication) -> Void
 
+    typealias MachineLoader = @Sendable ([String], Int, Int64, Int64) async throws -> CodexIdentifiedResult
+    private(set) var machineResult: CodexIdentifiedResult?
+    private(set) var machineRunning = false
+    private(set) var machineWindow: ClosedRange<Date>?
+    private(set) var machineLocalPartial = false
+    private var machineTask: Task<Void, Never>?
+    private let machineLoader: MachineLoader
+
     private enum ReconciliationObservation: Sendable {
         case confirmedEmpty
         case confirmedNonempty(SpendDashboardModel.ProviderInput)
@@ -1212,6 +1220,18 @@ final class SpendDashboardController {
         requestBuilder: @escaping RequestBuilder,
         cachedLoader: CachedLoader? = nil,
         loader: @escaping Loader = SpendDashboardSource.load,
+        machineLoader: @escaping MachineLoader = { hosts, days, start, end in
+            try await CodexIdentifiedCollection.collect(
+                remotes: hosts,
+                startUnixMs: start,
+                endUnixMs: end,
+                includeSourceSubtotals: true,
+                local: { try await CodexRequestLedger.load(startUnixMs: start, endUnixMs: end) },
+                fetchRemote: {
+                    try await RemoteCodexCostFetcher().fetchIdentifiedUsage(
+                        host: $0, historyDays: days, startUnixMs: start, endUnixMs: end)
+                })
+        },
         nowProvider: @escaping @Sendable () -> Date = { Date() },
         publicationHandler: PublicationHandler? = nil)
     {
@@ -1219,6 +1239,7 @@ final class SpendDashboardController {
         self.requestBuilder = requestBuilder
         self.cachedLoader = cachedLoader
         self.loader = loader
+        self.machineLoader = machineLoader
         self.nowProvider = nowProvider
         self.publicationHandler = publicationHandler
         let legacyDays = userDefaults.object(forKey: "settingsSpendDashboardDays") as? Int
@@ -1692,6 +1713,7 @@ final class SpendDashboardController {
     }
 
     func stop() {
+        self.cancelMachineSpend()
         self.loadTask?.cancel()
         self.loadTask = nil
         self.configuration = nil
@@ -1932,5 +1954,41 @@ final class SpendDashboardController {
             guard !accountID.isEmpty else { return nil }
             return ("codex:\(accountID)", identity)
         })
+    }
+}
+
+extension SpendDashboardController {
+    func cancelMachineSpend() {
+        self.machineTask?.cancel()
+        self.machineTask = nil
+        self.machineRunning = false
+        self.machineResult = nil
+        self.machineWindow = nil
+    }
+
+    func runMachineSpend(hosts: [String], eligible: Bool, localPartial: Bool) {
+        guard eligible else { self.cancelMachineSpend(); return }
+        self.machineTask?.cancel()
+        if self.machineLocalPartial != localPartial { self.machineResult = nil }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .gmt
+        let now = self.nowProvider()
+        if let previous = self.machineWindow, !calendar.isDate(previous.upperBound, inSameDayAs: now) {
+            self.machineResult = nil
+        }
+        let days = min(365, self.selectedPeriod.days(now: now, calendar: calendar))
+        let end = Int64(now.timeIntervalSince1970 * 1000)
+        guard let start = CodexIdentifiedCollection.window(days: days, endUnixMs: end) else { return }
+        self.machineWindow = Date(timeIntervalSince1970: Double(start) / 1000)...now
+        self.machineLocalPartial = localPartial
+        self.machineRunning = true
+        let loader = self.machineLoader
+        self.machineTask = Task { [weak self] in
+            let result = try? await loader(hosts, days, start, end)
+            guard !Task.isCancelled, let self else { return }
+            self.machineResult = result
+            self.machineRunning = false
+            self.machineTask = nil
+        }
     }
 }

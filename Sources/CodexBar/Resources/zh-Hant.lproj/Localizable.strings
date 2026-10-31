@@ -2771,3 +2771,8 @@
 "Leave blank to use the default name." = "留空以使用預設名稱。";
 "Rewards" = "獎勵";
 "Reward expiry" = "獎勵到期日期";
+"By machine" = "依機器";
+"Machine %d" = "機器 %d";
+"Codex identified requests" = "已識別的 Codex 請求";
+"Shared requests count once." = "共用請求只計算一次。";
+"Other Codex homes on this Mac aren't included." = "不包含此 Mac 上的其他 Codex 主目錄。";

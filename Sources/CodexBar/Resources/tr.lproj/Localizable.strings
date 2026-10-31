@@ -2796,3 +2796,8 @@
 "Leave blank to use the default name." = "Varsayılan adı kullanmak için boş bırakın.";
 "Rewards" = "Ödüller";
 "Reward expiry" = "Ödüllerin son kullanma tarihi";
+"By machine" = "Makineye göre";
+"Machine %d" = "Makine %d";
+"Codex identified requests" = "Tanımlanmış Codex istekleri";
+"Shared requests count once." = "Paylaşılan istekler bir kez sayılır.";
+"Other Codex homes on this Mac aren't included." = "Bu Mac’teki diğer Codex dizinleri dahil değildir.";

@@ -2797,3 +2797,8 @@
 "Leave blank to use the default name." = "اتركه فارغًا لاستخدام الاسم الافتراضي.";
 "Rewards" = "المكافآت";
 "Reward expiry" = "انتهاء صلاحية المكافآت";
+"By machine" = "حسب الجهاز";
+"Machine %d" = "الجهاز %d";
+"Codex identified requests" = "طلبات Codex المحددة";
+"Shared requests count once." = "تُحسب الطلبات المشتركة مرة واحدة.";
+"Other Codex homes on this Mac aren't included." = "لا تُضمّن أدلة Codex الأخرى على هذا الـ Mac.";

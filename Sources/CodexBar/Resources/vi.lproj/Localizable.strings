@@ -2794,3 +2794,8 @@
 "Leave blank to use the default name." = "Để trống để dùng tên mặc định.";
 "Rewards" = "Phần thưởng";
 "Reward expiry" = "Ngày hết hạn phần thưởng";
+"By machine" = "Theo máy";
+"Machine %d" = "Máy %d";
+"Codex identified requests" = "Yêu cầu Codex đã xác định";
+"Shared requests count once." = "Yêu cầu dùng chung chỉ được tính một lần.";
+"Other Codex homes on this Mac aren't included." = "Không bao gồm thư mục Codex khác trên máy Mac này.";

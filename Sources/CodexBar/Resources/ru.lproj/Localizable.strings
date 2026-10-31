@@ -2794,3 +2794,8 @@
 "Leave blank to use the default name." = "Оставьте поле пустым, чтобы использовать имя по умолчанию.";
 "Rewards" = "Награды";
 "Reward expiry" = "Срок действия наград";
+"By machine" = "По компьютерам";
+"Machine %d" = "Компьютер %d";
+"Codex identified requests" = "Идентифицированные запросы Codex";
+"Shared requests count once." = "Общие запросы учитываются один раз.";
+"Other Codex homes on this Mac aren't included." = "Другие каталоги Codex на этом Mac не включены.";
