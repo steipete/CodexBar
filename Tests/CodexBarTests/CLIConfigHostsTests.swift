@@ -199,13 +199,13 @@ struct CLIConfigHostsTests {
             in: defaults)
 
         let pending = try PreferencesDocument(
-            data: #require(defaults.data(forKey: PreferencesDocument.pendingImportKey)))
+            queueData: #require(defaults.data(forKey: PreferencesDocument.pendingImportKey)))
         #expect(try pending.value("agentSessionsManualHosts", as: String.self) == "devbox")
         #expect(try pending.value("costUsageHosts", as: [String].self) == ["devbox"])
 
         try CodexBarCLI.queueConfigHosts(ConfigHostsState(manualHosts: [], costUsageHosts: []), in: defaults)
         let emptied = try PreferencesDocument(
-            data: #require(defaults.data(forKey: PreferencesDocument.pendingImportKey)))
+            queueData: #require(defaults.data(forKey: PreferencesDocument.pendingImportKey)))
         #expect(try emptied.value("agentSessionsManualHosts", as: String.self)?.isEmpty == true)
         #expect(try emptied.value("costUsageHosts", as: [String].self) == [])
     }
@@ -313,6 +313,16 @@ struct ConfigHostsPreferencesImportTests {
     }
 
     @Test
+    func `transferred preference files reject host keys`() throws {
+        for json in [
+            #"{"version":1,"preferences":{"agentSessionsManualHosts":"a;b,-oProxyCommand=x,ok"}}"#,
+            #"{"version":1,"preferences":{"costUsageHosts":["a;b"]}}"#,
+        ] {
+            #expect(throws: (any Error).self) { try PreferencesDocument(data: Data(json.utf8)) }
+        }
+    }
+
+    @Test
     func `portable export excludes machine-local host keys`() throws {
         let defaults = InMemoryUserDefaults()
         defaults.set("devbox, mini", forKey: "agentSessionsManualHosts")
@@ -350,7 +360,7 @@ struct ConfigHostsPreferencesImportTests {
         try CodexBarCLI.queueConfigHosts(added.state, in: defaults)
 
         let pending = try PreferencesDocument(
-            data: #require(defaults.data(forKey: PreferencesDocument.pendingImportKey)))
+            queueData: #require(defaults.data(forKey: PreferencesDocument.pendingImportKey)))
         #expect(try pending.value("agentSessionsManualHosts", as: String.self) == "my host,mini,devbox")
         #expect(try pending.value("costUsageHosts", as: [String].self) == ["devbox"])
 

@@ -78,7 +78,7 @@ extension SettingsStore {
         self.userDefaults.synchronize()
         guard let data = self.userDefaults.data(forKey: PreferencesDocument.pendingImportKey) else { return }
         do {
-            try self.importPreferences(PreferencesDocument(data: data))
+            try self.importPreferences(PreferencesDocument(queueData: data))
             if self.userDefaults.data(forKey: PreferencesDocument.pendingImportKey) == data {
                 self.userDefaults.removeObject(forKey: PreferencesDocument.pendingImportKey)
                 self.userDefaults.synchronize()

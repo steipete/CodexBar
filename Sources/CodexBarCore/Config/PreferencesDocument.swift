@@ -12,6 +12,8 @@ public struct PreferencesDocument: Codable, Sendable {
     }
 
     public static let pendingImportKey = "portablePreferencesPendingImport"
+    /// Keys that ride the machine-local pending queue but never a transferred file.
+    private static let queueOnlyKeys = Set(["agentSessionsManualHosts", "costUsageHosts"])
     public static let importNotification = "com.steipete.codexbar.preferencesImport"
     public static let defaultsDomain = "com.steipete.codexbar"
     private var version = 1
@@ -58,8 +60,19 @@ public struct PreferencesDocument: Codable, Sendable {
 
     public init() {}
 
+    /// The file/import ingress: structurally valid documents that carry machine-local
+    /// queue-only keys (host lists) are refused rather than applied on another machine.
     public init(data: Data) throws {
         self = try JSONDecoder().decode(Self.self, from: data)
+        try self.validate()
+        for key in Self.queueOnlyKeys where self.preferences[key] != nil {
+            throw Error.invalid("Machine-local preference does not transfer: \(key)")
+        }
+    }
+
+    /// The machine-local pending queue: written by this Mac's CLI, so queue-only keys ride it.
+    public init(queueData: Data) throws {
+        self = try JSONDecoder().decode(Self.self, from: queueData)
         try self.validate()
     }
 
@@ -103,7 +116,7 @@ public struct PreferencesDocument: Codable, Sendable {
             self.preferences[key] = try JSONDecoder().decode(ProviderConfigExtensionValue.self, from: data)
         }
         if let pending = defaults.data(forKey: Self.pendingImportKey) {
-            var queued = try Self(data: pending)
+            var queued = try Self(queueData: pending)
             // Queue-only keys (host lists) stay machine-local even while queued.
             queued.preferences = queued.preferences.filter { Self.keys.contains($0.key) }
             self = try self.merging(queued)
@@ -129,7 +142,7 @@ public struct PreferencesDocument: Codable, Sendable {
     }
 
     public func queueImport(in defaults: UserDefaults) throws {
-        let previous = try defaults.data(forKey: Self.pendingImportKey).map(Self.init(data:)) ?? Self()
+        let previous = try defaults.data(forKey: Self.pendingImportKey).map(Self.init(queueData:)) ?? Self()
         try defaults.set(previous.merging(self).encoded(), forKey: Self.pendingImportKey)
         defaults.synchronize()
     }

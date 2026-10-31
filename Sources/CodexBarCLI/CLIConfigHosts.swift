@@ -42,13 +42,13 @@ extension CodexBarCLI {
             guard let defaults = UserDefaults(suiteName: domain) else {
                 throw PreferencesDocument.Error.invalid("Cannot open preferences domain")
             }
-            // Hold the shared writer lock for the read-modify-write so parallel host
-            // commands report contention instead of losing each other's updates.
+            // Pick up values the running app may have written moments ago. Reads are
+            // coherent without a lock; mutations hold the shared writer lock so parallel
+            // host commands report contention instead of losing each other's updates.
+            defaults.synchronize()
             let result: ConfigHostsMutation
             do {
-                result = try ManagedCodexAccountLock.withLock(at: Self.configHostsLockURL()) {
-                    // Pick up values the running app may have written moments ago.
-                    defaults.synchronize()
+                result = try ManagedCodexAccountLock.withLock(at: action == .list ? nil : Self.configHostsLockURL()) {
                     let state = try Self.configHostsState(in: defaults)
                     guard action != .list else {
                         return ConfigHostsMutation(state: state, changed: false, host: "")
@@ -158,7 +158,7 @@ extension CodexBarCLI {
         // anything persisted, and if the app consumes it between the two reads, the
         // persisted values read afterwards already include it.
         let pending = try defaults.data(forKey: PreferencesDocument.pendingImportKey)
-            .map { try PreferencesDocument(data: $0) }
+            .map { try PreferencesDocument(queueData: $0) }
         let manualRaw: String =
             try pending?.value("agentSessionsManualHosts")
             ?? defaults.string(forKey: "agentSessionsManualHosts")

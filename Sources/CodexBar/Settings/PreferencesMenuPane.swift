@@ -205,7 +205,14 @@ struct AgentSessionHostsEditor: View {
         .help(L("agent_sessions_remote_subtitle"))
         .onDisappear { self.saveDraft() }
         .onChange(of: self.isHostsFieldFocused) { _, focused in
-            if !focused { self.saveDraft() }
+            if focused { return }
+            // An unedited field adopts whatever landed while it held focus.
+            if self.draft == self.loadedDraft {
+                self.draft = self.settings.agentSessionsManualHosts
+                self.loadedDraft = self.draft
+            } else {
+                self.saveDraft()
+            }
         }
         .onChange(of: self.settings.agentSessionsManualHosts) { _, stored in
             if !self.isHostsFieldFocused {

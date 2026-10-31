@@ -286,8 +286,9 @@ a second identifier is an error. For an option value beginning with a dash, use 
     noninteractive SSH boundary as `cost --remote`: trusted host key only, no forwarding,
     bounded output, 60-second timeout, and Ctrl-C cleanup. Each result carries
     `{"ok": bool, "error": string|null}`; a failed check exits nonzero but leaves the host
-    configured. Fix the named cause yourself: untrusted host key, noninteractive SSH auth,
-    or an outdated remote CLI (`--identified-only`, schema 2).
+    configured. An outdated remote CLI is named as its own cause; every other SSH failure
+    shares one message naming the three causes to fix: untrusted host key, noninteractive
+    SSH auth, or an outdated remote CLI (`--identified-only`, schema 2).
   - Writes queue like `config preferences import`: a running app applies them immediately;
     a closed app reads them at next launch. `--defaults-domain` selects an alternate domain
     for testing. The host keys are queue-only: `config preferences export` omits them, since
