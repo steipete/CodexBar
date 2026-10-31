@@ -2,15 +2,6 @@ import Foundation
 
 /// Machine-local SSH hosts and spend consent share one canonical defaults transaction.
 public enum HostPreferences {
-    public enum Error: Swift.Error, LocalizedError {
-        case invalid(String)
-        public var errorDescription: String? {
-            switch self {
-            case let .invalid(message): message
-            }
-        }
-    }
-
     public static var lockURL: URL? {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
             .appendingPathComponent("CodexBar/hosts.lock", isDirectory: false)
@@ -25,7 +16,7 @@ public enum HostPreferences {
             defaults.synchronize()
             let raw = defaults.string(forKey: "agentSessionsManualHosts") ?? ""
             var state = State(
-                manualHosts: raw.isEmpty ? [] : raw.components(separatedBy: ","),
+                manualTokens: raw.isEmpty ? [] : raw.components(separatedBy: ","),
                 costUsageHosts: defaults.stringArray(forKey: "costUsageHosts") ?? [])
             state.filterSelection()
             let previous = state
@@ -47,7 +38,7 @@ public enum HostPreferences {
         throws -> Mutation
     {
         guard let host = RemoteSessionFetcher.sanitizedHosts([rawHost]).first else {
-            throw Error.invalid(RemoteCodexCostError.invalidHost.localizedDescription)
+            throw PreferencesDocument.Error.invalid(RemoteCodexCostError.invalidHost.localizedDescription)
         }
         try RemoteCodexCostFetcher.validateHost(host)
         var next = state
@@ -59,7 +50,7 @@ public enum HostPreferences {
             RemoteSessionFetcher.hostIdentityKey($0) == RemoteSessionFetcher.hostIdentityKey(host)
         }) {
             guard (try? RemoteCodexCostFetcher.validateHost(existing)) != nil else {
-                throw Error.invalid(
+                throw PreferencesDocument.Error.invalid(
                     "Stored host \(existing) is invalid. Remove it, then add \(host) again.")
             }
             canonical = existing
@@ -80,7 +71,7 @@ public enum HostPreferences {
     {
         let host = rawHost.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !host.isEmpty, !host.contains(",") else {
-            throw Error.invalid("Remove one nonempty stored host token at a time.")
+            throw PreferencesDocument.Error.invalid("Remove one nonempty stored host token at a time.")
         }
         var next = state
         var changed = false
@@ -181,8 +172,8 @@ public enum HostPreferences {
                 manualHosts: self.manualTokens, storedSelection: self.costUsageHosts)
         }
 
-        public init(manualHosts: [String] = [], costUsageHosts: [String] = []) {
-            self.manualTokens = manualHosts
+        public init(manualTokens: [String] = [], costUsageHosts: [String] = []) {
+            self.manualTokens = manualTokens
             self.costUsageHosts = costUsageHosts
         }
     }

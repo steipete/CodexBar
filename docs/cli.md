@@ -282,7 +282,7 @@ a second identifier is an error. For an option value beginning with a dash, use 
   - Hosts use the app's validation: one alias or `user@host`, no options, spaces, or control
     characters; invalid add input fails with a nonzero exit and writes nothing. `list` also
     exposes invalid stored tokens. Remove one nonempty comma-free token exactly, including
-    internal control characters, using `remove -- -bad` for a token beginning with a dash.
+    internal control characters, using `remove --format json -- -bad` for a token beginning with a dash.
     Validation errors use the standard JSON array: `[{"provider":"cli","source":"cli","error":{"code":1,"kind":"config","message":"…"}}]`.
   - `--check` verifies each host (list) or the changed host (add) with the same one-shot,
     noninteractive SSH boundary as `cost --remote`: trusted host key only, no forwarding,

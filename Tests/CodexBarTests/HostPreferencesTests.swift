@@ -18,7 +18,7 @@ struct HostPreferencesTests {
             _ = try CodexBarCLI.configHostsMutation(.add, host: "mini", cost: true, in: defaults, lockURL: nil)
         }
         if revokeSpend {
-            settings.costUsageHosts = []
+            settings.setCostUsageHost("devbox", enabled: false)
         } else {
             settings.agentSessionsManualHosts = "replacement"
         }

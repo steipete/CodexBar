@@ -1195,19 +1195,7 @@ extension SettingsStore {
     }
 
     var costUsageHosts: [String] {
-        get { self.defaultsState.costUsageHosts }
-        set {
-            let previous = Set(self.costUsageHosts)
-            let desired = Set(newValue)
-            self.updateHostPreferences { state in
-                for host in previous.subtracting(desired) {
-                    state.setCostUsage(host, enabled: false)
-                }
-                for host in newValue where !previous.contains(host) {
-                    state.setCostUsage(host, enabled: true)
-                }
-            }
-        }
+        self.defaultsState.costUsageHosts
     }
 
     var agentSessionsManualHosts: String {

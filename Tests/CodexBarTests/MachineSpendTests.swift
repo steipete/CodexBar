@@ -51,7 +51,7 @@ struct MachineSpendTests {
         settings.costUsageEnabled = true
         settings.hidePersonalInfo = false
         settings.agentSessionsManualHosts = "fixture-host"
-        settings.costUsageHosts = ["fixture-host"]
+        settings.setCostUsageHost("fixture-host", enabled: true)
         settings.refreshFrequency = .manual
         settings.statusChecksEnabled = false
         let environment = ["HOME": root.path, "CODEX_HOME": root.appendingPathComponent("codex").path]
@@ -266,10 +266,8 @@ struct MachineSpendTests {
 
     @Test
     func `removing and readding shared host revokes consent across reload and invalid aliases are not selectable`() {
-        let defaults = InMemoryUserDefaults()
+        let defaults = InMemoryUserDefaults(values: ["agentSessionsManualHosts": "A, B", "costUsageHosts": ["A", "B"]])
         let settings = testSettingsStore(suiteName: #function, userDefaults: defaults)
-        settings.agentSessionsManualHosts = "A, B"
-        settings.costUsageHosts = ["A", "B"]
         settings.agentSessionsManualHosts = "B"
         settings.agentSessionsManualHosts = "A, B"
         #expect(settings.costUsageHosts == ["B"])

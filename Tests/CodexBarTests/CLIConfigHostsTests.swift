@@ -43,7 +43,7 @@ struct CLIConfigHostsTests {
 
     @Test(arguments: ["", "a;b"])
     func `add rejects invalid hosts`(host: String) {
-        let state = HostPreferences.State(manualHosts: ["devbox"], costUsageHosts: ["devbox"])
+        let state = HostPreferences.State(manualTokens: ["devbox"], costUsageHosts: ["devbox"])
         #expect(throws: (any Error).self) {
             _ = try HostPreferences.adding(host, to: state, cost: false)
         }
@@ -51,7 +51,7 @@ struct CLIConfigHostsTests {
 
     @Test
     func `add is idempotent, case preserving, and trims input`() throws {
-        let state = HostPreferences.State(manualHosts: ["DevBox"], costUsageHosts: ["DevBox"])
+        let state = HostPreferences.State(manualTokens: ["DevBox"], costUsageHosts: ["DevBox"])
 
         let rerun = try HostPreferences.adding(" devbox ", to: state, cost: false)
         #expect(rerun.state == state)
@@ -65,7 +65,7 @@ struct CLIConfigHostsTests {
         #expect(withCost.host == "DevBox")
 
         // Cost membership adopts the stored spelling, so the app's setter keeps it.
-        let caseVariant = HostPreferences.State(manualHosts: ["DevBox"], costUsageHosts: [])
+        let caseVariant = HostPreferences.State(manualTokens: ["DevBox"], costUsageHosts: [])
         let adopted = try HostPreferences.adding("devbox", to: caseVariant, cost: true)
         #expect(adopted.state.costUsageHosts == ["DevBox"])
         #expect(adopted.changed)
@@ -79,7 +79,7 @@ struct CLIConfigHostsTests {
 
     @Test
     func `distinct ssh usernames stay distinct`() throws {
-        let state = HostPreferences.State(manualHosts: ["Alice@devbox", "alice@devbox"], costUsageHosts: [])
+        let state = HostPreferences.State(manualTokens: ["Alice@devbox", "alice@devbox"], costUsageHosts: [])
         let result = try HostPreferences.removing("alice@devbox", from: state, costOnly: false)
 
         #expect(result.state.manualHosts == ["Alice@devbox"])
@@ -110,7 +110,7 @@ struct CLIConfigHostsTests {
 
     @Test
     func `remove with cost keeps the manual host`() throws {
-        let state = HostPreferences.State(manualHosts: ["devbox"], costUsageHosts: ["devbox"])
+        let state = HostPreferences.State(manualTokens: ["devbox"], costUsageHosts: ["devbox"])
         let result = try HostPreferences.removing("devbox", from: state, costOnly: true)
 
         #expect(result.state.manualHosts == ["devbox"])
@@ -120,7 +120,7 @@ struct CLIConfigHostsTests {
 
     @Test
     func `remove of an absent host is idempotent`() throws {
-        let state = HostPreferences.State(manualHosts: ["devbox"], costUsageHosts: ["devbox"])
+        let state = HostPreferences.State(manualTokens: ["devbox"], costUsageHosts: ["devbox"])
 
         let absent = try HostPreferences.removing("ghost", from: state, costOnly: false)
         #expect(absent.state == state)
@@ -175,7 +175,7 @@ struct CLIConfigHostsTests {
     @Test
     func `add validates the adopted stored spelling`() {
         // U+212A lowercases to k but fails the SSH host charset.
-        let state = HostPreferences.State(manualHosts: ["\u{212A}"])
+        let state = HostPreferences.State(manualTokens: ["\u{212A}"])
         for cost in [false, true] {
             #expect(throws: (any Error).self) {
                 try HostPreferences.adding("k", to: state, cost: cost)
