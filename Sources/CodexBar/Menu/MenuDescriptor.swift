@@ -101,6 +101,7 @@ struct MenuDescriptor {
         canCheckForUpdates: Bool = false,
         versionText: String = AppVersion.shortVersion,
         includeContextualActions: Bool = true,
+        pluginDashboardAvailable: Bool = false,
         codexWorkspacesMenuEnabled: Bool = false,
         isKeepingAwake: Bool = false,
         agentSessionsEnabled: Bool = false,
@@ -159,6 +160,8 @@ struct MenuDescriptor {
             if !actions.entries.isEmpty {
                 sections.append(actions)
             }
+        } else if pluginDashboardAvailable {
+            sections.append(Section(entries: [.action(L("Usage Dashboard"), .dashboard)]))
         }
         if isKeepingAwake {
             sections.append(Section(entries: [.text("Stay Awake: local agent session is live", .secondary)]))

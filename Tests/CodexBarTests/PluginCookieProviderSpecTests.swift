@@ -20,7 +20,7 @@ struct PluginCookieProviderSpecTests {
             #expect(picker.dynamicSubtitle?()?.contains("Supported browsers: \(names).") == true)
             if provider == .museai {
                 #expect(picker.subtitle.hasPrefix("Automatic imports browser cookies."))
-                for name in ["Aside", "Opera", "Opera Neon"] {
+                for name in ["Aside", "Brave Origin", "Opera", "Opera Neon"] {
                     #expect(browsers.map(\.displayName).contains(name))
                 }
             }

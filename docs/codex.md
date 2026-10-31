@@ -442,6 +442,10 @@ unavailable (`costUSD: null`). This opt-in CLI mode does not change ordinary cos
     existing priority-request evidence selects that mode. Stored token rows are repriced without a history rebuild.
     Rates follow the [OpenAI model card](https://developers.openai.com/api/docs/models/gpt-6-astra) and
     [pricing table](https://developers.openai.com/api/docs/pricing).
+  - GPT-6.1 Sol Fast estimates use twice the applicable Standard API rates: $4/$20/$0.20 per million
+    input/output/cached-input tokens, with full-request long-context rates above 272K input tokens.
+    Rates follow the [model card](https://developers.openai.com/api/docs/models/gpt-6.1-sol) and
+    [Fast pricing table](https://developers.openai.com/api/docs/pricing?latest-pricing=fast).
   - Valid JSON whitespace between event fields is accepted during initial scans and appended-session refreshes.
     Older cached files are reparsed once through the normal scan budget; compatible stores retain their rows and
     checkpoints until each file is refreshed.
@@ -449,10 +453,13 @@ unavailable (`costUSD: null`). This opt-in CLI mode does not change ordinary cos
     `turn_context` is authoritative for the model bucket.
   - Native session `thread_settings_applied.thread_settings.service_tier` evidence applies to the following
     `task_started` turn and subsequent turns until another settings event replaces it, using the existing published
-    Fast multipliers. The effective thread tier and known Priority turns survive incremental scans and SQLite reopening.
+    Fast multipliers. A resumed `turn_context` refreshes the tier for subsequent requests without changing earlier
+    requests in the same turn. The effective tier survives incremental scans and SQLite reopening. Parser revision 14
+    refreshes older rows through bounded reparsing; compatible stores retain token history and checkpoints while
+    stale retained report totals are discarded.
     Without a known tier, or after an unknown tier is applied, pricing retains the Standard fallback;
     subagents do not inherit a parent tier. Live or saved Priority trace evidence remains authoritative, including
-    after trace pruning. Compatible stores retain history while older parser revisions reparse within the scan budget.
+    after trace pruning.
   - Direct forks preserve the inherited origin of cumulative counters when resolving parent snapshots, including
     intermediate sessions that are empty at the child's fork time. Repeated inherited snapshots contribute no
     new usage; descendants count only their deltas. Ancestry remains a cache dependency, so ancestor changes

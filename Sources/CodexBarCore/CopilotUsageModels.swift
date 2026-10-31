@@ -295,6 +295,7 @@ public struct CopilotUsageResponse: Sendable, Decodable {
 
     public let quotaSnapshots: QuotaSnapshots
     public let copilotPlan: String
+    public let accessTypeSKU: String?
     public let tokenBasedBilling: Bool
     public let assignedDate: String?
     public let quotaResetDate: String?
@@ -302,6 +303,7 @@ public struct CopilotUsageResponse: Sendable, Decodable {
     private enum CodingKeys: String, CodingKey {
         case quotaSnapshots = "quota_snapshots"
         case copilotPlan = "copilot_plan"
+        case accessTypeSKU = "access_type_sku"
         case tokenBasedBilling = "token_based_billing"
         case assignedDate = "assigned_date"
         case quotaResetDate = "quota_reset_date"
@@ -314,10 +316,12 @@ public struct CopilotUsageResponse: Sendable, Decodable {
         copilotPlan: String,
         tokenBasedBilling: Bool = false,
         assignedDate: String?,
-        quotaResetDate: String?)
+        quotaResetDate: String?,
+        accessTypeSKU: String? = nil)
     {
         self.quotaSnapshots = quotaSnapshots
         self.copilotPlan = copilotPlan
+        self.accessTypeSKU = accessTypeSKU
         self.tokenBasedBilling = tokenBasedBilling
         self.assignedDate = assignedDate
         self.quotaResetDate = quotaResetDate
@@ -341,6 +345,7 @@ public struct CopilotUsageResponse: Sendable, Decodable {
             self.quotaSnapshots = directSnapshots ?? QuotaSnapshots(premiumInteractions: nil, chat: nil)
         }
         self.copilotPlan = try container.decodeIfPresent(String.self, forKey: .copilotPlan) ?? "unknown"
+        self.accessTypeSKU = try container.decodeIfPresent(String.self, forKey: .accessTypeSKU)
         self.tokenBasedBilling = try container.decodeIfPresent(Bool.self, forKey: .tokenBasedBilling) ?? false
         self.assignedDate = try container.decodeIfPresent(String.self, forKey: .assignedDate)
         self.quotaResetDate = try container.decodeIfPresent(String.self, forKey: .quotaResetDate)

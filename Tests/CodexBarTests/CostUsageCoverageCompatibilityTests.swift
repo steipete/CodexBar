@@ -36,7 +36,7 @@ struct CostUsageCoverageCompatibilityTests {
         "98de5f52231e524e",
         "04a6361469a4ff77",
     ])
-    func `reviewed predecessors retain actual previous report payloads without rebuilding`(hash: String) async throws {
+    func `predecessor report encoding remains readable while stale totals are discarded`(hash: String) async throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
         let predecessor = CostUsageStore(
@@ -58,10 +58,10 @@ struct CostUsageCoverageCompatibilityTests {
         #expect(await predecessor.setMetadata(metadata))
         let current = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let adopted = await current.fetchMetadata()
-        #expect(adopted.previousReportPayload == payload)
+        #expect(adopted.previousReportPayload == nil)
         #expect(await current.rebuildCount == 0)
         let retained = try JSONDecoder().decode(
-            CostUsageCodexPreviousReport.self, from: #require(adopted.previousReportPayload))
+            CostUsageCodexPreviousReport.self, from: payload)
         #expect(retained.report.data.first?.pricedRequestCount == nil)
         #expect(retained.report.data.first?.coverageCounts.priced == 1)
         #expect(retained.report.data.first?.costUSD == 12)

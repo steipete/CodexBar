@@ -194,6 +194,14 @@ defineProvider({
   authenticated HTTP for loopback, RFC 1918 IPv4, IPv4 link-local, IPv6 unique-local/link-local, and `.local` targets,
   but only through the separate typed approval described below. Public targets always require HTTPS.
 - `auth` (optional): one of the forms below. The named secret must be a declared `secure` setting.
+- `dashboardURL` (optional): a fixed URL such as `"https://example.com/usage"`, or `{setting: "DASHBOARD_URL"}`
+  referencing a declared `plain` setting. A settings-derived destination must match an approved endpoint origin.
+  A fixed HTTPS destination may use a separate origin; the complete URL appears in the approval sheet and CLI
+  approval output. HTTP links must match an endpoint with an appropriate loopback/private-network policy and retain
+  its typed approval requirements. Unsupported schemes, embedded credentials, and fragments are rejected.
+  An omitted, empty, or unresolved link shows no action. Once approved, the selected plugin's menu shows
+  **Usage Dashboard**, which opens that destination in the default browser only on a click. Changing the resolved
+  URL requires fresh approval; links add no HTTP, cookie, or script authority and never fall back to another provider.
 - `settings`: up to 32 setting definitions. Keys contain 1–64 ASCII letters, digits, or underscores and start with a
   letter. Each entry has `key`, `title`, optional `subtitle`, and `type: "plain" | "secure"` (default `secure`).
 - `capabilities` (optional): `"browser-cookies"`, `"http-status"`, and `"persistent-storage"`. With `"http-status"`, the plugin observes
@@ -295,9 +303,10 @@ so portable third-party plugins must use the host helpers below instead of ECMA-
   When an admitted discovery attempt cannot read a browser profile, the error names the browser and points to
   **System Settings → Privacy & Security → Files & Folders → CodexBar**. Enable that browser and refresh.
   Policy-blocked imports do not probe profiles, and an observed Keychain denial keeps its existing guidance.
-- `ctx.browser.supportedBrowsers` is a comma-separated display list from the provider's configured browser catalog subset (Chrome for user plugins). It describes supported Automatic sources, not installed or searched profiles; it performs no browser or Keychain access. On platforms without browser import it reads `none on this platform`.
+- `ctx.browser.supportedBrowsers` is a comma-separated display list from the provider's configured browser catalog subset (the shared browser order for user plugins). It describes supported Automatic sources, not installed or searched profiles; it performs no browser or Keychain access. On platforms without browser import it reads `none on this platform`.
 - `await ctx.browser.cookieHeader(domain)` returns a cookie header only with the `browser-cookies` capability and for a
-  declared domain. User plugins import from Chrome; bundled providers retain their declared browser order.
+  declared domain. User plugins use the shared supported-browser order, including Aside; bundled providers retain
+  their declared browser order. A header is the first available candidate, not proof that a session is valid.
   Cookie values are secret-equivalent and redacted.
 - `for await (const session of ctx.browser.sessions(domain))` visits origin-bound candidates in order: the exclusive
   manual credential, or the cached session followed by browser profiles in the provider's import order. Each candidate
@@ -310,7 +319,8 @@ so portable third-party plugins must use the host helpers below instead of ECMA-
 - `ctx.browser.rejectCookie(domain, session)` rejects that candidate after an authentication failure. It conditionally
   evicts the matching persistent entry without deleting a newer session or another domain's cache. The opaque candidate
   ID makes late rejections safe. Continuing the iterator visits the next candidate; a successful fetch can return
-  immediately. `cookieHeader` remains available for providers needing only one header.
+  immediately. User plugins follow the same lazy traversal and should use this iterator to recover from expired
+  sessions in earlier browsers. `cookieHeader` remains available for providers needing only one header.
 - `ctx.html.metaContent(html, name)` returns the first matching quoted meta value or `null`.
 - `ctx.html.matchFirst(html, regexSource, flags?)` returns the first capture/full match or `null`.
 - `ctx.log(...values)` writes to the instance-scoped plugin log. Known secrets and cookie values are redacted.
@@ -680,7 +690,7 @@ cache and browser import, and Off fails before either is accessed.
 
 Call `ctx.browser.rejectCookie(domain)` after the server rejects a session. The host checks the declared domain and
 evicts only the cached entry observed by that fetch (each domain is pinned for the fetch lifetime); a newer session and other domains remain intact. Manual headers
-are never erased. User plugins have no persistent cookie cache, so rejection is a validated no-op for them.
+are never erased. User plugins do not persist cookie headers; rejecting a candidate lets their iterator advance.
 
 ## Bundled provider examples
 

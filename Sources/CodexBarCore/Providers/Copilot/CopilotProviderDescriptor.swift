@@ -92,6 +92,7 @@ public enum CopilotProviderDescriptor {
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [CopilotAPIFetchStrategy()] })),
             cli: ProviderCLIConfig(
                 name: "copilot",
+                loginCommand: "codexbar config login --provider copilot",
                 versionDetector: nil))
     }
 }

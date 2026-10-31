@@ -4,6 +4,50 @@ import Testing
 
 struct CopilotUsageFetcherTests {
     @Test
+    func `ended subscription explains why quotas are unavailable`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]))
+            let data = Data("""
+            {"login":"fixture-user","access_type_sku":"subscription_ended","copilot_plan":"individual",
+             "chat_enabled":false,"cli_enabled":false,"can_signup_for_limited":true}
+            """.utf8)
+            return (data, response)
+        }
+        await #expect {
+            try await CopilotUsageFetcher(token: "fixture-token", transport: transport).fetch()
+        } throws: { error in
+            guard case CopilotUsageFetcher.Error.subscriptionEnded = error else { return false }
+            return error.localizedDescription == "Copilot subscription ended"
+        }
+    }
+
+    @Test
+    func `unknown quota-less response keeps its decoding error`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url, statusCode: 200, httpVersion: nil, headerFields: nil))
+            return (Data(#"{"copilot_plan":"individual","access_type_sku":"future-entitlement"}"#.utf8), response)
+        }
+        await #expect {
+            try await CopilotUsageFetcher(token: "fixture-token", transport: transport).fetch()
+        } throws: { ($0 as? URLError)?.code == .cannotDecodeRawData }
+    }
+
+    @Test
+    func `transport decoding failure is not mistaken for an ended subscription`() async throws {
+        let transport = ProviderHTTPTransportStub { _ in throw URLError(.cannotDecodeRawData) }
+        await #expect {
+            try await CopilotUsageFetcher(token: "fixture-token", transport: transport).fetch()
+        } throws: { ($0 as? URLError)?.code == .cannotDecodeRawData }
+    }
+
+    @Test
     func `identity lookup follows the configured enterprise API host`() async throws {
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)

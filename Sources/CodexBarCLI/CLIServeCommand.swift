@@ -179,6 +179,7 @@ private struct ServeResponseRequest: Sendable {
     let refreshInterval: TimeInterval
     let deadline: ContinuousClock.Instant?
     let allowsStaleWhileRevalidate: Bool
+    var forceRefresh = false
 }
 
 struct CLIServeCoordinatedResponse: Sendable {
@@ -196,6 +197,7 @@ struct ServeUsageContext: Sendable {
     let includeAllCodexAccounts: Bool
     let includeAllAccounts: Bool
     let persistCLISessions: Bool
+    let forceRefresh: Bool
 
     init(
         config: CodexBarConfig,
@@ -206,7 +208,8 @@ struct ServeUsageContext: Sendable {
         providerOperations: CLIServeOperationCoordinator<UsageCommandOutput>,
         includeAllCodexAccounts: Bool = true,
         includeAllAccounts: Bool = false,
-        persistCLISessions: Bool = true)
+        persistCLISessions: Bool = true,
+        forceRefresh: Bool = false)
     {
         self.config = config
         self.configFingerprint = configFingerprint
@@ -217,6 +220,7 @@ struct ServeUsageContext: Sendable {
         self.includeAllCodexAccounts = includeAllCodexAccounts
         self.includeAllAccounts = includeAllAccounts
         self.persistCLISessions = persistCLISessions
+        self.forceRefresh = forceRefresh
     }
 }
 
@@ -911,7 +915,8 @@ extension CodexBarCLI {
                     configFingerprint: snapshot.cacheToken,
                     refreshInterval: runtime.refreshInterval,
                     deadline: requestDeadline,
-                    allowsStaleWhileRevalidate: true),
+                    allowsStaleWhileRevalidate: true,
+                    forceRefresh: request.queryItems["refresh"] == "1"),
                 cache: runtime.cache,
                 makeResponse: {
                     await Self.serveUsage(
@@ -922,7 +927,8 @@ extension CodexBarCLI {
                             refreshInterval: runtime.refreshInterval,
                             providerTimeout: providerTimeout,
                             providerDeadline: providerDeadline,
-                            providerOperations: runtime.providerOperations))
+                            providerOperations: runtime.providerOperations,
+                            forceRefresh: request.queryItems["refresh"] == "1"))
                 }))
         case let .cost(provider):
             guard !runtime.dataRoutesRequireAuth || runtime.dashboardAuth.authorize(request) else {
@@ -1034,7 +1040,8 @@ extension CodexBarCLI {
                 configFingerprint: snapshot.cacheToken,
                 refreshInterval: runtime.refreshInterval,
                 deadline: requestDeadline,
-                allowsStaleWhileRevalidate: false),
+                allowsStaleWhileRevalidate: false,
+                forceRefresh: request.queryItems["refresh"] == "1"),
             cache: runtime.cache,
             makeResponse: {
                 await Self.serveDashboardSnapshot(
@@ -1048,7 +1055,8 @@ extension CodexBarCLI {
                             providerDeadline: providerDeadline,
                             providerOperations: runtime.providerOperations,
                             includeAllCodexAccounts: runtime.dashboardAllAccounts,
-                            includeAllAccounts: runtime.dashboardAllAccounts),
+                            includeAllAccounts: runtime.dashboardAllAccounts,
+                            forceRefresh: request.queryItems["refresh"] == "1"),
                         costCollection: ServeCostCollectionContext(
                             configFingerprint: snapshot.cacheToken,
                             providerTimeout: providerTimeout,
@@ -1140,6 +1148,8 @@ extension CodexBarCLI {
         return String(hash, radix: 16)
     }
 
+    static let serveForcedRefreshMinimumInterval: Duration = .seconds(5)
+
     static func cachedServeResponse(
         key: String,
         cache: CLIServeResponseCache,
@@ -1147,6 +1157,7 @@ extension CodexBarCLI {
         requestTimeout: TimeInterval = CodexBarCLI.defaultServeRequestTimeout,
         configFingerprint: String = "",
         staleWhileRevalidate: Bool = false,
+        forceRefresh: Bool = false,
         makeResponse: @Sendable @escaping () async -> CLILocalHTTPResponse) async -> CLILocalHTTPResponse
     {
         await self.cachedServeResponse(
@@ -1157,7 +1168,8 @@ extension CodexBarCLI {
                 deadline: self.serveRequestDeadline(
                     startedAt: ContinuousClock().now,
                     requestTimeout: requestTimeout),
-                allowsStaleWhileRevalidate: staleWhileRevalidate),
+                allowsStaleWhileRevalidate: staleWhileRevalidate,
+                forceRefresh: forceRefresh),
             cache: cache,
             makeResponse: makeResponse)
     }
@@ -1170,14 +1182,14 @@ extension CodexBarCLI {
         let cacheKey = Self.serveCacheKey(
             operationKey: request.key,
             configToken: request.configFingerprint)
-        if let response = await cache.cachedResponse(for: cacheKey, now: cache.wallClock()) {
+        if !request.forceRefresh, let response = await cache.cachedResponse(for: cacheKey, now: cache.wallClock()) {
             return response
         }
 
         let policy = CLIServeResponseCache.CachePolicy(
             ttl: request.refreshInterval,
             staleTTL: Self.serveStaleTTL(refreshInterval: request.refreshInterval))
-        if request.allowsStaleWhileRevalidate,
+        if !request.forceRefresh, request.allowsStaleWhileRevalidate,
            let stale = await cache.staleResponseForRevalidation(
                for: cacheKey,
                staleTTL: policy.staleTTL,
@@ -1225,7 +1237,9 @@ extension CodexBarCLI {
                 return CLIServeCoordinatedResponse(response: committed, isCommitted: true)
             },
             operation: {
-                if let response = await cache.cachedResponse(for: cacheKey, now: cache.wallClock()) {
+                if !request.forceRefresh,
+                   let response = await cache.cachedResponse(for: cacheKey, now: cache.wallClock())
+                {
                     return CLIServeCoordinatedResponse(response: response, isCommitted: false)
                 }
                 let response = await makeResponse()
@@ -1397,6 +1411,7 @@ extension CodexBarCLI {
         configFingerprint: String,
         deadline: ContinuousClock.Instant?,
         operations: CLIServeOperationCoordinator<UsageCommandOutput>,
+        forceRefresh: Bool = false,
         fetch: @Sendable @escaping (
             UsageProvider,
             @escaping CLIServeOperationCoordinator<UsageCommandOutput>.PublishPartial) async -> UsageCommandOutput)
@@ -1412,7 +1427,14 @@ extension CodexBarCLI {
                         deadline: deadline,
                         timeoutValue: timeout,
                         operationWithProgress: { publish in
-                            await fetch(provider, publish)
+                            do {
+                                try await operations.waitForRefreshInterval(
+                                    for: provider.rawValue,
+                                    minimumInterval: forceRefresh ? Self.serveForcedRefreshMinimumInterval : .zero)
+                            } catch {
+                                return timeout
+                            }
+                            return await fetch(provider, publish)
                         })
                     return (index, output)
                 }

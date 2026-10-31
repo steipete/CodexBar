@@ -83,8 +83,7 @@ extension UsageStore {
                 secrets: config?.pluginSecrets ?? [:],
                 environment: self.environmentBase,
                 approvalStore: self.pluginApprovalStore,
-                instanceCookieResolver: UserProviderPluginCookieBroker.resolver(
-                    browserDetection: self.browserDetection))
+                browserDetection: self.browserDetection)
             guard canPublish() else { return }
             self.snapshots[instanceID] = snapshot
             self.errors[instanceID] = nil

@@ -54,6 +54,15 @@ See [Configuration](configuration.md) for the schema and [Providers](providers.m
 sources and setup guide. The [provider ID list](provider-ids.md) is generated from the registry;
 `codexbar config providers` lists providers and their configured enablement without fetching usage.
 
+With `--json`, built-in entries also include `authentication` metadata from their registered descriptors:
+`sourceModes`, `supportsConfigAPIKey`, `supportsConfigCookieHeader`, and `environmentVariables` (the names of
+config-projected variables, never their values). Optional `loginCommand` and `tokenAccounts` (`title`, `setupHint`)
+describe existing setup routes; Copilot advertises `codexbar config login --provider copilot`.
+These are supported inputs, not a complete required-setup checklist or a credential-health check. Source modes
+describe fetching, not authentication methods, and cookie support can be optional enrichment. Environment aliases
+not declared by the descriptor are not enumerated. User-plugin entries currently omit this metadata. Listing it
+does not read credentials, launch login flows, import cookies, or contact providers; `enabled` keeps its existing meaning.
+
 Arguments are parsed strictly: unknown options, missing option values, and extra positional arguments
 fail before the command runs. For example, `codex-accounts promote` accepts one account identifier;
 a second identifier is an error. For an option value beginning with a dash, use the equals form
@@ -176,6 +185,7 @@ a second identifier is an error. For an option value beginning with a dash, use 
   - Provider config is reloaded for each usage/cost request; cache entries are keyed by the loaded config so provider toggles and source changes do not require restarting `serve`.
   - Transient refresh failures fall back to the last good response for up to ten refresh intervals (minimum five minutes) so polling clients do not flicker between data and errors; disabled when `--refresh-interval 0`.
   - After a cached usage or cost response expires, `serve` returns the last-good response immediately while rebuilding it in the background. Dashboard snapshots wait for a rebuild after their normal refresh interval, including when returning to a previously cached used/remaining mode; request deadlines and last-good fallback on failure still apply. `--refresh-interval 0` keeps every request blocking.
+  - Add `refresh=1` to `/usage` or a full `/dashboard/v1/snapshot` request to wait for a new usage measurement inside the cache interval. Concurrent requests join an active measurement, and forced usage measurements wait at least five seconds between starts for each provider, including across those two endpoints. Normal authentication, deadlines, and last-good fallback still apply; shell-only dashboard requests remain metadata-only.
   - On glibc Linux, `serve` periodically returns freed heap pages to the operating system (30-second maintenance interval). Allocator arena settings remain controlled by the environment. macOS and musl keep their normal allocator behavior.
   - The default loopback bind rejects non-loopback `Host` headers; a configured non-loopback `--host` additionally accepts its own name. No CORS, TLS, or daemon mode.
   - Endpoints: `GET /` (web UI), `GET /health`, `GET /usage`, `GET /usage?provider=<id|both|all>`, `GET /cost`, `GET /cost?provider=<id|both|all>`, `GET /dashboard/v1/snapshot` (plus `provider=<id>` and `detail=<full|shell>`).

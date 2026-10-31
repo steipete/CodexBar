@@ -64,6 +64,9 @@ the app, without opening a browser or prompting for Keychain access. See [CLI co
      for the tested individual account.
 
 ## Snapshot mapping
+- An explicit `access_type_sku: "subscription_ended"` response reports **Copilot subscription ended**
+  instead of the generic Foundation decoding error. Missing quotas alone do not imply an ended
+  subscription; unknown payloads and real transport failures retain their errors.
 - Primary: `quotaSnapshots.premiumInteractions` percent remaining → used percent.
 - Secondary: `quotaSnapshots.chat` percent remaining → used percent.
 - Extra: positive Copilot billing budgets from the GitHub web endpoint → `extraRateWindows`, only when "Budget extras"

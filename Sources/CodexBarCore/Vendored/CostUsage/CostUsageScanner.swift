@@ -402,6 +402,7 @@ enum CostUsageScanner {
         /// Thread settings persist until replaced, including across resumed turns.
         var threadPriority: Bool?
         var priorityTurnIDs: Set<String>?
+        var resumedTurnPriority: Bool?
         var sessionID: String?
         var pendingLedgerMirrors: Set<String>?
         var pendingLedgerResponseID: String?
@@ -4420,6 +4421,16 @@ enum CostUsageScanner {
             else { return index }
             // A typed mirror changes request identity, not the matching row's saved billing evidence.
             let pricing = retainedPricing.flatMap { $0.model == normalizedModel ? $0 : nil }
+            let isPriority = requestLedger.priorityTurnIDs?.contains(turnID ?? "") == true
+            let observedMode: String? = if isPriority {
+                "priority"
+            } else if requestLedger.resumedTurnPriority == false,
+                      turnID == (currentTurnID ?? requestLedger.activeTurnID)
+            {
+                "standard"
+            } else {
+                nil
+            }
             rows.append(CodexUsageRow(
                 day: day,
                 model: normalizedModel,
@@ -4434,8 +4445,7 @@ enum CostUsageScanner {
                 knownCostNanos: pricing?.knownCostNanos,
                 unpricedTokens: pricing?.unpricedTokens,
                 pricingModel: pricing?.pricingModel,
-                pricingMode: pricing?.pricingMode
-                    ?? (requestLedger.priorityTurnIDs?.contains(turnID ?? "") == true ? "priority" : nil),
+                pricingMode: pricing?.pricingMode ?? observedMode,
                 responseID: responseID,
                 requestMirrorKeys: mirrorKeys))
             rowSourceEndOffsets[index] = endOffset
@@ -4891,6 +4901,15 @@ enum CostUsageScanner {
             requestLedger.turnPerformance?[turnID] = performance
         }
 
+        func observeThreadPriority(for turnID: String?) {
+            if requestLedger.threadPriority == true {
+                if requestLedger.priorityTurnIDs == nil { requestLedger.priorityTurnIDs = [] }
+                requestLedger.priorityTurnIDs?.insert(turnID ?? "")
+            } else {
+                requestLedger.priorityTurnIDs?.remove(turnID ?? "")
+            }
+        }
+
         @discardableResult
         func processFastLine(
             _ fastLine: CodexFastLine,
@@ -4907,6 +4926,14 @@ enum CostUsageScanner {
                 if let title = Self.codexModelEvidence(metadata.title) { codexSession.title = title }
                 if let turnID = metadata.turnID {
                     requestLedger.activeTurnID = turnID
+                    // Resuming a turn can refresh its context without another task_started event.
+                    if let priority = requestLedger.threadPriority, currentTurnID == nil || currentTurnID == turnID {
+                        // An unchanged default cannot disprove saved request-level Priority evidence.
+                        if priority != (requestLedger.priorityTurnIDs?.contains(turnID) == true) {
+                            requestLedger.resumedTurnPriority = priority
+                        }
+                        observeThreadPriority(for: turnID)
+                    }
                 }
                 if let model = metadata.model {
                     // An explicitly blank context clears stale model evidence; an omitted field preserves it.
@@ -4925,12 +4952,8 @@ enum CostUsageScanner {
             case let .taskStarted(turnID):
                 requestLedger.clearPendingMirrors()
                 currentTurnID = turnID
-                if requestLedger.threadPriority == true {
-                    if requestLedger.priorityTurnIDs == nil { requestLedger.priorityTurnIDs = [] }
-                    requestLedger.priorityTurnIDs?.insert(turnID ?? "")
-                } else {
-                    requestLedger.priorityTurnIDs?.remove(turnID ?? "")
-                }
+                requestLedger.resumedTurnPriority = nil
+                observeThreadPriority(for: turnID)
                 if let turnID { requestLedger.turnPerformance?[turnID]?.completion = nil }
             case let .taskCompleted(completion):
                 guard !suppressUnownedCopiedPrefix else { return nil }

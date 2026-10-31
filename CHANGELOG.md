@@ -2,6 +2,8 @@
 
 ## 0.82.1 — Unreleased
 
+- CLI: expose descriptor-based authentication inputs and existing setup hints in provider inventory JSON. (#4705)
+- Plugins: support an explicitly approved Usage Dashboard link from a fixed URL or a plain setting. (#4725)
 ### Added
 
 - Plugins: render global menu-bar layouts with plugin-owned windows, reset countdowns and conditionals, preserving saved plugin overrides (#4789).
@@ -16,6 +18,12 @@
 
 ### Fixed
 
+- Codex: apply GPT-6.1 Sol Fast pricing, including long-context requests, and refresh request tiers when a turn resumes. (#4814) Thanks @cassiarota!
+- LiteLLM: show member overrides or the team's default budget with matching team-scoped spend, ignoring mismatched memberships (#4842, #4843). Thanks @cnietoc!
+- Claude: isolate watchdog children at spawn, preserve their exit status, and clean up only session-owned processes and sleep inhibitors (#4829, #4830). Thanks @Quinnod345!
+- Plugins: import declared-domain cookies from the shared supported-browser catalog, including Aside, and continue through rejected sessions (#4792).
+- z.ai: show prepaid CNY balances for BigModel CN personal accounts without a Coding Plan, including the shared menu-bar Balance element (#4796). Thanks @AaronJiTuo!
+- Cursor: support Brave Origin for browser login and shared cookie imports with SweetCookieKit 0.5.11 (#4837). Thanks @retX0!
 - AWS Bedrock: report unavailable Cost Explorer data instead of zero spend (#4846). Thanks @djbclark!
 - Claude: report the CLI's unavailable per-model breakdown in usage details while retaining current session and weekly quotas (#4809). Thanks @DreamyTalesPAN!
 - iCloud Sync: retry account snapshots after a dropped upload without allowing delayed results to confirm newer data (#4798). Thanks @audichuang!
@@ -35,9 +43,13 @@
 - Plugins: refresh the selected menu-bar percentage when its usage changes while the automatic window stays unchanged (#4787). Thanks @vincent-peng!
 - Codex: retain cached cost history when previously scanned rollouts become `.jsonl.zst` archives, without duplicate counting (#4523, #4534, #4818). Thanks @BananaIIya, @kali113, @kcharlan, and @cassiarota!
 - OpenCode Go: use the active OpenCode CLI API key stored under `opencode` for server quotas instead of falling back to local estimates. (#4815) Thanks @sreejithraman!
+- Copilot: explain ended subscriptions instead of showing a raw decoding error. (#4851) Thanks @djbclark!
+- Kiro: prefer stateless usage reads to avoid probe chats when available, and use the V2 harness with older-CLI fallback when a CLI report is needed. (#4853, #4854, #4746) Thanks @jeanroloff!
 - Tests: keep Claude dashboard account-selection coverage independent of CI scheduling delays (#4821).
 
 ### Changed
+
+- CLI: let HTTP clients request fresh usage and full dashboard measurements with `refresh=1`, coalescing concurrent requests and limiting forced measurements to one per provider every five seconds (#4785).
 
 - CLI: malformed or ambiguous arguments now fail with an error instead of being guessed (Commander 0.3.0).
 - Menu bar: make neutral pace percentages with font-scaled green/red state bars the default, preserving saved color choices (#4714, #4791). Thanks @arnodirlam!

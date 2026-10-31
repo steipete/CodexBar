@@ -122,6 +122,7 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "0ef5e15cc00e8e25", // Revision 14 refreshes resumed tiers without changing stored token rows.
         "5a57546c60494379", // Home-scoped main before archived-row retention; rows and checkpoints are unchanged.
         "e5909f60274b2c47", // Home scoping preserves the released rows and scan checkpoints.
         "4e1358d00a4a47b5", // Optional source ownership preserves existing native Codex rows and checkpoints.
@@ -194,15 +195,8 @@ actor CostUsageStore {
         "3c984b655688593f", // 0.54.x row-ownership evidence fix; parser and persisted row shape unchanged.
         "5f8507161b23757c", // 0.54.2 tokscale parity + priority evidence; persisted row shape unchanged.
     ]
-    static let incompatibleRetainedReportPredecessorParserHashes: Set<String> = [
-        "865cef15206ea5c0",
-        "d35c9fb00bee059b",
-        "99d920977063318a",
-        "dd19ffa2dcfa8d47",
-        "2d17f4981b78d07f",
-        "8050a4faf4fddb96",
-        "ed735dc27ffa70d9",
-    ]
+    /// Every predecessor can contain estimates made before the Fast pricing correction.
+    static let incompatibleRetainedReportPredecessorParserHashes = CostUsageStore.compatiblePredecessorParserHashes
 
     /// Connections to one canonical database share a serial queue, preserving the single-writer
     /// contract without letting a busy database stall independent account stores.

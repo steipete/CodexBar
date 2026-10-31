@@ -136,8 +136,11 @@ the cookie import.
 ## Passive CLI sessions and macOS sleep
 
 After each passive request in the reusable CLI session, and when that session closes, CodexBar sends SIGTERM
-only to `/usr/bin/caffeinate` processes in the session's own process group. The session remains available for
-later requests. There is no recurring process scan; other process groups and other executables are left alone.
+only to `/usr/bin/caffeinate` processes in the session's owned process groups (including the isolated Claude
+child group when launched via `CodexBarClaudeWatchdog`) and marked session descendants that have been reparented.
+The watchdog creates the child group atomically at spawn and preserves the child’s exit status when its parent exits.
+The session remains available for later requests. There is no recurring process scan; unrelated processes and
+other executables are left alone.
 This cleanup applies to the reusable PTY session, not the separate one-shot usage or auth-status commands.
 
 ## Keychain prompt policy (Claude OAuth)

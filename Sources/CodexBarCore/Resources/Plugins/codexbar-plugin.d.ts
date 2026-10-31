@@ -329,6 +329,8 @@ interface CodexBarProviderDefinition {
   /** Defaults to true: a switcher tab when Merge Icons is on. False keeps an appended card. */
   topLevel?: boolean;
   endpoints: CodexBarEndpoint[];
+  /** Optional approved browser link; a setting must be plain and resolve to a declared endpoint origin. */
+  dashboardURL?: string | { setting: string };
   auth?: CodexBarAuth;
   settings: CodexBarSetting[];
   /** Grants declared cookie access, HTTP status handling, or bounded non-secret persistent state. */
