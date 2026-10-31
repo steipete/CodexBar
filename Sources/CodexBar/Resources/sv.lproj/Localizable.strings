@@ -1345,11 +1345,8 @@
 "Share Stats…" = "Dela statistik…";
 "Stats copied" = "Statistiken kopierades";
 "DeepSeek this month token usage trend" = "Trend för DeepSeek-tokenanvändning den här månaden";
-"Chrome profile" = "Chrome-profil";
 "Choose which signed-in DeepSeek Platform session supplies detailed usage." = "Välj vilken inloggad DeepSeek Platform-session som ska ge detaljerad användning.";
 "Detailed usage unavailable." = "Detaljerad användning är inte tillgänglig.";
-"Sign in to DeepSeek Platform in Chrome for detailed usage." = "Logga in på DeepSeek Platform i Chrome för detaljerad användning.";
-"Select a DeepSeek Chrome profile in Settings." = "Välj en DeepSeek Chrome-profil i Inställningar.";
 "Select profile…" = "Välj profil…";
 
 "%@: %@" = "%@: %@";
@@ -2760,3 +2757,34 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Visar OpenCode-användningen som registrerats på den här Mac-datorn i Codex-historiken. Avstängt som standard; CODEX_HOME-platser med begränsad omfattning eller alternativa platser förblir alltid undantagna.";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "Automatiskt använder den aktiva sparade sessionen, annars en API-nyckel eller webbläsarcookies.";
 "Store multiple Command Code subscription sessions." = "Spara flera prenumerationssessioner för Command Code.";
+
+/* OpenDesign */
+"OpenDesign" = "OpenDesign";
+"Show OpenDesign usage" = "Visa OpenDesign-användning";
+"Sign in to OpenDesign, then refresh CodexBar." = "Logga in på OpenDesign och uppdatera sedan CodexBar.";
+"OpenDesign usage response format changed." = "Formatet på användningssvaret från OpenDesign har ändrats.";
+"OpenDesign billing access was denied." = "Åtkomst till OpenDesigns faktureringsuppgifter nekades.";
+"OpenDesign request failed. Try again later." = "Förfrågan till OpenDesign misslyckades. Försök igen senare.";
+"OpenDesign subscription usage is unavailable for this workspace." = "OpenDesign-abonnemangets användning är inte tillgänglig för den här arbetsytan.";
+"upcoming_reset_notifications_title" = "Varningar för kommande återställning";
+"upcoming_reset_notifications_subtitle" = "Varnar för Codex innan veckogränsen återställs medan kvoten fortfarande är delvis oanvänd.";
+"upcoming_reset_notification_title" = "Gräns för %1$@ återställs snart (%2$@)";
+"upcoming_reset_notification_body" = "%1$@ av kvoten används fortfarande inte. Den återställs om %2$@ och oanvänd kvot går förlorad.";
+"upcoming_reset_notification_body_with_account" = "Konto %1$@. %2$@ av kvoten används fortfarande inte. Den återställs om %3$@ och oanvänd kvot går förlorad.";
+"Sign in to DeepSeek Platform in a Chromium-based browser for detailed usage." = "Logga in på DeepSeek Platform i en Chromium-baserad webbläsare för detaljerad användning.";
+"Select a DeepSeek browser profile in Settings." = "Välj en DeepSeek-webbläsarprofil i Inställningar.";
+"menu_bar_layout_token_separator_glyph_accessibility" = "Avgränsare %@";
+"menu_bar_layout_separator_pipe" = "Lodrätt streck";
+"menu_bar_layout_separator_slash" = "Snedstreck";
+"menu_bar_layout_separator_hyphen" = "Bindestreck";
+"menu_bar_layout_separator_bullet" = "Punkt";
+"menu_bar_layout_separator_diamond" = "Fylld romb";
+"menu_bar_layout_separator_hollowDiamond" = "Ofylld romb";
+"menu_bar_layout_separator_tilde" = "Tilde";
+"menu_bar_layout_separator_doubleBar" = "Dubbelt lodrätt streck";
+"Rename" = "Byt namn";
+"Rename account" = "Byt namn på konto";
+"Account name" = "Kontonamn";
+"Leave blank to use the default name." = "Lämna tomt för att använda standardnamnet.";
+"Rewards" = "Belöningar";
+"Reward expiry" = "Belöningarnas utgångsdatum";

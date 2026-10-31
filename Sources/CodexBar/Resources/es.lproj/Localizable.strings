@@ -1203,11 +1203,8 @@
 "Share Stats…" = "Compartir estadísticas…";
 "Stats copied" = "Estadísticas copiadas";
 "DeepSeek this month token usage trend" = "Tendencia de uso de tokens de DeepSeek este mes";
-"Chrome profile" = "Perfil de Chrome";
 "Choose which signed-in DeepSeek Platform session supplies detailed usage." = "Elige qué sesión iniciada de DeepSeek Platform proporciona el uso detallado.";
 "Detailed usage unavailable." = "El uso detallado no está disponible.";
-"Sign in to DeepSeek Platform in Chrome for detailed usage." = "Inicia sesión en DeepSeek Platform en Chrome para ver el uso detallado.";
-"Select a DeepSeek Chrome profile in Settings." = "Selecciona un perfil de Chrome de DeepSeek en Ajustes.";
 "Select profile…" = "Seleccionar perfil…";
 
 "%@ · %@" = "%@ · %@";
@@ -2396,7 +2393,7 @@
 "Optional. Select each profile's .gemini folder to combine local token and cost history. The primary home is always included. Does not change sign-in or quotas." = "Opcional. Selecciona la carpeta .gemini de cada perfil para combinar el historial local de tokens y costes. La carpeta principal siempre se incluye. No afecta al inicio de sesión ni a los límites de uso.";
 
 /* Selected browser profile */
-"Browser profile" = "Perfil del navegador";
+"Browser profile" = "Perfil de navegador";
 "Unavailable profile: %@" = "Perfil no disponible: %@";
 "Read only the selected %@ profile. Accounts are never selected automatically." = "Leer solo el perfil de %@ seleccionado. Las cuentas nunca se seleccionan automáticamente.";
 "Langdock cost usage is not supported." = "No se admite el seguimiento de costes de Langdock.";
@@ -2759,3 +2756,34 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Muestra en el historial de Codex el uso de OpenCode registrado en este Mac. Desactivado de forma predeterminada; las ubicaciones de CODEX_HOME con ámbito restringido o alternativas siempre quedan excluidas.";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "Auto usa la sesión guardada activa; de lo contrario, una clave API o las cookies del navegador.";
 "Store multiple Command Code subscription sessions." = "Almacena varias sesiones de suscripción de Command Code.";
+
+/* OpenDesign */
+"OpenDesign" = "OpenDesign";
+"Show OpenDesign usage" = "Mostrar uso de OpenDesign";
+"Sign in to OpenDesign, then refresh CodexBar." = "Inicia sesión en OpenDesign y actualiza CodexBar.";
+"OpenDesign usage response format changed." = "El formato de la respuesta de uso de OpenDesign ha cambiado.";
+"OpenDesign billing access was denied." = "Se denegó el acceso a la facturación de OpenDesign.";
+"OpenDesign request failed. Try again later." = "La solicitud a OpenDesign ha fallado. Inténtalo de nuevo más tarde.";
+"OpenDesign subscription usage is unavailable for this workspace." = "El uso de la suscripción de OpenDesign no está disponible para este espacio de trabajo.";
+"Sign in to DeepSeek Platform in a Chromium-based browser for detailed usage." = "Inicia sesión en DeepSeek Platform en un navegador basado en Chromium para ver el uso detallado.";
+"Select a DeepSeek browser profile in Settings." = "Selecciona un perfil de navegador de DeepSeek en Ajustes.";
+"upcoming_reset_notifications_title" = "Avisos de reinicio próximo";
+"upcoming_reset_notifications_subtitle" = "Avisa para Codex antes de que se reinicie el límite semanal mientras quede cuota sin usar.";
+"upcoming_reset_notification_title" = "%1$@: el límite de %2$@ se reinicia pronto";
+"upcoming_reset_notification_body" = "Queda %1$@ de la cuota sin usar. Se reinicia en %2$@ y la cuota no usada se pierde.";
+"upcoming_reset_notification_body_with_account" = "Cuenta %1$@. Queda %2$@ de la cuota sin usar. Se reinicia en %3$@ y la cuota no usada se pierde.";
+"menu_bar_layout_token_separator_glyph_accessibility" = "Separador %@";
+"menu_bar_layout_separator_pipe" = "Barra vertical";
+"menu_bar_layout_separator_slash" = "Barra inclinada";
+"menu_bar_layout_separator_hyphen" = "Guion";
+"menu_bar_layout_separator_bullet" = "Viñeta";
+"menu_bar_layout_separator_diamond" = "Rombo relleno";
+"menu_bar_layout_separator_hollowDiamond" = "Rombo vacío";
+"menu_bar_layout_separator_tilde" = "Virgulilla";
+"menu_bar_layout_separator_doubleBar" = "Barra vertical doble";
+"Rename" = "Cambiar nombre";
+"Rename account" = "Cambiar nombre de la cuenta";
+"Account name" = "Nombre de la cuenta";
+"Leave blank to use the default name." = "Deja este campo vacío para usar el nombre predeterminado.";
+"Rewards" = "Recompensas";
+"Reward expiry" = "Vencimiento de las recompensas";

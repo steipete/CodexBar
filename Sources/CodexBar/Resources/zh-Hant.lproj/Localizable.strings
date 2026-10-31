@@ -1382,11 +1382,8 @@
 "Share Stats…" = "分享統計資料…";
 "Stats copied" = "已拷貝統計資料";
 "DeepSeek this month token usage trend" = "DeepSeek 本月 token 使用量趨勢";
-"Chrome profile" = "Chrome 設定檔";
 "Choose which signed-in DeepSeek Platform session supplies detailed usage." = "選擇要提供詳細使用量的已登入 DeepSeek Platform 工作階段。";
 "Detailed usage unavailable." = "無法取得詳細使用量。";
-"Sign in to DeepSeek Platform in Chrome for detailed usage." = "請在 Chrome 中登入 DeepSeek Platform 以查看詳細使用量。";
-"Select a DeepSeek Chrome profile in Settings." = "請在「設定」中選擇 DeepSeek Chrome 設定檔。";
 "Select profile…" = "選擇設定檔…";
 
 "Choose a supported browser so CodexBar can read the matching account." = "選擇一個支援的瀏覽器，讓 CodexBar 可以讀取對應帳號。";
@@ -2739,3 +2736,34 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "在 Codex 歷史記錄中顯示此 Mac 上記錄的 OpenCode 用量。預設關閉；一律排除限定範圍或其他 CODEX_HOME 位置。";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "自動使用目前啟用的已儲存工作階段，否則使用 API 金鑰或瀏覽器 Cookie。";
 "Store multiple Command Code subscription sessions." = "儲存多個 Command Code 訂閱工作階段。";
+
+/* OpenDesign */
+"OpenDesign" = "OpenDesign";
+"Show OpenDesign usage" = "顯示 OpenDesign 用量";
+"Sign in to OpenDesign, then refresh CodexBar." = "登入 OpenDesign，然後重新整理 CodexBar。";
+"OpenDesign usage response format changed." = "OpenDesign 用量回應格式已變更。";
+"OpenDesign billing access was denied." = "OpenDesign 帳單存取遭到拒絕。";
+"OpenDesign request failed. Try again later." = "OpenDesign 請求失敗。請稍後再試。";
+"OpenDesign subscription usage is unavailable for this workspace." = "此工作區的 OpenDesign 訂閱用量無法取得。";
+"upcoming_reset_notifications_title" = "配額重設前提醒";
+"upcoming_reset_notifications_subtitle" = "在 Codex 每週配額重設前，若配額仍有剩餘則發出提醒。";
+"upcoming_reset_notification_title" = "%1$@ %2$@配額即將重設";
+"upcoming_reset_notification_body" = "還有 %1$@ 的配額未使用。配額將在 %2$@ 後重設，未使用的配額將失效。";
+"upcoming_reset_notification_body_with_account" = "帳號 %1$@。還有 %2$@ 的配額未使用。配額將在 %3$@ 後重設，未使用的配額將失效。";
+"Sign in to DeepSeek Platform in a Chromium-based browser for detailed usage." = "請在 Chromium 架構的瀏覽器中登入 DeepSeek Platform 以查看詳細使用量。";
+"Select a DeepSeek browser profile in Settings." = "請在「設定」中選擇 DeepSeek 瀏覽器設定檔。";
+"menu_bar_layout_token_separator_glyph_accessibility" = "分隔符號 %@";
+"menu_bar_layout_separator_pipe" = "豎線";
+"menu_bar_layout_separator_slash" = "斜線";
+"menu_bar_layout_separator_hyphen" = "連字號";
+"menu_bar_layout_separator_bullet" = "項目符號";
+"menu_bar_layout_separator_diamond" = "實心菱形";
+"menu_bar_layout_separator_hollowDiamond" = "空心菱形";
+"menu_bar_layout_separator_tilde" = "波浪號";
+"menu_bar_layout_separator_doubleBar" = "雙豎線";
+"Rename" = "重新命名";
+"Rename account" = "重新命名帳號";
+"Account name" = "帳號名稱";
+"Leave blank to use the default name." = "留空以使用預設名稱。";
+"Rewards" = "獎勵";
+"Reward expiry" = "獎勵到期日期";

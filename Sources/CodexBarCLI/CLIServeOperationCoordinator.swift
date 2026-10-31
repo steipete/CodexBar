@@ -69,6 +69,7 @@ actor CLIServeOperationCoordinator<Value: Sendable> {
     // Callers validate route keys and provider keys come from UsageProvider, so
     // retained canceled work has a small, closed key space.
     private var slots: [String: Slot] = [:]
+    private var lastRefreshStarts: [String: Instant] = [:]
     private var nextGeneration: UInt64 = 0
     private var isShutDown = false
 
@@ -156,6 +157,18 @@ actor CLIServeOperationCoordinator<Value: Sendable> {
         for (key, generation) in active {
             self.shutdownActive(for: key, generation: generation)
         }
+    }
+
+    /// Called inside an owned source operation, so a wait retains the provider's coalescing slot.
+    func waitForRefreshInterval(for key: String, minimumInterval: Duration) async throws {
+        if let lastStart = self.lastRefreshStarts[key] {
+            let nextStart = lastStart.advanced(by: minimumInterval)
+            if nextStart > self.now() {
+                try await self.sleepUntil(nextStart)
+            }
+        }
+        try Task.checkCancellation()
+        self.lastRefreshStarts[key] = self.now()
     }
 
     func snapshot() -> Snapshot {

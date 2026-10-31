@@ -2,6 +2,20 @@ import CodexBarCore
 import Foundation
 
 extension SettingsStore {
+    var codexAccountNames: [String: String] {
+        self.providerConfig(for: .codex)?.codexAccountNames ?? [:]
+    }
+
+    func renameCodexAccount(_ account: CodexVisibleAccount, to name: String) {
+        let normalized = account.withCustomName(name).customName
+        self.updateProviderConfig(provider: .codex, affectsBackgroundWork: false) { entry in
+            var names = entry.codexAccountNames ?? [:]
+            names[account.customNameRecoveryKey] = nil
+            names[account.customNameKey] = normalized
+            entry.codexAccountNames = names.isEmpty ? nil : names
+        }
+    }
+
     private var codexPersistedActiveSource: CodexActiveSource {
         self.providerConfig(for: .codex)?.codexActiveSource ?? .liveSystem
     }
@@ -281,7 +295,7 @@ extension SettingsStore {
         else {
             return nil
         }
-        return cached.projection
+        return cached.projection.applyingCustomNames(self.codexAccountNames)
     }
 
     var codexAccountMenuProjectionNeedsRevalidation: Bool {
@@ -336,6 +350,7 @@ extension SettingsStore {
 
     var codexVisibleAccountProjection: CodexVisibleAccountProjection {
         CodexVisibleAccountProjection.make(from: self.codexAccountReconciliationSnapshot)
+            .applyingCustomNames(self.codexAccountNames)
     }
 
     var codexVisibleAccounts: [CodexVisibleAccount] {

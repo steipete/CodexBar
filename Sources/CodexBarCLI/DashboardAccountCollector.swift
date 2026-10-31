@@ -46,7 +46,8 @@ extension CodexBarCLI {
                 includeAllCodexAccounts: context.includeAllCodexAccounts,
                 includeAllAccounts: context.includeAllAccounts),
             deadline: context.providerDeadline,
-            operations: context.providerOperations)
+            operations: context.providerOperations,
+            forceRefresh: context.forceRefresh)
         { provider, publish in
             await ProviderInteractionContext.$current.withValue(.background) {
                 await fetchUsage(

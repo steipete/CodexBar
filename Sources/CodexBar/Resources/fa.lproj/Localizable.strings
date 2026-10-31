@@ -1063,10 +1063,7 @@
 "Today cash" = "امروزه پول نقد";
 "DeepSeek 30 day token usage trend" = "DeepSeek روند استفاده ۳۰ روزه از توکن";
 "Detailed usage unavailable." = "جزئیات استفاده در دسترس نیست.";
-"Sign in to DeepSeek Platform in Chrome for detailed usage." = "برای مشاهده جزئیات استفاده، در Chrome وارد DeepSeek Platform شوید.";
-"Select a DeepSeek Chrome profile in Settings." = "یک نمایه Chrome دیپ‌سیک را در تنظیمات انتخاب کنید.";
 "DeepSeek this month token usage trend" = "روند استفاده از توکن DeepSeek در این ماه";
-"Chrome profile" = "نمایه Chrome";
 "Choose which signed-in DeepSeek Platform session supplies detailed usage." = "انتخاب کنید کدام نشست واردشدهٔ DeepSeek Platform جزئیات استفاده را ارائه دهد.";
 "Select profile…" = "انتخاب نمایه…";
 "cache-hit input" = "ورودی کش و ضربه";
@@ -2402,7 +2399,7 @@
 "Optional. Select each profile's .gemini folder to combine local token and cost history. The primary home is always included. Does not change sign-in or quotas." = "اختیاری. پوشه .gemini هر پروفایل را برای ادغام تاریخچه محلی توکن‌ها و هزینه‌ها انتخاب کنید. پوشه اصلی همیشه گنجانده می‌شود. ورود به حساب یا سهمیه‌ها را تغییر نمی‌دهد.";
 
 /* Selected browser profile */
-"Browser profile" = "نمایهٔ مرورگر";
+"Browser profile" = "نمایه مرورگر";
 "Unavailable profile: %@" = "نمایه در دسترس نیست: %@";
 "Read only the selected %@ profile. Accounts are never selected automatically." = "فقط نمایهٔ انتخاب‌شدهٔ %@ خوانده می‌شود. حساب‌ها هرگز به‌طور خودکار انتخاب نمی‌شوند.";
 "Langdock cost usage is not supported." = "ردیابی هزینه‌های استفاده از Langdock پشتیبانی نمی‌شود.";
@@ -2765,3 +2762,34 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "مصرف ثبت‌شدهٔ OpenCode در این Mac را در تاریخچهٔ Codex نمایش می‌دهد. به‌طور پیش‌فرض خاموش است؛ مسیرهای CODEX_HOME با دامنهٔ محدود یا جایگزین همیشه مستثنا هستند.";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "حالت خودکار از نشست ذخیره‌شدهٔ فعال استفاده می‌کند؛ در غیر این صورت از کلید API یا کوکی‌های مرورگر استفاده می‌کند.";
 "Store multiple Command Code subscription sessions." = "چندین نشست اشتراک Command Code را ذخیره کنید.";
+
+/* OpenDesign */
+"OpenDesign" = "OpenDesign";
+"Show OpenDesign usage" = "نمایش میزان استفاده از OpenDesign";
+"Sign in to OpenDesign, then refresh CodexBar." = "وارد OpenDesign شوید، سپس CodexBar را تازه‌سازی کنید.";
+"OpenDesign usage response format changed." = "قالب پاسخ میزان استفاده از OpenDesign تغییر کرده است.";
+"OpenDesign billing access was denied." = "دسترسی به اطلاعات صورتحساب OpenDesign رد شد.";
+"OpenDesign request failed. Try again later." = "درخواست OpenDesign ناموفق بود. بعداً دوباره تلاش کنید.";
+"OpenDesign subscription usage is unavailable for this workspace." = "میزان استفاده از اشتراک OpenDesign برای این فضای کاری در دسترس نیست.";
+"upcoming_reset_notifications_title" = "هشدارهای پیش از بازنشانی";
+"upcoming_reset_notifications_subtitle" = "برای Codex پیش از بازنشانی محدودیت هفتگی، وقتی سهمیه هنوز مصرف نشده هشدار می‌دهد.";
+"upcoming_reset_notification_title" = "محدودیت %2$@ در %1$@ به‌زودی بازنشانی می‌شود";
+"upcoming_reset_notification_body" = "هنوز %1$@ از سهمیه استفاده نشده است. در %2$@ بازنشانی می‌شود و سهمیه استفاده‌نشده از دست می‌رود.";
+"upcoming_reset_notification_body_with_account" = "حساب %1$@. هنوز %2$@ از سهمیه استفاده نشده است. در %3$@ بازنشانی می‌شود و سهمیه استفاده‌نشده از دست می‌رود.";
+"Sign in to DeepSeek Platform in a Chromium-based browser for detailed usage." = "برای مشاهده جزئیات استفاده، در یک مرورگر مبتنی بر Chromium وارد DeepSeek Platform شوید.";
+"Select a DeepSeek browser profile in Settings." = "یک نمایه مرورگر دیپ‌سیک را در تنظیمات انتخاب کنید.";
+"menu_bar_layout_token_separator_glyph_accessibility" = "جداکننده %@";
+"menu_bar_layout_separator_pipe" = "خط عمودی";
+"menu_bar_layout_separator_slash" = "خط مورب";
+"menu_bar_layout_separator_hyphen" = "خط تیره";
+"menu_bar_layout_separator_bullet" = "نشان گلوله‌ای";
+"menu_bar_layout_separator_diamond" = "لوزی توپر";
+"menu_bar_layout_separator_hollowDiamond" = "لوزی توخالی";
+"menu_bar_layout_separator_tilde" = "مد";
+"menu_bar_layout_separator_doubleBar" = "خط عمودی دوتایی";
+"Rename" = "تغییر نام";
+"Rename account" = "تغییر نام حساب";
+"Account name" = "نام حساب";
+"Leave blank to use the default name." = "برای استفاده از نام پیش‌فرض، این قسمت را خالی بگذارید.";
+"Rewards" = "پاداش‌ها";
+"Reward expiry" = "انقضای پاداش‌ها";

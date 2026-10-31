@@ -350,3 +350,69 @@ struct CodexPATTests {
         #expect(!strategy.shouldFallback(on: CodexOAuthFetchError.serverError(500, nil), context: auto))
     }
 }
+
+extension CodexPATTests {
+    @Test
+    func `PAT usage response plan wins provenance over whoami`() throws {
+        let json = """
+        {
+          "plan_type": "team",
+          "rate_limit": {
+            "primary_window": {
+              "used_percent": 68,
+              "reset_at": 1766948068,
+              "limit_window_seconds": 604800
+            }
+          }
+        }
+        """
+        let result = try CodexPATFetchStrategy._mapResultForTesting(
+            Data(json.utf8),
+            whoami: CodexPATWhoami(accountId: "acct-pat", email: "pat@example.com", planType: "business"))
+        let observation = try #require(result.usage.planObservation)
+
+        #expect(observation.rawPlan == "team")
+        #expect(observation.source == .usageResponse)
+        #expect(result.usage.loginMethod(for: .codex) == "team")
+    }
+
+    @Test
+    func `PAT whoami supplies provenance when the usage response omits a plan`() throws {
+        let json = """
+        {
+          "rate_limit": {
+            "primary_window": {
+              "used_percent": 68,
+              "reset_at": 1766948068,
+              "limit_window_seconds": 604800
+            }
+          }
+        }
+        """
+        let result = try CodexPATFetchStrategy._mapResultForTesting(
+            Data(json.utf8),
+            whoami: CodexPATWhoami(accountId: "acct-pat", email: "pat@example.com", planType: "business"))
+        let observation = try #require(result.usage.planObservation)
+
+        #expect(observation.rawPlan == "business")
+        #expect(observation.source == .patWhoami)
+    }
+
+    @Test
+    func `PAT snapshot omits plan provenance when no source reports a plan`() throws {
+        let json = """
+        {
+          "rate_limit": {
+            "primary_window": {
+              "used_percent": 68,
+              "reset_at": 1766948068,
+              "limit_window_seconds": 604800
+            }
+          }
+        }
+        """
+        let result = try CodexPATFetchStrategy._mapResultForTesting(Data(json.utf8), whoami: nil)
+
+        #expect(result.usage.planObservation == nil)
+    }
+}

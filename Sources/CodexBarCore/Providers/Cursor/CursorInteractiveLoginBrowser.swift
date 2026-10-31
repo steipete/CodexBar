@@ -40,6 +40,7 @@ extension CursorStatusProbe {
         "com.brave.browser": .brave,
         "com.brave.browser.beta": .braveBeta,
         "com.brave.browser.nightly": .braveNightly,
+        "com.brave.browser.origin": .braveOrigin,
         "com.google.chrome": .chrome,
         "com.google.chrome.beta": .chromeBeta,
         "com.google.chrome.canary": .chromeCanary,

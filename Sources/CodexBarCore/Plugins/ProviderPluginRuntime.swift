@@ -695,6 +695,8 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
 
         let env = JSValue(newObjectIn: self.context)!
         env.setObject(Self.normalizedTimeZoneIdentifier(timeZone), forKeyedSubscript: "timeZone" as NSString)
+        env.setObject(true, forKeyedSubscript: "supportsIconProvider" as NSString)
+        env.setObject(true, forKeyedSubscript: "supportsMenuBarItems" as NSString)
         ctx.setObject(env, forKeyedSubscript: "env" as NSString)
         let percentage: @convention(block) (Double, Double) -> Double = { used, limit in
             guard used.isFinite, limit.isFinite, limit > 0 else { return 100 }

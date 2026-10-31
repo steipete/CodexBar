@@ -8,6 +8,9 @@ public struct PerplexityUsageSnapshot: Sendable {
     public let promoUsed: Double
     public let purchasedTotal: Double
     public let purchasedUsed: Double
+    /// Organization pool credits drawn and still available; nil when the account has no org pool fields.
+    public let orgUsed: Double?
+    public let orgAvailable: Double?
     public let balanceCents: Double
     public let totalUsageCents: Double
     public let renewalDate: Date
@@ -36,6 +39,20 @@ public struct PerplexityUsageSnapshot: Sendable {
         let usedFromRecurring = min(remaining, recurringSum); remaining -= usedFromRecurring
         let usedFromPurchased = min(remaining, purchasedSum); remaining -= usedFromPurchased
         let usedFromPromo = min(remaining, promoSum)
+
+        // Org members draw on the organization pool after seat credits. balance_cents is the account's
+        // total available credits, so the org share is whatever the personal pools do not cover.
+        if response.orgPoolDrawsCents != nil || response.orgUserCapCents != nil {
+            let personalLeft = (recurringSum - usedFromRecurring) + (purchasedSum - usedFromPurchased)
+                + (promoSum - usedFromPromo)
+            self.orgUsed = max(0, response.orgPoolDrawsCents ?? 0)
+            self.orgAvailable = response.isOrgPoolDepleted == true
+                ? 0
+                : max(0, response.balanceCents - personalLeft)
+        } else {
+            self.orgUsed = nil
+            self.orgAvailable = nil
+        }
 
         self.recurringTotal = recurringSum
         self.recurringUsed = usedFromRecurring
@@ -124,6 +141,19 @@ extension PerplexityUsageSnapshot {
             resetDescription: Self.creditDescription(
                 used: self.purchasedUsed, total: self.purchasedTotal, unit: "credits"))
 
+        let orgWindows: [NamedRateWindow]? = {
+            guard let orgUsed, let orgAvailable else { return nil }
+            let orgTotal = orgUsed + orgAvailable
+            return [NamedRateWindow(
+                id: "org-credits",
+                title: "Organization",
+                window: RateWindow(
+                    usedPercent: orgTotal > 0 ? min(100, max(0, orgUsed / orgTotal * 100)) : 100,
+                    windowMinutes: nil,
+                    resetsAt: nil,
+                    resetDescription: Self.creditDescription(used: orgUsed, total: orgTotal, unit: "credits")))]
+        }()
+
         let identity = ProviderIdentitySnapshot(
             providerID: .perplexity,
             accountEmail: nil,
@@ -134,6 +164,7 @@ extension PerplexityUsageSnapshot {
             primary: primaryWindow,
             secondary: secondary,
             tertiary: tertiary,
+            extraRateWindows: orgWindows,
             providerCost: nil,
             updatedAt: self.updatedAt,
             identity: identity)
