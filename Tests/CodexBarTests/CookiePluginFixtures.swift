@@ -71,6 +71,7 @@ enum CookiePluginFixtures {
             #expect(usage.primary == expected.primary)
             #expect(usage.secondary == expected.secondary)
             #expect(usage.tertiary == expected.tertiary)
+            #expect(usage.extraRateWindows == expected.extraRateWindows)
             #expect(usage.identity?.loginMethod == expected.identity?.loginMethod)
         }
         return reference

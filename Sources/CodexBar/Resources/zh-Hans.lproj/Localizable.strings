@@ -1330,11 +1330,8 @@
 "Share Stats…" = "分享统计数据…";
 "Stats copied" = "统计数据已复制";
 "DeepSeek this month token usage trend" = "DeepSeek 本月 token 用量趋势";
-"Chrome profile" = "Chrome 配置文件";
 "Choose which signed-in DeepSeek Platform session supplies detailed usage." = "选择要提供详细用量的已登录 DeepSeek Platform 会话。";
 "Detailed usage unavailable." = "详细用量不可用。";
-"Sign in to DeepSeek Platform in Chrome for detailed usage." = "请在 Chrome 中登录 DeepSeek Platform 以查看详细用量。";
-"Select a DeepSeek Chrome profile in Settings." = "请在“设置”中选择 DeepSeek Chrome 配置文件。";
 "Select profile…" = "选择配置文件…";
 
 "%@: %@" = "%@：%@";
@@ -2753,3 +2750,34 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "在 Codex 历史记录中显示此 Mac 上记录的 OpenCode 用量。默认关闭；始终排除限定范围或其他 CODEX_HOME 位置。";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "自动使用当前启用的已保存会话，否则使用 API 密钥或浏览器 Cookie。";
 "Store multiple Command Code subscription sessions." = "存储多个 Command Code 订阅会话。";
+
+/* OpenDesign */
+"OpenDesign" = "OpenDesign";
+"Show OpenDesign usage" = "显示 OpenDesign 用量";
+"Sign in to OpenDesign, then refresh CodexBar." = "登录 OpenDesign，然后刷新 CodexBar。";
+"OpenDesign usage response format changed." = "OpenDesign 用量响应格式已更改。";
+"OpenDesign billing access was denied." = "OpenDesign 账单访问被拒绝。";
+"OpenDesign request failed. Try again later." = "OpenDesign 请求失败。请稍后重试。";
+"OpenDesign subscription usage is unavailable for this workspace." = "此工作区的 OpenDesign 订阅用量不可用。";
+"upcoming_reset_notifications_title" = "额度重置前提醒";
+"upcoming_reset_notifications_subtitle" = "在 Codex 每周额度重置前，若额度仍有剩余则发出提醒。";
+"upcoming_reset_notification_title" = "%1$@ %2$@额度即将重置";
+"upcoming_reset_notification_body" = "还有 %1$@ 的额度未使用。额度将在 %2$@ 后重置，未使用的额度将失效。";
+"upcoming_reset_notification_body_with_account" = "账户 %1$@。还有 %2$@ 的额度未使用。额度将在 %3$@ 后重置，未使用的额度将失效。";
+"Sign in to DeepSeek Platform in a Chromium-based browser for detailed usage." = "请在基于 Chromium 的浏览器中登录 DeepSeek Platform 以查看详细用量。";
+"Select a DeepSeek browser profile in Settings." = "请在“设置”中选择 DeepSeek 浏览器配置文件。";
+"menu_bar_layout_token_separator_glyph_accessibility" = "分隔符 %@";
+"menu_bar_layout_separator_pipe" = "竖线";
+"menu_bar_layout_separator_slash" = "斜杠";
+"menu_bar_layout_separator_hyphen" = "连字符";
+"menu_bar_layout_separator_bullet" = "项目符号";
+"menu_bar_layout_separator_diamond" = "实心菱形";
+"menu_bar_layout_separator_hollowDiamond" = "空心菱形";
+"menu_bar_layout_separator_tilde" = "波浪号";
+"menu_bar_layout_separator_doubleBar" = "双竖线";
+"Rename" = "重命名";
+"Rename account" = "重命名账户";
+"Account name" = "账户名称";
+"Leave blank to use the default name." = "留空以使用默认名称。";
+"Rewards" = "奖励";
+"Reward expiry" = "奖励到期日期";

@@ -32,7 +32,7 @@ public struct DeepSeekPlatformTransportError: LocalizedError, Sendable {
         guard (underlyingError as NSError).domain == NSURLErrorDomain else { return nil }
         self.owner = owner
         self.underlyingError = underlyingError
-        self.message = description ?? DeepSeekUsageError.networkError("Chrome session resolution unavailable")
+        self.message = description ?? DeepSeekUsageError.networkError("Browser session resolution unavailable")
             .localizedDescription
     }
 

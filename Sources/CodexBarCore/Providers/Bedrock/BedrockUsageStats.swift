@@ -276,8 +276,7 @@ enum BedrockUsageFetcher {
         let response = try await ProviderHTTPClient.shared.response(for: request)
         guard response.statusCode == 200 else {
             if Self.isDataUnavailableResponse(statusCode: response.statusCode, data: response.data) {
-                Self.log.info("AWS Cost Explorer data unavailable, assuming zero usage.")
-                return Data(#"{"ResultsByTime":[]}"#.utf8)
+                throw ProviderFetchClassifiedError(kind: .providerUnavailable, message: "Spend unavailable")
             }
             let summary = Self.sanitizedResponseBody(response.data)
             Self.log.error("AWS Cost Explorer returned \(response.statusCode): \(summary)")

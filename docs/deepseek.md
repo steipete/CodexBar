@@ -44,15 +44,19 @@ CodexBar resolves the Platform `userToken` in this order:
 
 1. An explicitly supplied `DEEPSEEK_PLATFORM_TOKEN` / `DEEPSEEK_USER_TOKEN` or a legacy
    `providers[].cookieHeader` value preserved from an existing config.
-2. A prompt-free read of `userToken` from the `https://platform.deepseek.com` local-storage origin in Chrome.
+2. A prompt-free read of `userToken` from the `https://platform.deepseek.com` local-storage origin in a
+   supported Chromium-family browser, using the shared browser catalog order. Local storage is plain LevelDB,
+   so no Safe Storage Keychain access is involved.
 
 The legacy config value remains a compatibility fallback so upgrading cannot silently erase a working browser-only
 session. An unscoped legacy or environment token is never combined with an API-key balance; API enrichment requires
 a session saved for that credential scope. New automatic imports are never written back to config.
 
-CodexBar checks every Chrome profile containing a parseable `userToken` against DeepSeek. Rejected or expired
-sessions are omitted. Settings shows a **Chrome profile** picker containing only valid sessions. With no API key, one
-valid session is selected automatically; with multiple valid sessions, CodexBar reuses the saved choice or asks once.
+CodexBar checks every profile of those browsers containing a parseable `userToken` against DeepSeek. Rejected or
+expired sessions are omitted. Settings shows a **Browser profile** picker containing only valid sessions. Profile
+identifiers are browser-scoped (`chrome:Default` from Chrome and `helium:Default` from Helium stay distinct), so a
+saved selection keeps resolving after the browser list grows. With no API key, one valid session is selected
+automatically; with multiple valid sessions, CodexBar reuses the saved choice or asks once.
 When an API key supplies the balance, a new or changed API credential requires an explicit session selection before
 website usage is combined with it. CodexBar persists a stable browser/profile identifier, not an absolute home-directory path, and
 keeps automatically imported tokens in memory only. The choice is scoped to a non-reversible fingerprint of the
@@ -61,18 +65,18 @@ browser session. Validation results are cached briefly so normal
 refreshes do not probe every profile, and a temporary network failure does not erase a previously validated profile.
 If the selected session expires, CodexBar asks before switching to another valid profile.
 
-Chrome-only balance refreshes also keep the last live balance and its original timestamp through temporary transport
+Browser-only balance refreshes also keep the last live balance and its original timestamp through temporary transport
 failures when the failed request belongs to the same browser profile and token. This ownership proof stays in memory;
 decoded snapshots, changed profiles or tokens, and API-key balances with optional browser enrichment cannot supply it.
 Once DeepSeek rejects a session, a later network failure cannot preserve its old balance; successful validation must
 restore that session first. A saved profile with unknown validity still supplies transport diagnostics when other profiles
 succeed; a known-rejected selection keeps the profile picker and its valid alternatives.
-Recognized transport failures still participate in startup retries when no matching balance can be retained. A Chrome-resolution
+Recognized transport failures still participate in startup retries when no matching balance can be retained. A browser-resolution
 deadline without an observed session fails closed; cancelled or superseded refresh tasks keep their existing behavior.
 
 If no session is valid, the menu keeps the API-key balance when one exists; otherwise it asks the user to sign in to
-DeepSeek Platform in Chrome. Authentication failures returned as top-level or nested DeepSeek codes `40002` and
-`40003` are treated as expired sessions.
+DeepSeek Platform in a Chromium-based browser. Authentication failures returned as top-level or nested DeepSeek codes
+`40002` and `40003` are treated as expired sessions.
 
 ## Usage details
 
@@ -85,7 +89,7 @@ DeepSeek Platform in Chrome. Authentication failures returned as top-level or ne
   endpoints, or **This month** for monthly fallback. These are Platform-account totals across API keys. Missing or
   invalid model costs are omitted; a reported zero is retained.
 - The amount and cost requests run concurrently. After balance arrives, CodexBar waits up to five seconds for
-  automatic Chrome resolution and detailed usage. The deadline remains bounded even if a local Chrome read does not
+  automatic browser resolution and detailed usage. The deadline remains bounded even if a local browser read does not
   respond to cancellation. If the optional work fails or times out, the balance and previously validated profile list
   remain available while the menu reports that detailed usage is unavailable.
 - With multiple configured API keys, browser-derived detailed usage is shown only with the active API-key account;
@@ -99,7 +103,7 @@ DeepSeek Platform in Chrome. Authentication failures returned as top-level or ne
 
 - `Sources/CodexBarCore/Providers/DeepSeek/DeepSeekProviderDescriptor.swift` (descriptor + fetch strategy)
 - `Sources/CodexBarCore/Providers/DeepSeek/DeepSeekUsageFetcher.swift` (HTTP client + JSON parser)
-- `Sources/CodexBarCore/Providers/DeepSeek/DeepSeekPlatformTokenImporter.swift` (Chrome Platform session import)
+- `Sources/CodexBarCore/Providers/DeepSeek/DeepSeekPlatformTokenImporter.swift` (Chromium-family Platform session import)
 - `Sources/CodexBarCore/Providers/DeepSeek/DeepSeekSettingsReader.swift` (env var resolution)
 - `Sources/CodexBar/Providers/DeepSeek/DeepSeekProviderImplementation.swift` (provider activation and token-account visibility)
 - `Sources/CodexBarCore/TokenAccountSupportCatalog+Data.swift` (DeepSeek token-account injection)

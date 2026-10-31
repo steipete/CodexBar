@@ -1063,10 +1063,7 @@
 "Today cash" = "เงินสดวันนี้";
 "DeepSeek 30 day token usage trend" = "DeepSeek แนวโน้มการใช้โทเค็น 30 วัน";
 "Detailed usage unavailable." = "ไม่มีข้อมูลการใช้งานโดยละเอียด";
-"Sign in to DeepSeek Platform in Chrome for detailed usage." = "ลงชื่อเข้าใช้ DeepSeek Platform ใน Chrome เพื่อดูรายละเอียดการใช้งาน";
-"Select a DeepSeek Chrome profile in Settings." = "เลือกโปรไฟล์ Chrome ของ DeepSeek ในการตั้งค่า";
 "DeepSeek this month token usage trend" = "แนวโน้มการใช้โทเค็น DeepSeek เดือนนี้";
-"Chrome profile" = "โปรไฟล์ Chrome";
 "Choose which signed-in DeepSeek Platform session supplies detailed usage." = "เลือกเซสชัน DeepSeek Platform ที่ลงชื่อเข้าใช้เพื่อแสดงรายละเอียดการใช้งาน";
 "Select profile…" = "เลือกโปรไฟล์…";
 "cache-hit input" = "อินพุต cache-hit";
@@ -2763,3 +2760,34 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "แสดงการใช้งาน OpenCode ที่บันทึกไว้บน Mac เครื่องนี้ในประวัติ Codex ปิดอยู่ตามค่าเริ่มต้น โดยจะไม่รวมตำแหน่ง CODEX_HOME ที่จำกัดขอบเขตหรือตำแหน่งอื่นเสมอ";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "อัตโนมัติจะใช้เซสชันที่บันทึกไว้ซึ่งกำลังใช้งาน หากไม่มี จะใช้คีย์ API หรือคุกกี้ของเบราว์เซอร์";
 "Store multiple Command Code subscription sessions." = "จัดเก็บเซสชันการสมัครสมาชิก Command Code หลายรายการ";
+
+/* OpenDesign */
+"OpenDesign" = "OpenDesign";
+"Show OpenDesign usage" = "แสดงการใช้งาน OpenDesign";
+"Sign in to OpenDesign, then refresh CodexBar." = "ลงชื่อเข้าใช้ OpenDesign แล้วรีเฟรช CodexBar";
+"OpenDesign usage response format changed." = "รูปแบบการตอบกลับข้อมูลการใช้งาน OpenDesign เปลี่ยนไป";
+"OpenDesign billing access was denied." = "การเข้าถึงข้อมูลการเรียกเก็บเงินของ OpenDesign ถูกปฏิเสธ";
+"OpenDesign request failed. Try again later." = "คำขอ OpenDesign ล้มเหลว โปรดลองอีกครั้งภายหลัง";
+"OpenDesign subscription usage is unavailable for this workspace." = "ไม่มีข้อมูลการใช้งานการสมัครสมาชิก OpenDesign สำหรับพื้นที่ทำงานนี้";
+"upcoming_reset_notifications_title" = "คำเตือนก่อนรีเซ็ต";
+"upcoming_reset_notifications_subtitle" = "เตือนสำหรับ Codex ก่อนที่ขีดจำกัดรายสัปดาห์จะรีเซ็ตขณะที่โควตายังไม่ถูกใช้";
+"upcoming_reset_notification_title" = "ขีดจำกัด%2$@ของ %1$@ จะรีเซ็ตเร็ว ๆ นี้";
+"upcoming_reset_notification_body" = "ยังมีโควตา %1$@ ที่ไม่ได้ใช้ จะรีเซ็ตในอีก %2$@ และโควตาที่ไม่ได้ใช้จะหายไป";
+"upcoming_reset_notification_body_with_account" = "บัญชี %1$@ ยังมีโควตา %2$@ ที่ไม่ได้ใช้ จะรีเซ็ตในอีก %3$@ และโควตาที่ไม่ได้ใช้จะหายไป";
+"Sign in to DeepSeek Platform in a Chromium-based browser for detailed usage." = "ลงชื่อเข้าใช้ DeepSeek Platform ในเบราว์เซอร์ที่ใช้ Chromium เพื่อดูรายละเอียดการใช้งาน";
+"Select a DeepSeek browser profile in Settings." = "เลือกโปรไฟล์เบราว์เซอร์ของ DeepSeek ในการตั้งค่า";
+"menu_bar_layout_token_separator_glyph_accessibility" = "ตัวคั่น %@";
+"menu_bar_layout_separator_pipe" = "ขีดตั้ง";
+"menu_bar_layout_separator_slash" = "เครื่องหมายทับ";
+"menu_bar_layout_separator_hyphen" = "ยัติภังค์";
+"menu_bar_layout_separator_bullet" = "จุดนำรายการ";
+"menu_bar_layout_separator_diamond" = "ข้าวหลามตัดทึบ";
+"menu_bar_layout_separator_hollowDiamond" = "ข้าวหลามตัดโปร่ง";
+"menu_bar_layout_separator_tilde" = "เครื่องหมายตัวหนอน";
+"menu_bar_layout_separator_doubleBar" = "ขีดตั้งคู่";
+"Rename" = "เปลี่ยนชื่อ";
+"Rename account" = "เปลี่ยนชื่อบัญชี";
+"Account name" = "ชื่อบัญชี";
+"Leave blank to use the default name." = "เว้นว่างไว้เพื่อใช้ชื่อเริ่มต้น";
+"Rewards" = "รางวัล";
+"Reward expiry" = "วันหมดอายุของรางวัล";
