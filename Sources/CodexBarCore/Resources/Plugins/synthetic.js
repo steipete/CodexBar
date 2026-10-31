@@ -238,9 +238,11 @@ defineProvider({
       );
     }
 
-    function parseQuota(payload) {
-      let usedPercent = normalizedPercent(firstNumber(payload, percentUsedKeys));
-      const percentRemaining = normalizedPercent(firstNumber(payload, percentRemainingKeys));
+    function parseQuota(payload, percentagePoints = false) {
+      // planWeeklyLimit uses 0–100 percentages, even when less than 1% remains.
+      const normalize = percentagePoints ? (value) => value : normalizedPercent;
+      let usedPercent = normalize(firstNumber(payload, percentUsedKeys));
+      const percentRemaining = normalize(firstNumber(payload, percentRemainingKeys));
       if (usedPercent === null && percentRemaining !== null) usedPercent = 100 - percentRemaining;
 
       if (usedPercent === null) {
@@ -266,9 +268,11 @@ defineProvider({
         const description = windowDescription(minutes);
         if (description !== null) window.resetDescription = description;
       }
-      const tickPercent = normalizedPercent(
-        firstNumber(payload, ["tickPercent", "tick_percent", "nextTickPercent", "next_tick_percent"]),
-      );
+      const tickPercent =
+        firstNumber(payload, ["nextRegenPercent", "next_regen_percent"]) ??
+        normalizedPercent(
+          firstNumber(payload, ["tickPercent", "tick_percent", "nextTickPercent", "next_tick_percent"]),
+        );
       if (tickPercent !== null) window.nextRegenPercent = tickPercent;
 
       const costLimit = firstCurrency(payload, ["maxCredits", "max_credits"]);
@@ -305,10 +309,19 @@ defineProvider({
     }
 
     const data = root.data && typeof root.data === "object" ? root.data : null;
+    const planWeekly =
+      namedQuota(root.planWeeklyLimit, "Weekly plan limit") ||
+      namedQuota(data && data.planWeeklyLimit, "Weekly plan limit");
     const slots = [
-      namedQuota(root.rollingFiveHourLimit, "Rolling five-hour limit") ||
-        namedQuota(data && data.rollingFiveHourLimit, "Rolling five-hour limit"),
-      namedQuota(root.weeklyTokenLimit, "Weekly token limit") ||
+      // New plans only enforce weekly credits; subscription is a retired counter.
+      planWeekly
+        ? null
+        : namedQuota(root.rollingFiveHourLimit, "Rolling five-hour limit") ||
+          namedQuota(data && data.rollingFiveHourLimit, "Rolling five-hour limit") ||
+          namedQuota(root.subscription, "Subscription") ||
+          namedQuota(data && data.subscription, "Subscription"),
+      planWeekly ||
+        namedQuota(root.weeklyTokenLimit, "Weekly token limit") ||
         namedQuota(data && data.weeklyTokenLimit, "Weekly token limit"),
       namedQuota(root.search && root.search.hourly, "Search hourly") ||
         namedQuota(data && data.search && data.search.hourly, "Search hourly"),
@@ -316,7 +329,7 @@ defineProvider({
 
     let parsed;
     if (slots.some(Boolean)) {
-      parsed = slots.map((value) => (value ? parseQuota(value) : null));
+      parsed = slots.map((value) => (value ? parseQuota(value, value === planWeekly) : null));
     } else {
       const candidates = [
         root.quotas,
@@ -338,7 +351,7 @@ defineProvider({
         values = collect(candidate);
         if (values.length) break;
       }
-      parsed = values.map(parseQuota).filter(Boolean);
+      parsed = values.map((value) => parseQuota(value)).filter(Boolean);
     }
     if (!parsed.some(Boolean)) throw new Error("Failed to parse Synthetic response: Missing quota data.");
 
