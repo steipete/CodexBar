@@ -92,6 +92,13 @@ struct CLIConfigHostsTests {
         // Reporting and checks use the stored spelling, never the raw argument.
         #expect(rerun.host == "DevBox")
 
+        // An identical retry, same or padded spelling, appends no duplicate token.
+        let sameSpelling = ConfigHostsState(manualHosts: ["devbox"], costUsageHosts: ["devbox"])
+        let retried = try CodexBarCLI.addedConfigHost("devbox", to: sameSpelling, cost: true)
+        #expect(retried.state == sameSpelling)
+        #expect(!retried.changed)
+        #expect(retried.host == "devbox")
+
         let withCost = try CodexBarCLI.addedConfigHost("devbox", to: state, cost: true)
         #expect(withCost.state == state)
         #expect(!withCost.changed)

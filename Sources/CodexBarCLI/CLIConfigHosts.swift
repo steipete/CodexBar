@@ -178,11 +178,15 @@ extension CodexBarCLI {
         try RemoteCodexCostFetcher.validateHost(host)
         var next = state
         var changed = false
-        // Keep the stored spelling; `devbox` and a stored `DevBox` are one host.
-        let canonical = next.manualHosts.first {
+        // Keep the stored spelling; `devbox` and a stored `DevBox` are one host, and a
+        // retry with the same spelling changes nothing.
+        let canonical: String
+        if let existing = next.manualHosts.first(where: {
             RemoteSessionFetcher.hostIdentityKey($0) == RemoteSessionFetcher.hostIdentityKey(host)
-        } ?? host
-        if canonical == host {
+        }) {
+            canonical = existing
+        } else {
+            canonical = host
             next.manualTokens.append(host)
             changed = true
         }
