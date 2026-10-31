@@ -1347,11 +1347,11 @@
 "Share Stats…" = "統計を共有…";
 "Stats copied" = "統計をコピーしました";
 "DeepSeek this month token usage trend" = "今月の DeepSeek トークン使用量の推移";
-"Chrome profile" = "Chrome プロファイル";
+"Browser profile" = "ブラウザープロファイル";
 "Choose which signed-in DeepSeek Platform session supplies detailed usage." = "詳細な使用状況を取得する、ログイン済みの DeepSeek Platform セッションを選択します。";
 "Detailed usage unavailable." = "詳細な使用状況を取得できません。";
-"Sign in to DeepSeek Platform in Chrome for detailed usage." = "詳細な使用状況を確認するには、Chrome で DeepSeek Platform にログインしてください。";
-"Select a DeepSeek Chrome profile in Settings." = "設定で DeepSeek の Chrome プロファイルを選択してください。";
+"Sign in to DeepSeek Platform in a Chromium-based browser for detailed usage." = "詳細な使用状況を確認するには、Chromium ベースのブラウザーで DeepSeek Platform にログインしてください。";
+"Select a DeepSeek browser profile in Settings." = "設定で DeepSeek のブラウザープロファイルを選択してください。";
 "Select profile…" = "プロファイルを選択…";
 
 "%@: %@" = "%@: %@";
@@ -1475,6 +1475,15 @@
 "menu_bar_layout_token_space" = "空白";
 "menu_bar_layout_token_line_break" = "改行";
 "menu_bar_layout_token_separator_accessibility" = "区切り点";
+"menu_bar_layout_token_separator_glyph_accessibility" = "区切り %@";
+"menu_bar_layout_separator_pipe" = "縦棒";
+"menu_bar_layout_separator_slash" = "スラッシュ";
+"menu_bar_layout_separator_hyphen" = "ハイフン";
+"menu_bar_layout_separator_bullet" = "中黒";
+"menu_bar_layout_separator_diamond" = "黒ひし形";
+"menu_bar_layout_separator_hollowDiamond" = "白ひし形";
+"menu_bar_layout_separator_tilde" = "チルダ";
+"menu_bar_layout_separator_doubleBar" = "二重縦棒";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "アイコン: 利用不可";
@@ -2762,6 +2771,10 @@
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "自動では使用中の保存済みセッションを使用し、それ以外の場合は API キーまたはブラウザの Cookie を使用します。";
 "Store multiple Command Code subscription sessions." = "Command Code サブスクリプションのセッションを複数保存します。";
 
-/* WorkBuddy reward credits */
+// Codex account names
+"Rename" = "名前を変更";
+"Rename account" = "アカウント名を変更";
+"Account name" = "アカウント名";
+"Leave blank to use the default name." = "空欄にするとデフォルトの名前を使用します。";
 "Rewards" = "報酬";
 "Reward expiry" = "報酬の有効期限";

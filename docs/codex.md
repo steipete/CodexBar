@@ -9,6 +9,15 @@ read_when:
 
 # Codex provider
 
+Existing accounts keep their default labels until renamed.
+
+In **Settings → Providers → Codex**, choose **Rename** beside an account to give it a name
+such as “Personal” or “School”. Names appear in account pickers and menu card headings.
+Clear the name to restore the default. Names are saved per login and workspace in CodexBar’s
+configuration; they do not change authentication, workspace names, or the system account.
+**Hide personal info** also hides custom account names in menus and account settings. Turn it off to rename an account. Names set before a saved account’s
+workspace is known survive reauthentication. Renaming does not invalidate usage fetches or cached usage.
+
 Enable **Settings → Menu Bar → Show all accounts in Overview** to include this provider’s cached account
 cards in Overview. The existing account source and provider selection remain unchanged; see
 [Overview account rows](configuration.md#menu-bar-controls).

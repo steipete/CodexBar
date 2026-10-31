@@ -1063,10 +1063,10 @@
 "Today cash" = "اليوم نقدا";
 "DeepSeek 30 day token usage trend" = "DeepSeek اتجاه استخدام الرموز خلال 30 يوما";
 "Detailed usage unavailable." = "الاستخدام التفصيلي غير متاح.";
-"Sign in to DeepSeek Platform in Chrome for detailed usage." = "سجّل الدخول إلى منصة DeepSeek في Chrome لعرض الاستخدام التفصيلي.";
-"Select a DeepSeek Chrome profile in Settings." = "حدد ملف تعريف Chrome لـ DeepSeek في الإعدادات.";
+"Sign in to DeepSeek Platform in a Chromium-based browser for detailed usage." = "سجّل الدخول إلى منصة DeepSeek في متصفح مبني على Chromium لعرض الاستخدام التفصيلي.";
+"Select a DeepSeek browser profile in Settings." = "حدد ملف تعريف متصفح لـ DeepSeek في الإعدادات.";
 "DeepSeek this month token usage trend" = "اتجاه استخدام رموز DeepSeek لهذا الشهر";
-"Chrome profile" = "ملف تعريف Chrome";
+"Browser profile" = "ملف تعريف المتصفح";
 "Choose which signed-in DeepSeek Platform session supplies detailed usage." = "اختر جلسة DeepSeek Platform المسجّل دخولها التي توفّر تفاصيل الاستخدام.";
 "Select profile…" = "اختر ملفًا شخصيًا…";
 "cache-hit input" = "إدخال الضربات المؤقتة";
@@ -1478,6 +1478,15 @@
 "menu_bar_layout_token_space" = "مسافة";
 "menu_bar_layout_token_line_break" = "فاصل سطر";
 "menu_bar_layout_token_separator_accessibility" = "نقطة فاصلة";
+"menu_bar_layout_token_separator_glyph_accessibility" = "فاصل %@";
+"menu_bar_layout_separator_pipe" = "خط عمودي";
+"menu_bar_layout_separator_slash" = "شرطة مائلة";
+"menu_bar_layout_separator_hyphen" = "واصلة";
+"menu_bar_layout_separator_bullet" = "علامة تعداد نقطية";
+"menu_bar_layout_separator_diamond" = "معين ممتلئ";
+"menu_bar_layout_separator_hollowDiamond" = "معين مجوف";
+"menu_bar_layout_separator_tilde" = "علامة المد";
+"menu_bar_layout_separator_doubleBar" = "خط عمودي مزدوج";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "الأيقونة: غير متوفر";
@@ -2766,6 +2775,10 @@
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "يستخدم الوضع التلقائي الجلسة المحفوظة النشطة، وإلا فيستخدم مفتاح API أو ملفات تعريف ارتباط المتصفح.";
 "Store multiple Command Code subscription sessions." = "احفظ عدة جلسات اشتراك في Command Code.";
 
-/* WorkBuddy reward credits */
+// Codex account names
+"Rename" = "إعادة تسمية";
+"Rename account" = "إعادة تسمية الحساب";
+"Account name" = "اسم الحساب";
+"Leave blank to use the default name." = "اتركه فارغًا لاستخدام الاسم الافتراضي.";
 "Rewards" = "المكافآت";
 "Reward expiry" = "انتهاء صلاحية المكافآت";

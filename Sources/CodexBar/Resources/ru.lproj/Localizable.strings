@@ -1353,11 +1353,11 @@
 "Share Stats…" = "Поделиться статистикой…";
 "Stats copied" = "Статистика скопирована";
 "DeepSeek this month token usage trend" = "Динамика использования токенов DeepSeek в этом месяце";
-"Chrome profile" = "Профиль Chrome";
+"Browser profile" = "Профиль браузера";
 "Choose which signed-in DeepSeek Platform session supplies detailed usage." = "Выберите активный сеанс DeepSeek Platform для получения подробных данных об использовании.";
 "Detailed usage unavailable." = "Подробные данные об использовании недоступны.";
-"Sign in to DeepSeek Platform in Chrome for detailed usage." = "Войдите в DeepSeek Platform через Chrome, чтобы получить подробные данные об использовании.";
-"Select a DeepSeek Chrome profile in Settings." = "Выберите профиль Chrome для DeepSeek в настройках.";
+"Sign in to DeepSeek Platform in a Chromium-based browser for detailed usage." = "Войдите в DeepSeek Platform через браузер на основе Chromium, чтобы получить подробные данные об использовании.";
+"Select a DeepSeek browser profile in Settings." = "Выберите профиль браузера для DeepSeek в настройках.";
 "Select profile…" = "Выбрать профиль…";
 
 "Choose a supported browser so CodexBar can read the matching account." = "Выберите поддерживаемый браузер, чтобы CodexBar мог прочитать соответствующую учетную запись.";
@@ -1476,6 +1476,15 @@
 "menu_bar_layout_token_space" = "Пробел";
 "menu_bar_layout_token_line_break" = "Разрыв строки";
 "menu_bar_layout_token_separator_accessibility" = "Точка-разделитель";
+"menu_bar_layout_token_separator_glyph_accessibility" = "Разделитель %@";
+"menu_bar_layout_separator_pipe" = "Вертикальная черта";
+"menu_bar_layout_separator_slash" = "Косая черта";
+"menu_bar_layout_separator_hyphen" = "Дефис";
+"menu_bar_layout_separator_bullet" = "Маркер";
+"menu_bar_layout_separator_diamond" = "Закрашенный ромб";
+"menu_bar_layout_separator_hollowDiamond" = "Незакрашенный ромб";
+"menu_bar_layout_separator_tilde" = "Тильда";
+"menu_bar_layout_separator_doubleBar" = "Двойная вертикальная черта";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "Значок: Недоступно";
@@ -2763,6 +2772,10 @@
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "Автоматический режим использует активный сохранённый сеанс, иначе — ключ API или файлы cookie браузера.";
 "Store multiple Command Code subscription sessions." = "Хранить несколько сеансов подписки Command Code.";
 
-/* WorkBuddy reward credits */
+// Codex account names
+"Rename" = "Переименовать";
+"Rename account" = "Переименовать аккаунт";
+"Account name" = "Имя аккаунта";
+"Leave blank to use the default name." = "Оставьте поле пустым, чтобы использовать имя по умолчанию.";
 "Rewards" = "Награды";
 "Reward expiry" = "Срок действия наград";

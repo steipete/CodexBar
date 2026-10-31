@@ -919,10 +919,10 @@
 "Today cash" = "Efectiu d'avui";
 "DeepSeek 30 day token usage trend" = "Tendència d'ús de tokens de 30 dies de DeepSeek";
 "Detailed usage unavailable." = "L'ús detallat no està disponible.";
-"Sign in to DeepSeek Platform in Chrome for detailed usage." = "Inicieu la sessió a DeepSeek Platform al Chrome per veure l'ús detallat.";
-"Select a DeepSeek Chrome profile in Settings." = "Seleccioneu un perfil de Chrome de DeepSeek a Configuració.";
+"Sign in to DeepSeek Platform in a Chromium-based browser for detailed usage." = "Inicieu la sessió a DeepSeek Platform en un navegador basat en Chromium per veure l'ús detallat.";
+"Select a DeepSeek browser profile in Settings." = "Seleccioneu un perfil de navegador de DeepSeek a Configuració.";
 "DeepSeek this month token usage trend" = "Tendència d'ús de tokens de DeepSeek aquest mes";
-"Chrome profile" = "Perfil de Chrome";
+"Browser profile" = "Perfil de navegador";
 "Choose which signed-in DeepSeek Platform session supplies detailed usage." = "Tria quina sessió iniciada de DeepSeek Platform proporciona l'ús detallat.";
 "Select profile…" = "Selecciona un perfil…";
 "cache-hit input" = "entrada amb encert de memòria cau";
@@ -1481,6 +1481,15 @@
 "menu_bar_layout_token_space" = "Espai";
 "menu_bar_layout_token_line_break" = "Salt de línia";
 "menu_bar_layout_token_separator_accessibility" = "Punt separador";
+"menu_bar_layout_token_separator_glyph_accessibility" = "Separador %@";
+"menu_bar_layout_separator_pipe" = "Barra vertical";
+"menu_bar_layout_separator_slash" = "Barra inclinada";
+"menu_bar_layout_separator_hyphen" = "Guionet";
+"menu_bar_layout_separator_bullet" = "Pic";
+"menu_bar_layout_separator_diamond" = "Rombe ple";
+"menu_bar_layout_separator_hollowDiamond" = "Rombe buit";
+"menu_bar_layout_separator_tilde" = "Titlla";
+"menu_bar_layout_separator_doubleBar" = "Doble barra vertical";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "Icona: No disponible";
@@ -2764,6 +2773,10 @@
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "Auto utilitza la sessió desada activa; si no n’hi ha, una clau API o les galetes del navegador.";
 "Store multiple Command Code subscription sessions." = "Deseu diverses sessions de subscripció de Command Code.";
 
-/* WorkBuddy reward credits */
+// Codex account names
+"Rename" = "Canvia el nom";
+"Rename account" = "Canvia el nom del compte";
+"Account name" = "Nom del compte";
+"Leave blank to use the default name." = "Deixa-ho en blanc per fer servir el nom per defecte.";
 "Rewards" = "Recompenses";
 "Reward expiry" = "Caducitat de les recompenses";

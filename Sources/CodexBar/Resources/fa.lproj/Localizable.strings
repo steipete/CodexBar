@@ -1063,10 +1063,10 @@
 "Today cash" = "امروزه پول نقد";
 "DeepSeek 30 day token usage trend" = "DeepSeek روند استفاده ۳۰ روزه از توکن";
 "Detailed usage unavailable." = "جزئیات استفاده در دسترس نیست.";
-"Sign in to DeepSeek Platform in Chrome for detailed usage." = "برای مشاهده جزئیات استفاده، در Chrome وارد DeepSeek Platform شوید.";
-"Select a DeepSeek Chrome profile in Settings." = "یک نمایه Chrome دیپ‌سیک را در تنظیمات انتخاب کنید.";
+"Sign in to DeepSeek Platform in a Chromium-based browser for detailed usage." = "برای مشاهده جزئیات استفاده، در یک مرورگر مبتنی بر Chromium وارد DeepSeek Platform شوید.";
+"Select a DeepSeek browser profile in Settings." = "یک نمایه مرورگر دیپ‌سیک را در تنظیمات انتخاب کنید.";
 "DeepSeek this month token usage trend" = "روند استفاده از توکن DeepSeek در این ماه";
-"Chrome profile" = "نمایه Chrome";
+"Browser profile" = "نمایه مرورگر";
 "Choose which signed-in DeepSeek Platform session supplies detailed usage." = "انتخاب کنید کدام نشست واردشدهٔ DeepSeek Platform جزئیات استفاده را ارائه دهد.";
 "Select profile…" = "انتخاب نمایه…";
 "cache-hit input" = "ورودی کش و ضربه";
@@ -1478,6 +1478,15 @@
 "menu_bar_layout_token_space" = "فاصله";
 "menu_bar_layout_token_line_break" = "شکست خط";
 "menu_bar_layout_token_separator_accessibility" = "نقطهٔ جداکننده";
+"menu_bar_layout_token_separator_glyph_accessibility" = "جداکننده %@";
+"menu_bar_layout_separator_pipe" = "خط عمودی";
+"menu_bar_layout_separator_slash" = "خط مورب";
+"menu_bar_layout_separator_hyphen" = "خط تیره";
+"menu_bar_layout_separator_bullet" = "نشان گلوله‌ای";
+"menu_bar_layout_separator_diamond" = "لوزی توپر";
+"menu_bar_layout_separator_hollowDiamond" = "لوزی توخالی";
+"menu_bar_layout_separator_tilde" = "مد";
+"menu_bar_layout_separator_doubleBar" = "خط عمودی دوتایی";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "آیکون: در دسترس نیست";
@@ -2766,6 +2775,10 @@
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "حالت خودکار از نشست ذخیره‌شدهٔ فعال استفاده می‌کند؛ در غیر این صورت از کلید API یا کوکی‌های مرورگر استفاده می‌کند.";
 "Store multiple Command Code subscription sessions." = "چندین نشست اشتراک Command Code را ذخیره کنید.";
 
-/* WorkBuddy reward credits */
+// Codex account names
+"Rename" = "تغییر نام";
+"Rename account" = "تغییر نام حساب";
+"Account name" = "نام حساب";
+"Leave blank to use the default name." = "برای استفاده از نام پیش‌فرض، این قسمت را خالی بگذارید.";
 "Rewards" = "پاداش‌ها";
 "Reward expiry" = "انقضای پاداش‌ها";

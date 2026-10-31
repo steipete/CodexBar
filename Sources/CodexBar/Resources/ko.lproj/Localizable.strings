@@ -1317,11 +1317,11 @@
 "Share Stats…" = "통계 공유…";
 "Stats copied" = "통계가 복사되었습니다";
 "DeepSeek this month token usage trend" = "이번 달 DeepSeek 토큰 사용량 추이";
-"Chrome profile" = "Chrome 프로필";
+"Browser profile" = "브라우저 프로필";
 "Choose which signed-in DeepSeek Platform session supplies detailed usage." = "상세 사용량을 제공할 로그인된 DeepSeek Platform 세션을 선택하세요.";
 "Detailed usage unavailable." = "상세 사용량을 확인할 수 없습니다.";
-"Sign in to DeepSeek Platform in Chrome for detailed usage." = "상세 사용량을 보려면 Chrome에서 DeepSeek Platform에 로그인하세요.";
-"Select a DeepSeek Chrome profile in Settings." = "설정에서 DeepSeek Chrome 프로필을 선택하세요.";
+"Sign in to DeepSeek Platform in a Chromium-based browser for detailed usage." = "상세 사용량을 보려면 Chromium 기반 브라우저에서 DeepSeek Platform에 로그인하세요.";
+"Select a DeepSeek browser profile in Settings." = "설정에서 DeepSeek 브라우저 프로필을 선택하세요.";
 "Select profile…" = "프로필 선택…";
 
 "%@: %@" = "%@: %@";
@@ -1444,6 +1444,15 @@
 "menu_bar_layout_token_space" = "공백";
 "menu_bar_layout_token_line_break" = "줄 바꿈";
 "menu_bar_layout_token_separator_accessibility" = "구분점";
+"menu_bar_layout_token_separator_glyph_accessibility" = "구분자 %@";
+"menu_bar_layout_separator_pipe" = "세로줄";
+"menu_bar_layout_separator_slash" = "슬래시";
+"menu_bar_layout_separator_hyphen" = "하이픈";
+"menu_bar_layout_separator_bullet" = "글머리 기호";
+"menu_bar_layout_separator_diamond" = "채운 마름모";
+"menu_bar_layout_separator_hollowDiamond" = "빈 마름모";
+"menu_bar_layout_separator_tilde" = "물결표";
+"menu_bar_layout_separator_doubleBar" = "이중 세로줄";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "아이콘: 사용할 수 없음";
@@ -2730,6 +2739,10 @@
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "자동은 활성 저장된 세션을 사용하며, 활성 세션이 없으면 API 키 또는 브라우저 쿠키를 사용합니다.";
 "Store multiple Command Code subscription sessions." = "Command Code 구독 세션을 여러 개 저장합니다.";
 
-/* WorkBuddy reward credits */
+// Codex account names
+"Rename" = "이름 변경";
+"Rename account" = "계정 이름 변경";
+"Account name" = "계정 이름";
+"Leave blank to use the default name." = "기본 이름을 사용하려면 비워 두세요.";
 "Rewards" = "보상";
 "Reward expiry" = "보상 만료일";
