@@ -59,11 +59,12 @@ extension StatusItemController {
                 now: now)
         }
         let plugin = UserProviderPluginRegistry.plugin(for: instanceID)
+        let snapshot = self.store.menuBarSnapshot(for: instanceID)
         return .plugin(
             instanceID: instanceID,
             name: plugin?.manifest.name ?? instanceID.rawValue,
-            snapshot: self.store.menuBarSnapshot(for: instanceID),
-            iconKey: plugin?.sourceHash ?? instanceID.rawValue,
+            snapshot: snapshot,
+            iconKey: "\(plugin?.sourceHash ?? instanceID.rawValue):\(snapshot?.iconProvider?.rawValue ?? "")",
             hidePersonalInfo: self.settings.hidePersonalInfo)
     }
 

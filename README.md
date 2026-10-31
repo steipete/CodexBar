@@ -10,7 +10,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-6e5aff?style=flat-square)](LICENSE)
 [![Site](https://img.shields.io/badge/site-codexbar.app-16d3b4?style=flat-square)](https://codexbar.app)
 
-<a href="https://codexbar.app"><img src="docs/social.png?v=1436859e75bb3a24" alt="CodexBar — every AI coding limit in your menu bar. 110 providers." width="100%" /></a>
+<a href="https://codexbar.app"><img src="docs/social.png?v=34c94fe9dd95be54" alt="CodexBar — every AI coding limit in your menu bar. 111 providers." width="100%" /></a>
 
 Tiny macOS 14+ menu bar app that keeps **AI coding-provider limits visible** and shows when each window resets. See the [supported providers](#providers) below. One status item per provider, or Merge Icons mode with a provider switcher. No Dock icon, minimal UI, dynamic bar icons.
 
@@ -205,6 +205,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [Trae CN](docs/traecn.md) — Browser session for account credit usage.
 - [Chatbox AI](docs/chatbox.md) — API token
 - [abliteration.ai](docs/abliteration.md) — API key for prepaid USD credits and cumulative usage.
+- [OpenDesign](docs/opendesign.md) — Browser or manual session cookies for the active workspace's five-hour and weekly subscription allowance.
 <!-- End generated provider additions -->
 
 ## Icon & Screenshot
@@ -227,7 +228,7 @@ show an incident indicator.
 - Bundled CLI (`codexbar`) for scripts and CI (including `codexbar cost --provider codex`, `claude`, or `both` for local cost usage); macOS and Linux CLI builds available.
 - WidgetKit widgets for supported providers.
 - Localized app and website with a shared 23-language catalog, automatic website detection, persistent pickers, and RTL support.
-- Optional session quota notifications and weekly-reset confetti.
+- Optional session quota notifications, upcoming-reset warnings for unused Codex quota, and weekly-reset confetti.
 - Privacy-first: on-device parsing by default; browser cookies are opt-in and reused (no passwords stored).
 
 ## Privacy note

@@ -190,6 +190,11 @@ extension SettingsStore {
         set { self.setDefault(\.limitResetNotificationsEnabled, newValue, key: "limitResetNotificationsEnabled") }
     }
 
+    var upcomingResetNotificationsEnabled: Bool {
+        get { self.defaultsState.upcomingResetNotificationsEnabled }
+        set { self.setDefault(\.upcomingResetNotificationsEnabled, newValue, key: "upcomingResetNotificationsEnabled") }
+    }
+
     var quotaWarningThresholds: [Int] {
         get { QuotaWarningThresholds.sanitized(self.defaultsState.quotaWarningThresholdsRaw) }
         set {

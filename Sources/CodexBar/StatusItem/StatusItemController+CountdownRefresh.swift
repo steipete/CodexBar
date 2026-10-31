@@ -22,6 +22,11 @@ extension StatusItemController {
             if !resolution.usesLegacyRendering,
                self.settings.menuBarIconStyle == .iconAndPercent
             {
+                if provider.firstPartyProvider == nil,
+                   self.store.menuBarSnapshot(for: provider)?.menuBarItems.isEmpty == false
+                {
+                    continue
+                }
                 countdownResetDates += self.menuBarLayoutResetDates(forInstanceID: provider, now: now, absolute: false)
                 absoluteResetDates += self.menuBarLayoutResetDates(forInstanceID: provider, now: now, absolute: true)
                 delays += self.menuBarConditionalResetDelays(

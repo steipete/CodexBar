@@ -317,6 +317,8 @@ Opt-in (Settings → iCloud Sync, off by default; requires a signed release buil
 - **A curated preferences subset** — notification/threshold/display settings.
 - **Usage snapshots** — per-device current usage per account, so other Macs can show last-known data ("via <Mac> · 1h ago") and accounts discovered on other Macs.
 
+A dropped account-snapshot upload can be retried by a later push without restarting CodexBar. Delayed results from an older upload cannot mark newer snapshot data as uploaded.
+
 With Usage snapshots and Show accounts from other Macs enabled, an enabled provider without local usage can also use the freshest fleet fallback in separate, current-selection, highest-usage, and stacked menu bar icons. The menu labels its source and age; accessibility help includes the source Mac and capture time, respecting Hide personal info. Local snapshots remain authoritative. Remote usage does not enable local credential-dependent fetches or populate local costs, pace, credits, or account labels. Highest usage compares the same presentation snapshots without enabling local fetches. Fleet refreshes preserve an open menu's provider switcher until the menu is closed and reopened.
 
 The **Macs** list offers **Remove** for other devices, including stale duplicates left after a reinstall. Removal deletes that device record and its cached usage snapshots from iCloud; it leaves shared settings, credentials, and this Mac intact. Sync must be enabled and available. Failed removals remain visible and report a sync error. A Mac still running CodexBar with sync enabled can publish its records again: if a save finds that its previous record was deleted, it drops the stale server version and retries with a fresh record. If that fresh record is also reported missing, CodexBar surfaces the error instead of retrying indefinitely.
@@ -377,7 +379,8 @@ and notification windows; sound, on-screen alerts and threshold markers; pace vi
 and tick appearance; usage/reset display; local cost display, comparisons and summary style; privacy,
 blink/confetti effects, highest-usage selection, optional credits/extra usage, changelog links, currency
 and alphabetical provider sorting. JSON keys match the `SyncedPreferences` fields. It additionally includes
-`limitResetNotificationsEnabled`, `mergeIcons`, `mergeIconsStacked`, `switcherShowsIcons`, `mergedOverviewLayout`,
+`limitResetNotificationsEnabled`, `upcomingResetNotificationsEnabled`, `mergeIcons`, `mergeIconsStacked`, `switcherShowsIcons`,
+`mergedOverviewLayout`,
 `mergedOverviewSelectedProviders`, and `switcherShortcuts`. An overview selection is applied intentionally
 to the receiving Mac's active providers, including an empty selection. `weeklyProgressWorkDays: null`
 restores the seven-day default. Missing keys leave the receiving Mac's settings unchanged. Unknown preference keys,
@@ -385,7 +388,8 @@ unsupported versions, invalid types and invalid shortcut mappings are rejected b
 
 Credentials, accounts, hooks, launch at login, global hotkeys, local paths, device identity, iCloud switches,
 debug settings, and consent are excluded. Import does not enable activity-scan consent. Only the existing
-iCloud projection syncs onward; reset notifications, the additional menu settings, and switcher shortcuts stay local
+iCloud projection syncs onward; reset and upcoming-reset notifications, the additional menu settings, and switcher
+shortcuts stay local
 unless explicitly exported and imported. Import does not modify `config.json` or iCloud's remote-update suppression.
 
 ### Menu bar controls

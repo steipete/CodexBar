@@ -108,7 +108,7 @@ struct MenuBarLayoutRenderData: Hashable {
     func extraTitle(_ id: String) -> String? {
         guard let descriptor else { return self.extraRateWindows.first { $0.id == id }?.title }
         return descriptor.menuBarMetrics.namedExtras[id].map { title in
-            self.extraRateWindows.first { $0.id == id }?.title ?? L(title)
+            L(self.extraRateWindows.first { $0.id == id }?.title ?? title)
         }
     }
 
@@ -322,6 +322,7 @@ final class MenuBarLayoutRenderer {
     }
 
     private let cache: MenuBarLayoutTitleCache
+    let pluginSummary = PluginMenuBarSummaryRenderer()
 
     init(cache: MenuBarLayoutTitleCache = MenuBarLayoutTitleCache()) {
         self.cache = cache
@@ -383,6 +384,7 @@ final class MenuBarLayoutRenderer {
 
     func removeAll() {
         self.cache.removeAll()
+        self.pluginSummary.removeAll()
     }
 
     /// Joins two rows independently rendered for different providers (each with
@@ -506,11 +508,13 @@ final class MenuBarLayoutRenderer {
             attributes[.baselineOffset] = Self.stackedBaselineOffset + 2 + CGFloat(options.verticalAdjustment)
         }
 
+        let automaticLabel = Self.automaticWindowLabel(data: data)
         for (lineIndex, renderedLine) in renderedLines.enumerated() {
             if lineIndex > 0 {
                 result.append(NSAttributedString(string: "\n", attributes: attributes))
             }
             var accessibilityParts: [String] = []
+            var lineWindowLabel: String?
             for (tokenIndex, token) in renderedLine.enumerated() {
                 // The leading icon is surfaced as `button.image` so AppKit applies the system's
                 // active/inactive display tinting; it is not repeated inside the attributed title,
@@ -533,8 +537,25 @@ final class MenuBarLayoutRenderer {
                         attributes: attributes),
                     options: options,
                     providerTintColor: providerTintColor)
-                renderedItem = Self.labelAutomaticItem(
-                    renderedItem, token: token, data: data, options: options, attributes: attributes)
+                switch token {
+                case .percent(window: .automatic), .pace(window: .automatic), .resetCountdown, .resetAbsolute,
+                     .windowResetCountdown(window: .automatic), .windowResetAbsolute(window: .automatic):
+                    if let label = automaticLabel {
+                        renderedItem.value = Self.prefixedValue(
+                            options.showWindowLabels && label.short != lineWindowLabel ? label.short : "",
+                            value: renderedItem.value,
+                            attributes: attributes)
+                        // VoiceOver names every window, even when the visible prefix is shared.
+                        renderedItem.accessibilityText = renderedItem.accessibilityText
+                            .map { L("%@: %@", label.full, $0) }
+                        lineWindowLabel = label.short
+                    }
+                case .space, .separatorDot: break
+                default:
+                    lineWindowLabel = renderedItem.value.length > 0
+                        ? renderedItem.value
+                        .attribute(Self.windowPrefixKey, at: 0, effectiveRange: nil) as? String : nil
+                }
                 result.append(renderedItem.value)
                 if let accessibilityText = renderedItem.accessibilityText {
                     accessibilityParts.append(accessibilityText)
@@ -614,6 +635,16 @@ final class MenuBarLayoutRenderer {
         }.filter { !$0.isEmpty }
     }
 
+    static func pluginSummaryTitle(
+        _ title: NSAttributedString, accessibilityLabel: String, highContrast: Bool) -> MenuBarLayoutRenderedTitle
+    {
+        MenuBarLayoutRenderedTitle(
+            attributedTitle: title,
+            accessibilityLabel: accessibilityLabel,
+            leadingIcon: nil,
+            statusImage: highContrast ? nil : self.statusImage(title: title, foregroundColor: .labelColor))
+    }
+
     private static func statusImage(title: NSAttributedString, foregroundColor: NSColor) -> NSImage? {
         guard title.length > 0 else { return nil }
         // Preserve colored glyphs and attachments; monochrome attachment masks may join the template.
@@ -689,28 +720,6 @@ final class MenuBarLayoutRenderer {
                 depth: depth + 1)
         default: return token
         }
-    }
-
-    private static func labelAutomaticItem(
-        _ rendered: (value: NSAttributedString, accessibilityText: String?),
-        token: MenuBarLayoutToken,
-        data: MenuBarLayoutRenderData,
-        options: MenuBarLayoutRenderOptions,
-        attributes: [NSAttributedString.Key: Any])
-        -> (value: NSAttributedString, accessibilityText: String?)
-    {
-        switch token {
-        case .percent(window: .automatic), .pace(window: .automatic), .resetCountdown, .resetAbsolute,
-             .windowResetCountdown(window: .automatic), .windowResetAbsolute(window: .automatic): break
-        default: return rendered
-        }
-        guard let label = self.automaticWindowLabel(data: data) else { return rendered }
-        return (
-            self.prefixedValue(
-                options.showWindowLabels ? label.short : "",
-                value: rendered.value,
-                attributes: attributes),
-            rendered.accessibilityText.map { L("%@: %@", label.full, $0) })
     }
 
     private static func automaticWindowLabel(data: MenuBarLayoutRenderData) -> (short: String, full: String)? {
@@ -949,7 +958,7 @@ final class MenuBarLayoutRenderer {
     {
         guard !prefix.isEmpty else { return value }
         let result = NSMutableAttributedString(string: "\(prefix) ", attributes: attributes)
-        result.addAttribute(self.windowPrefixKey, value: true, range: NSRange(location: 0, length: result.length))
+        result.addAttribute(self.windowPrefixKey, value: prefix, range: NSRange(location: 0, length: result.length))
         result.append(value)
         return result
     }

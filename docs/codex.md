@@ -715,6 +715,14 @@ Cost refreshes and cached dashboard loads share each file report between session
 project totals retain their own pricing evidence scopes. All preparation is local to one call, so later loads use
 their current rows, prices, roots, dates, and time zone without retaining another report cache.
 
+## Upcoming weekly reset warnings
+
+Settings → Notifications → **Upcoming reset warnings** is off by default. When enabled, accepted Codex usage
+refreshes warn at 24 hours and 1 hour before a reported weekly reset while quota remains. A late first refresh
+sends only the closest reminder; earlier stages are consumed rather than replayed. Account-scoped receipts
+survive app restarts. An account must be identified; missing reset times, expired windows, and exhausted quota
+stay silent. Hide personal information also applies to these notifications. There is no extra polling timer.
+
 ## Local storage footprint
 
 Storage scans reuse top-level component paths within each scan. Symbolic links stay excluded, and path aliases

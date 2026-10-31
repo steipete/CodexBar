@@ -474,6 +474,7 @@ extension SettingsStore {
         let sessionQuotaNotificationsEnabled: Bool
         let predictivePaceWarningNotificationsEnabled: Bool
         let limitResetNotificationsEnabled: Bool
+        let upcomingResetNotificationsEnabled: Bool
     }
 
     private static func scheduleAppGroupMigration() {
@@ -587,6 +588,7 @@ extension SettingsStore {
             quotaWarningNotificationsEnabled: quotaWarnings.notificationsEnabled,
             predictivePaceWarningNotificationsEnabled: notificationDefaults.predictivePaceWarningNotificationsEnabled,
             limitResetNotificationsEnabled: notificationDefaults.limitResetNotificationsEnabled,
+            upcomingResetNotificationsEnabled: notificationDefaults.upcomingResetNotificationsEnabled,
             quotaWarningThresholdsRaw: quotaWarnings.thresholdsRaw,
             quotaWarningSessionThresholdsRaw: quotaWarnings.sessionThresholdsRaw,
             quotaWarningWeeklyThresholdsRaw: quotaWarnings.weeklyThresholdsRaw,
@@ -788,7 +790,9 @@ extension SettingsStore {
             predictivePaceWarningNotificationsEnabled: userDefaults.object(
                 forKey: "predictivePaceWarningNotificationsEnabled") as? Bool ?? false,
             limitResetNotificationsEnabled: userDefaults.object(
-                forKey: "limitResetNotificationsEnabled") as? Bool ?? false)
+                forKey: "limitResetNotificationsEnabled") as? Bool ?? false,
+            upcomingResetNotificationsEnabled: userDefaults.object(
+                forKey: "upcomingResetNotificationsEnabled") as? Bool ?? false)
     }
 
     private static func loadCostSummaryDisplayStyleRaw(

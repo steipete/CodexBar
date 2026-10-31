@@ -1347,11 +1347,8 @@
 "Share Stats…" = "Compartilhar estatísticas…";
 "Stats copied" = "Estatísticas copiadas";
 "DeepSeek this month token usage trend" = "Tendência de uso de tokens do DeepSeek neste mês";
-"Browser profile" = "Perfil do navegador";
 "Choose which signed-in DeepSeek Platform session supplies detailed usage." = "Escolha qual sessão conectada do DeepSeek Platform fornece o uso detalhado.";
 "Detailed usage unavailable." = "Uso detalhado indisponível.";
-"Sign in to DeepSeek Platform in a Chromium-based browser for detailed usage." = "Entre no DeepSeek Platform por um navegador baseado em Chromium para ver o uso detalhado.";
-"Select a DeepSeek browser profile in Settings." = "Selecione um perfil de navegador do DeepSeek nos Ajustes.";
 "Select profile…" = "Selecionar perfil…";
 
 "%@: %@" = "%@: %@";
@@ -1475,15 +1472,6 @@
 "menu_bar_layout_token_space" = "Espaço";
 "menu_bar_layout_token_line_break" = "Quebra de linha";
 "menu_bar_layout_token_separator_accessibility" = "Ponto separador";
-"menu_bar_layout_token_separator_glyph_accessibility" = "Separador %@";
-"menu_bar_layout_separator_pipe" = "Barra vertical";
-"menu_bar_layout_separator_slash" = "Barra";
-"menu_bar_layout_separator_hyphen" = "Hífen";
-"menu_bar_layout_separator_bullet" = "Marcador";
-"menu_bar_layout_separator_diamond" = "Losango preenchido";
-"menu_bar_layout_separator_hollowDiamond" = "Losango vazio";
-"menu_bar_layout_separator_tilde" = "Til";
-"menu_bar_layout_separator_doubleBar" = "Barra vertical dupla";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "Ícone: Indisponível";
@@ -2771,7 +2759,30 @@
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "Automático usa a sessão salva ativa; caso contrário, uma chave API ou cookies do navegador.";
 "Store multiple Command Code subscription sessions." = "Armazena várias sessões de assinatura do Command Code.";
 
-// Codex account names
+/* OpenDesign */
+"OpenDesign" = "OpenDesign";
+"Show OpenDesign usage" = "Mostrar uso do OpenDesign";
+"Sign in to OpenDesign, then refresh CodexBar." = "Entre no OpenDesign e atualize o CodexBar.";
+"OpenDesign usage response format changed." = "O formato da resposta de uso do OpenDesign mudou.";
+"OpenDesign billing access was denied." = "O acesso ao faturamento do OpenDesign foi negado.";
+"OpenDesign request failed. Try again later." = "A solicitação ao OpenDesign falhou. Tente novamente mais tarde.";
+"OpenDesign subscription usage is unavailable for this workspace." = "O uso da assinatura do OpenDesign não está disponível para este espaço de trabalho.";
+"upcoming_reset_notifications_title" = "Avisos de redefinição próxima";
+"upcoming_reset_notifications_subtitle" = "Avisa sobre o Codex antes que o limite semanal seja redefinido enquanto ainda há cota sem usar.";
+"upcoming_reset_notification_title" = "%1$@: redefinição em breve (%2$@)";
+"upcoming_reset_notification_body" = "%1$@ da cota ainda está sem uso. Ela será redefinida em %2$@ e a cota não usada será perdida.";
+"upcoming_reset_notification_body_with_account" = "Conta %1$@. %2$@ da cota ainda está sem uso. Ela será redefinida em %3$@ e a cota não usada será perdida.";
+"Sign in to DeepSeek Platform in a Chromium-based browser for detailed usage." = "Entre no DeepSeek Platform por um navegador baseado em Chromium para ver o uso detalhado.";
+"Select a DeepSeek browser profile in Settings." = "Selecione um perfil de navegador do DeepSeek nos Ajustes.";
+"menu_bar_layout_token_separator_glyph_accessibility" = "Separador %@";
+"menu_bar_layout_separator_pipe" = "Barra vertical";
+"menu_bar_layout_separator_slash" = "Barra";
+"menu_bar_layout_separator_hyphen" = "Hífen";
+"menu_bar_layout_separator_bullet" = "Marcador";
+"menu_bar_layout_separator_diamond" = "Losango preenchido";
+"menu_bar_layout_separator_hollowDiamond" = "Losango vazio";
+"menu_bar_layout_separator_tilde" = "Til";
+"menu_bar_layout_separator_doubleBar" = "Barra vertical dupla";
 "Rename" = "Renomear";
 "Rename account" = "Renomear conta";
 "Account name" = "Nome da conta";

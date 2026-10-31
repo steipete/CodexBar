@@ -79,8 +79,9 @@ Stacked rows with leading window labels align their values and meters after the 
   per provider. Manual edits select the Custom preset.
 - To hide Session, Weekly, Scoped weekly, and automatic window prefixes (such as `5h` and `W`), turn off **Show window labels**
   next to **Monospaced digits**. It defaults on and applies to all layouts. Auto percentage, pace, and reset tokens identify
-  their selected window when multiple quotas are available and the selection is unambiguous. Each token keeps its own
-  label, including separate rows and the reset branch of **Auto % / Resets in**. Monthly and named allowances reuse their
+  their selected window when multiple quotas are available and the selection is unambiguous. A row names that window
+  once (`5h 0% –`, not `5h 0% 5h –`); separate rows, tokens after a different window, and the reset branch of
+  **Auto % / Resets in** keep their own label. Monthly and named allowances reuse their
   existing labels; single-window and balance output stays bare. Full window names remain in VoiceOver descriptions.
   Explicit named provider lanes, named allowances, Spend currency symbols, and progress-bar labels remain visible.
   The preference is stored separately as `menuBarLayoutShowWindowLabels`; saved layouts and V5/V6 projections are unchanged.
