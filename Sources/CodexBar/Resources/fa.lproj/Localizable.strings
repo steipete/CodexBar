@@ -2764,6 +2764,9 @@
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "حالت خودکار از نشست ذخیره‌شدهٔ فعال استفاده می‌کند؛ در غیر این صورت از کلید API یا کوکی‌های مرورگر استفاده می‌کند.";
 "Store multiple Command Code subscription sessions." = "چندین نشست اشتراک Command Code را ذخیره کنید.";
 
+"codex_reset_credit_expiry_notifications_title" = "انقضای اعتبار بازنشانی Codex";
+
+"codex_reset_credit_expiry_notifications_subtitle" = "هنگام به‌روزرسانی مصرف، ۱ روز و ۱ ساعت پیش از انقضا یادآوری می‌کند.";
 /* OpenDesign */
 "OpenDesign" = "OpenDesign";
 "Show OpenDesign usage" = "نمایش میزان استفاده از OpenDesign";

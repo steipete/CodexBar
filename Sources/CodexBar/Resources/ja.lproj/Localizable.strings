@@ -2760,6 +2760,9 @@
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "自動では使用中の保存済みセッションを使用し、それ以外の場合は API キーまたはブラウザの Cookie を使用します。";
 "Store multiple Command Code subscription sessions." = "Command Code サブスクリプションのセッションを複数保存します。";
 
+"codex_reset_credit_expiry_notifications_title" = "Codex リセットクレジットの有効期限";
+
+"codex_reset_credit_expiry_notifications_subtitle" = "使用状況の更新時に、有効期限の1日前と1時間前にリマインダーを通知します。";
 /* OpenDesign */
 "OpenDesign" = "OpenDesign";
 "Show OpenDesign usage" = "OpenDesignの使用状況を表示";

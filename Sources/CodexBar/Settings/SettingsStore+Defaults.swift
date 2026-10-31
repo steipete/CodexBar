@@ -190,6 +190,14 @@ extension SettingsStore {
         set { self.setDefault(\.limitResetNotificationsEnabled, newValue, key: "limitResetNotificationsEnabled") }
     }
 
+    var codexResetCreditExpiryNotificationsEnabled: Bool {
+        get { self.defaultsState.codexResetCreditExpiryNotificationsEnabled }
+        set { self.setDefault(
+            \.codexResetCreditExpiryNotificationsEnabled,
+            newValue,
+            key: "codexResetCreditExpiryNotificationsEnabled") }
+    }
+
     var upcomingResetNotificationsEnabled: Bool {
         get { self.defaultsState.upcomingResetNotificationsEnabled }
         set { self.setDefault(\.upcomingResetNotificationsEnabled, newValue, key: "upcomingResetNotificationsEnabled") }

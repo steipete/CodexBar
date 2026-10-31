@@ -2752,6 +2752,9 @@
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "自动使用当前启用的已保存会话，否则使用 API 密钥或浏览器 Cookie。";
 "Store multiple Command Code subscription sessions." = "存储多个 Command Code 订阅会话。";
 
+"codex_reset_credit_expiry_notifications_title" = "Codex 重置卡到期提醒";
+
+"codex_reset_credit_expiry_notifications_subtitle" = "刷新用量时，在到期前 1 天和 1 小时发送提醒。";
 /* OpenDesign */
 "OpenDesign" = "OpenDesign";
 "Show OpenDesign usage" = "显示 OpenDesign 用量";

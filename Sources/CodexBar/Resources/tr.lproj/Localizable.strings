@@ -2763,6 +2763,9 @@
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "Otomatik, etkin kayıtlı oturumu kullanır; yoksa bir API anahtarı veya tarayıcı çerezlerini kullanır.";
 "Store multiple Command Code subscription sessions." = "Birden fazla Command Code abonelik oturumunu depolayın.";
 
+"codex_reset_credit_expiry_notifications_title" = "Codex sıfırlama kredisi süresi";
+
+"codex_reset_credit_expiry_notifications_subtitle" = "Kullanım yenilendiğinde, süre dolmadan 1 gün ve 1 saat önce hatırlatır.";
 /* OpenDesign */
 "OpenDesign" = "OpenDesign";
 "Show OpenDesign usage" = "OpenDesign kullanımını göster";

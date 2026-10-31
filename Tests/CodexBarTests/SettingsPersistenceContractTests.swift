@@ -6,6 +6,58 @@ import Testing
 @MainActor
 struct SettingsPersistenceContractTests {
     @Test
+    func `Codex reset credit reminders default off persist and round trip through portable preferences`() throws {
+        let defaults = InMemoryUserDefaults()
+        let settings = testSettingsStore(suiteName: #function, userDefaults: defaults)
+        #expect(!settings.codexResetCreditExpiryNotificationsEnabled)
+        #expect(defaults.object(forKey: "codexResetCreditExpiryNotificationsEnabled") == nil)
+        defaults.set(true, forKey: "providerDetectionCompleted")
+        #expect(!testSettingsStore(suiteName: #function, userDefaults: defaults)
+            .codexResetCreditExpiryNotificationsEnabled)
+        settings.codexResetCreditExpiryNotificationsEnabled = true
+        let reloaded = testSettingsStore(suiteName: #function, userDefaults: defaults)
+        #expect(reloaded.codexResetCreditExpiryNotificationsEnabled)
+        let target = testSettingsStore(suiteName: #function, userDefaults: InMemoryUserDefaults())
+        try target.importPreferences(settings.exportPreferences())
+        #expect(target.codexResetCreditExpiryNotificationsEnabled)
+        settings.codexResetCreditExpiryNotificationsEnabled = false
+        #expect(!testSettingsStore(suiteName: #function, userDefaults: defaults)
+            .codexResetCreditExpiryNotificationsEnabled)
+        try target.importPreferences(settings.exportPreferences())
+        #expect(!target.codexResetCreditExpiryNotificationsEnabled)
+    }
+
+    @Test(arguments: [true, false])
+    func `Codex countdown opt in preserves the legacy summary choice and receipts`(legacyEnabled: Bool) {
+        let receipts = [String(repeating: "a", count: 64)]
+        let defaults = InMemoryUserDefaults(values: [
+            "providerDetectionCompleted": true,
+            "showOptionalCreditsAndExtraUsage": legacyEnabled,
+            "codexResetCreditExpirySummaryFingerprints": receipts,
+        ])
+        let settings = testSettingsStore(suiteName: #function, userDefaults: defaults)
+        #expect(!settings.codexResetCreditExpiryNotificationsEnabled)
+        #expect(defaults.object(forKey: "codexResetCreditExpiryNotificationsEnabled") == nil)
+        #expect(settings.showOptionalCreditsAndExtraUsage == legacyEnabled)
+        #expect(defaults.stringArray(forKey: "codexResetCreditExpirySummaryFingerprints") == receipts)
+        settings.codexResetCreditExpiryNotificationsEnabled = false
+        #expect(!testSettingsStore(suiteName: #function, userDefaults: defaults)
+            .codexResetCreditExpiryNotificationsEnabled)
+    }
+
+    @Test
+    func `existing config retains summary visibility without enabling countdowns`() {
+        let defaults = InMemoryUserDefaults()
+        let settings = testSettingsStore(
+            suiteName: #function,
+            userDefaults: defaults,
+            config: CodexBarConfig.makeDefault())
+        #expect(settings.showOptionalCreditsAndExtraUsage)
+        #expect(!settings.codexResetCreditExpiryNotificationsEnabled)
+        #expect(defaults.object(forKey: "codexResetCreditExpiryNotificationsEnabled") == nil)
+    }
+
+    @Test
     func `older clients sorting changes remain authoritative on restart`() {
         let defaults = InMemoryUserDefaults()
         defaults.set("custom", forKey: "providerListSortMode")

@@ -24,6 +24,7 @@ public struct PreferencesDocument: Codable, Sendable {
         "usageBarsShowUsed", "resetTimesShowAbsolute", "costUsageEnabled", "costComparisonPeriodsEnabled",
         "hidePersonalInfo", "randomBlinkEnabled", "confettiOnSessionLimitResetsEnabled",
         "confettiOnWeeklyLimitResetsEnabled", "limitResetNotificationsEnabled", "menuBarShowsHighestUsage",
+        "codexResetCreditExpiryNotificationsEnabled",
         "upcomingResetNotificationsEnabled",
         "showOptionalCreditsAndExtraUsage", "providerChangelogLinksEnabled", "providersSortedAlphabetically",
         "refreshAllProvidersOnMenuOpen", "mergeIcons", "mergeIconsStacked", "switcherShowsIcons",

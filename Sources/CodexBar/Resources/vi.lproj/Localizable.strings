@@ -2761,6 +2761,9 @@
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "Tự động sử dụng phiên đã lưu đang hoạt động, nếu không thì sử dụng khóa API hoặc cookie trình duyệt.";
 "Store multiple Command Code subscription sessions." = "Lưu trữ nhiều phiên đăng ký Command Code.";
 
+"codex_reset_credit_expiry_notifications_title" = "Hạn sử dụng tín dụng đặt lại Codex";
+
+"codex_reset_credit_expiry_notifications_subtitle" = "Thêm lời nhắc khi làm mới mức sử dụng, 1 ngày và 1 giờ trước khi hết hạn.";
 /* OpenDesign */
 "OpenDesign" = "OpenDesign";
 "Show OpenDesign usage" = "Hiển thị mức sử dụng OpenDesign";
