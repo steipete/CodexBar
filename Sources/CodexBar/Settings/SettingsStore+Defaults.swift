@@ -1197,21 +1197,22 @@ extension SettingsStore {
     var costUsageHosts: [String] {
         get { self.defaultsState.costUsageHosts }
         set {
-            self.setDefault(
-                \.costUsageHosts,
-                RemoteCodexCostFetcher.selectedCostUsageHosts(
-                    manualHosts: self.agentSessionsManualHosts.components(separatedBy: ","),
-                    storedSelection: newValue),
-                key: "costUsageHosts")
+            let previous = Set(self.costUsageHosts)
+            let desired = Set(newValue)
+            self.updateHostPreferences { state in
+                for host in previous.subtracting(desired) {
+                    state.setCostUsage(host, enabled: false)
+                }
+                for host in newValue where !previous.contains(host) {
+                    state.setCostUsage(host, enabled: true)
+                }
+            }
         }
     }
 
     var agentSessionsManualHosts: String {
         get { self.defaultsState.agentSessionsManualHosts }
-        set {
-            self.setDefault(\.agentSessionsManualHosts, newValue, key: "agentSessionsManualHosts")
-            self.costUsageHosts = self.costUsageHosts
-        }
+        set { self.editManualHosts(baseline: self.agentSessionsManualHosts, draft: newValue) }
     }
 
     var agentSessionsHideUnreachableHosts: Bool {

@@ -1096,6 +1096,7 @@ final class SpendDashboardController {
     typealias MachineLoader = @Sendable ([String], Int, Int64, Int64) async throws -> CodexIdentifiedResult
     private(set) var machineResult: CodexIdentifiedResult?
     private(set) var machineRunning = false
+    private(set) var machineRequestedHosts: [String]?
     private(set) var machineWindow: ClosedRange<Date>?
     private(set) var machineLocalPartial = false
     private var machineTask: Task<Void, Never>?
@@ -1958,12 +1959,17 @@ final class SpendDashboardController {
 }
 
 extension SpendDashboardController {
+    func reconcileMachineSpendHosts(_ hosts: [String]) {
+        if self.machineRequestedHosts != hosts { self.cancelMachineSpend() }
+    }
+
     func cancelMachineSpend() {
         self.machineTask?.cancel()
         self.machineTask = nil
         self.machineRunning = false
         self.machineResult = nil
         self.machineWindow = nil
+        self.machineRequestedHosts = nil
     }
 
     func runMachineSpend(hosts: [String], eligible: Bool, localPartial: Bool) {
@@ -1982,6 +1988,7 @@ extension SpendDashboardController {
         self.machineWindow = Date(timeIntervalSince1970: Double(start) / 1000)...now
         self.machineLocalPartial = localPartial
         self.machineRunning = true
+        self.machineRequestedHosts = hosts
         let loader = self.machineLoader
         self.machineTask = Task { [weak self] in
             let result = try? await loader(hosts, days, start, end)

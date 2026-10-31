@@ -288,19 +288,17 @@ a second identifier is an error. For an option value beginning with a dash, use 
     noninteractive SSH boundary as `cost --remote`: trusted host key only, no forwarding,
     bounded output, 60-second timeout, and Ctrl-C cleanup. Each result carries
     `{"ok": bool, "error": string|null}`; a failed check exits nonzero but leaves the host
-    configured. An outdated remote CLI is named as its own cause; every other SSH failure
-    shares one message naming the three causes to fix: untrusted host key, noninteractive
-    SSH auth, or an outdated remote CLI (`--identified-only`, schema 2).
-  - Writes queue like `config preferences import`: a running app applies them immediately;
-    a closed app reads them at next launch. `--defaults-domain` selects an alternate domain
-    for testing. The host keys are queue-only: `config preferences export` omits them, since
-    host lists belong to one machine. Applying a queued host change needs an app build that
-    ships this CLI (older apps, including 0.83.0, reject the queued document until updated,
-    which also holds back later queued preferences). Hosts feed Usage & Spend immediately;
-    the Agent Sessions menu list additionally needs its existing remote-sessions toggle,
-    which stays off until enabled in Settings. Host changes, preference imports, and app
-    consumption share a per-user lock and wait for pending writes, preserving each update.
-    SSH checks run one host at a time after releasing the lock.
+    configured. Invalid reports identify an unsupported remote CLI; other failures share
+    guidance to check the trusted host key, noninteractive SSH auth, and remote CLI support
+    for `--identified-only` (schema 2).
+  - Writes persist the same machine-local values as Settings under a shared per-user lock.
+    The accompanying app picks them up on notification, next launch, and before a manual
+    machine refresh; older apps read their supported host settings at next launch. Host
+    changes never enter the portable preferences queue or exports. `--defaults-domain`
+    selects an alternate domain for testing; it does not notify the app. Add/remove retries
+    notify even when unchanged. SSH checks run one host at a time after releasing the lock.
+    Usage & Spend uses these hosts on demand; the Agent Sessions menu list additionally
+    needs its existing remote-sessions toggle, which stays off until enabled in Settings.
   - Set up hosts from an agent:
     `codexbar config hosts add devbox --cost --check --format json`, then
     `codexbar config hosts list --check --format json --pretty` to confirm every machine.

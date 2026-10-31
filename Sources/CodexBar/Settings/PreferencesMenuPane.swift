@@ -223,9 +223,11 @@ struct AgentSessionHostsEditor: View {
     }
 
     private func saveDraft() {
-        guard self.draft != self.loadedDraft else { return }
-        self.loadedDraft = self.draft
-        self.settings.agentSessionsManualHosts = self.draft
+        guard self.draft != self.loadedDraft, let committed = self.settings.editManualHosts(
+            baseline: self.loadedDraft,
+            draft: self.draft) else { return }
+        self.draft = committed
+        self.loadedDraft = committed
     }
 }
 

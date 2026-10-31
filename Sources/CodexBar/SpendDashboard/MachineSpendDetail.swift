@@ -15,9 +15,7 @@ struct MachineSpendDetail: View {
                     Toggle(self.machineName(host, index: index), isOn: Binding(
                         get: { self.settings.costUsageHosts.contains(host) },
                         set: { selected in
-                            self.settings.costUsageHosts = selected
-                                ? self.settings.costUsageHosts + [host]
-                                : self.settings.costUsageHosts.filter { $0 != host }
+                            self.settings.setCostUsageHost(host, enabled: selected)
                         }))
                 }
                 HStack {
@@ -65,7 +63,7 @@ struct MachineSpendDetail: View {
             self.controller.cancelMachineSpend()
             if self.expanded { self.run() }
         }
-        .onChange(of: self.settings.costUsageHosts) { _, _ in self.controller.cancelMachineSpend() }
+        .onChange(of: self.settings.costUsageHosts) { _, hosts in self.controller.reconcileMachineSpendHosts(hosts) }
         .onDisappear { self.expanded = false; self.controller.cancelMachineSpend() }
     }
 
@@ -81,7 +79,8 @@ struct MachineSpendDetail: View {
         return self.settings.hidePersonalInfo ? L("Machine %d", index + 1) : host
     }
 
-    private func run() {
+    func run() {
+        guard self.settings.refreshHostPreferences() else { self.controller.cancelMachineSpend(); return }
         let ambient = CodexHomeScope.ambientHomeURL(env: self.store.environmentBase).standardizedFileURL.path
         let partial = SpendDashboardSource.codexHomes(settings: self.settings, store: self.store)
             .contains { $0.homePath != ambient }

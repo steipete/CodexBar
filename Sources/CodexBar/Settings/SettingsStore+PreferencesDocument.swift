@@ -59,13 +59,6 @@ extension SettingsStore {
         if let value: [String: String] = try document.value("switcherShortcuts") {
             try self.setProviderSwitcherShortcuts(value)
         }
-        // Manual hosts first; the spend setter re-filters membership to valid manual hosts.
-        if let value: String = try document.value("agentSessionsManualHosts") {
-            self.agentSessionsManualHosts = value
-        }
-        if let value: [String] = try document.value("costUsageHosts") {
-            self.costUsageHosts = value
-        }
     }
 
     func setProviderSwitcherShortcuts(_ shortcuts: [String: String]) throws {
@@ -75,8 +68,15 @@ extension SettingsStore {
     }
 
     func consumePendingPreferencesImport() {
+        self.refreshHostPreferences()
+        self.userDefaults.synchronize()
+        guard let data = self.userDefaults.data(forKey: PreferencesDocument.pendingImportKey) else { return }
         do {
-            try PreferencesDocument.consumePendingImport(in: self.userDefaults, apply: self.importPreferences)
+            try self.importPreferences(PreferencesDocument(data: data))
+            if self.userDefaults.data(forKey: PreferencesDocument.pendingImportKey) == data {
+                self.userDefaults.removeObject(forKey: PreferencesDocument.pendingImportKey)
+                self.userDefaults.synchronize()
+            }
         } catch {
             CodexBarLog.logger(LogCategories.settings).error("Could not import portable preferences: \(error)")
         }

@@ -44,7 +44,7 @@ extension CodexBarCLI {
             }
             let result = try Self.configHostsMutation(
                 action, host: values.positional.first, cost: values.flags.contains("cost"), in: defaults)
-            if result.changed, domain == PreferencesDocument.defaultsDomain {
+            if action != .list, domain == PreferencesDocument.defaultsDomain {
                 DistributedNotificationCenter.default().postNotificationName(
                     Notification.Name(PreferencesDocument.importNotification),
                     object: nil,
@@ -119,20 +119,21 @@ extension CodexBarCLI {
         host: String?,
         cost: Bool,
         in defaults: UserDefaults,
-        lockURL: URL? = PreferencesDocument.importLockURL) throws -> ConfigHostsMutation
+        lockURL: URL? = HostPreferences.lockURL) throws -> HostPreferences.Mutation
     {
-        try PreferencesDocument.withImportLock(in: defaults, lockURL: action == .list ? nil : lockURL) {
-            let state = try Self.configHostsState(in: defaults)
-            guard action != .list else { return ConfigHostsMutation(state: state, changed: false, host: "") }
+        let committed = try HostPreferences.update(in: defaults, lockURL: lockURL) { state in
+            guard action != .list else { return HostPreferences.Mutation(state: state, changed: false, host: "") }
             guard let host, !host.isEmpty else {
                 throw PreferencesDocument.Error.invalid("\(action) requires one <host> argument")
             }
             let mutation = action == .add
-                ? try Self.addedConfigHost(host, to: state, cost: cost)
-                : try Self.removedConfigHost(host, from: state, costOnly: cost)
-            if mutation.changed { try Self.queueConfigHosts(mutation.state, in: defaults, lockURL: lockURL) }
+                ? try HostPreferences.adding(host, to: state, cost: cost)
+                : try HostPreferences.removing(host, from: state, costOnly: cost)
+            state = mutation.state
             return mutation
         }
+        return HostPreferences.Mutation(
+            state: committed.state, changed: committed.result.changed, host: committed.result.host)
     }
 
     /// One Ctrl-C must cancel the check and reap SSH children, like the cost report.
@@ -142,31 +143,7 @@ extension CodexBarCLI {
 
     // MARK: Pure host-list logic
 
-    /// Hosts as the app resolves them: the persisted comma tokens (kept verbatim so a write
-    /// never rewrites entries the command did not address), overridden by any queued CLI
-    /// import, with the app's load-time spend filter applied.
-    static func configHostsState(in defaults: UserDefaults) throws -> ConfigHostsState {
-        // Read the queue before the persisted values: a still-present queue is newer than
-        // anything persisted, and if the app consumes it between the two reads, the
-        // persisted values read afterwards already include it.
-        let pending = try defaults.data(forKey: PreferencesDocument.pendingImportKey)
-            .map { try PreferencesDocument(queueData: $0) }
-        let manualRaw: String =
-            try pending?.value("agentSessionsManualHosts")
-            ?? defaults.string(forKey: "agentSessionsManualHosts")
-            ?? ""
-        let costRaw: [String] =
-            try pending?.value("costUsageHosts")
-            ?? defaults.stringArray(forKey: "costUsageHosts")
-            ?? []
-        let tokens = manualRaw.isEmpty ? [] : manualRaw.components(separatedBy: ",")
-        return ConfigHostsState(
-            manualHosts: tokens,
-            costUsageHosts: RemoteCodexCostFetcher.selectedCostUsageHosts(
-                manualHosts: tokens, storedSelection: costRaw))
-    }
-
-    static func configHostsEntries(_ state: ConfigHostsState) -> [ConfigHostsEntry] {
+    static func configHostsEntries(_ state: HostPreferences.State) -> [ConfigHostsEntry] {
         state.listedHosts.map { host in
             ConfigHostsEntry(
                 host: host,
@@ -174,90 +151,6 @@ extension CodexBarCLI {
                 costUsage: state.costUsageHosts.contains(host),
                 check: nil)
         }
-    }
-
-    static func addedConfigHost(
-        _ rawHost: String,
-        to state: ConfigHostsState,
-        cost: Bool)
-        throws -> ConfigHostsMutation
-    {
-        guard let host = RemoteSessionFetcher.sanitizedHosts([rawHost]).first else {
-            throw PreferencesDocument.Error.invalid(RemoteCodexCostError.invalidHost.localizedDescription)
-        }
-        try RemoteCodexCostFetcher.validateHost(host)
-        var next = state
-        var changed = false
-        // Keep the stored spelling; `devbox` and a stored `DevBox` are one host, and a
-        // retry with the same spelling changes nothing.
-        let canonical: String
-        if let existing = next.manualHosts.first(where: {
-            RemoteSessionFetcher.hostIdentityKey($0) == RemoteSessionFetcher.hostIdentityKey(host)
-        }) {
-            guard (try? RemoteCodexCostFetcher.validateHost(existing)) != nil else {
-                throw PreferencesDocument.Error.invalid(
-                    "Stored host \(existing) is invalid. Remove it, then add \(host) again.")
-            }
-            canonical = existing
-        } else {
-            canonical = host
-            next.manualTokens.append(host)
-            changed = true
-        }
-        if cost,
-           // Spend members are valid manual hosts spelled exactly as stored, as the app keeps them.
-           !next.costUsageHosts.contains(canonical)
-        {
-            next.costUsageHosts.append(canonical)
-            changed = true
-        }
-        return ConfigHostsMutation(state: next, changed: changed, host: canonical)
-    }
-
-    static func removedConfigHost(
-        _ rawHost: String,
-        from state: ConfigHostsState,
-        costOnly: Bool)
-        throws -> ConfigHostsMutation
-    {
-        let host = rawHost.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !host.isEmpty, !host.contains(",") else {
-            throw PreferencesDocument.Error.invalid("Remove one nonempty stored host token at a time.")
-        }
-        var next = state
-        var changed = false
-        let spend = next.costUsageHosts
-        let key = RemoteSessionFetcher.hostIdentityKey(host)
-        let canonical = next.listedHosts.first {
-            RemoteSessionFetcher.hostIdentityKey($0) == key
-        } ?? host
-        if costOnly {
-            next.costUsageHosts = spend.filter { RemoteSessionFetcher.hostIdentityKey($0) != key }
-            changed = spend != next.costUsageHosts
-        } else {
-            // Removal may address hosts Settings typed without strict validation.
-            let tokens = next.manualTokens
-            next.manualTokens = tokens.filter {
-                RemoteSessionFetcher.hostIdentityKey($0.trimmingCharacters(in: .whitespacesAndNewlines)) != key
-            }
-            changed = tokens != next.manualTokens
-            // Dropping a manual host drops its spend membership, as the app's setter does.
-            let candidates = Set(RemoteCodexCostFetcher.costUsageCandidates(in: next.manualTokens))
-            next.costUsageHosts = spend.filter(candidates.contains)
-            changed = changed || spend != next.costUsageHosts
-        }
-        return ConfigHostsMutation(state: next, changed: changed, host: canonical)
-    }
-
-    static func queueConfigHosts(
-        _ state: ConfigHostsState,
-        in defaults: UserDefaults,
-        lockURL: URL? = PreferencesDocument.importLockURL) throws
-    {
-        var document = PreferencesDocument()
-        try document.set("agentSessionsManualHosts", state.manualTokens.joined(separator: ","))
-        try document.set("costUsageHosts", state.costUsageHosts)
-        try document.queueImport(in: defaults, lockURL: lockURL)
     }
 
     // MARK: Host check
@@ -372,40 +265,6 @@ struct ConfigHostsRemoveOptions: CommanderParsable {
     var cost: Bool = false
     @Option(name: .long("defaults-domain"), help: "macOS defaults domain (default: com.steipete.codexbar)")
     var defaultsDomain: String?
-}
-
-/// A finished host mutation: the next persisted state, whether anything changed, and the
-/// stored spelling to report and check.
-struct ConfigHostsMutation: Sendable {
-    let state: ConfigHostsState
-    let changed: Bool
-    let host: String
-}
-
-struct ConfigHostsState: Equatable, Sendable {
-    /// Comma tokens exactly as stored; a write changes only the entries a command addressed.
-    var manualTokens: [String] = []
-    var costUsageHosts: [String] = []
-
-    /// The sanitized, deduplicated host list the app itself reads from the stored setting.
-    var manualHosts: [String] {
-        RemoteSessionFetcher.sanitizedHosts(self.manualTokens)
-    }
-
-    /// Include rejected Settings tokens in the inventory, preserving the first stored spelling.
-    var listedHosts: [String] {
-        var seen = Set<String>()
-        return self.manualTokens.compactMap { token in
-            let host = token.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !host.isEmpty, seen.insert(RemoteSessionFetcher.hostIdentityKey(host)).inserted else { return nil }
-            return host
-        }
-    }
-
-    init(manualHosts: [String] = [], costUsageHosts: [String] = []) {
-        self.manualTokens = manualHosts
-        self.costUsageHosts = costUsageHosts
-    }
 }
 
 struct ConfigHostsCheckResult: Codable, Equatable, Sendable {

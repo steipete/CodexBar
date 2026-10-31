@@ -6,7 +6,7 @@ import AppKit
 #endif
 
 /// No Foundation search-domain fallback or persistent writes, including for absent keys.
-final class InMemoryUserDefaults: UserDefaults, @unchecked Sendable {
+class InMemoryUserDefaults: UserDefaults, @unchecked Sendable {
     private let lock = NSLock()
     private var values: [String: Any]
 
@@ -229,6 +229,7 @@ func testSettingsStore(
     tokenAccountStore: any ProviderTokenAccountStoring = InMemoryTokenAccountStore(),
     config: CodexBarConfig? = nil,
     keychainAccessPolicy: SettingsStoreKeychainAccessPolicy = .defaultPolicy,
+    hostPreferencesLockURL: URL? = nil,
     prepareDefaults: ((UserDefaults) -> Void)? = nil) -> SettingsStore
 {
     let isolatedSuiteName = "\(suiteName)-\(UUID().uuidString)"
@@ -262,7 +263,8 @@ func testSettingsStore(
         ampCookieStore: InMemoryCookieHeaderStore(),
         copilotTokenStore: InMemoryCopilotTokenStore(),
         tokenAccountStore: tokenAccountStore,
-        keychainAccessPolicy: keychainAccessPolicy)
+        keychainAccessPolicy: keychainAccessPolicy,
+        hostPreferencesLockURL: hostPreferencesLockURL)
 }
 
 /// Arrange provider selection without persisting every already-correct entry. Actions under test use the setter

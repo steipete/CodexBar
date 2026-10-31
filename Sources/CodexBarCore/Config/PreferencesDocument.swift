@@ -12,8 +12,6 @@ public struct PreferencesDocument: Codable, Sendable {
     }
 
     public static let pendingImportKey = "portablePreferencesPendingImport"
-    /// Keys that ride the machine-local pending queue but never a transferred file.
-    private static let queueOnlyKeys = Set(["agentSessionsManualHosts", "costUsageHosts"])
     public static let importNotification = "com.steipete.codexbar.preferencesImport"
     public static let defaultsDomain = "com.steipete.codexbar"
     private var version = 1
@@ -60,19 +58,8 @@ public struct PreferencesDocument: Codable, Sendable {
 
     public init() {}
 
-    /// The file/import ingress: structurally valid documents that carry machine-local
-    /// queue-only keys (host lists) are refused rather than applied on another machine.
     public init(data: Data) throws {
         self = try JSONDecoder().decode(Self.self, from: data)
-        try self.validate()
-        for key in Self.queueOnlyKeys where self.preferences[key] != nil {
-            throw Error.invalid("Machine-local preference does not transfer: \(key)")
-        }
-    }
-
-    /// The machine-local pending queue: written by this Mac's CLI, so queue-only keys ride it.
-    public init(queueData: Data) throws {
-        self = try JSONDecoder().decode(Self.self, from: queueData)
         try self.validate()
     }
 
@@ -116,10 +103,7 @@ public struct PreferencesDocument: Codable, Sendable {
             self.preferences[key] = try JSONDecoder().decode(ProviderConfigExtensionValue.self, from: data)
         }
         if let pending = defaults.data(forKey: Self.pendingImportKey) {
-            var queued = try Self(queueData: pending)
-            // Queue-only keys (host lists) stay machine-local even while queued.
-            queued.preferences = queued.preferences.filter { Self.keys.contains($0.key) }
-            self = try self.merging(queued)
+            self = try self.merging(Self(data: pending))
         }
         try self.validate()
     }
@@ -141,43 +125,10 @@ public struct PreferencesDocument: Codable, Sendable {
         if synced.weeklyProgressWorkDays == nil { self.preferences["weeklyProgressWorkDays"] = .null }
     }
 
-    public static var importLockURL: URL? {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
-            .appendingPathComponent("CodexBar/preferences-import.lock", isDirectory: false)
-    }
-
-    /// Host read/modify/write, queue merges, and app consumption share one transaction.
-    /// Waiting keeps a notification arriving during a CLI write from leaving its queue unapplied.
-    public static func withImportLock<T>(
-        in defaults: UserDefaults,
-        lockURL: URL? = Self.importLockURL,
-        operation: () throws -> T) throws -> T
-    {
-        try ManagedCodexAccountLock.withLock(at: lockURL, wait: true) {
-            defaults.synchronize()
-            return try operation()
-        }
-    }
-
-    public func queueImport(in defaults: UserDefaults, lockURL: URL? = Self.importLockURL) throws {
-        try Self.withImportLock(in: defaults, lockURL: lockURL) {
-            let previous = try defaults.data(forKey: Self.pendingImportKey).map(Self.init(queueData:)) ?? Self()
-            try defaults.set(previous.merging(self).encoded(), forKey: Self.pendingImportKey)
-            defaults.synchronize()
-        }
-    }
-
-    public static func consumePendingImport(
-        in defaults: UserDefaults,
-        lockURL: URL? = Self.importLockURL,
-        apply: (Self) throws -> Void) throws
-    {
-        try self.withImportLock(in: defaults, lockURL: lockURL) {
-            guard let data = defaults.data(forKey: Self.pendingImportKey) else { return }
-            try apply(Self(queueData: data))
-            defaults.removeObject(forKey: Self.pendingImportKey)
-            defaults.synchronize()
-        }
+    public func queueImport(in defaults: UserDefaults) throws {
+        let previous = try defaults.data(forKey: Self.pendingImportKey).map(Self.init(data:)) ?? Self()
+        try defaults.set(previous.merging(self).encoded(), forKey: Self.pendingImportKey)
+        defaults.synchronize()
     }
 
     public func validate() throws {
@@ -187,10 +138,10 @@ public struct PreferencesDocument: Codable, Sendable {
             switch value {
             case .bool: valid = Self.boolKeys.contains(key)
             case let .string(raw):
-                valid = key == "agentSessionsManualHosts"
-                    || (Self.stringChoices[key]?.contains(raw)
-                        ?? (key == "preferredCurrencyCode" &&
-                            (raw == "auto" || (raw.count == 3 && raw.utf8.allSatisfy { (65...90).contains($0) }))))
+                valid = Self.stringChoices[key]?.contains(raw)
+                    ??
+                    (key == "preferredCurrencyCode" &&
+                        (raw == "auto" || (raw.count == 3 && raw.utf8.allSatisfy { (65...90).contains($0) })))
             case let .integer(number): valid = key == "weeklyProgressWorkDays" && (1...7).contains(number)
             case .null: valid = key == "weeklyProgressWorkDays"
             case let .array(values):
@@ -200,11 +151,6 @@ public struct PreferencesDocument: Codable, Sendable {
                             if case let .integer(n) = $0 { return QuotaWarningThresholds.allowedRange.contains(Int(n))
                             }; return false
                         }
-                } else if key == "costUsageHosts" {
-                    // Spend membership is re-filtered against the manual hosts by the app's setter.
-                    valid = values.allSatisfy {
-                        if case .string = $0 { return true }; return false
-                    }
                 } else {
                     valid = key == "mergedOverviewSelectedProviders" && values.count <= 6 && values.allSatisfy {
                         if case let .string(raw) = $0 { return ProviderInstanceID(rawValue: raw) != nil }; return false

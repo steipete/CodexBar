@@ -343,8 +343,8 @@ extension CodexBarCLI {
           Hosts use the same validation as Settings: one alias or user@host, no options or spaces.
           --check verifies hosts with one noninteractive SSH run that requires a trusted host key
           and a remote CLI supporting --identified-only; a failed check leaves the host configured.
-          Changes queue like preferences import: a running app applies them immediately, a closed
-          app at next launch. --defaults-domain selects an alternate app domain.
+          Changes persist with Settings and notify the accompanying app; a closed app reads them
+          at next launch. --defaults-domain selects an alternate app domain without notification.
           providers lists persistent provider enablement.
           enable/disable updates the same provider toggle used by Settings.
           set-source stores a supported data source without changing provider enablement; auto clears the override.

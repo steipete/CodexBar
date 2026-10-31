@@ -3,6 +3,7 @@ import Foundation
 import SwiftUI
 import Testing
 @testable import CodexBar
+@testable import CodexBarCLI
 @testable import CodexBarCore
 
 @MainActor
@@ -201,6 +202,55 @@ struct MachineSpendTests {
     }
 
     @Test
+    func `manual machine run respects a committed CLI revocation before notification`() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let defaults = InMemoryUserDefaults(values: [
+            "agentSessionsManualHosts": "devbox,mini", "costUsageHosts": ["devbox", "mini"],
+        ])
+        let settings = testSettingsStore(
+            suiteName: #function, userDefaults: defaults, config: testConfigWithAllProvidersDisabled())
+        enableTestProviders([.codex], settings: settings)
+        settings.costUsageEnabled = true
+        let environment = ["HOME": root.path, "CODEX_HOME": root.appendingPathComponent("codex").path]
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: environment),
+            browserDetection: BrowserDetection(homeDirectory: root.path, cacheTTL: 0),
+            costUsageFetcher: CostUsageFetcher(cacheRoot: root.appendingPathComponent("cost")),
+            settings: settings,
+            historicalUsageHistoryStore: HistoricalUsageHistoryStore(fileURL: root.appendingPathComponent("history")),
+            planUtilizationHistoryStore: PlanUtilizationHistoryStore(directoryURL: nil),
+            startupBehavior: .testing,
+            environmentBase: environment,
+            pluginApprovalStore: ProviderPluginApprovalStore(fileURL: root.appendingPathComponent("approvals")),
+            widgetSnapshotURL: root.appendingPathComponent("widget"),
+            cliUsageCacheURL: root.appendingPathComponent("cli"),
+            widgetTimelineReloader: {})
+        store._test_providerRefreshOverride = { _ in Issue.record("Unexpected provider transport") }
+        store._test_widgetSnapshotSaveOverride = { _ in }
+        let received = LockIsolated<[String]?>(nil)
+        let controller = SpendDashboardController(
+            userDefaults: InMemoryUserDefaults(),
+            requestBuilder: Self.loadRequest,
+            machineLoader: { hosts, _, _, _ in
+                received.setValue(hosts)
+                return CodexIdentifiedResult(reports: [], subtotal: nil, allSourcesAvailable: true, partial: false)
+            })
+        defer {
+            controller.stop()
+            store.stopSharedSpendDashboardPublication()
+            settings.configFileWatcher?.stop()
+        }
+        _ = try CodexBarCLI.configHostsMutation(.remove, host: "devbox", cost: true, in: defaults, lockURL: nil)
+        try #require(settings.costUsageHosts == ["devbox", "mini"], "No notification was delivered.")
+        MachineSpendDetail(settings: settings, store: store, controller: controller).run()
+        try #require(controller.machineRunning && controller.machineRequestedHosts == ["mini"])
+        try await SpendDashboardStateWait.until { controller.machineResult != nil }
+        #expect(received.value == ["mini"])
+        #expect(settings.costUsageHosts == ["mini"])
+    }
+
+    @Test
     func `removing and readding shared host revokes consent across reload and invalid aliases are not selectable`() {
         let defaults = InMemoryUserDefaults()
         let settings = testSettingsStore(suiteName: #function, userDefaults: defaults)
@@ -211,9 +261,10 @@ struct MachineSpendTests {
         #expect(settings.costUsageHosts == ["B"])
         defaults.set("B", forKey: "agentSessionsManualHosts")
         defaults.set(["A", "B"], forKey: "costUsageHosts")
-        #expect(testSettingsStore(suiteName: #function, userDefaults: defaults).costUsageHosts == ["B"])
-        settings.agentSessionsManualHosts = "A, B, bad/path"
-        #expect(settings.selectableCostUsageHosts == ["A", "B"])
+        let reloaded = testSettingsStore(suiteName: #function, userDefaults: defaults)
+        #expect(reloaded.costUsageHosts == ["B"])
+        reloaded.agentSessionsManualHosts = "A, B, bad/path"
+        #expect(reloaded.selectableCostUsageHosts == ["A", "B"])
     }
 
     @Test(.timeLimit(.minutes(1)))
@@ -235,7 +286,11 @@ struct MachineSpendTests {
         #expect(await pending.calls.first?.0 == ["selected"])
         #expect(await pending.calls.first?.1 == 2)
         #expect(controller.machineWindow?.lowerBound == Date(timeIntervalSince1970: 86400))
-        controller.cancelMachineSpend()
+        // A deferred SwiftUI onChange from pre-run projection must keep this same-host request.
+        controller.reconcileMachineSpendHosts(["selected"])
+        #expect(controller.machineRunning && controller.machineRequestedHosts == ["selected"])
+        controller.reconcileMachineSpendHosts([])
+        #expect(!controller.machineRunning && controller.machineRequestedHosts == nil)
         await pending.finish()
         for await _ in cancelledCompletion.stream {}
         #expect(controller.machineResult == nil && !controller.machineRunning)
