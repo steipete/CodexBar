@@ -42,34 +42,44 @@ extension CodexBarCLI {
             guard let defaults = UserDefaults(suiteName: domain) else {
                 throw PreferencesDocument.Error.invalid("Cannot open preferences domain")
             }
-            // Pick up values the running app may have written moments ago.
-            defaults.synchronize()
-            let state = try Self.configHostsState(in: defaults)
-            var next = state
-            var changed = false
-            var host = ""
-            if action != .list {
-                guard let argument = values.positional.first, !argument.isEmpty else {
-                    throw PreferencesDocument.Error.invalid("\(action) requires one <host> argument")
-                }
-                let mutation = action == .add
-                    ? try Self.addedConfigHost(argument, to: state, cost: values.flags.contains("cost"))
-                    : try Self.removedConfigHost(argument, from: state, costOnly: values.flags.contains("cost"))
-                next = mutation.state
-                changed = mutation.changed
-                // Report and check the host as it is stored, never the raw argument.
-                host = mutation.host
-                if changed {
-                    try Self.queueConfigHosts(next, in: defaults)
-                    if domain == PreferencesDocument.defaultsDomain {
-                        DistributedNotificationCenter.default().postNotificationName(
-                            Notification.Name(PreferencesDocument.importNotification),
-                            object: nil,
-                            userInfo: nil,
-                            deliverImmediately: true)
+            // Hold the shared writer lock for the read-modify-write so parallel host
+            // commands report contention instead of losing each other's updates.
+            let result: ConfigHostsMutation
+            do {
+                result = try ManagedCodexAccountLock.withLock(at: Self.configHostsLockURL()) {
+                    // Pick up values the running app may have written moments ago.
+                    defaults.synchronize()
+                    let state = try Self.configHostsState(in: defaults)
+                    guard action != .list else {
+                        return ConfigHostsMutation(state: state, changed: false, host: "")
                     }
+                    guard let argument = values.positional.first, !argument.isEmpty else {
+                        throw PreferencesDocument.Error.invalid("\(action) requires one <host> argument")
+                    }
+                    let mutation = action == .add
+                        ? try Self.addedConfigHost(argument, to: state, cost: values.flags.contains("cost"))
+                        : try Self.removedConfigHost(argument, from: state, costOnly: values.flags.contains("cost"))
+                    if mutation.changed {
+                        try Self.queueConfigHosts(mutation.state, in: defaults)
+                        if domain == PreferencesDocument.defaultsDomain {
+                            DistributedNotificationCenter.default().postNotificationName(
+                                Notification.Name(PreferencesDocument.importNotification),
+                                object: nil,
+                                userInfo: nil,
+                                deliverImmediately: true)
+                        }
+                    }
+                    return ConfigHostsMutation(
+                        state: mutation.state, changed: mutation.changed, host: mutation.host)
                 }
+            } catch ManagedCodexAccountLockError.busy {
+                throw PreferencesDocument.Error.invalid(
+                    "Another codexbar process is changing hosts. Try again after it finishes.")
             }
+            let next = result.state
+            let changed = result.changed
+            // Report and check the host as it is stored, never the raw argument.
+            let host = result.host
             try Task.checkCancellation()
             switch action {
             case .list:
@@ -126,6 +136,11 @@ extension CodexBarCLI {
             output: output,
             kind: .args)
         #endif
+    }
+
+    static func configHostsLockURL(fileManager: FileManager = .default) -> URL? {
+        fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("CodexBar/config-hosts.lock", isDirectory: false)
     }
 
     /// One Ctrl-C must cancel the check and reap SSH children, like the cost report.
@@ -359,6 +374,14 @@ struct ConfigHostsRemoveOptions: CommanderParsable {
     var cost: Bool = false
     @Option(name: .long("defaults-domain"), help: "macOS defaults domain (default: com.steipete.codexbar)")
     var defaultsDomain: String?
+}
+
+/// A finished host mutation: the next persisted state, whether anything changed, and the
+/// stored spelling to report and check.
+struct ConfigHostsMutation: Sendable {
+    let state: ConfigHostsState
+    let changed: Bool
+    let host: String
 }
 
 struct ConfigHostsState: Equatable, Sendable {

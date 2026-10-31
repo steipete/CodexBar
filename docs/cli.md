@@ -295,8 +295,8 @@ a second identifier is an error. For an option value beginning with a dash, use 
     ships this CLI (older apps, including 0.83.0, reject the queued document until updated,
     which also holds back later queued preferences). Hosts feed Usage & Spend immediately;
     the Agent Sessions menu list additionally needs its existing remote-sessions toggle,
-    which stays off until enabled in Settings. Run host commands one at a time; concurrent
-    invocations can lose an update.
+    which stays off until enabled in Settings. Host writes hold a per-user lock; a concurrent
+    `config hosts` command exits nonzero with a retry hint instead of losing the update.
   - Set up hosts from an agent:
     `codexbar config hosts add devbox --cost --check --format json`, then
     `codexbar config hosts list --check --format json --pretty` to confirm every machine.
