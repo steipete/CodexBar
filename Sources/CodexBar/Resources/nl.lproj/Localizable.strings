@@ -2757,6 +2757,9 @@
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "Automatisch gebruikt de actieve opgeslagen sessie, anders een API-sleutel of browsercookies.";
 "Store multiple Command Code subscription sessions." = "Bewaar meerdere Command Code-abonnementssessies.";
 
+"codex_reset_credit_expiry_notifications_title" = "Vervallen van Codex-resetcredits";
+
+"codex_reset_credit_expiry_notifications_subtitle" = "Voegt bij het vernieuwen van het gebruik herinneringen toe, 1 dag en 1 uur voor het verlopen.";
 /* OpenDesign */
 "OpenDesign" = "OpenDesign";
 "Show OpenDesign usage" = "OpenDesign-gebruik tonen";

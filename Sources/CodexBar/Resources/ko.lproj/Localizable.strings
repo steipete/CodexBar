@@ -2728,6 +2728,9 @@
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "자동은 활성 저장된 세션을 사용하며, 활성 세션이 없으면 API 키 또는 브라우저 쿠키를 사용합니다.";
 "Store multiple Command Code subscription sessions." = "Command Code 구독 세션을 여러 개 저장합니다.";
 
+"codex_reset_credit_expiry_notifications_title" = "Codex 초기화 크레딧 만료 알림";
+
+"codex_reset_credit_expiry_notifications_subtitle" = "사용량을 새로고침할 때 만료 1일 전과 1시간 전에 알립니다.";
 /* OpenDesign */
 "OpenDesign" = "OpenDesign";
 "Show OpenDesign usage" = "OpenDesign 사용량 표시";

@@ -12,7 +12,7 @@ struct CodexPrioritySQLiteTests {
     func `reads live and historical priority evidence from the platform sqlite module`() throws {
         let fixture = try Fixture()
         defer { fixture.cleanup() }
-        try fixture.createDatabase()
+        try Fixture.createDatabase(at: fixture.database)
         try fixture.insert(turn: "priority", priority: true)
         try fixture.insert(turn: "standard", priority: false)
 
@@ -32,7 +32,7 @@ struct CodexPrioritySQLiteTests {
     func `restores a persisted priority cursor and reads appended evidence`() throws {
         let fixture = try Fixture()
         defer { fixture.cleanup() }
-        try fixture.createDatabase()
+        try Fixture.createDatabase(at: fixture.database)
         try fixture.insert(turn: "first", priority: true)
         _ = CostUsageScanner.resolveCodexPriorityTurns(databaseURL: fixture.database)
         let cursor = try #require(CostUsageScanner.codexPriorityTurnsPersistedCursor(databaseURL: fixture.database))
@@ -66,7 +66,7 @@ struct CodexPrioritySQLiteTests {
     func `native snapshots and host summaries retain priority prices and coverage`() async throws {
         let fixture = try Fixture()
         defer { fixture.cleanup() }
-        try fixture.createDatabase()
+        try Fixture.createDatabase(at: fixture.database)
         try fixture.insert(turn: "priority", priority: true)
         try fixture.insert(turn: "standard", priority: false)
         try fixture.writeSessions()
@@ -101,7 +101,7 @@ struct CodexPrioritySQLiteTests {
     func `ordinary refresh reprices cached native usage when priority evidence becomes readable`() async throws {
         let fixture = try Fixture()
         defer { fixture.cleanup() }
-        try fixture.createDatabase()
+        try Fixture.createDatabase(at: fixture.database)
         try fixture.writeSessions()
         try fixture.savePrices()
         let before = try await fixture.snapshot()
@@ -114,7 +114,7 @@ struct CodexPrioritySQLiteTests {
         #expect(after.daily.first?.modelBreakdowns?.first?.priorityTokens == 110)
     }
 
-    private struct Fixture {
+    struct Fixture {
         let root: URL
         let database: URL
         let sessions: URL
@@ -139,16 +139,16 @@ struct CodexPrioritySQLiteTests {
             try? FileManager.default.removeItem(at: self.root)
         }
 
-        func withDatabase(_ body: (OpaquePointer) throws -> Void) throws {
+        private static func withDatabase(at database: URL, _ body: (OpaquePointer) throws -> Void) throws {
             var handle: OpaquePointer?
-            let status = sqlite3_open(self.database.path, &handle)
+            let status = sqlite3_open(database.path, &handle)
             defer { sqlite3_close(handle) }
             try #require(status == SQLITE_OK)
             try body(#require(handle))
         }
 
-        func createDatabase() throws {
-            try self.withDatabase { db in
+        static func createDatabase(at database: URL) throws {
+            try self.withDatabase(at: database) { db in
                 let schema = """
                 CREATE TABLE logs (id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, feedback_log_body TEXT);
                 CREATE INDEX idx_logs_ts ON logs(ts DESC, id DESC);
@@ -158,18 +158,33 @@ struct CodexPrioritySQLiteTests {
         }
 
         func insert(turn: String, priority: Bool) throws {
-            let body = "thread_id=\(turn)-session turn.id=\(turn) websocket request: "
-                + "{\"type\":\"response.create\",\"model\":\"gpt-5.4\","
+            let body = Self.traceBody(turn: turn, thread: "\(turn)-session", priority: priority)
+            try Self.insert([(Int64(self.now.timeIntervalSince1970), body)], at: self.database)
+        }
+
+        static func traceBody(
+            turn: String = "turn",
+            thread: String = "fixture-session",
+            model: String = "gpt-5.4",
+            priority: Bool = true) -> String
+        {
+            "thread_id=\(thread) turn.id=\(turn) websocket request: "
+                + "{\"type\":\"response.create\",\"model\":\"\(model)\","
                 + "\"service_tier\":\"\(priority ? "priority" : "default")\"}"
-            try self.withDatabase { db in
-                var statement: OpaquePointer?
-                try #require(sqlite3_prepare_v2(
-                    db, "INSERT INTO logs(ts, feedback_log_body) VALUES (?, ?)", -1, &statement, nil) == SQLITE_OK)
-                defer { sqlite3_finalize(statement) }
-                try #require(sqlite3_bind_int64(statement, 1, Int64(self.now.timeIntervalSince1970)) == SQLITE_OK)
-                let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
-                try #require(sqlite3_bind_text(statement, 2, body, -1, transient) == SQLITE_OK)
-                try #require(sqlite3_step(statement) == SQLITE_DONE)
+        }
+
+        static func insert(_ entries: [(Int64, String)], at database: URL) throws {
+            try self.withDatabase(at: database) { db in
+                for (timestamp, body) in entries {
+                    var statement: OpaquePointer?
+                    try #require(sqlite3_prepare_v2(
+                        db, "INSERT INTO logs(ts, feedback_log_body) VALUES (?, ?)", -1, &statement, nil) == SQLITE_OK)
+                    defer { sqlite3_finalize(statement) }
+                    try #require(sqlite3_bind_int64(statement, 1, timestamp) == SQLITE_OK)
+                    let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+                    try #require(sqlite3_bind_text(statement, 2, body, -1, transient) == SQLITE_OK)
+                    try #require(sqlite3_step(statement) == SQLITE_DONE)
+                }
             }
         }
 

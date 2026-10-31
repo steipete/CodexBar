@@ -60,8 +60,15 @@ Usage source picker:
 - The app reads reset-credit inventory once per refresh with a best-effort
   `GET https://chatgpt.com/backend-api/wham/rate-limit-reset-credits` using the same account-scoped OAuth context;
   the CLI requests it only when optional credits are included.
-- The menu and provider settings list every still-available expiry, while the optional credits setting controls
-  nearing-expiry notifications. CodexBar does not redeem or modify reset credits.
+- The menu and provider settings list every still-available expiry. The optional credits setting continues to
+  control the existing one-time summary within three days of expiry. Settings → Notifications → **Codex reset
+  credit expiry** adds reminders at 1 day and 1 hour before expiry. This separate toggle is off by default on
+  both new and existing installations; upgrading does not alter the summary behavior or its saved receipts.
+  Reminders run only when usage refreshes, with bounded hashed receipts in the existing local receipt store.
+  A late first refresh sends one notice and consumes earlier reminder stages; it does not replay missed alerts.
+  Repeated refreshes, restarts, and account changes do not repeat a recorded reminder. Credit display visibility
+  does not gate the opt-in countdowns. Used, redeeming, expired, unknown-status, and no-expiry credits stay silent.
+  CodexBar does not redeem or modify reset credits.
 - `rate_limit.primary_window` / `secondary_window` map to the session/weekly lanes.
 - When a response explicitly reports a fixed 30-day window (`limit_window_seconds: 2592000`),
   pace uses those 43,200 minutes rather than inferring a calendar month from the reset date.
@@ -410,9 +417,19 @@ pricing provenance, missing values, and incomplete-request counts. Only bounded 
 the local result and returns a nonzero exit code. See [CLI host reporting](cli.md) for the versioned summary contract.
 
 For copied or resumed histories, `cost --provider codex --identified-only --format json --remote <ssh-host>`
-reports an **identified-request subtotal** over one UTC window. Strong native session/response identities are
-deduplicated; conflicting identities and legacy/unidentified usage are excluded and reported. Combined prices are
-unavailable (`costUSD: null`). This opt-in CLI mode does not change ordinary cost reports or account quota.
+reports an **identified-request subtotal** over one UTC window. Repeat `--remote` to include more SSH hosts. Strong native session/response identities are
+deduplicated; timestamp/token conflicts and legacy/unidentified usage are excluded and reported. Schema 2 exports
+exact billing model identifier, nullable Standard/Priority mode, and plan-inclusion evidence alongside tokens and time.
+Pricing disagreements retain tokens but permanently clear pricing evidence, including through re-export;
+trace evidence can differ across hosts. The collector prices accepted requests with one local pricing snapshot.
+`costUSD` is numeric only when all accepted requests are priced (an empty set is $0); otherwise it is explicitly null and
+`unpricedRequestCount` explains the gap. `partial` remains a source/accounting-coverage flag. These are
+API-equivalent estimates, not complete account spend. Unknown tiers and unsupported Priority rates stay
+unpriced even where ordinary cost reports use a Standard fallback. Qualified Auto-review requests are free
+unless collector custom rates override them; exporter custom rates do not change their qualification.
+Last recorded tiers are estimates: live `/fast` changes may not be materialized in history. Experimental
+`step_model_switching` can exceed the available turn-level model/tier evidence.
+Every participating CLI must support schema 2. This opt-in mode does not change ordinary reports or account quota.
 
 - Menu source selection:
   - By default, a selected managed account keeps its own `CODEX_HOME` session history.

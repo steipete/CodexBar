@@ -954,6 +954,7 @@ extension CostUsageStoreTests {
 
 extension CostUsageStoreTests {
     private static let testedPredecessorParserHashes = [
+        "f98b2d0afc00443c", // Corrected revision-14 reports survive the identified-pricing export change.
         "0ef5e15cc00e8e25", // Current main before resumed-tier and Fast pricing correction.
         "5a57546c60494379", // Home-scoped main before archived-row retention.
         "e5909f60274b2c47", // Home scoping preserves the released rows and scan checkpoints.
@@ -1064,7 +1065,11 @@ extension CostUsageStoreTests {
         let usageRow = CostUsageStoreUsageRow(path: file.path, rowIndex: 0, payload: Data([8, 9, 10]))
         let aggregate = Self.aggregate(day: "2026-08-01", model: "gpt-5.6-sol", scale: 1)
         let lineage = Self.lineage(path: file.path)
-        let line = Self.bufferedLine(path: file.path, kind: .subagent, index: 0)
+        var line = Self.bufferedLine(path: file.path, kind: .subagent, index: 0)
+        line
+            .payload = Data(
+                #"{"lineIndex":0,"ordinal":10,"endOffset":100,"line":{"threadSettingsApplied":{"priority":true}}}"#
+                    .utf8)
         let discovery = Self.discoveryState(paths: [file.path])
         let lookback = CostUsageStoreLookbackState(
             scanSinceDay: "2026-08-01",
@@ -1093,9 +1098,12 @@ extension CostUsageStoreTests {
         let current = CostUsageStore(cacheRoot: fixture.root)
         let after = await current.readSnapshot()
         var expected = before
-        // Native history survives, but all predecessor report totals need current pricing.
-        expected.metadata.previousReportPayload = nil
+        // Only predecessors from before the Fast pricing correction need report totals discarded.
+        if predecessorHash != "f98b2d0afc00443c" { expected.metadata.previousReportPayload = nil }
         #expect(after == expected)
+        let legacy = try JSONDecoder().decode(
+            CostUsageScanner.CodexBufferedFastLine.self, from: #require(after.bufferedLines.first).payload)
+        #expect(legacy.line == .threadSettingsApplied(priority: .priority))
         #expect(await current.rebuildCount == 0)
         #expect(await current.configuration()?.userVersion == Int(CostUsageStore.schemaVersion))
         let connection = try SQLiteTestConnection(url: fixture.databaseURL, readOnly: true)

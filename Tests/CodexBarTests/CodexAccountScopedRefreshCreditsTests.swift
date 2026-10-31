@@ -5,6 +5,51 @@ import Testing
 
 extension CodexAccountScopedRefreshTests {
     @Test
+    func `accepted usage refreshes honor the expiry switch and retain reminder receipts`() async throws {
+        let settings = self.makeSettingsStore(suite: #function)
+        settings.refreshFrequency = .manual
+        settings.codexResetCreditExpiryNotificationsEnabled = true
+        settings.showOptionalCreditsAndExtraUsage = false
+        settings._test_liveSystemCodexAccount = self.liveAccount(email: "alpha@example.com")
+        let store = self.makeUsageStore(settings: settings)
+        let now = Date()
+        let credit = CodexRateLimitResetCredit(
+            id: "synthetic-expiring-credit",
+            resetType: "codex_rate_limits",
+            status: .available,
+            grantedAt: now.addingTimeInterval(-86400),
+            expiresAt: now.addingTimeInterval(3500),
+            redeemStartedAt: nil,
+            redeemedAt: nil,
+            title: nil,
+            description: nil)
+        let inventory = CodexRateLimitResetCreditsSnapshot(credits: [credit], availableCount: 1, updatedAt: now)
+        let snapshot = self.codexSnapshot(email: "alpha@example.com", usedPercent: 10)
+            .withCodexResetCredits(inventory)
+        self.installImmediateCodexProvider(on: store, snapshot: snapshot)
+        let defaults = settings.userDefaults
+        let key = CodexResetCreditExpiryNotifier.summaryFingerprintsKey
+
+        settings.codexResetCreditExpiryNotificationsEnabled = false
+        await store.refreshProvider(.codex, allowDisabled: true)
+        #expect(store.snapshots[.codex]?.codexResetCredits == inventory)
+        #expect(defaults.object(forKey: key) == nil)
+
+        settings.codexResetCreditExpiryNotificationsEnabled = true
+        await store.refreshProvider(.codex, allowDisabled: true)
+        let receipts = try #require(defaults.stringArray(forKey: key))
+        #expect(receipts.count == 2)
+        await store.refreshProvider(.codex, allowDisabled: true)
+        #expect(defaults.stringArray(forKey: key) == receipts)
+
+        settings.codexResetCreditExpiryNotificationsEnabled = false
+        await store.refreshProvider(.codex, allowDisabled: true)
+        settings.codexResetCreditExpiryNotificationsEnabled = true
+        await store.refreshProvider(.codex, allowDisabled: true)
+        #expect(defaults.stringArray(forKey: key) == receipts)
+    }
+
+    @Test
     func `credits refresh honors explicit codex oauth source without raw CLI fallback`() async throws {
         let settings = self.makeSettingsStore(suite: "CodexAccountScopedRefreshTests-oauth-credits-source")
         settings.refreshFrequency = .manual

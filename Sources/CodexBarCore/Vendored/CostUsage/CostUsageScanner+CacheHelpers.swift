@@ -8,6 +8,15 @@ import Darwin
 #endif
 
 extension CostUsageScanner {
+    /// Source qualification only. The collecting machine decides whether custom rates override it.
+    static func codexAutoReviewIsIncludedInPlan(
+        model: String, timestampUnixMs: Int64?, hasCreatorAccount: Bool) -> Bool
+    {
+        hasCreatorAccount
+            && timestampUnixMs.map { $0 >= 1_791_270_000_000 } == true // 2026-10-06 00:00 PDT.
+            && CostUsagePricing.normalizeCodexModel(model) == "codex-auto-review"
+    }
+
     static func codexReportDayKeys(cache: CostUsageCache, range: CostUsageDayRange) -> [String] {
         cache.days.keys.sorted().filter {
             CostUsageDayRange.isInRange(dayKey: $0, since: range.sinceKey, until: range.untilKey)
@@ -1206,8 +1215,10 @@ extension CostUsageScanner {
         for (path, usage) in reportCache.files where usage.codexSession?.hasCreatorAccount == true {
             for (index, row) in (usage.codexRows ?? []).enumerated() {
                 guard row.knownCostNanos == nil, row.eventIndex != nil, (row.unpricedTokens ?? 0) == 0,
-                      let timestamp = row.timestampUnixMs, timestamp >= 1_791_270_000_000, // 2026-10-06 00:00 PDT.
-                      CostUsagePricing.normalizeCodexModel(row.model) == "codex-auto-review",
+                      Self.codexAutoReviewIsIncludedInPlan(
+                          model: row.model,
+                          timestampUnixMs: row.timestampUnixMs,
+                          hasCreatorAccount: usage.codexSession?.hasCreatorAccount == true),
                       customPricing.rates(
                           providerID: CostUsagePricing.codexModelsDevProviderID,
                           model: Self.codexPricedModel(for: row, priorityTurns: priorityTurns)) == nil

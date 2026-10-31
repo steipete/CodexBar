@@ -973,7 +973,9 @@ struct CostOptions: CommanderParsable {
     @Option(name: .long("group-by"), help: "Group text output by: project | session")
     var groupBy: String?
 
-    @Option(name: .long("remote"), help: "Read one SSH host; separate summaries unless --identified-only is selected")
+    @Option(
+        name: .long("remote"),
+        help: "Read an SSH host; repeat only with --identified-only, otherwise separate summaries")
     var remote: String?
 
     @Flag(name: .long("summary-only"), help: "Versioned native Codex JSON totals without account or session details")

@@ -393,6 +393,24 @@ enum CostUsageScanner {
         }
     }
 
+    enum CodexNativePricingTier: Codable, Equatable {
+        case standard, priority, unknown
+
+        init(from decoder: Decoder) throws {
+            self = try decoder.singleValueContainer().decode(Bool.self) ? .priority : .standard
+        }
+
+        func encode(to encoder: Encoder) throws {
+            try (self == .priority).encode(to: encoder)
+        }
+    }
+
+    struct CodexRequestPricingEvidence {
+        var turnID: String?
+        var nativeTier: CodexNativePricingTier?
+        var hasCreatorAccount: Bool
+    }
+
     struct CodexRequestLedgerState: Codable, Equatable {
         var responseIDs: Set<String> = []
         var mirroredResponses: [String: String]? = [:]
@@ -3502,7 +3520,7 @@ enum CostUsageScanner {
         case sessionMeta(CodexSessionMetadata)
         case turnContext(CodexTurnContextMetadata)
         case interAgentCommunication(triggerTurn: Bool)
-        case threadSettingsApplied(priority: Bool)
+        case threadSettingsApplied(priority: CodexNativePricingTier)
         case taskStarted(turnID: String?)
         case taskCompleted(CodexTurnPerformanceCompletion)
         case tokenCount(CodexTokenCountRecord)
@@ -3786,8 +3804,13 @@ enum CostUsageScanner {
         case "event_msg":
             if payload["type"] as? String == "thread_settings_applied" {
                 let settings = payload["thread_settings"] as? [String: Any]
-                return .threadSettingsApplied(
-                    priority: Self.codexModelEvidence(settings?["service_tier"] as? String) == "priority")
+                let suppliedTier = settings?["service_tier"]
+                let tier: CodexNativePricingTier = switch Self.codexModelEvidence(suppliedTier as? String) {
+                case "default": .standard
+                case "priority": .priority
+                default: settings != nil && suppliedTier == nil ? .standard : .unknown
+                }
+                return .threadSettingsApplied(priority: tier)
             }
             if payload["type"] as? String == "task_started" {
                 return .taskStarted(turnID: Self.codexTurnID(from: payload))
@@ -4107,7 +4130,7 @@ enum CostUsageScanner {
         maxBytesToRead: Int64? = nil,
         shouldStopReading: ((Int64) -> Bool)? = nil,
         inheritedTotalsResolver: ((String, String) throws -> CodexForkBaseline)? = nil,
-        ownedRequestObserver: ((CodexRequestUsageRecord, String) -> Void)? = nil,
+        ownedRequestObserver: ((CodexRequestUsageRecord, String, CodexRequestPricingEvidence) -> Void)? = nil,
         rejectedRequestObserver: ((CodexInvalidRequestUsage) -> Void)? = nil,
         scanIssueObserver: (() -> Void)? = nil,
         checkCancellation: CancellationCheck? = nil) throws -> CodexParseResult
@@ -4154,6 +4177,10 @@ enum CostUsageScanner {
         var tokenSnapshots: [CostUsageCodexTokenSnapshot] = []
         var lastAcceptedTokenTimestamp: String?
         var requestLedger = initialRequestLedgerState ?? CodexRequestLedgerState()
+        var nativeThreadTier: CodexNativePricingTier?
+        // A nil value is a started turn without a record; a missing key is an unobserved turn.
+        var nativeTiersByTurn: [String: CodexNativePricingTier?] = [:]
+        var pendingTierTurn: String?
         var replacedLegacyRowIndices: Set<Int> = []
         var ledgerLegacyPricingKeys: [Int: CodexSourcePricingKey] = [:]
         let retainedRows = Dictionary(initialRequestLedgerRows.compactMap { row in
@@ -4271,7 +4298,11 @@ enum CostUsageScanner {
                 ?? (turnID == currentTurnID || turnID == requestLedger.activeTurnID
                     ? Self.codexModelEvidence(currentModel) : nil)
                 ?? CostUsagePricing.codexUnattributedModel
-            ownedRequestObserver?(record, model)
+            if pendingTierTurn == turnID { pendingTierTurn = nil }
+            ownedRequestObserver?(record, model, CodexRequestPricingEvidence(
+                turnID: turnID,
+                nativeTier: turnID.map { nativeTiersByTurn[$0] ?? .unknown } ?? nativeThreadTier,
+                hasCreatorAccount: codexSession.hasCreatorAccount == true))
             // Identity, rather than cumulative counters, proves that a reset is a new request.
             // Copied parent records fail the ownership check above even if the parent is unavailable.
             let isReplay = requestLedger.responseIDs.contains(responseID)
@@ -4901,6 +4932,20 @@ enum CostUsageScanner {
             requestLedger.turnPerformance?[turnID] = performance
         }
 
+        func applyRequestPricingSettings(_ tier: CodexNativePricingTier) {
+            guard ownedRequestObserver != nil else { return }
+            nativeThreadTier = tier
+            guard let turnID = pendingTierTurn else { return }
+            let prior = nativeTiersByTurn[turnID].flatMap(\.self)
+            nativeTiersByTurn.updateValue(prior.map { $0 == tier ? tier : .unknown } ?? tier, forKey: turnID)
+        }
+
+        func startRequestPricingTurn(_ turnID: String?) {
+            guard ownedRequestObserver != nil else { return }
+            pendingTierTurn = turnID
+            if let turnID { nativeTiersByTurn.updateValue(nativeThreadTier, forKey: turnID) }
+        }
+
         func observeThreadPriority(for turnID: String?) {
             if requestLedger.threadPriority == true {
                 if requestLedger.priorityTurnIDs == nil { requestLedger.priorityTurnIDs = [] }
@@ -4945,13 +4990,15 @@ enum CostUsageScanner {
                 observePerformanceEffort(metadata)
             case .interAgentCommunication:
                 break
-            case let .threadSettingsApplied(priority):
-                requestLedger.threadPriority = priority
+            case let .threadSettingsApplied(tier):
+                requestLedger.threadPriority = tier == .priority
+                applyRequestPricingSettings(tier)
             case .mirrorBoundary:
                 requestLedger.clearPendingMirrors()
             case let .taskStarted(turnID):
                 requestLedger.clearPendingMirrors()
                 currentTurnID = turnID
+                startRequestPricingTurn(turnID)
                 requestLedger.resumedTurnPriority = nil
                 observeThreadPriority(for: turnID)
                 if let turnID { requestLedger.turnPerformance?[turnID]?.completion = nil }
