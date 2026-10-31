@@ -108,6 +108,7 @@ public struct PreferencesDocument: Codable, Sendable {
             queued.preferences = queued.preferences.filter { Self.keys.contains($0.key) }
             self = try self.merging(queued)
         }
+        try self.validate()
     }
 
     public func applying(to current: SyncedPreferences) throws -> SyncedPreferences {

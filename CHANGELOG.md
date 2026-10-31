@@ -14,7 +14,6 @@
 - CLI: `codexbar config hosts list|add|remove` configures the SSH hosts the app tracks and
   which count toward spend, with idempotent writes a running app picks up without restart and
   an optional per-host one-shot SSH `--check`. (PR number filled on open)
-
 - CLI: expose descriptor-based authentication inputs and existing setup hints in provider inventory JSON. (#4705)
 - Plugins: support an explicitly approved Usage Dashboard link from a fixed URL or a plain setting. (#4725)
 - Codex: optionally add reset-credit expiry reminders at 1 day and 1 hour, preserving the existing three-day summary and saved receipts (#4838). Thanks @PumpkinsLemon!

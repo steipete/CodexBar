@@ -130,7 +130,7 @@ extension CodexBarCLI {
 
     /// One Ctrl-C must cancel the check and reap SSH children, like the cost report.
     private static func runHostsCheck(_ hosts: [String]) async throws -> [ConfigHostsCheckResult] {
-        try await CLICodexHostsTerminationCleanup.run { try await Self.checkConfigHosts(hosts) }
+        try await CLITerminationSignalMonitor.withTerminationCleanup { try await Self.checkConfigHosts(hosts) }
     }
 
     // MARK: Pure host-list logic
@@ -151,7 +151,7 @@ extension CodexBarCLI {
         }
         let tokens = manualRaw.isEmpty ? [] : manualRaw.components(separatedBy: ",")
         return ConfigHostsState(
-            manualTokens: tokens,
+            manualHosts: tokens,
             // Mirror of the app's load filter: spend hosts are valid manual hosts, exactly spelled.
             costUsageHosts: RemoteCodexCostFetcher.costUsageCandidates(in: tokens).filter(costRaw.contains))
     }
@@ -327,25 +327,6 @@ extension CodexBarCLI {
     }
 }
 
-/// One-shot SSH Ctrl-C cleanup: monitor, bind, cancel, reap helpers, re-raise. The cost
-/// report and identified collection follow the same lifecycle inline.
-enum CLICodexHostsTerminationCleanup {
-    static func run<Value: Sendable>(
-        _ operation: @escaping @Sendable () async throws -> Value) async throws -> Value
-    {
-        let cancellation = CodexHostCostCancellation()
-        let monitor = CLITerminationSignalMonitor { cancellation.request(signal: $0) }
-        let task = Task { try await operation() }
-        cancellation.bind { task.cancel() }
-        let result = await task.result
-        monitor.cancel()
-        if let signal = cancellation.signal {
-            CLITerminationSignalMonitor.terminateActiveHelpersAndReraise(signal)
-        }
-        return try result.get()
-    }
-}
-
 struct ConfigHostsListOptions: CommanderParsable {
     @OptionGroup var common: CLICommonOptions
     @Flag(name: .long("check"), help: "Verify each host over one-shot SSH")
@@ -388,11 +369,6 @@ struct ConfigHostsState: Equatable, Sendable {
 
     init(manualHosts: [String] = [], costUsageHosts: [String] = []) {
         self.manualTokens = manualHosts
-        self.costUsageHosts = costUsageHosts
-    }
-
-    init(manualTokens: [String], costUsageHosts: [String] = []) {
-        self.manualTokens = manualTokens
         self.costUsageHosts = costUsageHosts
     }
 }

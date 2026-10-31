@@ -53,16 +53,9 @@ extension CodexBarCLI {
                     try await RemoteCodexCostFetcher().fetch(host: host, historyDays: days, force: force)
                 })
         }
-        cancellation.bind { operation.cancel() }
-        let result = await operation.result
-        monitor.cancel()
-        if let signal = cancellation.signal {
-            CLITerminationSignalMonitor.terminateActiveHelpersAndReraise(signal)
-            return
-        }
         let reports: [CodexHostCostReport]
         do {
-            reports = try result.get()
+            reports = try await CLITerminationSignalMonitor.withTerminationCleanup { try await operation.value }
         } catch {
             Self.exit(code: .failure, message: "Cost report cancelled.", output: output, kind: .runtime)
         }

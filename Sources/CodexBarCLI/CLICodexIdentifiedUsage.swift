@@ -34,8 +34,6 @@ extension CodexBarCLI {
                 Self.exit(code: .failure, message: error.localizedDescription, output: output, kind: .args)
             }
         }
-        let cancellation = CodexHostCostCancellation()
-        let monitor = CLITerminationSignalMonitor { cancellation.request(signal: $0) }
         let operation = Task {
             try await CodexIdentifiedCollection.collect(
                 remotes: hosts,
@@ -48,15 +46,8 @@ extension CodexBarCLI {
                         host: $0, historyDays: days, startUnixMs: start, endUnixMs: end)
                 })
         }
-        cancellation.bind { operation.cancel() }
-        let result = await operation.result
-        monitor.cancel()
-        if let signal = cancellation.signal {
-            CLITerminationSignalMonitor.terminateActiveHelpersAndReraise(signal)
-            return
-        }
         do {
-            let report = try result.get()
+            let report = try await CLITerminationSignalMonitor.withTerminationCleanup { try await operation.value }
             if hosts.isEmpty, let localJSON = report.localLedgerJSON {
                 print(localJSON)
             } else {

@@ -177,11 +177,15 @@ struct AgentSessionHostsEditor: View {
 
     @Bindable var settings: SettingsStore
     @State private var draft: String
+    /// The stored value the draft was seeded from; a save happens only for real edits,
+    /// so a queue or sync applied while the field is idle is never clobbered.
+    @State private var loadedDraft: String
     @FocusState private var isHostsFieldFocused: Bool
 
     init(settings: SettingsStore) {
         self.settings = settings
         self._draft = State(initialValue: settings.agentSessionsManualHosts)
+        self._loadedDraft = State(initialValue: settings.agentSessionsManualHosts)
     }
 
     var body: some View {
@@ -189,7 +193,7 @@ struct AgentSessionHostsEditor: View {
             TextField(L("agent_sessions_hosts_title"), text: self.$draft, prompt: Text(verbatim: Self.inputFormatHint))
                 .labelsHidden()
                 .focused(self.$isHostsFieldFocused)
-                .onSubmit { self.settings.agentSessionsManualHosts = self.draft }
+                .onSubmit { self.saveDraft() }
                 .textFieldStyle(.roundedBorder)
                 .frame(minWidth: 220, idealWidth: 280)
                 .accessibilityLabel(L("agent_sessions_hosts_title"))
@@ -199,10 +203,22 @@ struct AgentSessionHostsEditor: View {
             }) { Text(RemoteCodexCostError.invalidHost.localizedDescription).foregroundStyle(.red) }
         }
         .help(L("agent_sessions_remote_subtitle"))
-        .onDisappear { self.settings.agentSessionsManualHosts = self.draft }
+        .onDisappear { self.saveDraft() }
         .onChange(of: self.isHostsFieldFocused) { _, focused in
-            if !focused { self.settings.agentSessionsManualHosts = self.draft }
+            if !focused { self.saveDraft() }
         }
+        .onChange(of: self.settings.agentSessionsManualHosts) { _, stored in
+            if !self.isHostsFieldFocused {
+                self.draft = stored
+                self.loadedDraft = stored
+            }
+        }
+    }
+
+    private func saveDraft() {
+        guard self.draft != self.loadedDraft else { return }
+        self.loadedDraft = self.draft
+        self.settings.agentSessionsManualHosts = self.draft
     }
 }
 
