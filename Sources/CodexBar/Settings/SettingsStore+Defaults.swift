@@ -1199,7 +1199,9 @@ extension SettingsStore {
         set {
             self.setDefault(
                 \.costUsageHosts,
-                self.selectableCostUsageHosts.filter(newValue.contains),
+                RemoteCodexCostFetcher.selectedCostUsageHosts(
+                    manualHosts: self.agentSessionsManualHosts.components(separatedBy: ","),
+                    storedSelection: newValue),
                 key: "costUsageHosts")
         }
     }

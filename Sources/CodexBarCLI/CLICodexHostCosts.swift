@@ -33,29 +33,26 @@ extension CodexBarCLI {
         let force = values.flags.contains("refresh")
         let calendar = CostUsageBucketTimeZone.calendar(
             identifier: Self.stringFromAppDefaults("tokenCostUsageBucketTimeZone"))
-        let cancellation = CodexHostCostCancellation()
-        let monitor = CLITerminationSignalMonitor { signal in cancellation.request(signal: signal) }
-        let operation = Task {
-            try await Self.collectCodexHostCosts(
-                remote: remote,
-                historyDays: days,
-                local: {
-                    // Provider-specific by design: each host scans native Codex history exactly once.
-                    let snapshot = try await CostUsageFetcher(calendar: calendar).loadTokenSnapshot(
-                        provider: .codex,
-                        forceRefresh: force,
-                        historyDays: days,
-                        refreshPricingInBackground: false,
-                        includePiSessions: false)
-                    return CodexCostSummary(snapshot: snapshot, calendar: calendar)
-                },
-                fetchRemote: { host in
-                    try await RemoteCodexCostFetcher().fetch(host: host, historyDays: days, force: force)
-                })
-        }
         let reports: [CodexHostCostReport]
         do {
-            reports = try await CLITerminationSignalMonitor.withTerminationCleanup { try await operation.value }
+            reports = try await CLITerminationSignalMonitor.withTerminationCleanup {
+                try await Self.collectCodexHostCosts(
+                    remote: remote,
+                    historyDays: days,
+                    local: {
+                        // Provider-specific by design: each host scans native Codex history exactly once.
+                        let snapshot = try await CostUsageFetcher(calendar: calendar).loadTokenSnapshot(
+                            provider: .codex,
+                            forceRefresh: force,
+                            historyDays: days,
+                            refreshPricingInBackground: false,
+                            includePiSessions: false)
+                        return CodexCostSummary(snapshot: snapshot, calendar: calendar)
+                    },
+                    fetchRemote: { host in
+                        try await RemoteCodexCostFetcher().fetch(host: host, historyDays: days, force: force)
+                    })
+            }
         } catch {
             Self.exit(code: .failure, message: "Cost report cancelled.", output: output, kind: .runtime)
         }

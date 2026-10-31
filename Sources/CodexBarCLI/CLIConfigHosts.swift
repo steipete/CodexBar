@@ -154,21 +154,24 @@ extension CodexBarCLI {
     /// never rewrites entries the command did not address), overridden by any queued CLI
     /// import, with the app's load-time spend filter applied.
     static func configHostsState(in defaults: UserDefaults) throws -> ConfigHostsState {
-        var manualRaw = defaults.string(forKey: "agentSessionsManualHosts") ?? ""
-        var costRaw = defaults.stringArray(forKey: "costUsageHosts") ?? []
-        if let pending = try defaults.data(forKey: PreferencesDocument.pendingImportKey)
-            .map({ try PreferencesDocument(data: $0) })
-        {
-            // Hosts are deliberately outside the portable export allowlist; a queued import
-            // still carries them, and it is newer than the persisted values.
-            if let value: String = try pending.value("agentSessionsManualHosts") { manualRaw = value }
-            if let value: [String] = try pending.value("costUsageHosts") { costRaw = value }
-        }
+        // Read the queue before the persisted values: a still-present queue is newer than
+        // anything persisted, and if the app consumes it between the two reads, the
+        // persisted values read afterwards already include it.
+        let pending = try defaults.data(forKey: PreferencesDocument.pendingImportKey)
+            .map { try PreferencesDocument(data: $0) }
+        let manualRaw: String =
+            try pending?.value("agentSessionsManualHosts")
+            ?? defaults.string(forKey: "agentSessionsManualHosts")
+            ?? ""
+        let costRaw: [String] =
+            try pending?.value("costUsageHosts")
+            ?? defaults.stringArray(forKey: "costUsageHosts")
+            ?? []
         let tokens = manualRaw.isEmpty ? [] : manualRaw.components(separatedBy: ",")
         return ConfigHostsState(
             manualHosts: tokens,
-            // Mirror of the app's load filter: spend hosts are valid manual hosts, exactly spelled.
-            costUsageHosts: RemoteCodexCostFetcher.costUsageCandidates(in: tokens).filter(costRaw.contains))
+            costUsageHosts: RemoteCodexCostFetcher.selectedCostUsageHosts(
+                manualHosts: tokens, storedSelection: costRaw))
     }
 
     static func configHostsEntries(_ state: ConfigHostsState) -> [ConfigHostsEntry] {

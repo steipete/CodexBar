@@ -34,20 +34,19 @@ extension CodexBarCLI {
                 Self.exit(code: .failure, message: error.localizedDescription, output: output, kind: .args)
             }
         }
-        let operation = Task {
-            try await CodexIdentifiedCollection.collect(
-                remotes: hosts,
-                startUnixMs: start,
-                endUnixMs: end,
-                pretty: output.pretty,
-                local: { try await CodexRequestLedger.load(startUnixMs: start, endUnixMs: end) },
-                fetchRemote: {
-                    try await RemoteCodexCostFetcher().fetchIdentifiedUsage(
-                        host: $0, historyDays: days, startUnixMs: start, endUnixMs: end)
-                })
-        }
         do {
-            let report = try await CLITerminationSignalMonitor.withTerminationCleanup { try await operation.value }
+            let report = try await CLITerminationSignalMonitor.withTerminationCleanup {
+                try await CodexIdentifiedCollection.collect(
+                    remotes: hosts,
+                    startUnixMs: start,
+                    endUnixMs: end,
+                    pretty: output.pretty,
+                    local: { try await CodexRequestLedger.load(startUnixMs: start, endUnixMs: end) },
+                    fetchRemote: {
+                        try await RemoteCodexCostFetcher().fetchIdentifiedUsage(
+                            host: $0, historyDays: days, startUnixMs: start, endUnixMs: end)
+                    })
+            }
             if hosts.isEmpty, let localJSON = report.localLedgerJSON {
                 print(localJSON)
             } else {

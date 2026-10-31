@@ -149,6 +149,14 @@ public struct RemoteCodexCostFetcher: Sendable {
             .filter { (try? self.validateHost($0)) != nil }
     }
 
+    /// The persisted spend selection as the app loads and saves it: valid manual hosts,
+    /// exactly spelled, that the stored selection names.
+    public static func selectedCostUsageHosts(
+        manualHosts: [String], storedSelection: [String]) -> [String]
+    {
+        self.costUsageCandidates(in: manualHosts).filter(storedSelection.contains)
+    }
+
     package static func arguments(host: String, historyDays: Int, force: Bool) throws -> [String] {
         guard (1...365).contains(historyDays) else { throw RemoteCodexCostError.invalidReport }
         let options =
