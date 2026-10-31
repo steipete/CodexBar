@@ -568,12 +568,16 @@ struct CloudSyncSettingsTests {
         let change = CKSyncEngine.PendingRecordZoneChange.saveRecord(recordID)
         var pending: Set<CKSyncEngine.PendingRecordZoneChange> = [change]
 
-        let record = CloudSyncBatchRecordProvider.record(for: recordID, desiredRecords: [:]) {
+        var hashes = [recordID.recordName: "stale-hash", "unrelated": "other-hash"]
+        let record = CloudSyncBatchRecordProvider.record(
+            for: recordID, desiredRecords: [:], pendingSaveHashes: &hashes)
+        {
             pending.remove($0)
         }
 
         #expect(record == nil)
         #expect(pending.isEmpty)
+        #expect(hashes == ["unrelated": "other-hash"])
     }
 
     @Test

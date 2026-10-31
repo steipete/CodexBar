@@ -103,7 +103,7 @@ struct MenuBarLayoutRenderData: Hashable {
 
     func extraTitle(_ id: String) -> String? {
         ProviderDescriptorRegistry.descriptor(for: self.provider).menuBarMetrics.namedExtras[id].map { title in
-            self.extraRateWindows.first { $0.id == id }?.title ?? L(title)
+            L(self.extraRateWindows.first { $0.id == id }?.title ?? title)
         }
     }
 
@@ -316,6 +316,7 @@ final class MenuBarLayoutRenderer {
     }
 
     private let cache: MenuBarLayoutTitleCache
+    let pluginSummary = PluginMenuBarSummaryRenderer()
 
     init(cache: MenuBarLayoutTitleCache = MenuBarLayoutTitleCache()) {
         self.cache = cache
@@ -376,6 +377,7 @@ final class MenuBarLayoutRenderer {
 
     func removeAll() {
         self.cache.removeAll()
+        self.pluginSummary.removeAll()
     }
 
     /// Joins two rows independently rendered for different providers (each with
@@ -499,11 +501,13 @@ final class MenuBarLayoutRenderer {
             attributes[.baselineOffset] = Self.stackedBaselineOffset + 2 + CGFloat(options.verticalAdjustment)
         }
 
+        let automaticLabel = Self.automaticWindowLabel(data: data)
         for (lineIndex, renderedLine) in renderedLines.enumerated() {
             if lineIndex > 0 {
                 result.append(NSAttributedString(string: "\n", attributes: attributes))
             }
             var accessibilityParts: [String] = []
+            var lineWindowLabel: String?
             for (tokenIndex, token) in renderedLine.enumerated() {
                 // The leading icon is surfaced as `button.image` so AppKit applies the system's
                 // active/inactive display tinting; it is not repeated inside the attributed title,
@@ -526,8 +530,25 @@ final class MenuBarLayoutRenderer {
                         attributes: attributes),
                     options: options,
                     providerTintColor: providerTintColor)
-                renderedItem = Self.labelAutomaticItem(
-                    renderedItem, token: token, data: data, options: options, attributes: attributes)
+                switch token {
+                case .percent(window: .automatic), .pace(window: .automatic), .resetCountdown, .resetAbsolute,
+                     .windowResetCountdown(window: .automatic), .windowResetAbsolute(window: .automatic):
+                    if let label = automaticLabel {
+                        renderedItem.value = Self.prefixedValue(
+                            options.showWindowLabels && label.short != lineWindowLabel ? label.short : "",
+                            value: renderedItem.value,
+                            attributes: attributes)
+                        // VoiceOver names every window, even when the visible prefix is shared.
+                        renderedItem.accessibilityText = renderedItem.accessibilityText
+                            .map { L("%@: %@", label.full, $0) }
+                        lineWindowLabel = label.short
+                    }
+                case .space, .separatorDot: break
+                default:
+                    lineWindowLabel = renderedItem.value.length > 0
+                        ? renderedItem.value
+                        .attribute(Self.windowPrefixKey, at: 0, effectiveRange: nil) as? String : nil
+                }
                 result.append(renderedItem.value)
                 if let accessibilityText = renderedItem.accessibilityText {
                     accessibilityParts.append(accessibilityText)
@@ -571,38 +592,50 @@ final class MenuBarLayoutRenderer {
               lines.joined().contains(.percent(window: .automatic))
               || lines.joined().contains(.progressBar(window: .automatic))
         else { return }
-        let separators: Set<MenuBarLayoutToken> = [.separatorDot, .space]
+        func isSpacing(_ token: MenuBarLayoutToken) -> Bool {
+            token.isVisibleSeparator || token == .space
+        }
         lines = lines.map { line in
             guard line.contains(.resetCountdown) || line.contains(.resetAbsolute) else { return line }
             var tokens = line
             while let index = tokens.firstIndex(where: { $0 == .resetCountdown || $0 == .resetAbsolute }) {
                 tokens.remove(at: index)
-                if tokens.prefix(index).allSatisfy(separators.contains) {
-                    while let first = tokens.first, separators.contains(first) {
+                if tokens.prefix(index).allSatisfy(isSpacing) {
+                    while let first = tokens.first, isSpacing(first) {
                         tokens.removeFirst()
                     }
-                } else if tokens.dropFirst(index).allSatisfy(separators.contains) {
-                    while let last = tokens.last, separators.contains(last) {
+                } else if tokens.dropFirst(index).allSatisfy(isSpacing) {
+                    while let last = tokens.last, isSpacing(last) {
                         tokens.removeLast()
                     }
                 } else {
                     var left = index
                     var right = index
-                    while left > 0, separators.contains(tokens[left - 1]) {
+                    while left > 0, isSpacing(tokens[left - 1]) {
                         left -= 1
                     }
-                    while right < tokens.count, separators.contains(tokens[right]) {
+                    while right < tokens.count, isSpacing(tokens[right]) {
                         right += 1
                     }
                     if left < index, right > index {
-                        let keepRight = tokens[index..<right].contains(.separatorDot)
-                            || !tokens[left..<index].contains(.separatorDot)
+                        let keepRight = tokens[index..<right].contains(where: \.isVisibleSeparator)
+                            || !tokens[left..<index].contains(where: \.isVisibleSeparator)
                         tokens.removeSubrange(keepRight ? left..<index : index..<right)
                     }
                 }
             }
             return tokens
         }.filter { !$0.isEmpty }
+    }
+
+    static func pluginSummaryTitle(
+        _ title: NSAttributedString, accessibilityLabel: String, highContrast: Bool) -> MenuBarLayoutRenderedTitle
+    {
+        MenuBarLayoutRenderedTitle(
+            attributedTitle: title,
+            accessibilityLabel: accessibilityLabel,
+            leadingIcon: nil,
+            statusImage: highContrast ? nil : self.statusImage(title: title, foregroundColor: .labelColor))
     }
 
     private static func statusImage(title: NSAttributedString, foregroundColor: NSColor) -> NSImage? {
@@ -672,28 +705,6 @@ final class MenuBarLayoutRenderer {
         }
     }
 
-    private static func labelAutomaticItem(
-        _ rendered: (value: NSAttributedString, accessibilityText: String?),
-        token: MenuBarLayoutToken,
-        data: MenuBarLayoutRenderData,
-        options: MenuBarLayoutRenderOptions,
-        attributes: [NSAttributedString.Key: Any])
-        -> (value: NSAttributedString, accessibilityText: String?)
-    {
-        switch token {
-        case .percent(window: .automatic), .pace(window: .automatic), .resetCountdown, .resetAbsolute,
-             .windowResetCountdown(window: .automatic), .windowResetAbsolute(window: .automatic): break
-        default: return rendered
-        }
-        guard let label = self.automaticWindowLabel(data: data) else { return rendered }
-        return (
-            self.prefixedValue(
-                options.showWindowLabels ? label.short : "",
-                value: rendered.value,
-                attributes: attributes),
-            rendered.accessibilityText.map { L("%@: %@", label.full, $0) })
-    }
-
     private static func automaticWindowLabel(data: MenuBarLayoutRenderData) -> (short: String, full: String)? {
         guard let automatic = data.automatic, data.automaticText == nil else { return nil }
         let semantic: [PercentWindow] = [.session, .weekly, .scopedWeekly]
@@ -716,8 +727,8 @@ final class MenuBarLayoutRenderer {
             let title = data.laneLabels.label(for: lane)
             return (self.laneShortLabel(lane, data: data) ?? String(title.prefix(1)).uppercased(), title)
         }
-        guard laneMatches.isEmpty else { return nil }
-        guard extraMatches.count == 1, let extra = extraMatches.first, let title = data.extraTitle(extra.id)
+        guard laneMatches.isEmpty, extraMatches.count == 1, let extra = extraMatches.first,
+              let title = data.extraTitle(extra.id)
         else { return nil }
         let short = ProviderDescriptorRegistry.descriptor(for: data.provider).menuBarMetrics
             .namedExtraShortLabels[extra.id] ?? title
@@ -842,6 +853,8 @@ final class MenuBarLayoutRenderer {
                 attributes: style.attributes)
         case .separatorDot:
             return self.textToken("·", accessibilityText: nil, attributes: style.attributes)
+        case let .separator(separator):
+            return self.textToken(separator.glyph, accessibilityText: nil, attributes: style.attributes)
         case .space:
             return self.textToken(" ", accessibilityText: nil, attributes: style.attributes)
         case .hidden:
@@ -927,7 +940,7 @@ final class MenuBarLayoutRenderer {
     {
         guard !prefix.isEmpty else { return value }
         let result = NSMutableAttributedString(string: "\(prefix) ", attributes: attributes)
-        result.addAttribute(self.windowPrefixKey, value: true, range: NSRange(location: 0, length: result.length))
+        result.addAttribute(self.windowPrefixKey, value: prefix, range: NSRange(location: 0, length: result.length))
         result.append(value)
         return result
     }

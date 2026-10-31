@@ -158,7 +158,7 @@ Abacus, Muse, LongCat, Replicate, and TypeSafe unchanged.
 | xapi | `cut-over` | QuickJS + JavaScriptCore | Same-session account discovery and dollar balances through host-owned cookies and CSRF header echo on both engines. |
 | futureagi | `cut-over` | QuickJS + JavaScriptCore | Required usage-overview GET; API-key pair; no cookies or inference calls. |
 | lithosai | `cut-over` | QuickJS + JavaScriptCore | Opaque session cookies with same-origin host CSRF echo; active-organization balance and optional spend on both engines. |
-| workbuddy | `cut-over` | QuickJS + JavaScriptCore | Host-owned website session cookies with the matching Chrome User-Agent; billing summary plus optional package listings for the cycle reset on both engines. |
+| workbuddy | `cut-over` | QuickJS + JavaScriptCore | Host-owned website session cookies with the matching Chrome User-Agent; billing summary plus optional package listings for the cycle reset and the reward expiry on both engines. |
 | tavily | `cut-over` | QuickJS + JavaScriptCore | Account-plan and API-key credits through the public usage API. |
 | linkup | `cut-over` | QuickJS + JavaScriptCore | Bearer-authenticated credit balance on both engines; no inferred allowance, usage, or reset. |
 | tinyapi | `cut-over` | QuickJS + JavaScriptCore | Console credit balance on both engines; no inferred monthly allowance, pool split, or reset. |

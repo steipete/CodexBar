@@ -48,7 +48,7 @@ enum ProviderPluginSnapshotMapper {
             value,
             allowed: [
                 "primary", "secondary", "tertiary", "extraWindows", "cost", "costUsage", "details",
-                "identity",
+                "identity", "iconProvider", "menuBarItems",
                 "subscriptionRenewsAt", "subscriptionExpiresAt", "dataConfidence", "empty",
             ],
             path: "usage")
@@ -61,6 +61,8 @@ enum ProviderPluginSnapshotMapper {
         let costUsage = try self.costUsage(value)
         let details = try self.details(value)
         let identity = try self.identity(value, provider: provider)
+        let iconProvider = try self.iconProvider(value)
+        let menuBarItems = try self.menuBarItems(value)
         let subscriptionRenewsAt = try self.optionalDate(value, property: "subscriptionRenewsAt")
         let subscriptionExpiresAt = try self.optionalDate(value, property: "subscriptionExpiresAt")
         let dataConfidence = try self.dataConfidence(value)
@@ -88,11 +90,38 @@ enum ProviderPluginSnapshotMapper {
             providerCost: providerCost,
             costUsage: costUsage,
             details: details,
+            iconProvider: iconProvider,
+            menuBarItems: menuBarItems,
             subscriptionExpiresAt: subscriptionExpiresAt,
             subscriptionRenewsAt: subscriptionRenewsAt,
             updatedAt: now,
             identity: identity,
             dataConfidence: dataConfidence)
+    }
+
+    private static func iconProvider(_ root: any ProviderPluginValue) throws -> UsageProvider? {
+        guard let value = root.property("iconProvider"), !value.isUndefined, !value.isNull else { return nil }
+        guard value.isString, let provider = UsageProvider(rawValue: value.stringValue()) else {
+            throw ProviderPluginError.invalidSnapshot("iconProvider must be a built-in provider ID")
+        }
+        return provider
+    }
+
+    private static func menuBarItems(_ root: any ProviderPluginValue) throws -> [ProviderMenuBarItem] {
+        guard let value = root.property("menuBarItems"), !value.isUndefined, !value.isNull else { return [] }
+        guard value.isArray else { throw ProviderPluginError.invalidSnapshot("menuBarItems must be an array") }
+        let count = try self.boundedArrayCount(value, maximum: ProviderMenuBarItem.maximumItems, path: "menuBarItems")
+        return try (0..<count).map { index in
+            let path = "menuBarItems[\(index)]"
+            guard let item = value.element(at: index), item.isObject, !item.isArray else {
+                throw ProviderPluginError.invalidSnapshot("\(path) must be an object")
+            }
+            try self.object(item, allowed: ["title", "iconProvider", "windowID"], path: path)
+            return try ProviderMenuBarItem(
+                title: self.requiredDetailString(item, property: "title", path: path),
+                iconProvider: self.iconProvider(item),
+                windowID: self.optionalDetailString(item, property: "windowID", path: path))
+        }
     }
 
     private static func hasMeaningfulIdentity(_ identity: ProviderIdentitySnapshot?) -> Bool {

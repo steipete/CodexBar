@@ -9,6 +9,15 @@ read_when:
 
 # Codex provider
 
+Existing accounts keep their default labels until renamed.
+
+In **Settings → Providers → Codex**, choose **Rename** beside an account to give it a name
+such as “Personal” or “School”. Names appear in account pickers and menu card headings.
+Clear the name to restore the default. Names are saved per login and workspace in CodexBar’s
+configuration; they do not change authentication, workspace names, or the system account.
+**Hide personal info** also hides custom account names in menus and account settings. Turn it off to rename an account. Names set before a saved account’s
+workspace is known survive reauthentication. Renaming does not invalidate usage fetches or cached usage.
+
 Enable **Settings → Menu Bar → Show all accounts in Overview** to include this provider’s cached account
 cards in Overview. The existing account source and provider selection remain unchanged; see
 [Overview account rows](configuration.md#menu-bar-controls).
@@ -379,6 +388,18 @@ Each Codex home keeps its scan progress, discovery, coverage, and daily totals i
 Switching homes does not reset another home's completed history or pending work, and retention only prunes the
 selected home's rows. Existing singleton state is migrated in place to its recorded home (or the default home when
 no root was recorded), retaining file IDs and history without creating per-home database copies.
+Existing OpenCode rows keep the shared writer's scope even when the last native scan used a custom home.
+
+When Codex replaces a previously scanned `X.jsonl` with its sibling `X.jsonl.zst`, CodexBar retains the
+cached usage and coverage for that logical rollout in either `sessions/` or `archived_sessions/`. If both
+forms exist, the plain file wins and its usage is counted once. CodexBar never reads or decompresses
+`.zst` files and does not create a decompressed transcript mirror.
+
+Only usage already parsed while the rollout was plain can be retained. Archives that CodexBar never
+saw as plain files are not counted or backfilled. Retained archived estimates survive parser updates,
+forced rescans, lookback changes, storage-budget enforcement, and switching Codex homes; they keep their
+saved accounting because they can no longer be reparsed. Normal date-retention operations can still expire
+these rows, and removing the archive removes its retained contribution. Clearing the cost cache loses this history.
 
 The static musl Linux CLI reserves an 8 MiB thread stack so scanning non-empty Codex session logs
 does not exhaust musl's smaller default stack. The scanner and cache format stay shared with glibc and macOS.
@@ -693,6 +714,14 @@ dashboard labels its values as local estimates and keeps currencies separate.
 Cost refreshes and cached dashboard loads share each file report between session and project views. Daily and
 project totals retain their own pricing evidence scopes. All preparation is local to one call, so later loads use
 their current rows, prices, roots, dates, and time zone without retaining another report cache.
+
+## Upcoming weekly reset warnings
+
+Settings → Notifications → **Upcoming reset warnings** is off by default. When enabled, accepted Codex usage
+refreshes warn at 24 hours and 1 hour before a reported weekly reset while quota remains. A late first refresh
+sends only the closest reminder; earlier stages are consumed rather than replayed. Account-scoped receipts
+survive app restarts. An account must be identified; missing reset times, expired windows, and exhausted quota
+stay silent. Hide personal information also applies to these notifications. There is no extra polling timer.
 
 ## Local storage footprint
 
