@@ -15,8 +15,10 @@ struct DashboardProviderWarningsTests {
         #expect(row.windows.first?.usedPercent == 25)
         #expect(row.error == nil)
 
-        let json = try self.json(row)
-        #expect(json.contains(#""warnings":[{"code":"model-breakdown-unavailable""#))
+        let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(row))
+        let object = try #require(json as? [String: Any])
+        let warnings = try #require(object["warnings"] as? [[String: String]])
+        #expect(warnings == [["code": "model-breakdown-unavailable", "message": Self.notice]])
     }
 
     @Test
