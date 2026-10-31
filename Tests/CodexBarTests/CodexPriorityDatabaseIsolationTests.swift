@@ -47,13 +47,14 @@ struct CodexPriorityDatabaseIsolationTests {
         #expect(CostUsageScanner.resolvedCodexPriorityDatabaseURL(fixture) == fixture)
     }
 
-    @Test
-    func `ordinary execution retains the system Codex trace path`() {
+    @Test(arguments: [false, true])
+    func `ordinary execution retains the system Codex trace path`(injectedHome: Bool) {
         let root = URL(fileURLWithPath: "/synthetic/user/.codex", isDirectory: true)
         let url = CodexPriorityDatabasePath.defaultURL(
             processName: "CodexBar",
             environment: ["CODEX_HOME": "/synthetic/override"],
-            codexHome: { root })
-        #expect(url == root.appendingPathComponent("logs_2.sqlite"))
+            codexHome: injectedHome ? { root } : nil)
+        let expectedHome = injectedHome ? root : URL(fileURLWithPath: "/synthetic/override")
+        #expect(url == expectedHome.appendingPathComponent("logs_2.sqlite"))
     }
 }

@@ -6,6 +6,8 @@
 - Plugins: support an explicitly approved Usage Dashboard link from a fixed URL or a plain setting. (#4725)
 ### Added
 
+- CLI: combine identified Codex requests from multiple SSH hosts, counting copies once and keeping successful sources when a host fails (#4834). Thanks @salmonumbrella!
+- CLI: estimate deduplicated Codex request spend across SSH hosts with explicit unknown prices, conflict exclusions, and a coordinated schema 2 upgrade (#4833, #4836). Thanks @salmonumbrella!
 - Plugins: render global menu-bar layouts with plugin-owned windows, reset countdowns and conditionals, preserving saved plugin overrides (#4789).
 - Codex: optionally add reset-credit expiry reminders at 1 day and 1 hour, preserving the existing three-day summary and saved receipts (#4838). Thanks @PumpkinsLemon!
 - OpenDesign: track the active workspace's five-hour and weekly subscription allowance through its browser session (#4601). Thanks @vimcaw and @irfndi!
