@@ -179,6 +179,7 @@ enum DashboardSnapshotBuilder {
 
     /// Surfaces partial-data notices that would otherwise look like an absent limit.
     static func makeWarnings(provider: UsageProvider?, usage: UsageSnapshot?) -> [DashboardWarningPayload] {
+        // Provider-specific by design: only Claude emits this unavailable-model-breakdown detail row.
         guard provider == .claude, let usage else { return [] }
         return usage.details
             .flatMap(\.rows)
