@@ -227,5 +227,18 @@ extension BedrockUsageStatsTests {
             await #expect(throws: (any Error).self) { try await Self.spend(cache) }
             #expect(!FileManager.default.fileExists(atPath: url.path))
         }
+
+        @Test
+        func `profile identity changes with the AWS config file and the interval is capped`() {
+            let base = [BedrockSettingsReader.profileKey: "a", BedrockSettingsReader.authModeKey: "profile"]
+            var other = base
+            other["AWS_CONFIG_FILE"] = "/tmp/other-config"
+            let creds = Self.credentials()
+            #expect(BedrockCostExplorerCache.identity(credentials: creds, environment: base) !=
+                BedrockCostExplorerCache.identity(credentials: creds, environment: other))
+            let huge = [BedrockCostExplorerCache.intervalHoursKey: "1e306"]
+            #expect(BedrockCostExplorerCache.interval(environment: huge) == 48 * 3600)
+            #expect(BedrockCostExplorerCache.interval(environment: [:]) == 6 * 3600)
+        }
     }
 }

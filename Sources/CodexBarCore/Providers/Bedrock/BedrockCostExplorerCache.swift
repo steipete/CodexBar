@@ -4,6 +4,13 @@ import CryptoKit
 import Crypto
 #endif
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#elseif canImport(Musl)
+import Musl
+#endif
 
 /// Persistent cache for AWS Cost Explorer responses.
 ///
@@ -54,19 +61,21 @@ final class BedrockCostExplorerCache: @unchecked Sendable {
         return base.appendingPathComponent("CodexBar/BedrockCostExplorerCache/cache.json", isDirectory: false)
     }
 
-    /// Minimum seconds between Cost Explorer queries for one key. Zero (or an unparsable-negative value) disables
-    /// the cache; unset or invalid falls back to the default.
+    /// Minimum seconds between Cost Explorer queries for one key, capped at 48 hours. Zero disables the cache;
+    /// unset or invalid falls back to the default.
     static func interval(environment: [String: String]) -> TimeInterval {
         guard let raw = SettingsValue.cleaned(environment[self.intervalHoursKey]),
               let hours = Double(raw), hours.isFinite, hours >= 0
         else {
             return self.defaultIntervalHours * 3600
         }
-        return hours * 3600
+        return min(hours * 3600, self.maximumEntryAge)
     }
 
-    /// Identity of the AWS account the request is signed for. Profile mode uses the profile name because the
-    /// exported access key rotates with every SSO/STS refresh and must not invalidate the cache.
+    /// Identity of the AWS account the request is signed for. Profile mode uses the profile name plus the AWS
+    /// config/credentials file paths, because the exported access key rotates with every SSO/STS refresh and must
+    /// not invalidate the cache. Limit: repointing a profile to another account inside the same config file is
+    /// not detected until the interval expires or the user refreshes manually.
     static func identity(
         credentials: BedrockAWSSigner.Credentials,
         environment: [String: String]) -> String
@@ -74,7 +83,9 @@ final class BedrockCostExplorerCache: @unchecked Sendable {
         if BedrockSettingsReader.authMode(environment: environment) == .profile,
            let profile = BedrockSettingsReader.profile(environment: environment)
         {
-            return "profile:\(profile)"
+            let files = ["AWS_CONFIG_FILE", "AWS_SHARED_CREDENTIALS_FILE"]
+                .map { SettingsValue.cleaned(environment[$0]) ?? "" }
+            return (["profile:\(profile)"] + files).joined(separator: "|")
         }
         return "key:\(credentials.accessKeyID)"
     }
@@ -97,7 +108,7 @@ final class BedrockCostExplorerCache: @unchecked Sendable {
         defer { self.lock.unlock() }
         guard let entry = self.loadLocked().entries[key] else { return nil }
         let age = now.timeIntervalSince(entry.fetchedAt)
-        guard age >= 0, age < interval else { return nil }
+        guard age >= 0, age < min(interval, Self.maximumEntryAge) else { return nil }
         return entry.pages
     }
 
@@ -123,10 +134,24 @@ final class BedrockCostExplorerCache: @unchecked Sendable {
         }
     }
 
+    /// Reads only a regular, same-user, `0600` file opened without following symlinks (a FIFO cannot block it).
+    private static func readPrivateFile(_ url: URL) -> Data? {
+        let descriptor = open(url.path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)
+        guard descriptor >= 0 else { return nil }
+        let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+        var metadata = stat()
+        guard fstat(descriptor, &metadata) == 0,
+              metadata.st_mode & S_IFMT == S_IFREG,
+              metadata.st_uid == geteuid(),
+              metadata.st_mode & 0o7777 == 0o600
+        else { return nil }
+        return try? handle.readToEnd()
+    }
+
     private func loadLocked() -> Store {
         if let memory { return memory }
         var loaded = Store()
-        if let fileURL = self.fileURL, let data = try? Data(contentsOf: fileURL) {
+        if let fileURL = self.fileURL, let data = Self.readPrivateFile(fileURL) {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
             if let decoded = try? decoder.decode(Store.self, from: data), decoded.version == 1 {
