@@ -9,6 +9,7 @@ struct SettingsSidebarView: View {
     @Bindable var store: UsageStore
     @Binding var selection: SettingsPane
     var onSelectAbout: () -> Void = {}
+    var showsSortToolbar = true
     @State private var searchText = ""
     @Environment(\.undoManager) private var undoManager
 
@@ -22,6 +23,7 @@ struct SettingsSidebarView: View {
                         enabledOnly: self.$settings.providersEnabledOnly,
                         canRestore: self.settings.canRestoreDefaultProviderOrder,
                         onRestore: self.restoreProviderOrder)
+                        .hidden(!self.showsSortToolbar)
                 }
         } else {
             VStack(spacing: 0) {

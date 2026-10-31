@@ -64,6 +64,7 @@ struct PreferencesView: View {
     /// than from a `GeometryReader`: SwiftUI hands the top safe-area inset to the detail scroll view as
     /// a content inset, so a proxy read inside this column returns zero and collapses the cover.
     @State private var detailTitlebarInset: CGFloat = 0
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
     /// The persisted width, guarded against out-of-range values (edited defaults,
     /// bounds that shrank in an update) so a bad stored value can't wreck the layout.
@@ -132,12 +133,13 @@ struct PreferencesView: View {
     /// effects all come from the system and adopt Liquid Glass natively.
     @available(macOS 26.0, *)
     private var splitViewLayout: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: self.$columnVisibility) {
             SettingsSidebarView(
                 settings: self.settings,
                 store: self.store,
                 selection: self.$selection.pane,
-                onSelectAbout: { self.selection.requestAboutRoot() })
+                onSelectAbout: { self.selection.requestAboutRoot() },
+                showsSortToolbar: self.columnVisibility != .detailOnly)
                 .modifier(SettingsSidebarSizing(width: self.$sidebarWidth))
         } detail: {
             self.detailView
