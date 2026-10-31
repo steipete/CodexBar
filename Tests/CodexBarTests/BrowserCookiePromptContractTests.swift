@@ -42,7 +42,7 @@ struct BrowserCookiePromptContractTests {
         interaction: ProviderInteraction,
         preflight: KeychainAccessPreflight.Outcome) throws -> Int
     {
-        let browsers: [Browser] = [.chrome, .edge, .brave]
+        let browsers: [Browser] = [.chrome, .edge, .brave, .braveOrigin]
         let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: home) }
         for browser in browsers {
@@ -142,7 +142,7 @@ struct BrowserCookiePromptContractTests {
         }
     }
 
-    @Test(arguments: [Browser.brave, .claudeDesktop])
+    @Test(arguments: [Browser.brave, .braveOrigin, .claudeDesktop])
     func `unrelated cookie rows never request a Safe Storage key`(browser: Browser) throws {
         let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
@@ -486,7 +486,7 @@ struct BrowserCookiePromptContractTests {
         }
     }
 
-    @Test(arguments: [Browser.brave, .claudeDesktop])
+    @Test(arguments: [Browser.brave, .braveOrigin, .claudeDesktop])
     func `prompt free reads preserve the allowance and nested imports share it`(browser: Browser) throws {
         let keychain = FakeKeychain(promptFreeBrowser: .chrome)
         try self.withFakeKeychain {
@@ -596,7 +596,7 @@ struct BrowserCookiePromptContractTests {
         #expect(keychain.interactiveQueries == 1)
     }
 
-    @Test(arguments: [Browser.chrome, .claudeDesktop])
+    @Test(arguments: [Browser.chrome, .braveOrigin, .claudeDesktop])
     func `an actual interactive denial blocks the next manual action`(browser: Browser) {
         let keychain = FakeKeychain(deniesInteraction: true)
         self.withFakeKeychain {

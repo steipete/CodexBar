@@ -1347,11 +1347,8 @@
 "Share Stats…" = "統計を共有…";
 "Stats copied" = "統計をコピーしました";
 "DeepSeek this month token usage trend" = "今月の DeepSeek トークン使用量の推移";
-"Chrome profile" = "Chrome プロファイル";
 "Choose which signed-in DeepSeek Platform session supplies detailed usage." = "詳細な使用状況を取得する、ログイン済みの DeepSeek Platform セッションを選択します。";
 "Detailed usage unavailable." = "詳細な使用状況を取得できません。";
-"Sign in to DeepSeek Platform in Chrome for detailed usage." = "詳細な使用状況を確認するには、Chrome で DeepSeek Platform にログインしてください。";
-"Select a DeepSeek Chrome profile in Settings." = "設定で DeepSeek の Chrome プロファイルを選択してください。";
 "Select profile…" = "プロファイルを選択…";
 
 "%@: %@" = "%@: %@";
@@ -2761,3 +2758,34 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "この Mac に記録された OpenCode の使用状況を Codex の履歴に表示します。デフォルトではオフです。スコープが限定された場所や代替の CODEX_HOME の場所は常に除外されます。";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "自動では使用中の保存済みセッションを使用し、それ以外の場合は API キーまたはブラウザの Cookie を使用します。";
 "Store multiple Command Code subscription sessions." = "Command Code サブスクリプションのセッションを複数保存します。";
+
+/* OpenDesign */
+"OpenDesign" = "OpenDesign";
+"Show OpenDesign usage" = "OpenDesignの使用状況を表示";
+"Sign in to OpenDesign, then refresh CodexBar." = "OpenDesignにサインインしてから、CodexBarを更新してください。";
+"OpenDesign usage response format changed." = "OpenDesignの使用状況の応答形式が変更されました。";
+"OpenDesign billing access was denied." = "OpenDesignの請求情報へのアクセスが拒否されました。";
+"OpenDesign request failed. Try again later." = "OpenDesignへのリクエストに失敗しました。後でもう一度お試しください。";
+"OpenDesign subscription usage is unavailable for this workspace." = "このワークスペースではOpenDesignのサブスクリプション使用状況を取得できません。";
+"upcoming_reset_notifications_title" = "リセット前の警告";
+"upcoming_reset_notifications_subtitle" = "週間上限のリセット前に、クォータがまだ残っている場合にCodexに警告します。";
+"upcoming_reset_notification_title" = "%1$@ の%2$@上限がまもなくリセットされます";
+"upcoming_reset_notification_body" = "クォータの%1$@がまだ未使用です。%2$@後にリセットされ、未使用のクォータは失われます。";
+"upcoming_reset_notification_body_with_account" = "アカウント %1$@。クォータの%2$@がまだ未使用です。%3$@後にリセットされ、未使用のクォータは失われます。";
+"Sign in to DeepSeek Platform in a Chromium-based browser for detailed usage." = "詳細な使用状況を確認するには、Chromium ベースのブラウザーで DeepSeek Platform にログインしてください。";
+"Select a DeepSeek browser profile in Settings." = "設定で DeepSeek のブラウザープロファイルを選択してください。";
+"menu_bar_layout_token_separator_glyph_accessibility" = "区切り %@";
+"menu_bar_layout_separator_pipe" = "縦棒";
+"menu_bar_layout_separator_slash" = "スラッシュ";
+"menu_bar_layout_separator_hyphen" = "ハイフン";
+"menu_bar_layout_separator_bullet" = "中黒";
+"menu_bar_layout_separator_diamond" = "黒ひし形";
+"menu_bar_layout_separator_hollowDiamond" = "白ひし形";
+"menu_bar_layout_separator_tilde" = "チルダ";
+"menu_bar_layout_separator_doubleBar" = "二重縦棒";
+"Rename" = "名前を変更";
+"Rename account" = "アカウント名を変更";
+"Account name" = "アカウント名";
+"Leave blank to use the default name." = "空欄にするとデフォルトの名前を使用します。";
+"Rewards" = "報酬";
+"Reward expiry" = "報酬の有効期限";

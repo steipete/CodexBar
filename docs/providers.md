@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 110 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 111 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -173,7 +173,7 @@ complete when the available scan window covers fewer days.
 | [X API](xapi.md) | Browser or manual console.x.com cookies for prepaid and free credits, including negative balances. |
 | [Future AGI](futureagi.md) | API key and secret key (billing-period usage, allowances, and estimated cost). |
 | [LithosAI](lithosai.md) | Browser or manual console cookies for prepaid USD balance and optional UTC spend. |
-| [WorkBuddy](workbuddy.md) | Chrome or manual www.workbuddy.cn cookies for the monthly credits allowance, plan name, and cycle reset. |
+| [WorkBuddy](workbuddy.md) | Chrome or manual www.workbuddy.cn cookies for the monthly credits allowance, plan name, cycle reset, and the platform reward credits. |
 | [Tavily](tavily.md) | API key for account-plan, per-key, and pay-as-you-go credit totals. |
 | [Linkup](linkup.md) | API key for the current prepaid USD credit balance. |
 | [TinyApi](tinyapi.md) | Browser or manual session cookies for aggregate available credits. |
@@ -190,6 +190,7 @@ complete when the available scan window covers fewer days.
 | [Trae CN](traecn.md) | Browser session for account credit usage. |
 | [Chatbox AI](chatbox.md) | API token |
 | [abliteration.ai](abliteration.md) | API key for prepaid USD credits and cumulative usage. |
+| [OpenDesign](opendesign.md) | Browser or manual session cookies for the active workspace's five-hour and weekly subscription allowance. |
 
 <!-- End generated provider additions -->
 

@@ -17,8 +17,8 @@ script. Settings-derived origins include the private-network HTTP policy for LLM
 
 `converted` means the bundled conversion is present behind `CODEXBAR_JS_PROVIDERS=1`. `cut-over` means the script is
 authoritative on its supported engines; each row states whether a Linux native core remains. Totals count only the
-69 audit rows below, excluding the separately listed plugin-first additions. The registry now contains 110 providers:
-69 audit rows, 32 additional plugin-first rows, and 9 providers not yet classified in this matrix (CodeRabbit,
+69 audit rows below, excluding the separately listed plugin-first additions. The registry now contains 111 providers:
+69 audit rows, 33 additional plugin-first rows, and 9 providers not yet classified in this matrix (CodeRabbit,
 Hugging Face, IBM Bob, Muse, Nous, Pi, Replicate, TypeSafe, and v0).
 
 `needs-cookie-import` now means **additional cookie/session capability**, not absence of cookie import. The current
@@ -57,9 +57,9 @@ Abacus, Muse, LongCat, Replicate, and TypeSafe unchanged.
 | `needs-pty/webview/native` | 8 |
 | `needs-host-extension` | 4 |
 | **Audit total** | **69** |
-| Additional plugin-first providers | 32 |
+| Additional plugin-first providers | 33 |
 | Registered providers not yet classified here | 9 |
-| **Registry total** | **110** |
+| **Registry total** | **111** |
 
 ## Matrix
 
@@ -158,7 +158,7 @@ Abacus, Muse, LongCat, Replicate, and TypeSafe unchanged.
 | xapi | `cut-over` | QuickJS + JavaScriptCore | Same-session account discovery and dollar balances through host-owned cookies and CSRF header echo on both engines. |
 | futureagi | `cut-over` | QuickJS + JavaScriptCore | Required usage-overview GET; API-key pair; no cookies or inference calls. |
 | lithosai | `cut-over` | QuickJS + JavaScriptCore | Opaque session cookies with same-origin host CSRF echo; active-organization balance and optional spend on both engines. |
-| workbuddy | `cut-over` | QuickJS + JavaScriptCore | Host-owned website session cookies with the matching Chrome User-Agent; billing summary plus optional package listings for the cycle reset on both engines. |
+| workbuddy | `cut-over` | QuickJS + JavaScriptCore | Host-owned website session cookies with the matching Chrome User-Agent; billing summary plus optional package listings for the cycle reset and the reward expiry on both engines. |
 | tavily | `cut-over` | QuickJS + JavaScriptCore | Account-plan and API-key credits through the public usage API. |
 | linkup | `cut-over` | QuickJS + JavaScriptCore | Bearer-authenticated credit balance on both engines; no inferred allowance, usage, or reset. |
 | tinyapi | `cut-over` | QuickJS + JavaScriptCore | Console credit balance on both engines; no inferred monthly allowance, pool split, or reset. |
@@ -175,5 +175,6 @@ Abacus, Muse, LongCat, Replicate, and TypeSafe unchanged.
 | traecn | `cut-over` | QuickJS + JavaScriptCore | Trae CN session token exchange and entitlement summary through the shared cookie broker. |
 | chatbox | `cut-over` | QuickJS + JavaScriptCore | Manual License Key; public-client realtime license details |
 | abliteration | `cut-over` | QuickJS + JavaScriptCore | Read-only credits through the official API on both engines. |
+| opendesign | `cut-over` | QuickJS + JavaScriptCore | Opaque first-party browser session; current-workspace lookup and subscription quota GETs on both engines. |
 
 <!-- End generated provider additions -->

@@ -1004,6 +1004,157 @@ extension UserProviderPluginTests {
 
     @MainActor
     @Test
+    func `plugin summary redraws a nonleading quota and restores the single display`() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        _ = try fixture.write(name: "summary.js", source: Self.menuPlugin(id: "summary-meter", name: "Summary"))
+        let plugin = try #require(UserProviderPluginRegistry.refresh(
+            loader: fixture.loader(transport: RecordingTransport(responseJSON: "{}"))).first?.plugin)
+        let (controller, store, settings) = Self.makePluginMenuController(
+            suiteName: "UserProviderPluginTests.summaryLifecycle",
+            selectedPluginID: plugin.manifest.id,
+            enabledPluginIDs: [plugin.manifest.id],
+            approvalStore: fixture.approvals)
+        defer { controller.releaseStatusItemsForTesting() }
+        settings.unifiedIconSource = .currentSelection
+        settings.mergedMenuLastSelectedWasOverview = false
+        settings.menuBarShowsBrandIconWithPercent = true
+        settings.usageBarsShowUsed = false
+        let items = try [
+            ProviderMenuBarItem(title: "Claude", iconProvider: .claude, windowID: "claude"),
+            ProviderMenuBarItem(title: "Codex", iconProvider: .codex, windowID: "codex"),
+        ]
+        store.snapshots[plugin.manifest.id] = try pluginSummarySnapshot(claudeUsed: 80, codexUsed: 10, items: items)
+        controller.updateIcons()
+        let button = try #require(controller.statusItem.button)
+        let menu = controller.statusItem.menu
+        let signature = controller.lastObservedStoreIconWorkSignature
+        store.snapshots[plugin.manifest.id] = try pluginSummarySnapshot(claudeUsed: 80, codexUsed: 30, items: items)
+        for _ in 0..<1000 where controller.lastObservedStoreIconWorkSignature == signature {
+            await Task.yield()
+        }
+        #expect(controller.lastObservedStoreIconWorkSignature != signature)
+        #expect(button.accessibilityTitle()?.contains(UsageFormatter.percentString(70)) == true)
+        #expect(controller.statusItem.menu === menu)
+        let grouped = controller.lastObservedStoreIconWorkSignature
+        controller.menuBarLayoutRenderer.removeAll()
+        store.snapshots[plugin.manifest.id] = try pluginSummarySnapshot(claudeUsed: 80, codexUsed: 30, items: [])
+        for _ in 0..<1000 where controller.lastObservedStoreIconWorkSignature == grouped {
+            await Task.yield()
+        }
+        #expect(controller.lastObservedStoreIconWorkSignature != grouped)
+        #expect(button.accessibilityTitle()?.contains("Codex") != true)
+        #expect(controller.statusItem.length == NSStatusItem.variableLength)
+    }
+
+    @MainActor
+    @Test
+    func `plugin icon provider redraws the menu bar and retained switcher at unchanged quota`() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let svg = #"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M2 2h12v12H2z"/></svg>"#
+        _ = try fixture.write(name: "icon.js", source: Self.iconPlugin(id: "icon-meter", svg: svg))
+        _ = try fixture.write(name: "other.js", source: Self.menuPlugin(id: "other-meter", name: "Other"))
+        let plugins = UserProviderPluginRegistry.refresh(
+            loader: fixture.loader(transport: RecordingTransport(responseJSON: "{}"))).compactMap(\.plugin)
+        let plugin = try #require(plugins.first { $0.manifest.id.rawValue == "icon-meter" })
+        let (controller, store, settings) = Self.makePluginMenuController(
+            suiteName: "UserProviderPluginTests.iconLifecycle",
+            selectedPluginID: plugin.manifest.id,
+            enabledPluginIDs: plugins.map(\.manifest.id),
+            approvalStore: fixture.approvals)
+        defer { controller.releaseStatusItemsForTesting() }
+        settings.unifiedIconSource = .currentSelection
+        settings.mergedMenuLastSelectedWasOverview = false
+        settings.menuBarShowsBrandIconWithPercent = true
+        settings.usageBarsShowUsed = false
+        let snapshot = { (provider: UsageProvider?) in
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 25, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+                secondary: nil,
+                iconProvider: provider,
+                updatedAt: Date(timeIntervalSince1970: 0))
+        }
+        store.snapshots[plugin.manifest.id] = snapshot(.claude)
+        controller.updateIcons()
+        let button = try #require(controller.statusItem.button)
+        let menu = controller.makeMenu()
+        controller.populateMenu(menu, provider: nil)
+        var switcher = try #require(menu.items.first?.view as? ProviderSwitcherView)
+        func containsImage(_ view: NSView, _ data: Data) -> Bool {
+            if let imageView = view as? NSImageView, imageView.image?.tiffRepresentation == data { return true }
+            return view.subviews.contains { containsImage($0, data) }
+        }
+        for provider in [UsageProvider.codex, nil] {
+            let iconSignature = controller.lastObservedStoreIconWorkSignature
+            let menuSignature = controller.menuLocalizationSignature()
+            store.snapshots[plugin.manifest.id] = snapshot(provider)
+            for _ in 0..<1000 where controller.lastObservedStoreIconWorkSignature == iconSignature {
+                await Task.yield()
+            }
+            #expect(controller.lastObservedStoreIconWorkSignature != iconSignature)
+            #expect(controller.menuLocalizationSignature() != menuSignature)
+            let expected = try #require(provider.flatMap { ProviderBrandIcon.image(for: $0) }
+                ?? StatusItemController.userPluginSVGImage(plugin))
+            let brandSize = expected.size
+            #expect(button.image?.tiffRepresentation == expected.tiffRepresentation)
+            controller.populateMenu(menu, provider: nil)
+            let next = try #require(menu.items.first?.view as? ProviderSwitcherView)
+            #expect(next !== switcher)
+            let expectedTab = ProviderSwitcherView.pluginSwitcherImage(plugin, iconProvider: { _ in expected })
+            #expect(expected.size == brandSize)
+            #expect(try containsImage(next, #require(expectedTab.tiffRepresentation)))
+            #expect(StatusItemController.pluginSwitcherMetricPercent(
+                snapshot: store.snapshots[plugin.manifest.id], showUsed: false) == 75)
+            controller.populateMenu(menu, provider: nil)
+            #expect(menu.items.first?.view === next)
+            let name = provider?.rawValue ?? "manifest"
+            print("ICON_LIFECYCLE provider=\(name) remaining=75 redraw=true switcherRebuilt=true")
+            switcher = next
+        }
+    }
+
+    @MainActor
+    @Test(arguments: [UsageProvider.claude, .codex, .antigravity, .zai])
+    func `plugin icon provider selects cached branding and restores the manifest fallback`(
+        provider: UsageProvider) throws
+    {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let svg = #"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M2 2h12v12H2z"/></svg>"#
+        _ = try fixture.write(name: "icon.js", source: Self.iconPlugin(id: "icon-meter", svg: svg))
+        let plugin = try #require(UserProviderPluginRegistry.refresh(
+            loader: fixture.loader(transport: RecordingTransport(responseJSON: "{}"))).first?.plugin)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 25, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            iconProvider: provider,
+            updatedAt: Date(timeIntervalSince1970: 0))
+        let brand = try #require(ProviderBrandIcon.image(for: provider))
+        let image = StatusItemController.userPluginSwitcherIcon(for: plugin, snapshot: snapshot) { selected in
+            #expect(selected == provider)
+            return ProviderBrandIcon.image(for: selected)
+        }
+        #expect(image === brand)
+        #expect(StatusItemController.userPluginSwitcherIcon(
+            for: plugin, snapshot: snapshot, brandIcon: { ProviderBrandIcon.image(for: $0) }) === image)
+        for source in [snapshot, nil] {
+            let fallback = StatusItemController.userPluginSwitcherIcon(for: plugin, snapshot: source) { _ in nil }
+            #expect(fallback.isTemplate)
+            #expect(fallback.size == NSSize(width: 16, height: 16))
+        }
+        let next = UsageSnapshot(
+            primary: snapshot.primary,
+            secondary: nil,
+            iconProvider: provider == .claude ? .codex : .claude,
+            updatedAt: snapshot.updatedAt)
+        let nextImage = StatusItemController.userPluginSwitcherIcon(
+            for: plugin, snapshot: next, brandIcon: { ProviderBrandIcon.image(for: $0) })
+        #expect(nextImage !== image)
+    }
+
+    @MainActor
+    @Test
     func `plugin svg icon is kept and rendered as a template image`() throws {
         let fixture = try Fixture()
         defer { fixture.remove() }

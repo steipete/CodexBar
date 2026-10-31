@@ -45,10 +45,22 @@ defineProvider({
     const quotaResponse = await ctx.http.getJSON(quotaURL, { headers });
     if (quotaResponse.status !== 200) throw new Error(`z.ai quota API error: HTTP ${quotaResponse.status}`);
     const root = quotaResponse.json;
-    if (!root || typeof root !== "object" || Array.isArray(root) || root.success !== true || root.code !== 200) {
+    // A CN prepaid-only account has no Coding Plan but can still report its balance.
+    const noCodingPlan =
+      region === "bigmodel-cn" &&
+      scope === "personal" &&
+      root &&
+      root.success === false &&
+      root.code === 500 &&
+      root.msg === "当前用户不存在coding plan";
+    if (
+      !noCodingPlan &&
+      (!root || typeof root !== "object" || Array.isArray(root) || root.success !== true || root.code !== 200)
+    ) {
       throw new Error(`z.ai quota API error: ${root && root.msg ? root.msg : "invalid response"}`);
     }
-    if (!root.data || typeof root.data !== "object" || !Array.isArray(root.data.limits)) {
+    const quota = noCodingPlan ? { limits: [] } : root.data;
+    if (!quota || typeof quota !== "object" || !Array.isArray(quota.limits)) {
       throw new Error("Unsupported z.ai quota format. Check Usage Dashboard for plan usage.");
     }
 
@@ -165,7 +177,7 @@ defineProvider({
       };
     }
 
-    const limits = root.data.limits.map(parseLimit).filter(Boolean);
+    const limits = quota.limits.map(parseLimit).filter(Boolean);
     const tokenLimits = limits
       .filter((item) => item.raw.type === "TOKENS_LIMIT" || item.raw.type === "CREDIT_LIMIT")
       .sort((a, b) => (a.windowMinutes || Number.MAX_SAFE_INTEGER) - (b.windowMinutes || Number.MAX_SAFE_INTEGER));
@@ -177,7 +189,7 @@ defineProvider({
       identity: {},
       details: [{ title: "Quota details", rows: [] }],
     };
-    if (!limits.length || limits.length < root.data.limits.length) {
+    if (!limits.length || limits.length < quota.limits.length) {
       result.details[0].rows.push({
         label: tokenLimits.length ? "Additional quota" : "Coding Plan usage",
         value: "Unavailable",
@@ -209,7 +221,7 @@ defineProvider({
         }
       }
     }
-    const plan = [root.data.planName, root.data.plan, root.data.plan_type, root.data.packageName, root.data.level].find(
+    const plan = [quota.planName, quota.plan, quota.plan_type, quota.packageName, quota.level].find(
       (value) => typeof value === "string" && value.trim(),
     );
     if (plan) result.identity.loginMethod = plan.trim();
@@ -252,6 +264,13 @@ defineProvider({
           }
         }
       } catch {}
+    }
+
+    if (noCodingPlan) {
+      if (!result.details[0].rows.some((row) => row.label === "Account balance")) {
+        throw new Error(`z.ai quota API error: ${root.msg}`);
+      }
+      return result;
     }
 
     function compactTokenCount(value) {

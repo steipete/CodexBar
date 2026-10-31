@@ -43,6 +43,21 @@ struct BrowserDetectionTests {
         #expect(detection.hasUsableProfileData(.claudeDesktop))
     }
 
+    @Test
+    func `Brave Origin imports only from its own installed profile`() throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: home) }
+        let profile = home.appendingPathComponent("Library/Application Support/BraveSoftware/Brave-Origin/Default")
+        try FileManager.default.createDirectory(at: profile, withIntermediateDirectories: true)
+        let detection = self.detection(homeDirectory: home.path, installedBrowsers: [.braveOrigin])
+        #expect(!detection.isCookieSourceAvailable(.braveOrigin))
+        try Data().write(to: profile.appendingPathComponent("Cookies"))
+        #expect(detection.isCookieSourceAvailable(.braveOrigin))
+        #expect(!detection.isCookieSourceAvailable(.brave))
+        #expect(Browser.defaultImportOrder.browsersWithProfileData(using: detection) == [.braveOrigin])
+        #expect(ChromiumLocalStorageDiscovery.defaultBrowsers.contains(.braveOrigin))
+    }
+
     private static func labelIDs(for browser: Browser) -> [String] {
         browser.safeStorageLabels.map { self.labelID(service: $0.service, account: $0.account) }
     }

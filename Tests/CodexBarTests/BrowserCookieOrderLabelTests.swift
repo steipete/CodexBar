@@ -17,6 +17,16 @@ struct BrowserCookieOrderStatusStringTests {
     }
 
     @Test
+    func `orders listing Brave also include Brave Origin with its distinct display name`() throws {
+        let origin = try #require(Browser.defaultImportOrder.first { $0.displayName == "Brave Origin" })
+        let violators = ProviderDefaults.metadata.compactMap { provider, metadata -> UsageProvider? in
+            guard let order = metadata.browserCookieOrder, order.contains(.brave) else { return nil }
+            return order.contains(origin) ? nil : provider
+        }
+        #expect(violators.isEmpty, "orders missing Brave Origin: \(violators)")
+    }
+
+    @Test
     func `claude cookie import prefers chrome without dropping fallback browsers`() throws {
         let order = try #require(ProviderDefaults.metadata[.claude]?.browserCookieOrder)
 

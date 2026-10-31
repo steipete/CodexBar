@@ -96,7 +96,7 @@ struct DeepSeekTransportOwnershipTests {
         let error = await Fixture.failure(Fixture.failedResolution(
             candidates: [Fixture.candidateA], cache: cache, error: ProviderTransportRegressionSupport.urlError(code)))
         #expect(error is DeepSeekPlatformTransportError)
-        #expect(error.localizedDescription == "DeepSeek network error: Chrome session resolution unavailable")
+        #expect(error.localizedDescription == "DeepSeek network error: Browser session resolution unavailable")
         #expect(UsageStore.shouldPreservePriorSnapshot(after: error, hadPriorData: true, priorSnapshot: prior))
         #expect(!UsageStore.shouldPreservePriorSnapshot(after: error, hadPriorData: true))
         #expect(!UsageStore.shouldPreservePriorSnapshot(after: error, hadPriorData: false, priorSnapshot: prior))

@@ -45,6 +45,7 @@ struct CursorAccountSwitchBrowserScanTests {
         ("at.studio.AsideBrowser", Browser.aside),
         ("com.operasoftware.Opera", .opera),
         ("com.operasoftware.OperaNeon", .operaNeon),
+        ("com.brave.Browser.origin", .braveOrigin),
     ])
     func `new catalog browsers use their verified application identifiers`(fixture: (String, Browser)) {
         let (identifier, browser) = fixture

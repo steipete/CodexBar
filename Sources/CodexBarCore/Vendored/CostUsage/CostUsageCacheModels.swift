@@ -375,8 +375,10 @@ struct CostUsageFileUsage: Codable, Equatable {
     var codexReadRetryBufferPresence: CostUsageCodexRetryBufferPresence?
     var codexParserRevision: Int? = CostUsageFileUsage.currentCodexParserRevision
 
+    var codexArchived: Bool?
+
     var hasCurrentCodexParser: Bool {
-        self.codexParserRevision == Self.currentCodexParserRevision
+        self.codexArchived == true || self.codexParserRevision == Self.currentCodexParserRevision
     }
 
     var hasBufferedCodexSubagentLines: Bool {

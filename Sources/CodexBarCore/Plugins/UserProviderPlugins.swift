@@ -155,7 +155,8 @@ public struct UserProviderPlugin: @unchecked Sendable {
         sourceMode: ProviderSourceMode = .auto,
         cookieSource: ProviderCookieSource = .auto,
         cookieResolver: ProviderPluginRuntime.CookieResolver? = nil,
-        instanceCookieResolver: ProviderPluginRuntime.InstanceCookieResolver? = nil) async throws -> UsageSnapshot
+        instanceCookieResolver: ProviderPluginRuntime.InstanceCookieResolver? = nil,
+        browserDetection: BrowserDetection? = nil) async throws -> UsageSnapshot
     {
         let binding = try self.approvalBinding(settings: settings)
         guard approvalStore.isApproved(binding) else {
@@ -166,14 +167,20 @@ public struct UserProviderPlugin: @unchecked Sendable {
             manifest: self.manifest,
             environment: environment)
         return try await ProviderFetchDelayedRetry.run {
-            try await self.runtime.fetchUsage(
+            let cookies = sourceMode.usesWeb && cookieSource == .auto
+                ? browserDetection.map { UserProviderPluginCookieBroker.resolvers(browserDetection: $0) }
+                : nil
+            return try await self.runtime.fetchUsage(
                 settings: settings,
                 secrets: resolvedSecrets,
                 now: now,
                 sourceMode: sourceMode,
                 cookieSource: cookieSource,
+                cookieInvalidator: cookies?.invalidate,
+                cookieSessionResolver: cookies?.session,
+                cookieSessionInvalidator: cookies?.invalidateSession,
                 cookieResolver: cookieResolver,
-                instanceCookieResolver: instanceCookieResolver)
+                instanceCookieResolver: instanceCookieResolver ?? cookies?.header)
         }
     }
 
