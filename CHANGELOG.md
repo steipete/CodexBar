@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.83.1 — Unreleased
+
+### Fixed
+
+- iCloud Sync: stop treating the Codex login as a local account for other providers, so a synced account with the same email is no longer hidden from their menus.
+
 ## 0.83.0 — 2026-10-31
 
 ### Highlights

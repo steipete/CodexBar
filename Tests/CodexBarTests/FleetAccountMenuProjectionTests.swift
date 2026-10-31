@@ -205,6 +205,42 @@ struct FleetAccountMenuProjectionTests {
     }
 
     @Test
+    func `non codex providers do not borrow the codex login as a local account key`() {
+        let settings = testSettingsStore(suiteName: "FleetAccountMenuProjectionTests-no-codex-login-borrow")
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+        let email = "person@example.com"
+        store.accountInfoCache[.claude] = UsageStore.AccountInfoCacheEntry(
+            account: AccountInfo(email: email, plan: nil),
+            configRevision: settings.configRevision,
+            expiresAt: .distantFuture)
+        let emailAccount = Self.snapshot(
+            provider: .claude,
+            accountKey: AccountSnapshotSyncPayload.accountKey(for: email),
+            fetchedAt: Date(timeIntervalSince1970: 100))
+        let newer = Self.snapshot(
+            provider: .claude,
+            accountKey: AccountSnapshotSyncPayload.accountKey(for: "other@example.com"),
+            fetchedAt: Date(timeIntervalSince1970: 200))
+        let localAccountKeys = store.cloudSyncLocalAccountKeys(for: .claude)
+
+        let projection = FleetAccountMenuPlanner.projection(
+            provider: .claude,
+            snapshots: [emailAccount, newer],
+            currentDeviceID: settings.iCloudSyncDeviceID,
+            localAccountKeys: localAccountKeys,
+            hasLocalUsage: false)
+
+        #expect(localAccountKeys.isEmpty)
+        #expect(projection.fallback?.accountKey == newer.accountKey)
+        #expect(projection.additionalAccounts.map(\.accountKey) == [emailAccount.accountKey])
+    }
+
+    @Test
     func `fleet badge uses compact staleness`() {
         let now = Date(timeIntervalSince1970: 10000)
 
