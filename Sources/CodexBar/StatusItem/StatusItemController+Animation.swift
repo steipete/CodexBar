@@ -276,6 +276,24 @@ extension StatusItemController {
             let showBrand = self.settings.menuBarShowsBrandIconWithPercent
             // Returning to a built-in provider must redraw even if its last quota is unchanged.
             self.lastAppliedMergedIconRenderSignature = nil
+            if showBrand, let snapshot, !snapshot.menuBarItems.isEmpty {
+                let elements = PluginMenuBarSummaryRenderer.elements(snapshot: snapshot, showUsed: showUsed)
+                let options = PluginMenuBarSummaryRenderer.Options(
+                    sourceHash: plugin.sourceHash,
+                    monospaced: self.settings.menuBarLayoutMonospacedDigits,
+                    highContrast: self.shouldUseHighContrastStatusItemContent,
+                    appearance: button.effectiveAppearance.name.rawValue)
+                let rendered = self.menuBarLayoutRenderer.pluginSummary.render(
+                    elements: elements, options: options, fallbackIcon: {
+                        Self.userPluginSwitcherIcon(for: plugin, snapshot: nil, brandIcon: self.brandIcon)
+                    })
+                let cached = button.image === rendered.statusImage
+                    && (rendered.statusImage != nil || button.attributedTitle.isEqual(to: rendered.attributedTitle))
+                self.statusItem.length = Self.applyMenuBarLayoutContent(
+                    rendered, for: button, gap: self.settings.menuBarLayoutGap)
+                self.noteIconPerfRender(skipped: cached)
+                return cached
+            }
             let image = showBrand ? self.userPluginSwitcherIcon(for: plugin) : IconRenderer.makeIcon(
                 primaryRemaining: lanes.primary,
                 weeklyRemaining: lanes.secondary,
@@ -689,6 +707,11 @@ extension StatusItemController {
     }
 
     private func setButtonContent(image: NSImage, title: String?, tint: NSColor?, for button: NSStatusBarButton) {
+        if let label = self.menuBarLayoutRenderer.pluginSummary.lastAccessibilityLabel,
+           button.accessibilityTitle() == label
+        {
+            button.setAccessibilityTitle(nil)
+        }
         let image = tint.map { MenuBarLayoutRenderer.attachmentImage(image, tint: $0, isMonochrome: false) } ?? image
         let isDebugApp = Self.isDebugApp(bundleIdentifier: Bundle.main.bundleIdentifier)
         let value = Self.buttonTitle(

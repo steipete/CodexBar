@@ -53,11 +53,17 @@ profiles after rejected credentials. Manual mode stays exclusive and never falls
 - **Credits**: recurring account credits when Perplexity reports them.
 - **Bonus credits**: promotional or bonus credits.
 - **Purchased**: on-demand purchased credits.
+- **Organization**: organization pool credits, shown when the API reports `org_pool_draws_cents` or
+  `org_user_cap_cents`. Used is `org_pool_draws_cents`; available is the part of `balance_cents` not covered by the
+  member's own credits, or zero when `is_org_pool_depleted` is true. The member's cap is not counted as available.
 - **Renewal**: recurring credits use the renewal timestamp when the API returns one.
 
-The menu-bar percent picker can explicitly show **Credits** or **Bonus credits**, including when the API reports no duration. These choices use the actual credit pools without inventing a session or weekly cadence. Automatic keeps the existing recurring → purchased → bonus consumption order.
+The menu-bar percent picker can explicitly show **Credits** or **Bonus credits**, including when the API reports no duration. These choices use the actual credit pools without inventing a session or weekly cadence. Automatic keeps the existing recurring → purchased → bonus consumption order, then falls back to org credits.
 
-Purchased and bonus credits do not reset, so their balances remain details in menus and CLI output. Layout reset-time tokens require an actual reset date for credit-detail windows; amounts never stand in for a reset clock.
+When an org pool is reported, **Organization** is also available as a named percent window. With window labels enabled,
+Auto identifies that pool as **Organization**.
+
+Purchased, bonus, and org credits do not reset, so their balances remain details in menus and CLI output. Layout reset-time tokens require an actual reset date for credit-detail windows; amounts never stand in for a reset clock.
 
 Large finite credit counts retain their whole-number descriptions; nonfinite aggregate counts omit the description.
 

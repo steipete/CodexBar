@@ -78,6 +78,10 @@ extension UsageStore {
             accountDiscriminator: warningAccounts.quota,
             hookAccountDiscriminator: warningAccounts.source,
             requiresKnownAccount: warningAccounts.requiresKnownAccount)
+        self.handleUpcomingResetWarning(
+            provider: provider,
+            snapshot: snapshot,
+            accountDiscriminator: warningAccounts.quota)
         let sessionRestored = self.handleSessionQuotaTransition(
             provider: provider,
             snapshot: snapshot,

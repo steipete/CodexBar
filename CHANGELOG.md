@@ -2,14 +2,38 @@
 
 ## 0.82.1 — Unreleased
 
+### Added
+
+- Plugins: let each snapshot choose a built-in provider logo for its menu bar and switcher, independently of plugin identity and quota ownership (#4801). Thanks @KLIEBHAN!
+- Plugins: show compact multi-quota summaries with ordered logos and quota percentages in the merged menu bar (#4802). Thanks @KLIEBHAN!
+- Codex: optionally warn 24 hours and 1 hour before a weekly reset when quota remains, with account-scoped reminders that survive restarts (#4849). Thanks @hugo-alves!
+- Menu bar: add eight separator glyphs to layouts and conditional branches, with spoken accessibility names and safe downgrade projections (#4795). Thanks @urda!
+- Codex: name saved accounts in Settings and account menus without changing authentication or cached usage; privacy mode hides aliases. (#4782) Thanks @shirishpothi!
+- Hooks: `usage_updated` events can carry the sampled raw Codex plan identifier, the provider surface that reported it, and the observation time, without inferring allowances from display labels. (#4775, #4800) Thanks @LeoLin990405!
+- WorkBuddy: show platform reward credits separately within the total allowance, with the earliest unspent grant’s expiry and no false allowance reset when rewards expire. (#4799) Thanks @codertesla!
+
 ### Fixed
 
 - AWS Bedrock: report unavailable Cost Explorer data instead of zero spend (#4846). Thanks @djbclark!
+- Claude: report the CLI's unavailable per-model breakdown in usage details while retaining current session and weekly quotas (#4809). Thanks @DreamyTalesPAN!
+- iCloud Sync: retry account snapshots after a dropped upload without allowing delayed results to confirm newer data (#4798). Thanks @audichuang!
+- CI: clean up mounted Xcode toolchains after test discovery and make optional-request ordering tests deterministic.
+- DeepSeek: import Platform sessions from supported Chromium browsers using the shared browser catalog, preserving saved Chrome profile selections (#4821). Thanks @343max!
+
+- Trae CN: align Used, Total, and Remaining credits to two decimal places when any amount is fractional (#4819). Thanks @liuyuplus!
+
 - MiniMax: discover China web sessions and read the current console's quota percentages, boosted limits, and unlimited windows. (#4831, #4832) Thanks @tangwz!
 - Localization: correctly validate reordered plural arguments after ordinary placeholders. (#4817) Thanks @xuancao1953-1!
 - Codex: preserve established local cost coverage and catch-up progress when switching Codex homes (#4770, #4773). Thanks @harjothkhara!
+- Menu bar: name the Auto window once per row, so Auto % with Auto pace shows `5h 0% –` instead of `5h 0% 5h –`; separate rows, other windows, and VoiceOver keep their labels (#4820, #4822). Thanks @egigoka!
 - OpenCodex: reduce temporary memory use when importing large usage logs (#4803).
+- Copilot: show calendar-month pace for Premium and chat quotas in the menu bar when a reset date is available (#4847, #4848). Thanks @chriscorbell!
 - Cursor: explain when the Cursor app session has expired and no browser session works, with steps to sign in again (#4804). Thanks @julianpinedayyz!
+- Perplexity: show organization pool credits separately and use them for automatic usage after personal credits run out (#4826, #4828). Thanks @Abelo9996!
+- Plugins: refresh the selected menu-bar percentage when its usage changes while the automatic window stays unchanged (#4787). Thanks @vincent-peng!
+- Codex: retain cached cost history when previously scanned rollouts become `.jsonl.zst` archives, without duplicate counting (#4523, #4534, #4818). Thanks @BananaIIya, @kali113, @kcharlan, and @cassiarota!
+- OpenCode Go: use the active OpenCode CLI API key stored under `opencode` for server quotas instead of falling back to local estimates. (#4815) Thanks @sreejithraman!
+- Tests: keep Claude dashboard account-selection coverage independent of CI scheduling delays (#4821).
 
 ### Changed
 

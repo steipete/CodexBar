@@ -14,7 +14,15 @@ struct WorkBuddyLocalizationTests {
             Issue.record("Automatic cookie guidance must be localized")
             return
         }
-        let keys = try [spec.noDataMessage, web.field.subtitle, #require(web.field.action).title, autoKey, "Reserved"]
+        let keys = try [
+            spec.noDataMessage,
+            web.field.subtitle,
+            #require(web.field.action).title,
+            autoKey,
+            "Reserved",
+            "Rewards",
+            "Reward expiry",
+        ]
         let resources = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Sources/CodexBar/Resources")

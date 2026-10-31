@@ -565,6 +565,11 @@
 "limit_reset_notification_title" = "Ліміт %1$@ скинуто (%2$@)";
 "limit_reset_notification_body" = "Нова квота доступна.";
 "limit_reset_notification_body_with_account" = "Обліковий запис %@. Нова квота доступна.";
+"upcoming_reset_notifications_title" = "Попередження про швидке скидання";
+"upcoming_reset_notifications_subtitle" = "Попереджає про швидке скидання тижневого ліміту Codex, поки квота ще не витрачена.";
+"upcoming_reset_notification_title" = "Незабаром скидання ліміту %1$@ (%2$@)";
+"upcoming_reset_notification_body" = "%1$@ квоти ще не витрачено. Ліміт скинеться за %2$@, а невитрачена квота зникне.";
+"upcoming_reset_notification_body_with_account" = "Обліковий запис %1$@. %2$@ квоти ще не витрачено. Ліміт скинеться за %3$@, а невитрачена квота зникне.";
 "quota_warning_warn_at" = "Попереджати на рівні";
 "quota_warning_global_threshold_subtitle" = "Порогові відсотки залишку для сеансу й тижневого ліміту, якщо постачальник не задав власних.";
 "quota_warning_sound" = "Відтворювати звук сповіщення";
@@ -1347,11 +1352,11 @@
 "Share Stats…" = "Поділитися статистикою…";
 "Stats copied" = "Статистику скопійовано";
 "DeepSeek this month token usage trend" = "Тенденція використання токенів DeepSeek цього місяця";
-"Chrome profile" = "Профіль Chrome";
+"Browser profile" = "Профіль браузера";
 "Choose which signed-in DeepSeek Platform session supplies detailed usage." = "Виберіть сеанс DeepSeek Platform із виконаним входом, який надаватиме докладні дані про використання.";
 "Detailed usage unavailable." = "Докладні дані про використання недоступні.";
-"Sign in to DeepSeek Platform in Chrome for detailed usage." = "Увійдіть у DeepSeek Platform у Chrome, щоб переглянути докладні дані про використання.";
-"Select a DeepSeek Chrome profile in Settings." = "Виберіть профіль Chrome для DeepSeek у налаштуваннях.";
+"Sign in to DeepSeek Platform in a Chromium-based browser for detailed usage." = "Увійдіть у DeepSeek Platform у браузері на базі Chromium, щоб переглянути докладні дані про використання.";
+"Select a DeepSeek browser profile in Settings." = "Виберіть профіль браузера для DeepSeek у налаштуваннях.";
 "Select profile…" = "Вибрати профіль…";
 
 "%@: %@" = "%@: %@";
@@ -1475,6 +1480,15 @@
 "menu_bar_layout_token_space" = "Пробіл";
 "menu_bar_layout_token_line_break" = "Розрив рядка";
 "menu_bar_layout_token_separator_accessibility" = "Крапка-роздільник";
+"menu_bar_layout_token_separator_glyph_accessibility" = "Роздільник %@";
+"menu_bar_layout_separator_pipe" = "Вертикальна риска";
+"menu_bar_layout_separator_slash" = "Скісна риска";
+"menu_bar_layout_separator_hyphen" = "Дефіс";
+"menu_bar_layout_separator_bullet" = "Маркер";
+"menu_bar_layout_separator_diamond" = "Заповнений ромб";
+"menu_bar_layout_separator_hollowDiamond" = "Порожній ромб";
+"menu_bar_layout_separator_tilde" = "Тильда";
+"menu_bar_layout_separator_doubleBar" = "Подвійна вертикальна риска";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "Значок недоступний";
@@ -2762,3 +2776,11 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Показує використання OpenCode, записане на цьому Mac, в історії Codex. Типово вимкнено; розташування CODEX_HOME з обмеженою областю дії або альтернативні розташування завжди виключаються.";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "Автоматичний режим використовує активний збережений сеанс, інакше — ключ API або файли cookie браузера.";
 "Store multiple Command Code subscription sessions." = "Зберігати кілька сеансів передплати Command Code.";
+
+// Codex account names
+"Rename" = "Перейменувати";
+"Rename account" = "Перейменувати обліковий запис";
+"Account name" = "Назва облікового запису";
+"Leave blank to use the default name." = "Залиште поле порожнім, щоб використовувати назву за замовчуванням.";
+"Rewards" = "Винагороди";
+"Reward expiry" = "Термін дії винагород";

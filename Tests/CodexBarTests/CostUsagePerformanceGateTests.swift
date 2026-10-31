@@ -328,6 +328,7 @@ struct CostUsagePerformanceGateTests {
     }
 
     @Test(arguments: [
+        "5a57546c60494379", "e5909f60274b2c47",
         "0d8f9504f8e63d0f", "7ff985e81e281a11",
         "43609cc56f76a003", "c6c46a376ba16304", "b77d4ec72e14ea63", "e3fca1e6d81137d6", "f043ae98075c8e4d",
         "9ca89383b9957b07",

@@ -59,6 +59,51 @@ struct MenuBarAutomaticWindowLabelsTests {
     }
 
     @Test
+    func `automatic tokens on one line name their window once`() {
+        let renderer = MenuBarLayoutRenderer()
+        let layout = MenuBarLayout(lines: [[.percent(window: .automatic), .pace(window: .automatic)]])
+        for weekly in [false, true] {
+            let data = self.data(weekly: weekly)
+            let prefix = weekly ? "W" : "5h"
+            let visible = renderer.render(layout: layout, data: data, icon: nil, options: self.options())
+            #expect(visible.attributedTitle.string == "\(prefix) 84%\u{2009}+7%")
+            let hidden = renderer.render(
+                layout: layout, data: data, icon: nil, options: self.options(showLabels: false))
+            #expect(hidden.attributedTitle.string == "84%\u{2009}+7%")
+            let percent = renderer.render(
+                layout: MenuBarLayout(lines: [[.percent(window: .automatic)]]),
+                data: data,
+                icon: nil,
+                options: self.options())
+            let pace = renderer.render(
+                layout: MenuBarLayout(lines: [[.pace(window: .automatic)]]),
+                data: data,
+                icon: nil,
+                options: self.options())
+            #expect(visible.accessibilityLabel == "\(percent.accessibilityLabel), \(pace.accessibilityLabel)")
+        }
+    }
+
+    @Test
+    func `automatic tokens repeat their label only after another window`() {
+        let renderer = MenuBarLayoutRenderer()
+        let data = self.data()
+        let cases: [([MenuBarLayoutToken], String)] = [
+            (
+                [.percent(window: .automatic), .percent(window: .weekly), .pace(window: .automatic)],
+                "5h 84%\u{2009}W 84%\u{2009}5h +7%"),
+            ([.percent(window: .session), .pace(window: .automatic)], "5h 84%\u{2009}+7%"),
+            ([.percent(window: .automatic), .space, .resetCountdown], "5h 84% in 2h"),
+            ([.percent(window: .automatic), .separatorDot, .resetCountdown], "5h 84%\u{2009}·\u{2009}in 2h"),
+        ]
+        for (tokens, expected) in cases {
+            let output = renderer.render(
+                layout: MenuBarLayout(lines: [tokens]), data: data, icon: nil, options: self.options())
+            #expect(output.attributedTitle.string == expected)
+        }
+    }
+
+    @Test
     func `single quota and automatic balance text remain bare`() {
         let renderer = MenuBarLayoutRenderer()
         let layout = MenuBarLayout(lines: [[.percent(window: .automatic)]])

@@ -188,7 +188,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [X API](docs/xapi.md) — Browser or manual console.x.com cookies for prepaid and free credits, including negative balances.
 - [Future AGI](docs/futureagi.md) — API key and secret key (billing-period usage, allowances, and estimated cost).
 - [LithosAI](docs/lithosai.md) — Browser or manual console cookies for prepaid USD balance and optional UTC spend.
-- [WorkBuddy](docs/workbuddy.md) — Chrome or manual www.workbuddy.cn cookies for the monthly credits allowance, plan name, and cycle reset.
+- [WorkBuddy](docs/workbuddy.md) — Chrome or manual www.workbuddy.cn cookies for the monthly credits allowance, plan name, cycle reset, and the platform reward credits.
 - [Tavily](docs/tavily.md) — API key for account-plan, per-key, and pay-as-you-go credit totals.
 - [Linkup](docs/linkup.md) — API key for the current prepaid USD credit balance.
 - [TinyApi](docs/tinyapi.md) — Browser or manual session cookies for aggregate available credits.
@@ -227,7 +227,7 @@ show an incident indicator.
 - Bundled CLI (`codexbar`) for scripts and CI (including `codexbar cost --provider codex`, `claude`, or `both` for local cost usage); macOS and Linux CLI builds available.
 - WidgetKit widgets for supported providers.
 - Localized app and website with a shared 23-language catalog, automatic website detection, persistent pickers, and RTL support.
-- Optional session quota notifications and weekly-reset confetti.
+- Optional session quota notifications, upcoming-reset warnings for unused Codex quota, and weekly-reset confetti.
 - Privacy-first: on-device parsing by default; browser cookies are opt-in and reused (no passwords stored).
 
 ## Privacy note

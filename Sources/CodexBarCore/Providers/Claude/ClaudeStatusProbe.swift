@@ -455,12 +455,7 @@ extension ClaudeStatusProbe {
     }
 
     private static func extractPercent(labelSubstrings: [String], context: LabelSearchContext) -> Int? {
-        for label in labelSubstrings {
-            if let value = self.extractPercent(labelSubstring: label, context: context) {
-                return value
-            }
-        }
-        return nil
+        labelSubstrings.lazy.compactMap { self.extractPercent(labelSubstring: $0, context: context) }.first
     }
 
     private struct ScopedWeeklyUsage {
@@ -756,8 +751,8 @@ extension ClaudeStatusProbe {
     /// notice; `loadingusage` is not treated as quota data in this check so mixed captures surface correctly.
     private static func isSubscriptionNoticeOnly(text: String) -> Bool {
         let normalized = text.lowercased().filter { !$0.isWhitespace }
-        guard normalized.contains("currentlyusingyoursubscription") else { return false }
-        guard normalized.contains("claudecodeusage") else { return false }
+        guard normalized.contains("currentlyusingyoursubscription"),
+              normalized.contains("claudecodeusage") else { return false }
         // Only real session/week labels and actual percentage values count as quota data.
         // `loadingusage` is not quota data — a mixed loading+subscription PTY capture should
         // surface the subscription error, not a still-loading stall.
@@ -893,16 +888,15 @@ extension ClaudeStatusProbe {
     }
 
     private static func weeklyModelName(from line: String) -> String? {
-        guard let regex = try? NSRegularExpression(
-            pattern: #"current\s*week\s*\(([^)]+)\)"#,
-            options: [.caseInsensitive])
-        else { return nil }
-        let range = NSRange(line.startIndex..<line.endIndex, in: line)
-        guard let match = regex.firstMatch(in: line, options: [], range: range),
-              match.numberOfRanges >= 2,
-              let modelRange = Range(match.range(at: 1), in: line)
-        else { return nil }
-        return String(line[modelRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+        self.extractFirst(pattern: #"current\s*week\s*\(([^)]+)\)"#, text: line)
+    }
+
+    static func modelBreakdownNotice(in text: String) -> String? {
+        let clean = self.cleanCapture(text)
+        // Preserve the diagnostic, without advertising the CLI's interactive retry shortcut.
+        return self.extractFirst(
+            pattern: #"(Per-model breakdown unavailable(?:[ \t]*\([^\r\n)]*\))?)"#,
+            text: self.trimToLatestUsagePanel(clean) ?? clean)
     }
 
     /// Recognizes the "all models" weekly bucket even when the TUI capture dropped or duplicated a
@@ -1135,9 +1129,8 @@ extension ClaudeStatusProbe {
               let month = target.month,
               let day = target.day,
               let hour = target.hour,
-              let minute = target.minute
-        else { return [] }
-        guard let firstApproximation = calendar.date(from: target) else { return [] }
+              let minute = target.minute,
+              let firstApproximation = calendar.date(from: target) else { return [] }
         let approximationComponents = calendar.dateComponents(
             [.year, .month, .day, .hour, .minute, .second],
             from: firstApproximation)

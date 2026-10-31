@@ -564,6 +564,13 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
 | ![claude-swap card before scoped windows](screenshots/claude-swap-scoped-before.png) | ![claude-swap card with a Fable scoped weekly window](screenshots/claude-swap-scoped-after.png) |
 
 ## CLI PTY (fallback)
+
+When Claude Code reports `Per-model breakdown unavailable`, CodexBar keeps the current session and all-model
+weekly quotas and carries the CLI's notice in a `usage.details` row with ID `claude-model-breakdown`.
+This distinguishes an unavailable model breakdown from an account with no model-specific limit in
+`codexbar usage --json` and `codexbar serve`'s `/usage` response. The notice is upstream CLI text; it disappears
+with the next successful breakdown. The compact `/dashboard/v1/snapshot` schema does not expose usage details.
+
 - Runs `claude` in a PTY session (`ClaudeCLISession`).
 - The PTY and replay screen share a 160-column, 200-row viewport so tall inline `/usage` panels retain their session,
   weekly, and model-specific quotas alongside session statistics and usage insights. Erased content remains discarded.

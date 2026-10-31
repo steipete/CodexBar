@@ -303,7 +303,8 @@ struct CodexCLIUsageStrategy: ProviderFetchStrategy {
                         primary: nil,
                         secondary: nil,
                         updatedAt: credits.updatedAt,
-                        identity: snapshot.identity),
+                        identity: snapshot.identity,
+                        planObservation: snapshot.planObservation),
                     credits: credits),
                 credits: credits,
                 sourceLabel: "codex-cli")
@@ -658,7 +659,11 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
                 updatedAt: updatedAt,
                 identity: CodexReconciledState.oauthIdentity(
                     response: usageResponse,
-                    credentials: credentials))
+                    credentials: credentials),
+                planObservation: CodexReconciledState.oauthPlanObservation(
+                    response: usageResponse,
+                    credentials: credentials,
+                    observedAt: updatedAt))
         }
         let strategy = Self()
         return ProviderFetchResult(
