@@ -173,7 +173,22 @@ enum DashboardSnapshotBuilder {
                 ? accountCollection?.adapterError.map {
                     accountPayloads != nil && identityMode != .full ? "Account list unavailable" : $0
                 }
-                : accountCollectionIncomplete ? "Account list incomplete" : nil)
+                : accountCollectionIncomplete ? "Account list incomplete" : nil,
+            warnings: self.makeWarnings(provider: provider, usage: payload.usage))
+    }
+
+    /// Surfaces partial-data notices that would otherwise look like an absent limit.
+    static func makeWarnings(provider: UsageProvider?, usage: UsageSnapshot?) -> [DashboardWarningPayload] {
+        guard provider == .claude, let usage else { return [] }
+        return usage.details
+            .flatMap(\.rows)
+            .filter { $0.id == ClaudeStatusProbe.modelBreakdownDetailRowID }
+            .prefix(1)
+            .map {
+                DashboardWarningPayload(
+                    code: DashboardWarningPayload.claudeModelBreakdownUnavailable,
+                    message: $0.value)
+            }
     }
 
     private static func accountCollectionIncomplete(

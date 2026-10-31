@@ -2,6 +2,10 @@
 
 ## 0.83.1 — Unreleased
 
+### Fixed
+
+- Dashboard API: flag Claude's unavailable per-model breakdown as a `providers[].warnings` entry instead of silently omitting the model-specific window (#4809).
+
 ## 0.83.0 — 2026-10-31
 
 ### Highlights
