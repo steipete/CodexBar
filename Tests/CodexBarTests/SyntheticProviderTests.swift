@@ -17,6 +17,65 @@ struct SyntheticSettingsReaderTests {
 }
 
 struct SyntheticPluginGoldenTests {
+    @Test(arguments: [false, true])
+    func `plan weekly quota ignores retired subscription and preserves search`(wrapped: Bool) async throws {
+        let body = """
+        {
+          "subscription": { "limit": 500, "requests": 0, "renewsAt": "2026-10-31T15:15:05.743Z" },
+          "search": {
+            "hourly": { "limit": 250, "requests": 0, "renewsAt": "2026-10-31T11:15:05.743Z" }
+          },
+          "planWeeklyLimit": {
+            "nextRegenAt": "2026-10-31T12:14:13.000Z",
+            "percentRemaining": 99.47981765714286,
+            "nextRegenPercent": 2
+          }
+        }
+        """
+        let snapshot = try await Self.fetch(wrapped ? "{\"data\":\(body)}" : body)
+
+        #expect(snapshot.primary == nil)
+        let weekly = try #require(snapshot.secondary)
+        #expect(abs(weekly.usedPercent - 0.52018234285714) < 0.000001)
+        #expect(weekly.resetsAt == ISO8601DateFormatter().date(from: "2026-10-31T12:14:13Z"))
+        #expect(weekly.nextRegenPercent == 2)
+        #expect(snapshot.tertiary?.usedPercent == 0)
+        #expect(snapshot.providerCost == nil)
+    }
+
+    @Test(arguments: [0.0, 0.5, 1.0, 100.0])
+    func `plan weekly percentages use percentage points even near exhaustion`(remaining: Double) async throws {
+        let snapshot = try await Self.fetch("""
+        {
+          "planWeeklyLimit": {
+            "percentRemaining": \(remaining),
+            "nextRegenPercent": 0.5
+          }
+        }
+        """)
+
+        #expect(snapshot.primary == nil)
+        #expect(snapshot.secondary?.usedPercent == 100 - remaining)
+        #expect(snapshot.secondary?.nextRegenPercent == 0.5)
+        #expect(snapshot.tertiary == nil)
+    }
+
+    @Test
+    func `legacy rolling and weekly quotas retain fractional percentages`() async throws {
+        let snapshot = try await Self.fetch("""
+        {
+          "rollingFiveHourLimit": { "percentRemaining": 0.75, "tickPercent": 0.02 },
+          "weeklyTokenLimit": { "percentRemaining": 0.98 },
+          "search": { "hourly": { "limit": 250, "requests": 5 } }
+        }
+        """)
+
+        #expect(snapshot.primary?.usedPercent == 25)
+        #expect(snapshot.primary?.nextRegenPercent == 2)
+        #expect(snapshot.secondary?.usedPercent == 2)
+        #expect(snapshot.tertiary?.usedPercent == 2)
+    }
+
     @Test
     func `generic quota fixture matches the production golden`() async throws {
         let snapshot = try await Self.fetch("""

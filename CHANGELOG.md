@@ -30,6 +30,7 @@
 
 ### Fixed
 
+- Synthetic: display the new weekly credit quota and regeneration details, and hide the retired five-hour counter for current plans.
 - Codex: apply GPT-6.1 Sol Fast pricing, including long-context requests, and refresh request tiers when a turn resumes. (#4814) Thanks @cassiarota!
 - LiteLLM: show member overrides or the team's default budget with matching team-scoped spend, ignoring mismatched memberships (#4842, #4843). Thanks @cnietoc!
 - Claude: isolate watchdog children at spawn, preserve their exit status, and clean up only session-owned processes and sleep inhibitors (#4829, #4830). Thanks @Quinnod345!

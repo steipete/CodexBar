@@ -45,6 +45,25 @@ struct SyntheticMenuCardTests {
     }
 
     @Test
+    func `weekly percentage quota shows regeneration without credit amounts`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let weekly = RateWindow(
+            usedPercent: 5,
+            windowMinutes: nil,
+            resetsAt: now.addingTimeInterval(3600),
+            resetDescription: nil,
+            nextRegenPercent: 2)
+        let model = try Self.makeModel(primary: nil, secondary: weekly, now: now)
+        let metric = try #require(model.metrics.first(where: { $0.id == "secondary" }))
+
+        #expect(metric.percent == 95)
+        #expect(metric.title == "Weekly quota")
+        #expect(metric.resetText?.hasPrefix("Regenerates") == true)
+        #expect(metric.detailLeftText == "97% after next regen")
+        #expect(metric.detailRightText == "Full in ~3 regens")
+    }
+
+    @Test
     func `rolling regen text uses parsed tickPercent not hardcoded fallback`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let primary = RateWindow(
