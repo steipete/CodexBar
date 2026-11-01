@@ -40,16 +40,22 @@ The parser first looks for Synthetic's known quota slots, either at the root
 of the response or under `data`:
 
 - `rollingFiveHourLimit` -> Five-hour quota
-- `weeklyTokenLimit` -> Weekly tokens
+- `planWeeklyLimit` -> Weekly credits (percent remaining, next regeneration time, and next regeneration percent)
+- `weeklyTokenLimit` -> Weekly tokens, used when `planWeeklyLimit` is absent
 - `search.hourly` -> Search hourly
+
+`subscription` on current plans is a legacy request counter. CodexBar ignores it
+when any known lane above is present. A response that only contains
+`subscription` still maps that counter into the primary quota slot.
 
 If those keys are absent, CodexBar falls back to generic quota payloads such as
 `quotas`, `quota`, `limits`, `usage`, `entries`, or `subscription`.
 
 ## Display
 
-- The menu card shows the five-hour, weekly token, and search-hourly lanes when present. The compact menu bar metric
-  uses the five-hour or weekly lane.
+- The menu card shows the five-hour, weekly, and search-hourly lanes when present. Weekly credits from
+  `planWeeklyLimit` keep the returned percent (for example 99.60% left) and read
+  `Regenerates 2% in 3h 11m`. The compact menu bar metric uses the five-hour or weekly lane.
 - Usage is normalized from percent fields when present, or computed from used/remaining/limit values.
 - Reset timestamps are shown when Synthetic returns one. When no timestamp is available, CodexBar uses the returned
   or inferred window duration when present.

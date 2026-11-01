@@ -17,6 +17,14 @@ public enum SyntheticProviderDescriptor {
         environmentKey: SyntheticSettingsReader.apiKeyKey,
         missingCredentialMessage: { _ in SyntheticSettingsError.missingToken.errorDescription },
         presentation: ProviderUsagePresentation(
+            rateWindowLabeler: { metadata, snapshot, _ in
+                let weeklyCredits = snapshot.secondary?.nextRegenPercent != nil
+                return ProviderRateWindowLabels(
+                    primary: metadata.sessionLabel,
+                    secondary: weeklyCredits ? "Weekly credits" : metadata.weeklyLabel,
+                    tertiary: metadata.opusLabel ?? "Search hourly",
+                    showsTertiary: metadata.supportsOpus)
+            },
             costPresenter: { _ in ProviderCostPresentation(menuCardStyle: .hidden) },
             menuCard: ProviderMenuCardPresentation(usesSyntheticRollingRegen: true)),
         aliases: ["synthetic.new"],

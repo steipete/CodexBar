@@ -52,6 +52,7 @@ struct UsageMenuCardView: View {
             var sessionEquivalentDetail: UsagePaceText.SessionEquivalentDetail?
             let isSyntheticCreditLane: Bool
             var helpText: String?
+            let percentLabelOverride: String?
 
             init(
                 id: String,
@@ -71,7 +72,8 @@ struct UsageMenuCardView: View {
                 workdayTickAppearance: WorkdayTickAppearance = .subtle,
                 cardStyle: Bool = false,
                 sessionEquivalentDetail: UsagePaceText.SessionEquivalentDetail? = nil,
-                isSyntheticCreditLane: Bool = false)
+                isSyntheticCreditLane: Bool = false,
+                percentLabelOverride: String? = nil)
             {
                 self.id = id
                 self.title = title
@@ -91,10 +93,14 @@ struct UsageMenuCardView: View {
                 self.cardStyle = cardStyle
                 self.sessionEquivalentDetail = sessionEquivalentDetail
                 self.isSyntheticCreditLane = isSyntheticCreditLane
+                self.percentLabelOverride = percentLabelOverride
             }
 
             var percentLabel: String {
-                UsageFormatter.percentText(self.percent, suffix: self.percentStyle.labelSuffix)
+                if let percentLabelOverride = self.percentLabelOverride {
+                    return percentLabelOverride
+                }
+                return UsageFormatter.percentText(self.percent, suffix: self.percentStyle.labelSuffix)
             }
 
             func linePresentation(title: String) -> LinePresentation {
@@ -1478,11 +1484,21 @@ extension UsageMenuCardView.Model {
         {
             weeklyResetText = regen.resetText
             paceDetail = regen.pace
+        } else if input.provider == .synthetic,
+                  let regen = Self.syntheticPlanWeeklyRegenDetail(
+                      window: weekly,
+                      now: input.now,
+                      showUsed: input.usageBarsShowUsed)
+        {
+            weeklyResetText = regen.resetText
+            paceDetail = regen.pace
         }
+        let displayedPercent = Self.clamped(
+            input.usageBarsShowUsed ? weekly.usedPercent : weekly.remainingPercent)
         return Metric(
             id: "secondary",
             title: title ?? L(input.metadata.weeklyLabel),
-            percent: Self.clamped(input.usageBarsShowUsed ? weekly.usedPercent : weekly.remainingPercent),
+            percent: displayedPercent,
             percentStyle: percentStyle,
             statusText: nil,
             resetText: weeklyResetText,
@@ -1504,7 +1520,11 @@ extension UsageMenuCardView.Model {
             sessionEquivalentDetail: Self.sessionEquivalentDetail(
                 input: input,
                 weeklyWindow: weekly,
-                weeklyWindowID: nil))
+                weeklyWindowID: nil),
+            percentLabelOverride: Self.syntheticFractionalPercentLabel(
+                percent: displayedPercent,
+                suffix: percentStyle.labelSuffix,
+                enabled: input.provider == .synthetic && weekly.nextRegenPercent != nil))
     }
 }
 

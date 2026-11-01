@@ -103,4 +103,22 @@ struct SyntheticMenuCardTests {
         // remaining 99% + 2% next regen caps at 100% → "100% after next regen".
         #expect(weekly.detailLeftText == "100% after next regen")
     }
+
+    @Test
+    func `plan weekly credits show the regeneration percent and precise remaining`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let secondary = RateWindow(
+            usedPercent: 100 - 99.60392845714286,
+            windowMinutes: nil,
+            resetsAt: now.addingTimeInterval((3 * 60 + 11) * 60),
+            resetDescription: nil,
+            nextRegenPercent: 2)
+        let model = try Self.makeModel(primary: nil, secondary: secondary, now: now)
+        let weekly = try #require(model.metrics.first(where: { $0.id == "secondary" }))
+        #expect(weekly.title == "Weekly credits")
+        #expect(weekly.percentLabel == "99.60% left")
+        #expect(weekly.resetText == "Regenerates 2% in 3h 11m")
+        #expect(weekly.detailLeftText == "100% after next regen")
+        #expect(weekly.detailRightText == "Full in ~1 regen")
+    }
 }

@@ -199,6 +199,68 @@ struct ProviderPluginParityTests {
     }
 
     @Test
+    func `Synthetic plan weekly limit ignores the legacy request counter`() async throws {
+        let body = """
+        {
+          "subscription": {
+            "limit": 500,
+            "requests": 0,
+            "renewsAt": "2026-11-01T09:33:15.773Z"
+          },
+          "search": {
+            "hourly": {
+              "limit": 250,
+              "requests": 3,
+              "renewsAt": "2026-11-01T05:32:57.774Z"
+            }
+          },
+          "planWeeklyLimit": {
+            "nextRegenAt": "2026-11-01T07:41:28.000Z",
+            "percentRemaining": 99.60392845714286,
+            "nextRegenPercent": 2
+          }
+        }
+        """
+        let transport = Self.transport(body: body)
+        let runtime = try ProviderPluginRuntime(bundledPlugin: "synthetic", transport: transport)
+        let script = try await runtime.fetchUsage(secrets: ["SYNTHETIC_API_KEY": "fixture-key"])
+
+        let weeklyReset = try Self.isoDate("2026-11-01T07:41:28.000Z")
+        let searchReset = try Self.isoDate("2026-11-01T05:32:57.774Z")
+
+        #expect(script.primary == nil)
+        #expect(script.providerCost == nil)
+        #expect(script.identity?.loginMethod == nil)
+        #expect(script.secondary?.nextRegenPercent == 2)
+        #expect(script.secondary?.resetsAt == weeklyReset)
+        #expect(abs((script.secondary?.usedPercent ?? -1) - (100 - 99.60392845714286)) < 0.000_000_1)
+        #expect(script.tertiary?.resetsAt == searchReset)
+        #expect(abs((script.tertiary?.usedPercent ?? -1) - 1.2) < 0.000_000_1)
+    }
+
+    @Test
+    func `Synthetic subscription-only response still parses the request counter`() async throws {
+        let body = """
+        {
+          "subscription": {
+            "limit": 135,
+            "requests": 0,
+            "renewsAt": "2025-09-21T14:36:14.288Z"
+          }
+        }
+        """
+        let transport = Self.transport(body: body)
+        let runtime = try ProviderPluginRuntime(bundledPlugin: "synthetic", transport: transport)
+        let script = try await runtime.fetchUsage(secrets: ["SYNTHETIC_API_KEY": "fixture-key"])
+
+        let renewsAt = try Self.isoDate("2025-09-21T14:36:14.288Z")
+        #expect(script.primary?.usedPercent == 0)
+        #expect(script.primary?.resetsAt == renewsAt)
+        #expect(script.secondary == nil)
+        #expect(script.tertiary == nil)
+    }
+
+    @Test
     func `Venice fixture matches the cut-over golden`() async throws {
         let body = """
         {
@@ -344,6 +406,12 @@ struct ProviderPluginParityTests {
         // in both implementations.
         #expect(script.primary?.usedPercent == 9.0914810042)
         #expect(script.detailRow(label: "API key remaining")?.value == "$454.54")
+    }
+
+    private static func isoDate(_ value: String) throws -> Date {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return try #require(formatter.date(from: value))
     }
 
     private static func transport(body: String) -> ProviderHTTPTransportHandler {

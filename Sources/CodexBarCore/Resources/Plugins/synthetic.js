@@ -266,9 +266,14 @@ defineProvider({
         const description = windowDescription(minutes);
         if (description !== null) window.resetDescription = description;
       }
-      const tickPercent = normalizedPercent(
-        firstNumber(payload, ["tickPercent", "tick_percent", "nextTickPercent", "next_tick_percent"]),
-      );
+      // nextRegenPercent is already a 0-100 percent. tickPercent is a fraction (0.05 = 5%).
+      const explicitRegenPercent = firstNumber(payload, ["nextRegenPercent", "next_regen_percent"]);
+      const tickPercent =
+        explicitRegenPercent !== null
+          ? explicitRegenPercent
+          : normalizedPercent(
+              firstNumber(payload, ["tickPercent", "tick_percent", "nextTickPercent", "next_tick_percent"]),
+            );
       if (tickPercent !== null) window.nextRegenPercent = tickPercent;
 
       const costLimit = firstCurrency(payload, ["maxCredits", "max_credits"]);
@@ -308,7 +313,9 @@ defineProvider({
     const slots = [
       namedQuota(root.rollingFiveHourLimit, "Rolling five-hour limit") ||
         namedQuota(data && data.rollingFiveHourLimit, "Rolling five-hour limit"),
-      namedQuota(root.weeklyTokenLimit, "Weekly token limit") ||
+      namedQuota(root.planWeeklyLimit, "Weekly credits") ||
+        namedQuota(data && data.planWeeklyLimit, "Weekly credits") ||
+        namedQuota(root.weeklyTokenLimit, "Weekly token limit") ||
         namedQuota(data && data.weeklyTokenLimit, "Weekly token limit"),
       namedQuota(root.search && root.search.hourly, "Search hourly") ||
         namedQuota(data && data.search && data.search.hourly, "Search hourly"),

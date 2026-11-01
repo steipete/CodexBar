@@ -64,6 +64,29 @@ struct SyntheticPluginGoldenTests {
         #expect(snapshot.providerCost?.used == 0.7000000000000028)
     }
 
+    @Test
+    func `plan weekly limit keeps credits and drops the legacy request counter`() async throws {
+        let snapshot = try await Self.fetch("""
+        {
+          "subscription": { "limit": 500, "requests": 0, "renewsAt": "2026-11-01T09:33:15.773Z" },
+          "search": {
+            "hourly": { "limit": 250, "requests": 3, "renewsAt": "2026-11-01T05:32:57.774Z" }
+          },
+          "planWeeklyLimit": {
+            "nextRegenAt": "2026-11-01T07:41:28.000Z",
+            "percentRemaining": 99.60392845714286,
+            "nextRegenPercent": 2
+          }
+        }
+        """)
+
+        #expect(snapshot.primary == nil)
+        #expect(snapshot.providerCost == nil)
+        #expect(snapshot.secondary?.nextRegenPercent == 2)
+        #expect(abs((snapshot.secondary?.usedPercent ?? -1) - (100 - 99.60392845714286)) < 0.000_000_1)
+        #expect(abs((snapshot.tertiary?.usedPercent ?? -1) - 1.2) < 0.000_000_1)
+    }
+
     private static func fetch(_ body: String) async throws -> UsageSnapshot {
         let transport = ProviderHTTPTransportHandler { request in
             let response = try #require(HTTPURLResponse(

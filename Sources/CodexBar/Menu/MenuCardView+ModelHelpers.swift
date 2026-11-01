@@ -1284,4 +1284,45 @@ extension UsageMenuCardView.Model {
             paceOnTop: true,
             isPaceDerived: true))
     }
+
+    /// Percent-only weekly plans report the regeneration size in the reset line
+    /// (`Regenerates 2% in 3h 11m`) because a near-full bar hides that size in the pace labels.
+    static func syntheticPlanWeeklyRegenDetail(
+        window: RateWindow,
+        now: Date,
+        showUsed: Bool) -> (resetText: String, pace: PaceDetail)?
+    {
+        guard let resetsAt = window.resetsAt,
+              let nextRegenPercent = window.nextRegenPercent,
+              nextRegenPercent > 0,
+              let rolling = syntheticRollingRegenDetail(window: window, now: now, showUsed: showUsed)
+        else { return nil }
+
+        let countdown = UsageFormatter.resetCountdownDescription(from: resetsAt, now: now)
+        let resetText = String(
+            format: L("Regenerates %@"),
+            "\(syntheticRegenPercentText(nextRegenPercent)) \(countdown)")
+        return (resetText, rolling.pace)
+    }
+
+    static func syntheticFractionalPercentLabel(percent: Double, suffix: String, enabled: Bool) -> String? {
+        guard enabled else { return nil }
+        let clamped = min(100, max(0, percent))
+        let hundredths = (clamped * 100).rounded() / 100
+        guard abs(hundredths - hundredths.rounded()) >= 0.01 else { return nil }
+        return "\(String(format: "%.2f%%", hundredths)) \(suffix)"
+    }
+
+    private static func syntheticRegenPercentText(_ percent: Double) -> String {
+        let clamped = min(100, max(0, percent))
+        let hundredths = (clamped * 100).rounded() / 100
+        if abs(hundredths - hundredths.rounded()) < 0.001 {
+            return String(format: "%.0f%%", hundredths)
+        }
+        let tenths = (clamped * 10).rounded() / 10
+        if abs(hundredths - tenths) < 0.001 {
+            return String(format: "%.1f%%", tenths)
+        }
+        return String(format: "%.2f%%", hundredths)
+    }
 }
