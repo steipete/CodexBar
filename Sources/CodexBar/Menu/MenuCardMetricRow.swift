@@ -9,6 +9,11 @@ struct MetricRow: View {
     var compact = false
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
+    /// Only the critical tier replaces the provider tint, so healthy bars keep their brand color.
+    private var barTint: Color {
+        self.metric.isCriticallyLow ? Color(nsColor: .systemRed) : self.progressColor
+    }
+
     var body: some View {
         let presentation = self.metric.linePresentation(title: self.title)
         let layoutPresentation = self.layoutMetric.linePresentation(title: self.title)
@@ -31,7 +36,7 @@ struct MetricRow: View {
                     isCriticallyLow: self.metric.isCriticallyLow)
                 UsageProgressBar(
                     percent: self.metric.percent,
-                    tint: self.metric.isCriticallyLow ? Color(nsColor: .systemRed) : self.progressColor,
+                    tint: self.barTint,
                     accessibilityLabel: self.metric.percentStyle.accessibilityLabel,
                     pacePercent: self.metric.pacePercent,
                     paceOnTop: self.metric.paceOnTop,

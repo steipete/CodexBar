@@ -2,6 +2,10 @@
 
 ## 0.83.1 — Unreleased
 
+### Changed
+
+- Menu: mark critically low quota windows with a red bar and warning glyph while reserving the glyph's width so live updates keep the frozen header layout (#4881).
+
 ## 0.83.0 — 2026-10-31
 
 ### Highlights
