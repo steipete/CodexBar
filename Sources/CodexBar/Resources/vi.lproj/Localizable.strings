@@ -2405,6 +2405,7 @@
 "<1%% %@" = "<1%% %@";
 
 "%.0f%% %@" = "%.0f%% %@";
+"%.2f%% %@" = "%.2f%% %@";
 
 // Completed Codex turn timing.
 "spend_turn_performance_help" = "Đầu ra mỗi lượt tính cả suy luận, công cụ và thời gian chờ. Đây không phải tốc độ tạo token của mô hình. Token đầu tiên là trung vị thời gian đến token đầu tiên của mô hình, có thể là token suy luận. Chỉ tính các lượt hoàn tất và được đo thời gian thành công. Thời lượng mỗi lượt là trung vị thời gian thực tế của các lượt hoàn tất.";

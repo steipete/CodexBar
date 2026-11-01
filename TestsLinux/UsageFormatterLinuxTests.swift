@@ -12,4 +12,20 @@ struct UsageFormatterLinuxTests {
         #expect(UsageFormatter.usageLine(remaining: 25, used: 75, showUsed: true) == "75% used")
         #expect(UsageFormatter.usageLine(remaining: 0.75, used: 99.25, showUsed: false) == "<1% left")
     }
+
+    @Test
+    func `fractional percent keeps hundredths and localized suffix order`() {
+        UsageFormatter.clearLocalizationProvider()
+        UsageFormatter.clearLocaleProvider()
+
+        #expect(UsageFormatter.fractionalPercentText(99.60392845714286, suffix: "left") == "99.60% left")
+        #expect(UsageFormatter.fractionalPercentText(2.01, suffix: "left") == "2.01% left")
+        #expect(UsageFormatter.fractionalPercentText(2, suffix: "left") == nil)
+
+        UsageFormatter.setLocalizationProvider { key in
+            key == "%.2f%% %@" ? "%2$@ %1$.2f%%" : key
+        }
+        #expect(UsageFormatter.fractionalPercentText(99.6, suffix: "剩余") == "剩余 99.60%")
+        UsageFormatter.clearLocalizationProvider()
+    }
 }

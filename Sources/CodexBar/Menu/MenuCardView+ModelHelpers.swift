@@ -1311,10 +1311,7 @@ extension UsageMenuCardView.Model {
 
     static func syntheticFractionalPercentLabel(percent: Double, suffix: String, enabled: Bool) -> String? {
         guard enabled else { return nil }
-        let clamped = min(100, max(0, percent))
-        let hundredths = (clamped * 100).rounded() / 100
-        guard abs(hundredths - hundredths.rounded()) >= 0.01 else { return nil }
-        return "\(String(format: "%.2f%%", hundredths)) \(suffix)"
+        return UsageFormatter.fractionalPercentText(percent, suffix: suffix)
     }
 
     private static func syntheticRegenPercentText(_ percent: Double) -> String {

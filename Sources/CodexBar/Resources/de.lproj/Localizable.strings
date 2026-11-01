@@ -2406,6 +2406,7 @@
 "<1%% %@" = "<1%% %@";
 
 "%.0f%% %@" = "%.0f%% %@";
+"%.2f%% %@" = "%.2f%% %@";
 
 // Completed Codex turn timing.
 "spend_turn_performance_help" = "Die Ausgabe pro Gesprächsrunde berücksichtigt Reasoning, Werkzeuge und Wartezeiten. Sie entspricht nicht der Generierungsgeschwindigkeit des Modells. Erstes Token ist die mediane Zeit bis zum ersten Token des Modells, das zum Reasoning gehören kann. Es werden nur abgeschlossene Gesprächsrunden mit erfolgreicher Zeitmessung berücksichtigt. Die Dauer pro Gesprächsrunde ist der Median der verstrichenen Zeit abgeschlossener Gesprächsrunden.";

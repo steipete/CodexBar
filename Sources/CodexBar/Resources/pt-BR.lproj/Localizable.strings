@@ -2404,6 +2404,7 @@
 "<1%% %@" = "<1%% %@";
 
 "%.0f%% %@" = "%.0f%% %@";
+"%.2f%% %@" = "%.2f%% %@";
 
 // Completed Codex turn timing.
 "spend_turn_performance_help" = "A saída por turno considera raciocínio, ferramentas e esperas. Ela não é a velocidade de geração do modelo. Primeiro token é a mediana do tempo até o primeiro token do modelo, que pode ser de raciocínio. Apenas turnos concluídos e cronometrados corretamente são incluídos. A duração do turno é a mediana do tempo decorrido dos turnos concluídos.";

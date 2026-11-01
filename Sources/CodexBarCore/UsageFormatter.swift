@@ -92,6 +92,15 @@ public enum UsageFormatter {
         return self.localized("%.0f%% %@", clamped, suffix)
     }
 
+    /// Two-decimal percent label. Returns nil when the hundredths already match a whole percent
+    /// so callers keep the integer format. Uses the same localized layout as `percentText`.
+    public static func fractionalPercentText(_ percent: Double, suffix: String) -> String? {
+        let clamped = min(100, max(0, percent))
+        let hundredths = (clamped * 100).rounded() / 100
+        guard hundredths != hundredths.rounded() else { return nil }
+        return self.localized("%.2f%% %@", hundredths, suffix)
+    }
+
     public static func usageLine(remaining: Double, used: Double, showUsed: Bool) -> String {
         let percent = showUsed ? used : remaining
         let suffix = showUsed

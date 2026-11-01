@@ -2408,6 +2408,7 @@
 "<1%% %@" = "<1%% %@";
 
 "%.0f%% %@" = "%.0f%% %@";
+"%.2f%% %@" = "%.2f%% %@";
 
 // Completed Codex turn timing.
 "spend_turn_performance_help" = "La sortida per torn té en compte el raonament, les eines i les esperes. No és la velocitat de generació del model. Primer token és la mediana del temps fins al primer token del model, que pot ser de raonament. Només s’hi inclouen torns completats i cronometrats correctament. La durada del torn és la mediana del temps transcorregut dels torns completats.";

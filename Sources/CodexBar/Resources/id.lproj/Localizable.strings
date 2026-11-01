@@ -2408,6 +2408,7 @@
 "<1%% %@" = "<1%% %@";
 
 "%.0f%% %@" = "%.0f%% %@";
+"%.2f%% %@" = "%.2f%% %@";
 
 // Completed Codex turn timing.
 "spend_turn_performance_help" = "Output giliran mencakup penalaran, alat, dan waktu tunggu. Ini bukan kecepatan model menghasilkan token. Token pertama adalah median waktu hingga token pertama model, yang dapat berupa penalaran. Hanya giliran yang selesai dan berhasil diukur waktunya yang disertakan. Durasi giliran adalah median waktu yang berlalu untuk giliran yang selesai.";

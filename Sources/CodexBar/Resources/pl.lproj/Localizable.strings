@@ -2407,6 +2407,7 @@
 "<1%% %@" = "<1%% %@";
 
 "%.0f%% %@" = "%.0f%% %@";
+"%.2f%% %@" = "%.2f%% %@";
 
 // Completed Codex turn timing.
 "spend_turn_performance_help" = "Pomiar danych wyjściowych tury rozmowy uwzględnia rozumowanie, narzędzia i oczekiwanie. Nie jest to prędkość generowania modelu. Pierwszy token to mediana czasu do pierwszego tokenu modelu, który może należeć do rozumowania. Uwzględniane są tylko ukończone tury rozmowy z poprawnym pomiarem czasu. Czas trwania tury rozmowy to mediana czasu, który upłynął w ukończonych turach.";

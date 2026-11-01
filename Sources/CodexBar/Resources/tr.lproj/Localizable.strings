@@ -2407,6 +2407,7 @@
 "<1%% %@" = "<1%% %@";
 
 "%.0f%% %@" = "%.0f%% %@";
+"%.2f%% %@" = "%.2f%% %@";
 
 // Completed Codex turn timing.
 "spend_turn_performance_help" = "Konuşma turu çıktısı hesaplanırken akıl yürütme, araçlar ve beklemeler dikkate alınır. Bu, modelin üretim hızı değildir. İlk token, modelin ilk tokenına kadar geçen sürenin medyanıdır; bu token akıl yürütmenin bir parçası olabilir. Yalnızca tamamlanmış ve süresi başarıyla ölçülmüş konuşma turları dahil edilir. Konuşma turu süresi, tamamlanmış turlarda geçen sürelerin medyanıdır.";

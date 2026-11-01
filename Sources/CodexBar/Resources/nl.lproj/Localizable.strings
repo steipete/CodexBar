@@ -2403,6 +2403,7 @@
 "<1%% %@" = "<1%% %@";
 
 "%.0f%% %@" = "%.0f%% %@";
+"%.2f%% %@" = "%.2f%% %@";
 
 // Completed Codex turn timing.
 "spend_turn_performance_help" = "Bij de uitvoer per gespreksbeurt tellen redeneren, tools en wachttijden mee. Dit is niet de generatiesnelheid van het model. Eerste token is de mediane tijd tot het eerste modeltoken, dat deel kan uitmaken van het redeneren. Alleen voltooide gespreksbeurten met een geslaagde tijdmeting worden meegenomen. De duur van een gespreksbeurt is de mediane verstreken tijd van voltooide gespreksbeurten.";

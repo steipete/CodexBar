@@ -2408,6 +2408,7 @@
 "<1%% %@" = "<1%% %@";
 
 "%.0f%% %@" = "%.0f%% %@";
+"%.2f%% %@" = "%.2f%% %@";
 
 // Completed Codex turn timing.
 "spend_turn_performance_help" = "La velocità dell'intero turno include ragionamento, strumenti e attese. Non indica la velocità di generazione del modello. Il primo token è la latenza mediana fino al primo token del modello, che può appartenere al ragionamento. Sono inclusi solo i turni riusciti con tempi completi. La durata del turno è la mediana dei tempi dei turni completi.";

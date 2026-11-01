@@ -2403,6 +2403,7 @@
 "<1%% %@" = "<1%% %@";
 
 "%.0f%% %@" = "%.0f%% %@";
+"%.2f%% %@" = "%.2f%% %@";
 
 // Completed Codex turn timing.
 "spend_turn_performance_help" = "Le débit par tour de dialogue tient compte du raisonnement, des outils et des attentes. Il ne s’agit pas de la vitesse de génération du modèle. Premier token indique le temps médian avant le premier token du modèle, qui peut relever du raisonnement. Seuls les tours terminés et correctement chronométrés sont inclus. La durée du tour de dialogue est le temps écoulé médian des tours terminés.";

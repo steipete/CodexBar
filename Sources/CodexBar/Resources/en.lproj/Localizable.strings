@@ -2409,6 +2409,7 @@
 "<1%% %@" = "<1%% %@";
 
 "%.0f%% %@" = "%.0f%% %@";
+"%.2f%% %@" = "%.2f%% %@";
 
 // Completed Codex turn timing.
 "spend_turn_performance_help" = "Turn output includes reasoning, tools and waits. It is not model generation speed. First token is the median time to the first model token, which may be reasoning. Only complete, successfully timed turns are included. Turn duration is the median elapsed time of complete turns.";
