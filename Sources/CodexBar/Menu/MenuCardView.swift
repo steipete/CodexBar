@@ -1010,7 +1010,8 @@ extension UsageMenuCardView.Model {
             providerCost: providerCost,
             tokenUsage: tokenUsage,
             placeholder: placeholder,
-            progressColor: Self.progressColor(for: input.provider))
+            // A failed refresh leaves the previous measurement on screen; a neutral tint marks it as not current.
+            progressColor: subtitle.style == .error ? Self.staleProgressColor : Self.progressColor(for: input.provider))
     }
 
     private static func resolvedProviderCost(input: Input) -> ProviderCostSnapshot? {
