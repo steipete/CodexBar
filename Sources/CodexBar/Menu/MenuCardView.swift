@@ -200,6 +200,8 @@ struct UsageMenuCardView: View {
         var providerCost: ProviderCostSection?
         let tokenUsage: TokenUsageSection?
         let placeholder: String?
+        /// The latest refresh failed, so the bars still show the previous measurement.
+        var showsRetainedMeasurement = false
         let progressColor: Color
     }
 
@@ -650,6 +652,7 @@ private struct UsageMenuCardUsageContentView: View {
                 layoutMetric: self.layoutModel.metrics.first { $0.id == metric.id } ?? metric,
                 title: UsageMenuCardView.popupMetricTitle(provider: self.model.provider, metric: metric),
                 progressColor: self.model.progressColor,
+                isRetainedMeasurement: self.model.showsRetainedMeasurement,
                 compact: self.compactMetrics)
         }
     }
@@ -969,6 +972,8 @@ extension UsageMenuCardView.Model {
                 hasLastKnownUsage: input.lastKnownUsageCapturedAt != nil,
                 now: input.now)
         let redacted = Self.redactedText(input: input, subtitle: subtitle)
+        // Derived from the refresh outcome, not the subtitle, which account overrides can replace.
+        let showsRetainedMeasurement = input.snapshot != nil && Self.lastError(input: input) != nil
         let placeholder = Self.placeholder(input: input)
         let providerDetails = Self.visibleProviderDetails(
             input: input,
@@ -1010,8 +1015,9 @@ extension UsageMenuCardView.Model {
             providerCost: providerCost,
             tokenUsage: tokenUsage,
             placeholder: placeholder,
+            showsRetainedMeasurement: showsRetainedMeasurement,
             // A failed refresh leaves the previous measurement on screen; a neutral tint marks it as not current.
-            progressColor: subtitle.style == .error ? Self.staleProgressColor : Self.progressColor(for: input.provider))
+            progressColor: showsRetainedMeasurement ? Self.staleProgressColor : Self.progressColor(for: input.provider))
     }
 
     private static func resolvedProviderCost(input: Input) -> ProviderCostSnapshot? {

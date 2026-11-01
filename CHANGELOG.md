@@ -2,6 +2,10 @@
 
 ## 0.83.1 — Unreleased
 
+### Changed
+
+- Menu: tint retained usage bars neutral after a failed refresh so the previous measurement does not read as current (#4883).
+
 ## 0.83.0 — 2026-10-31
 
 ### Highlights

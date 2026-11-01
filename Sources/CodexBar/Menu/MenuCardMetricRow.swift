@@ -6,8 +6,14 @@ struct MetricRow: View {
     let layoutMetric: UsageMenuCardView.Model.Metric
     let title: String
     let progressColor: Color
+    var isRetainedMeasurement = false
     var compact = false
     @Environment(\.menuItemHighlighted) private var isHighlighted
+
+    /// Precedence: a retained (stale) measurement stays neutral, so no per-metric cue may tint it as current.
+    private var barTint: Color {
+        self.isRetainedMeasurement ? UsageMenuCardView.Model.staleProgressColor : self.progressColor
+    }
 
     var body: some View {
         let presentation = self.metric.linePresentation(title: self.title)
@@ -30,7 +36,7 @@ struct MetricRow: View {
                     isHighlighted: self.isHighlighted)
                 UsageProgressBar(
                     percent: self.metric.percent,
-                    tint: self.progressColor,
+                    tint: self.barTint,
                     accessibilityLabel: self.metric.percentStyle.accessibilityLabel,
                     pacePercent: self.metric.pacePercent,
                     paceOnTop: self.metric.paceOnTop,
