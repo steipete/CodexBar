@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Menu-backed settings selector that avoids disabled `Picker` items on macOS 27 when built with the macOS 26 SDK.
+/// Native pop-up settings selector shared by settings rows.
+/// Requires the macOS 27 SDK: macOS 26 SDK builds show disabled `Picker` items on macOS 27 (#1904).
 struct SettingsMenuPicker<Value: Hashable, Label: View, OptionLabel: View>: View {
     @Binding private var selection: Value
     private let options: [Value]
@@ -20,30 +21,15 @@ struct SettingsMenuPicker<Value: Hashable, Label: View, OptionLabel: View>: View
     }
 
     var body: some View {
-        LabeledContent {
-            Menu {
-                ForEach(self.options, id: \.self) { option in
-                    Button {
-                        self.selection = option
-                    } label: {
-                        HStack {
-                            if self.selection == option {
-                                Image(systemName: "checkmark")
-                            }
-                            self.optionLabel(option)
-                        }
-                    }
-                }
-            } label: {
-                self.optionLabel(self.selection)
-                    .foregroundStyle(.primary)
+        Picker(selection: self.$selection) {
+            ForEach(self.options, id: \.self) { option in
+                self.optionLabel(option)
+                    .tag(option)
             }
-            .menuStyle(.button)
-            .buttonStyle(.borderless)
-            .fixedSize()
         } label: {
             self.label()
         }
+        .pickerStyle(.menu)
     }
 }
 
