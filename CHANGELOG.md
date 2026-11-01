@@ -2,6 +2,10 @@
 
 ## 0.83.1 — Unreleased
 
+### Fixed
+
+- Cursor: read encrypted app sessions from both current and legacy Safe Storage accounts. (#4880)
+
 ## 0.83.0 — 2026-10-31
 
 ### Highlights
