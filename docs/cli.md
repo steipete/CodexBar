@@ -73,6 +73,9 @@ a second identifier is an error. For an option value beginning with a dash, use 
   - Multi-provider usage fetches run up to three providers concurrently. Text, JSON, and diagnostics retain selection order; a failed provider does not prevent the others from finishing. Refreshed credentials share a command-scoped writer, while externally changed credentials remain protected.
   - `--format text|json|toon` (default: text).
   - Text output and full terminal cards include history already supplied by the selected provider, such as OpenRouter Activity spend or Grok local token totals. They preserve the source period, currency, known zero values, and reported/estimated cost labels. This live history remains separate from the ordinary usage JSON schema and the `cost` command.
+  - Codex usage JSON can supplement a fresh measurement with an ownership-compatible cached `openaiDashboard`.
+    Cached dashboards are attached only when their `updatedAt` is no more than 15 minutes old at attachment time;
+    older or future-dated caches are omitted without deleting the shared cache. Live web dashboard results are unaffected.
   - Usage JSON includes optional `resetCredits` with `available` and `nextExpiresAt`, derived from the shared unexpired, available reset-credit inventory. This compact summary contains no credit identifiers; an absent inventory omits the summary.
   - Usage JSON includes optional `rateWindowLabels` for present windows from built-in providers. Consumers can use these display labels when a window omits its cadence; missing windows and unknown provider IDs do not gain invented labels.
   - JSON uses the generic `usage.details` array for provider-specific information. Each section contains an optional

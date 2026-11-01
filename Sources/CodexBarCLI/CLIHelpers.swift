@@ -1,5 +1,6 @@
 import CodexBarCore
 import Commander
+import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
@@ -10,7 +11,6 @@ import Glibc
 #elseif canImport(Musl)
 import Musl
 #endif
-import Foundation
 #if os(macOS)
 import CoreFoundation
 #endif
@@ -307,7 +307,8 @@ extension CodexBarCLI {
     static func loadOpenAIDashboardIfAvailable(
         usage: UsageSnapshot,
         sourceLabel: String,
-        context: ProviderFetchContext) -> OpenAIDashboardSnapshot?
+        context: ProviderFetchContext,
+        now: Date = Date()) -> OpenAIDashboardSnapshot?
     {
         guard let cache = OpenAIDashboardCacheStore.load() else { return nil }
         let snapshot: OpenAIDashboardSnapshot = if cache.snapshot.dailyBreakdown.isEmpty,
@@ -347,6 +348,9 @@ extension CodexBarCLI {
             context: context)
         let decision = CodexDashboardAuthority.evaluate(input)
         if decision.allowedEffects.contains(.cachedDashboardReuse) {
+            // Supplemental balances and limits must not look current beside freshly fetched usage.
+            let age = now.timeIntervalSince(snapshot.updatedAt)
+            guard age >= 0, age <= 15 * 60 else { return nil }
             return snapshot
         }
         if decision.cleanup.contains(.dashboardCache) {

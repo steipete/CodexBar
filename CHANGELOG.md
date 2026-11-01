@@ -2,6 +2,10 @@
 
 ## 0.83.1 — Unreleased
 
+### Fixed
+
+- CLI: omit stale supplemental OpenAI dashboard caches from Codex usage JSON instead of attaching historical balances and limits to fresh OAuth usage.
+
 ## 0.83.0 — 2026-10-31
 
 ### Highlights
