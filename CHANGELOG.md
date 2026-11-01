@@ -2,6 +2,10 @@
 
 ## 0.83.1 — Unreleased
 
+### Fixed
+
+- CLI: reject malformed `cost --days` values instead of silently reporting a different time window.
+
 ## 0.83.0 — 2026-10-31
 
 ### Highlights
