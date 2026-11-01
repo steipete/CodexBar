@@ -75,15 +75,13 @@ struct MetricRowHeader: View {
                 .fontWeight(.medium)
                 .lineLimit(1)
             if self.isCriticallyLow {
-                // A glyph keeps the critical state legible without relying on color alone.
+                // A glyph keeps the critical state legible without relying on the bar color alone.
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.footnote)
+                    .foregroundStyle(MenuHighlightStyle.error(self.isHighlighted))
                     .accessibilityLabel(L("quota_warning_critical"))
             }
         }
-        .foregroundStyle(self.isCriticallyLow
-            ? AnyShapeStyle(MenuHighlightStyle.error(self.isHighlighted))
-            : AnyShapeStyle(.foreground))
     }
 
     private func resetLabel(_ resetText: String) -> some View {
