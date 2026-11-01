@@ -2,6 +2,10 @@
 
 ## 0.83.1 — Unreleased
 
+### Fixed
+
+- CLI: reject `hooks watch --interval` values that overflow the sleep timer instead of crashing.
+
 ## 0.83.0 — 2026-10-31
 
 ### Highlights
