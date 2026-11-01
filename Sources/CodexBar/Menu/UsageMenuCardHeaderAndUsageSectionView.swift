@@ -33,23 +33,42 @@ struct MetricRowHeader: View {
 
     var body: some View {
         if let layoutResetText {
-            let resolvedResetText = self.resetText ?? layoutResetText
-            ViewThatFits(in: .horizontal) {
-                self.layoutPreservingHeader(
-                    layout: self.horizontalHeader(title: self.layoutTitle, resetText: layoutResetText),
-                    content: self.horizontalHeader(title: self.title, resetText: resolvedResetText))
-                self.layoutPreservingHeader(
-                    layout: self.verticalHeader(title: self.layoutTitle, resetText: layoutResetText),
-                    content: self.verticalHeader(title: self.title, resetText: resolvedResetText))
-            }
+            // NSMenu freezes the hosted row height while tracking. Measure the warning's worst-case
+            // wrapping, but let healthy visible content use the full title width independently.
+            self.adaptiveHeader(title: self.layoutTitle, resetText: layoutResetText, showsWarning: true)
+                .hidden()
+                .overlay(alignment: .topLeading) {
+                    self.visibleContent
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                }
+                .clipped()
         } else {
-            self.titleLabel(self.title)
+            self.visibleContent
         }
     }
 
-    private func horizontalHeader(title: String, resetText: String) -> some View {
+    @ViewBuilder
+    var visibleContent: some View {
+        if let layoutResetText {
+            self.adaptiveHeader(
+                title: self.title,
+                resetText: self.resetText ?? layoutResetText,
+                showsWarning: self.isCriticallyLow)
+        } else {
+            self.titleLabel(self.title, showsWarning: self.isCriticallyLow)
+        }
+    }
+
+    private func adaptiveHeader(title: String, resetText: String, showsWarning: Bool) -> some View {
+        ViewThatFits(in: .horizontal) {
+            self.horizontalHeader(title: title, resetText: resetText, showsWarning: showsWarning)
+            self.verticalHeader(title: title, resetText: resetText, showsWarning: showsWarning)
+        }
+    }
+
+    private func horizontalHeader(title: String, resetText: String, showsWarning: Bool) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            self.titleLabel(title)
+            self.titleLabel(title, showsWarning: showsWarning)
                 .fixedSize(horizontal: true, vertical: false)
             Spacer(minLength: 8)
             self.resetLabel(resetText)
@@ -58,9 +77,9 @@ struct MetricRowHeader: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func verticalHeader(title: String, resetText: String) -> some View {
+    private func verticalHeader(title: String, resetText: String, showsWarning: Bool) -> some View {
         VStack(alignment: .trailing, spacing: 2) {
-            self.titleLabel(title)
+            self.titleLabel(title, showsWarning: showsWarning)
                 .frame(maxWidth: .infinity, alignment: .leading)
             self.resetLabel(resetText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -68,13 +87,13 @@ struct MetricRowHeader: View {
         }
     }
 
-    private func titleLabel(_ title: String) -> some View {
+    private func titleLabel(_ title: String, showsWarning: Bool) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             Text(title)
                 .font(.body)
                 .fontWeight(.medium)
                 .lineLimit(1)
-            if self.isCriticallyLow {
+            if showsWarning {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.footnote)
                     .foregroundStyle(MenuHighlightStyle.error(self.isHighlighted))
@@ -89,18 +108,5 @@ struct MetricRowHeader: View {
             .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
             .lineLimit(2)
             .multilineTextAlignment(.trailing)
-    }
-
-    private func layoutPreservingHeader(
-        layout: some View,
-        content: some View) -> some View
-    {
-        layout
-            .hidden()
-            .overlay(alignment: .topLeading) {
-                content
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            }
-            .clipped()
     }
 }

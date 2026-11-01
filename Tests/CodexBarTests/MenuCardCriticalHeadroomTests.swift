@@ -47,19 +47,54 @@ struct MenuCardCriticalHeadroomTests {
 
     @Test
     @MainActor
-    func `critical compact headers include the visible warning glyph`() {
-        let title = "Weekly 90% used"
-        let proposal = CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
-        func size(critical: Bool) -> CGSize {
-            NSHostingController(rootView: MetricRowHeader(
-                title: title,
-                layoutTitle: title,
-                resetText: nil,
-                layoutResetText: nil,
-                isHighlighted: false,
-                isCriticallyLow: critical)).sizeThatFits(in: proposal)
+    func `critical warning preserves the frozen reset header height`() {
+        for width in stride(from: CGFloat(180), through: 340, by: 1) {
+            func height(critical: Bool) -> CGFloat {
+                NSHostingController(rootView: MetricRowHeader(
+                    title: "Weekly 90% used",
+                    layoutTitle: "Weekly 90% used",
+                    resetText: "Resets in 3d 20h",
+                    layoutResetText: "Resets in 3d 20h",
+                    isHighlighted: false,
+                    isCriticallyLow: critical).frame(width: width))
+                    .sizeThatFits(in: CGSize(width: width, height: CGFloat.greatestFiniteMagnitude)).height
+            }
+            #expect(
+                height(critical: false) == height(critical: true),
+                "Critical warning changed frozen header height at width \(width)")
         }
-        #expect(size(critical: true).width > size(critical: false).width)
+    }
+
+    @Test
+    @MainActor
+    func `healthy reset content uses full width inside the safe height`() {
+        func header(critical: Bool) -> MetricRowHeader {
+            MetricRowHeader(
+                title: "Weekly 90% used",
+                layoutTitle: "Weekly 90% used",
+                resetText: "Resets in 3d 20h",
+                layoutResetText: "Resets in 3d 20h",
+                isHighlighted: false,
+                isCriticallyLow: critical)
+        }
+        var foundFitBoundary = false
+        for width in stride(from: CGFloat(150), through: 400, by: 1) {
+            let proposal = CGSize(width: width, height: CGFloat.greatestFiniteMagnitude)
+            let healthyContent = NSHostingController(rootView: header(critical: false).visibleContent
+                .frame(width: width))
+                .sizeThatFits(in: proposal)
+            let criticalContent = NSHostingController(rootView: header(critical: true).visibleContent
+                .frame(width: width))
+                .sizeThatFits(in: proposal)
+            guard healthyContent.height < criticalContent.height else { continue }
+            let safeHeader = NSHostingController(rootView: header(critical: false).frame(width: width))
+                .sizeThatFits(in: proposal)
+            // Healthy content fits one line; the warning needs two. Both fit inside the frozen envelope.
+            #expect(safeHeader.height == criticalContent.height)
+            foundFitBoundary = true
+            break
+        }
+        #expect(foundFitBoundary, "Expected a width where only the healthy content fits horizontally")
     }
 
     @Test
