@@ -1,4 +1,6 @@
+import AppKit
 import CodexBarCore
+import SwiftUI
 import Testing
 @testable import CodexBar
 
@@ -22,6 +24,29 @@ struct MenuCardCriticalHeadroomTests {
             pacePercent: nil,
             paceOnTop: true,
             isSyntheticCreditLane: isSyntheticCreditLane)
+    }
+
+    @Test
+    @MainActor
+    func `critical warning preserves header height at narrow widths`() {
+        for width in stride(from: CGFloat(180), through: 340, by: 8) {
+            let healthy = Self.headerHeight(width: width, isCriticallyLow: false)
+            let critical = Self.headerHeight(width: width, isCriticallyLow: true)
+            #expect(healthy == critical, "Critical cue changed header height at width \(width)")
+        }
+    }
+
+    @MainActor
+    private static func headerHeight(width: CGFloat, isCriticallyLow: Bool) -> CGFloat {
+        let header = MetricRowHeader(
+            title: "Weekly 90% used",
+            layoutTitle: "Weekly 89% used",
+            resetText: "Resets in 3d 20h",
+            layoutResetText: "Resets in 3d 20h",
+            isHighlighted: false,
+            isCriticallyLow: isCriticallyLow)
+        return NSHostingController(rootView: header.frame(width: width))
+            .sizeThatFits(in: CGSize(width: width, height: CGFloat.greatestFiniteMagnitude)).height
     }
 
     @Test

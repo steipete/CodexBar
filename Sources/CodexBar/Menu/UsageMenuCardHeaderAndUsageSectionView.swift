@@ -74,13 +74,13 @@ struct MetricRowHeader: View {
                 .font(.body)
                 .fontWeight(.medium)
                 .lineLimit(1)
-            if self.isCriticallyLow {
-                // A glyph keeps the critical state legible without relying on the bar color alone.
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.footnote)
-                    .foregroundStyle(MenuHighlightStyle.error(self.isHighlighted))
-                    .accessibilityLabel(L("quota_warning_critical"))
-            }
+            // Reserve the glyph's width so live critical-state changes preserve the frozen header layout.
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.footnote)
+                .foregroundStyle(MenuHighlightStyle.error(self.isHighlighted))
+                .opacity(self.isCriticallyLow ? 1 : 0)
+                .accessibilityLabel(L("quota_warning_critical"))
+                .accessibilityHidden(!self.isCriticallyLow)
         }
     }
 
