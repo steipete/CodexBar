@@ -329,8 +329,38 @@ struct SettingsStoreAdditionalTests {
         #expect(SettingsStore.hasAnyTokenCostUsageSources(env: env, fileManager: fm))
     }
 
+    @Test
+    func `debug menu defaults on in debug builds and persists an explicit off`() throws {
+        let suite = "SettingsStoreAdditionalTests-debug-menu-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let configStore = testConfigStore(suiteName: suite)
+
+        let initial = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(SettingsStore.debugMenuEnabledByDefault)
+        #expect(initial.debugMenuEnabled)
+        #expect(defaults.object(forKey: "debugMenuEnabled") == nil)
+
+        initial.debugMenuEnabled = false
+        #expect(defaults.object(forKey: "debugMenuEnabled") as? Bool == false)
+
+        let reloaded = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(!reloaded.debugMenuEnabled)
+    }
+
     private static func makeSettingsStore(suite: String) -> SettingsStore {
         testSettingsStore(suiteName: suite, userDefaults: InMemoryUserDefaults())
+    }
+
+    private static func makeSettingsStore(
+        userDefaults: UserDefaults,
+        configStore: CodexBarConfigStore) -> SettingsStore
+    {
+        SettingsStore(
+            userDefaults: userDefaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
     }
 }
 

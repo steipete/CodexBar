@@ -208,32 +208,6 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func `debug menu defaults on in debug builds and persists an explicit off`() throws {
-        let suite = "SettingsStoreTests-debug-menu-default-\(UUID().uuidString)"
-        let defaultsA = try #require(UserDefaults(suiteName: suite))
-        defer { defaultsA.removePersistentDomain(forName: suite) }
-        let configStore = testConfigStore(suiteName: suite)
-        let storeA = SettingsStore(
-            userDefaults: defaultsA,
-            configStore: configStore,
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
-
-        #expect(SettingsStore.debugMenuEnabledByDefault == true)
-        #expect(storeA.debugMenuEnabled == true)
-        storeA.debugMenuEnabled = false
-
-        let defaultsB = try #require(UserDefaults(suiteName: suite))
-        let storeB = SettingsStore(
-            userDefaults: defaultsB,
-            configStore: configStore,
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
-
-        #expect(storeB.debugMenuEnabled == false)
-    }
-
-    @Test
     func `providers sorted alphabetically defaults off and persists`() throws {
         let suite = "SettingsStoreTests-providers-sorted-alpha-\(UUID().uuidString)"
         let defaultsA = try #require(UserDefaults(suiteName: suite))
