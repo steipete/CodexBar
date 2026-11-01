@@ -8,19 +8,13 @@ struct ProviderCostContent: View {
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
     var body: some View {
-        self.content
-            .monospacedDigit()
-    }
-
-    @ViewBuilder
-    private var content: some View {
         if self.section.presentation == .inlineValue {
             HStack(alignment: .firstTextBaseline) {
                 Text(self.section.title)
                     .font(.body)
                     .fontWeight(.medium)
                 Spacer()
-                Text(self.section.spendLine)
+                Text(self.section.spendLine).monospacedDigit()
                     .font(.footnote)
                     .lineLimit(1)
             }
@@ -34,7 +28,7 @@ struct ProviderCostContent: View {
                         .truncationMode(.tail)
                     if let balanceLine = self.section.balanceLine {
                         Spacer(minLength: 8)
-                        Text(balanceLine)
+                        Text(balanceLine).monospacedDigit()
                             .font(.footnote)
                             .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                             .lineLimit(1)
@@ -48,21 +42,21 @@ struct ProviderCostContent: View {
                         accessibilityLabel: self.section.progressAccessibilityLabel)
                 }
                 HStack(alignment: .firstTextBaseline) {
-                    Text(self.section.spendLine).font(.footnote).lineLimit(1)
+                    Text(self.section.spendLine).monospacedDigit().font(.footnote).lineLimit(1)
                     Spacer()
                     if let percentLine = self.section.percentLine {
-                        Text(percentLine)
+                        Text(percentLine).monospacedDigit()
                             .font(.footnote)
                             .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                             .lineLimit(1)
                     }
                 }
                 if let personalSpendLine = self.section.personalSpendLine {
-                    Text(personalSpendLine)
+                    Text(personalSpendLine).monospacedDigit()
                         .font(.footnote).foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted)).lineLimit(1)
                 }
                 if let target = self.section.dailyTargetText {
-                    Text(target)
+                    Text(target).monospacedDigit()
                         .font(.footnote).foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                         .lineLimit(2).fixedSize(horizontal: false, vertical: true)
                 }
