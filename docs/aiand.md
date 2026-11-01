@@ -1,5 +1,5 @@
 ---
-summary: "ai& provider: API key setup and 30-day spend summed from the request logs API."
+summary: "ai& provider: API key setup, log-derived spend, and settled organization wallet balance."
 read_when:
   - Configuring ai& usage
   - Debugging ai& request-log fetches
@@ -34,6 +34,8 @@ CodexBar requests:
 
 - `GET https://api.aiand.com/logs?range=30days&limit=100`, following `next_after`/`next_after_id` cursor pagination
   (both cursors are always passed together, as the docs require) for up to 10 pages per refresh.
+- One optional `GET https://api.aiand.com/billing/balance` alongside the first log page, using the same API key.
+  Wallet denial, timeout, or an unrecognized response leaves log-derived spend intact.
 
 Spend is the sum of each log row's `cost` field, parsed as decimal strings — never floating point — in the
 organization's billing currency (`currency` per row: USD or JPY). Requests use `Authorization: Bearer <AIAND_API_KEY>`.
@@ -48,8 +50,13 @@ endpoint that reports cost, so CodexBar sums spend from it.
 ## Display
 
 The menu shows the last 30 days of organization spend, in the organization's billing currency, as an API-spend row.
-ai& bills prepaid credits with no quota windows, so no session or weekly meters are shown. The remaining credit balance
-is only available in the ai& console; the public API does not expose it.
+ai& bills prepaid credits with no quota windows, so no session or weekly meters are shown.
+
+The **Organization wallet** detail shows the returned **Settled wallet balance** as an exact decimal string and USD or
+JPY currency code, including negative balances. It belongs to the organization associated with the API key.
+This [settled ledger amount](https://docs.aiand.com/billing/balance/) can exceed spendable funds while requests settle
+or video reservations remain in flight. Wallet snapshots are never subtracted to infer spend and never replace the
+separate log-derived 30-day history. If balance reporting fails, the wallet detail is omitted rather than shown as zero.
 
 Notes:
 

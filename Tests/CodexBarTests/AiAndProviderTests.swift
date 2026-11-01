@@ -563,7 +563,14 @@ struct AiAndProviderTests {
         now: Date = Date()) async throws -> UsageSnapshot
     {
         let token = AiAndSettingsReader.apiKey(environment: ["AIAND_API_KEY": credential]) ?? ""
-        let runtime = try BundledPluginTestSupport.runtime("aiand", engine: engine, transport: transport)
+        // Existing log fixtures exercise the primary contract; deny the optional wallet independently.
+        let logTransport = ProviderHTTPTransportHandler { request in
+            if request.url?.path == "/billing/balance" {
+                return Self.response(url: request.url!, body: "{}", statusCode: 403)
+            }
+            return try await transport.data(for: request)
+        }
+        let runtime = try BundledPluginTestSupport.runtime("aiand", engine: engine, transport: logTransport)
         return try await runtime.fetchUsage(secrets: ["AIAND_API_KEY": token], now: now)
     }
 

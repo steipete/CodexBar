@@ -21,6 +21,7 @@ defineProvider({
   settings: [{ key: "AIAND_API_KEY", title: "API key", type: "secure" }],
   async fetchUsage(ctx) {
     let after: string | undefined, afterID: string | undefined, currency: string | undefined;
+    let balanceResponse: CodexBarHTTPTextResponse | null = null;
     let total: AiAndDecimal = { coefficient: 0n, scale: 0 },
       complete = false;
     const invalid = () => ctx.fail.parseFailure("Could not parse ai& usage: invalid logs payload.");
@@ -34,7 +35,16 @@ defineProvider({
       if (after !== undefined && afterID !== undefined) {
         url += `&after=${encodeURIComponent(after)}&after_id=${encodeURIComponent(afterID)}`;
       }
-      const response = await ctx.http.get(url, { timeoutSeconds: 15 });
+      let response: CodexBarHTTPTextResponse;
+      if (page === 0) {
+        const initial = await ctx.http.getWithOptional(url, "https://api.aiand.com/billing/balance", {
+          timeoutSeconds: 15,
+        });
+        response = initial;
+        balanceResponse = initial.optional;
+      } else {
+        response = await ctx.http.get(url, { timeoutSeconds: 15 });
+      }
       if (response.status === 401)
         throw ctx.fail.authenticationExpired(
           "ai& rejected the API key. Create a new key at console.aiand.com and update Settings.",
@@ -79,8 +89,39 @@ defineProvider({
       // The API requires both cursors; never turn a truncated window into an exact total.
       if (after === undefined || afterID === undefined) break;
     }
+    let details: CodexBarDetailSection[] | undefined;
+    if (balanceResponse?.status === 200) {
+      try {
+        const wallet: unknown = JSON.parse(balanceResponse.bodyText);
+        if (wallet && typeof wallet === "object" && !Array.isArray(wallet)) {
+          const { balance, currency: code } = wallet as Record<string, unknown>;
+          if (
+            typeof balance === "string" &&
+            // Leave room for the currency code within the native detail value's 120-character limit.
+            balance.trim().length + 4 <= 120 &&
+            /^-?\d+(?:\.\d+)?$/.test(balance.trim()) &&
+            aiandDecimal(balance) &&
+            typeof code === "string" &&
+            /^(usd|jpy)$/i.test(code)
+          ) {
+            // Preserve the ledger's decimal precision, including fractional JPY and negative balances.
+            // This is settled org credit; pending requests/reservations can reduce spendable funds.
+            details = [
+              {
+                title: "Organization wallet",
+                rows: [{ label: "Settled wallet balance", value: `${balance.trim()} ${code.toUpperCase()}` }],
+              },
+            ];
+          }
+        }
+      } catch (error) {
+        // Optional reporting must never erase valid log-derived spend.
+        void error;
+      }
+    }
     return {
       empty: true,
+      details,
       cost: currency
         ? {
             used: Number(`${total.coefficient}e${-total.scale}`),
