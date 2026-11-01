@@ -56,7 +56,7 @@ struct OllamaUsageFetcherRetryMappingTests {
     }
 
     @Test
-    func `auto mode keeps web quota strategy before api key verification`() async {
+    func `auto mode tries official balance before web quota fallback`() async {
         let descriptor = OllamaProviderDescriptor.makeDescriptor()
         let context = self.makeContext(
             sourceMode: .auto,
@@ -66,7 +66,7 @@ struct OllamaUsageFetcherRetryMappingTests {
 
         let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(context)
 
-        #expect(strategies.map(\.id) == ["ollama.web", "ollama.api"])
+        #expect(strategies.map(\.id) == ["ollama.api", "ollama.web"])
     }
 
     @Test

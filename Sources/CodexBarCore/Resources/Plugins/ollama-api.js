@@ -54,37 +54,53 @@ defineProvider({
     if (data.purchased != null) {
       rows.push({ label: "Credit balance", value: ctx.format.usd(amount(data.purchased.balance_usd)) });
     }
+    function resetDate(value) {
+      if (value == null) return;
+      if (
+        typeof value !== "string" ||
+        !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value)
+      )
+        return fail();
+      const date = new Date(value);
+      const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+      if (!Number.isFinite(date.getTime()) || day > new Date(Date.UTC(year, month, 0)).getUTCDate()) return fail();
+      return date.toISOString();
+    }
+    function legacyWindow(value, windowMinutes) {
+      if (value == null) return;
+      if (typeof value !== "object" || Array.isArray(value)) return fail();
+      const entry = value;
+      const remaining = amount(entry.remaining_percent);
+      if (remaining < 0 || remaining > 100) return fail();
+      return { usedPercent: 100 - remaining, windowMinutes, resetsAt: resetDate(entry.resets_at) };
+    }
     let primary;
-    if (data.included != null) {
+    let secondary;
+    if (
+      _optionalChain([data, "access", (_) => _.included, "optionalAccess", (_2) => _2.session]) != null ||
+      _optionalChain([data, "access", (_3) => _3.included, "optionalAccess", (_4) => _4.weekly]) != null
+    ) {
+      primary = legacyWindow(data.included.session, 300);
+      secondary = legacyWindow(data.included.weekly, 10080);
+    } else if (data.included != null) {
       const allowance = amount(data.included.allowance_usd);
       const balance = amount(data.included.balance_usd);
       if (allowance < 0) return fail();
       const used = Math.max(0, allowance - balance);
       if (!Number.isFinite(used)) return fail();
       rows.push({ label: "Monthly credits used", value: ctx.format.usd(used) });
-      let resetsAt;
       const period = data.included.period;
       if (period != null && (typeof period !== "object" || Array.isArray(period))) return fail();
-      const until = _optionalChain([period, "optionalAccess", (_) => _.until]);
-      if (until != null) {
-        if (
-          typeof until !== "string" ||
-          !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(until)
-        )
-          return fail();
-        const date = new Date(until);
-        const [year, month, day] = until.slice(0, 10).split("-").map(Number);
-        if (!Number.isFinite(date.getTime()) || day > new Date(Date.UTC(year, month, 0)).getUTCDate()) return fail();
-        resetsAt = date.toISOString();
-      }
+      const resetsAt = resetDate(_optionalChain([period, "optionalAccess", (_5) => _5.until]));
       // Match the cookie path's monthly classification and calendar-based pace.
       if (allowance > 0)
         primary = { usedPercent: Math.min(100, (used / allowance) * 100), windowMinutes: 43200, resetsAt };
     }
-    if (!rows.length) return fail();
+    if (!rows.length && !primary && !secondary) return fail();
     return {
       primary,
-      details: [{ title: "Credits", rows }],
+      secondary,
+      details: rows.length ? [{ title: "Credits", rows }] : undefined,
       identity: { loginMethod: "API key" },
     };
   },

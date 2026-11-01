@@ -110,9 +110,9 @@ public enum OllamaProviderDescriptor {
     }
 
     static func apiStrategy(
-        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) -> ScriptFetchStrategy
+        transport: any ProviderHTTPTransport = OllamaBalanceTransport.shared) -> OllamaBalanceFetchStrategy
     {
-        ScriptFetchStrategy(
+        OllamaBalanceFetchStrategy(script: ScriptFetchStrategy(
             id: "ollama.api",
             provider: .ollama,
             bundledPlugin: "ollama-api",
@@ -125,7 +125,7 @@ public enum OllamaProviderDescriptor {
                 }
             },
             resolveSecret: { ProviderTokenResolver.token(for: .ollama, environment: $0) },
-            isEnabled: { _ in true })
+            isEnabled: { _ in true }))
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
@@ -139,11 +139,15 @@ public enum OllamaProviderDescriptor {
         case .auto:
             break
         }
+        // A selected cookie/token account must never be replaced by an unrelated ambient API key.
+        if context.settings?.ollama?.cookieSource == .manual {
+            return [OllamaStatusFetchStrategy()]
+        }
         if context.settings?.ollama?.cookieSource == .off {
             return [self.apiStrategy()]
         }
         if ProviderTokenResolver.token(for: .ollama, environment: context.env) != nil {
-            return [OllamaStatusFetchStrategy(), self.apiStrategy()]
+            return [self.apiStrategy(), OllamaStatusFetchStrategy()]
         }
         return [OllamaStatusFetchStrategy()]
     }

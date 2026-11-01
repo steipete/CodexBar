@@ -18,7 +18,7 @@ The Ollama provider reads included usage and purchased credits through an API ke
 - **Monthly usage**: Converts the reported included dollar credits (for example, `$7.50 of $60 used`) to utilization
   (`12.5%`). Free plans label the same included-credit meter **Free usage**; both labels map to the primary
   **Monthly** quota bar. This is not a token-cost or spend estimate.
-- **Legacy usage**: Retains session/hourly and weekly percentage parsing for older settings pages.
+- **Legacy usage**: Reads API session/weekly remaining percentages as used percentages, and retains older settings-page meters.
 - **Reset timestamps**: Uses the `data-time` attribute on the “Resets in …” elements.
 - **API key auth**: Reads `https://ollama.com/api/balance` with `OLLAMA_API_KEY` or a configured key. Included usage is the primary **Monthly** bar; purchased credits appear as **Credit balance** in the same **Credits** section used by browser cookies.
 - **Browser cookie auth**: Reads the settings page without an API key, including older session/hourly and weekly meters.
@@ -44,6 +44,8 @@ Keychain access is disabled in Advanced settings. CodexBar does not switch cooki
 
 ## How it works
 
+- Auto mode tries the official API first when a key is available, then falls back to the settings page on reporting failure. Explicit manual-cookie accounts stay on the cookie path; API-key mode never imports browser cookies.
+- Balance refreshes share a credential-scoped, process-local cooldown of at least one minute. A `429` extends it by the returned `Retry-After` seconds after receipt; retries during the cooldown reuse the response without another API request. This follows [Ollama's balance guidance](https://docs.ollama.com/api/balance). Team balances are shared, not per-user funds.
 - API-key mode uses the bundled `ollama-api.ts` plugin to send one bearer-authenticated GET to `https://ollama.com/api/balance`. It no longer probes search or fetches the public model catalog during refresh.
 - The API's `included.allowance_usd - included.balance_usd` supplies **Monthly credits used** and the primary utilization percentage. `included.period.until` supplies its reset. The monthly classification and calendar pace match the cookie path; the shared window model does not store `period.from` as a separate start date.
 - `purchased.balance_usd` supplies **Credit balance**, including Balance layouts. It is never added to the included allowance. Both numeric and decimal-string amounts are supported; absent purchased credits stay absent. Purchased-only accounts get balance details without a quota bar, and a zero allowance does not create a percentage.
