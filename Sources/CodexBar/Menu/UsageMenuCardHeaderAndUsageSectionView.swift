@@ -50,10 +50,7 @@ struct MetricRowHeader: View {
     @ViewBuilder
     var visibleContent: some View {
         if let layoutResetText {
-            self.adaptiveHeader(
-                title: self.title,
-                resetText: self.resetText ?? layoutResetText,
-                showsWarning: self.isCriticallyLow)
+            self.liveHeader(title: self.title, resetText: self.resetText ?? layoutResetText)
         } else {
             self.titleLabel(self.title, showsWarning: self.isCriticallyLow)
         }
@@ -64,6 +61,28 @@ struct MetricRowHeader: View {
             self.horizontalHeader(title: title, resetText: resetText, showsWarning: showsWarning)
             self.verticalHeader(title: title, resetText: resetText, showsWarning: showsWarning)
         }
+    }
+
+    /// Live strings can outgrow the frozen template. The overlay proposes the template's height, so only stack
+    /// when that height allows it; otherwise stay on one row and shorten the title rather than clip the reset line.
+    private func liveHeader(title: String, resetText: String) -> some View {
+        ViewThatFits(in: .horizontal) {
+            self.horizontalHeader(title: title, resetText: resetText, showsWarning: self.isCriticallyLow)
+            ViewThatFits(in: .vertical) {
+                self.verticalHeader(title: title, resetText: resetText, showsWarning: self.isCriticallyLow)
+                self.compressedHeader(title: title, resetText: resetText)
+            }
+        }
+    }
+
+    private func compressedHeader(title: String, resetText: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            self.titleLabel(title, showsWarning: self.isCriticallyLow)
+            Spacer(minLength: 8)
+            self.resetLabel(resetText, lineLimit: 1)
+                .layoutPriority(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func horizontalHeader(title: String, resetText: String, showsWarning: Bool) -> some View {
@@ -102,11 +121,11 @@ struct MetricRowHeader: View {
         }
     }
 
-    private func resetLabel(_ resetText: String) -> some View {
+    private func resetLabel(_ resetText: String, lineLimit: Int = 2) -> some View {
         Text(resetText)
             .font(.footnote)
             .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-            .lineLimit(2)
+            .lineLimit(lineLimit)
             .multilineTextAlignment(.trailing)
     }
 }

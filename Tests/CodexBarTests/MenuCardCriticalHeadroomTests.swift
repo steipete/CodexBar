@@ -98,6 +98,48 @@ struct MenuCardCriticalHeadroomTests {
     }
 
     @Test
+    @MainActor
+    func `live title crossing the horizontal fit boundary stays inside the frozen height`() {
+        let frozenTitle = "Weekly 99% used"
+        let liveTitle = "Weekly 100% used"
+        let reset = "Resets in 3d 20h"
+        func header(title: String, layoutTitle: String) -> MetricRowHeader {
+            MetricRowHeader(
+                title: title,
+                layoutTitle: layoutTitle,
+                resetText: reset,
+                layoutResetText: reset,
+                isHighlighted: false,
+                isCriticallyLow: true)
+        }
+        var crossedFitBoundary = false
+        for width in stride(from: CGFloat(150), through: 400, by: 1) {
+            let unbounded = CGSize(width: width, height: CGFloat.greatestFiniteMagnitude)
+            let frozen = header(title: liveTitle, layoutTitle: frozenTitle)
+            let envelope = NSHostingController(rootView: frozen.frame(width: width))
+                .sizeThatFits(in: unbounded).height
+            let unconstrainedLive = NSHostingController(rootView: frozen.visibleContent.frame(width: width))
+                .sizeThatFits(in: unbounded).height
+            crossedFitBoundary = crossedFitBoundary || unconstrainedLive > envelope
+
+            // Mirrors the overlay, which offers the visible content exactly the frozen template's size.
+            let visible = NSHostingController(rootView: frozen.visibleContent)
+                .sizeThatFits(in: CGSize(width: width, height: envelope))
+            #expect(visible.height <= envelope, "Live header outgrew the frozen height at width \(width)")
+            #expect(visible.width <= width, "Live header overflowed the row at width \(width)")
+
+            // Unchanged strings keep the arrangement the template measured, so nothing truncates needlessly.
+            let unchanged = header(title: frozenTitle, layoutTitle: frozenTitle)
+            let unchangedEnvelope = NSHostingController(rootView: unchanged.frame(width: width))
+                .sizeThatFits(in: unbounded).height
+            let unchangedVisible = NSHostingController(rootView: unchanged.visibleContent.frame(width: width))
+                .sizeThatFits(in: CGSize(width: width, height: unchangedEnvelope)).height
+            #expect(unchangedVisible == unchangedEnvelope, "Unchanged title changed height at width \(width)")
+        }
+        #expect(crossedFitBoundary, "Expected a width where only the frozen title fits horizontally")
+    }
+
+    @Test
     func `used percentages flag only the critical headroom tier`() {
         #expect(!self.metric(percent: 34, style: .used).isCriticallyLow)
         #expect(!self.metric(percent: 89, style: .used).isCriticallyLow)
