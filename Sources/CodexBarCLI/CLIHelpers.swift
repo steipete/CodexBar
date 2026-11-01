@@ -1,6 +1,5 @@
 import CodexBarCore
 import Commander
-import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
@@ -11,6 +10,7 @@ import Glibc
 #elseif canImport(Musl)
 import Musl
 #endif
+import Foundation
 #if os(macOS)
 import CoreFoundation
 #endif
@@ -304,6 +304,11 @@ extension CodexBarCLI {
         }
     }
 
+    /// Oldest supplemental OpenAI dashboard cache the CLI attaches to freshly fetched Codex usage.
+    static let openAIDashboardCacheMaxAge: TimeInterval = 15 * 60
+    /// Accepts caches stamped slightly ahead of `now`, e.g. after a small clock correction.
+    static let openAIDashboardCacheFutureTolerance: TimeInterval = 60
+
     static func loadOpenAIDashboardIfAvailable(
         usage: UsageSnapshot,
         sourceLabel: String,
@@ -350,7 +355,9 @@ extension CodexBarCLI {
         if decision.allowedEffects.contains(.cachedDashboardReuse) {
             // Supplemental balances and limits must not look current beside freshly fetched usage.
             let age = now.timeIntervalSince(snapshot.updatedAt)
-            guard age >= 0, age <= 15 * 60 else { return nil }
+            guard age >= -Self.openAIDashboardCacheFutureTolerance,
+                  age <= Self.openAIDashboardCacheMaxAge
+            else { return nil }
             return snapshot
         }
         if decision.cleanup.contains(.dashboardCache) {

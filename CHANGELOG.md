@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- CLI: omit stale supplemental OpenAI dashboard caches from Codex usage JSON instead of attaching historical balances and limits to fresh OAuth usage.
+- CLI: omit stale supplemental OpenAI dashboard caches from Codex usage JSON instead of attaching historical balances and limits to fresh OAuth usage (#4882).
 
 ## 0.83.0 — 2026-10-31
 

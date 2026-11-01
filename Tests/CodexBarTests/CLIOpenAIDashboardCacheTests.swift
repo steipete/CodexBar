@@ -321,7 +321,7 @@ struct CLIOpenAIDashboardCacheTests {
         #expect(OpenAIDashboardCacheStore.load() == nil)
     }
 
-    @Test(arguments: [0.0, 60.0, 900.0, 901.0, 5_616_000.0, -60.0])
+    @Test(arguments: [0.0, 60.0, 900.0, 901.0, 5_616_000.0, -60.0, -61.0, -3600.0])
     func `oauth dashboard attachment is bounded by cache age`(age: TimeInterval) throws {
         let now = Date(timeIntervalSince1970: 10_000_000)
         let authHome = try self.makeAuthHome(email: "owner@example.com", accountId: "acct-owner")
@@ -343,7 +343,8 @@ struct CLIOpenAIDashboardCacheTests {
             context: context,
             now: now)
 
-        #expect(restored == ((0...15 * 60).contains(age) ? dashboard : nil))
+        let attachable = -CodexBarCLI.openAIDashboardCacheFutureTolerance...CodexBarCLI.openAIDashboardCacheMaxAge
+        #expect(restored == (attachable.contains(age) ? dashboard : nil))
         // Age alone must not delete the shared cache, which other surfaces can display as history.
         #expect(OpenAIDashboardCacheStore.load()?.snapshot == dashboard)
     }
