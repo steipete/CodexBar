@@ -564,6 +564,7 @@ private struct TokenUsageSectionContent: View {
                     }
             }
         }
+        .monospacedDigit()
     }
 }
 
@@ -846,6 +847,7 @@ private struct CreditsBarContent: View {
                     }
             }
         }
+        .monospacedDigit()
     }
 }
 

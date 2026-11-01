@@ -8,6 +8,12 @@ struct ProviderCostContent: View {
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
     var body: some View {
+        self.content
+            .monospacedDigit()
+    }
+
+    @ViewBuilder
+    private var content: some View {
         if self.section.presentation == .inlineValue {
             HStack(alignment: .firstTextBaseline) {
                 Text(self.section.title)
@@ -16,7 +22,6 @@ struct ProviderCostContent: View {
                 Spacer()
                 Text(self.section.spendLine)
                     .font(.footnote)
-                    .monospacedDigit()
                     .lineLimit(1)
             }
         } else {
@@ -32,7 +37,6 @@ struct ProviderCostContent: View {
                         Text(balanceLine)
                             .font(.footnote)
                             .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                            .monospacedDigit()
                             .lineLimit(1)
                             .layoutPriority(1)
                     }

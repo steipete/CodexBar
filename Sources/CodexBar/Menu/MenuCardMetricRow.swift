@@ -54,6 +54,8 @@ struct MetricRow: View {
                 }
             }
         }
+        // Fixed-width digits keep live countdowns and percentages from shifting as they tick.
+        .monospacedDigit()
         .help(self.metric.helpText ?? "")
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(self.metric.cardStyle ? 10 : 0)
