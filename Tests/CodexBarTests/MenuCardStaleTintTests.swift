@@ -10,6 +10,7 @@ struct MenuCardStaleTintTests {
 
     private func model(
         lastError: String?,
+        providerCost: ProviderCostSnapshot? = nil,
         hasSnapshot: Bool = true,
         subtitleOverride: String? = nil) throws -> UsageMenuCardView.Model
     {
@@ -24,6 +25,7 @@ struct MenuCardStaleTintTests {
                 windowMinutes: 10080,
                 resetsAt: Self.now.addingTimeInterval(86400),
                 resetDescription: nil),
+            providerCost: providerCost,
             updatedAt: Self.now.addingTimeInterval(-7200))
         return try UsageMenuCardView.Model.make(.init(
             provider: .claude,
@@ -40,11 +42,36 @@ struct MenuCardStaleTintTests {
             usageBarsShowUsed: true,
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
-            showOptionalCreditsAndExtraUsage: false,
+            showOptionalCreditsAndExtraUsage: true,
             subtitleOverride: subtitleOverride,
             hidePersonalInfo: true,
             usesLiveSubtitle: false,
             now: Self.now))
+    }
+
+    private func quotaBarTint(_ model: UsageMenuCardView.Model) -> Color {
+        let metric = model.metrics[0]
+        return MetricRow(
+            metric: metric,
+            layoutMetric: metric,
+            title: metric.title,
+            progressColor: model.progressColor,
+            isRetainedMeasurement: model.showsRetainedMeasurement).barTint
+    }
+
+    @Test
+    func `failed quota refresh preserves fresh supplemental cost tint`() throws {
+        let cost = ProviderCostSnapshot(
+            used: 25, limit: 100, currencyCode: "USD", period: "Monthly", updatedAt: Self.now)
+        let failed = try self.model(lastError: "Synthetic quota refresh failure", providerCost: cost)
+        let recovered = try self.model(lastError: nil, providerCost: cost)
+        #expect(failed.metrics.map(\.percent) == recovered.metrics.map(\.percent))
+        #expect(failed.providerCost != nil)
+        #expect(failed.providerCost?.percentUsed == recovered.providerCost?.percentUsed)
+        #expect(failed.progressColor == UsageMenuCardView.Model.progressColor(for: .claude))
+        #expect(failed.progressColor == recovered.progressColor)
+        #expect(self.quotaBarTint(failed) == UsageMenuCardView.Model.staleProgressColor)
+        #expect(self.quotaBarTint(recovered) == recovered.progressColor)
     }
 
     @Test
@@ -53,7 +80,7 @@ struct MenuCardStaleTintTests {
         #expect(model.subtitleStyle == .error)
         #expect(!model.metrics.isEmpty)
         #expect(model.showsRetainedMeasurement)
-        #expect(model.progressColor == UsageMenuCardView.Model.staleProgressColor)
+        #expect(self.quotaBarTint(model) == UsageMenuCardView.Model.staleProgressColor)
     }
 
     @Test
@@ -61,7 +88,7 @@ struct MenuCardStaleTintTests {
         let model = try self.model(lastError: "Claude Code credentials changed.", subtitleOverride: "Work account")
         #expect(model.subtitleStyle == .info)
         #expect(model.showsRetainedMeasurement)
-        #expect(model.progressColor == UsageMenuCardView.Model.staleProgressColor)
+        #expect(self.quotaBarTint(model) == UsageMenuCardView.Model.staleProgressColor)
     }
 
     @Test

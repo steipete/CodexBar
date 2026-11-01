@@ -1016,8 +1016,8 @@ extension UsageMenuCardView.Model {
             tokenUsage: tokenUsage,
             placeholder: placeholder,
             showsRetainedMeasurement: showsRetainedMeasurement,
-            // A failed refresh leaves the previous measurement on screen; a neutral tint marks it as not current.
-            progressColor: showsRetainedMeasurement ? Self.staleProgressColor : Self.progressColor(for: input.provider))
+            // Quota rows apply retained-measurement tint independently of supplemental costs and charts.
+            progressColor: Self.progressColor(for: input.provider))
     }
 
     private static func resolvedProviderCost(input: Input) -> ProviderCostSnapshot? {

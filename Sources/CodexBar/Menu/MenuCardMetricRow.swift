@@ -11,7 +11,7 @@ struct MetricRow: View {
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
     /// Precedence: a retained (stale) measurement stays neutral, so no per-metric cue may tint it as current.
-    private var barTint: Color {
+    var barTint: Color {
         self.isRetainedMeasurement ? UsageMenuCardView.Model.staleProgressColor : self.progressColor
     }
 
