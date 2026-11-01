@@ -27,10 +27,11 @@ struct MetricRow: View {
                     layoutTitle: layoutPresentation.titleText,
                     resetText: self.compact ? nil : presentation.resetText,
                     layoutResetText: self.compact ? nil : layoutPresentation.resetText,
-                    isHighlighted: self.isHighlighted)
+                    isHighlighted: self.isHighlighted,
+                    isCriticallyLow: self.metric.isCriticallyLow)
                 UsageProgressBar(
                     percent: self.metric.percent,
-                    tint: self.progressColor,
+                    tint: self.metric.isCriticallyLow ? Color(nsColor: .systemRed) : self.progressColor,
                     accessibilityLabel: self.metric.percentStyle.accessibilityLabel,
                     pacePercent: self.metric.pacePercent,
                     paceOnTop: self.metric.paceOnTop,
@@ -83,5 +84,15 @@ struct MetricRow: View {
                 }
             }
             .clipped()
+    }
+}
+
+extension UsageMenuCardView.Model.Metric {
+    /// Remaining quota at or below the shared critical headroom threshold used by compact account rows.
+    /// Only the critical tier is surfaced so healthy bars keep the provider tint.
+    var isCriticallyLow: Bool {
+        guard self.statusText == nil, !self.isSyntheticCreditLane else { return false }
+        let remaining = self.percentStyle == .left ? self.percent : 100 - self.percent
+        return AccountMenuLayoutPlanner.severity(forHeadroom: remaining) == .critical
     }
 }

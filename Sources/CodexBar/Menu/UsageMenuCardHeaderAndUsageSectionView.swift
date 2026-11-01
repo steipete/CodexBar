@@ -29,6 +29,7 @@ struct MetricRowHeader: View {
     let resetText: String?
     let layoutResetText: String?
     let isHighlighted: Bool
+    var isCriticallyLow = false
 
     var body: some View {
         if let layoutResetText {
@@ -68,10 +69,21 @@ struct MetricRowHeader: View {
     }
 
     private func titleLabel(_ title: String) -> some View {
-        Text(title)
-            .font(.body)
-            .fontWeight(.medium)
-            .lineLimit(1)
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            Text(title)
+                .font(.body)
+                .fontWeight(.medium)
+                .lineLimit(1)
+            if self.isCriticallyLow {
+                // A glyph keeps the critical state legible without relying on color alone.
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.footnote)
+                    .accessibilityLabel(L("quota_warning_critical"))
+            }
+        }
+        .foregroundStyle(self.isCriticallyLow
+            ? AnyShapeStyle(MenuHighlightStyle.error(self.isHighlighted))
+            : AnyShapeStyle(.foreground))
     }
 
     private func resetLabel(_ resetText: String) -> some View {
