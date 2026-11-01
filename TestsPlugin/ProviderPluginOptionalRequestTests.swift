@@ -204,6 +204,92 @@ struct ProviderPluginOptionalRequestTests {
         }
     }
 
+    @Test(.timeLimit(.minutes(1)))
+    func `fetch cancellation returns while transport cancellation is blocked`() async throws {
+        let progress = BlockingCancellationProgress()
+        let release = DispatchSemaphore(value: 0)
+        let manifest = try Self.runtime(engine: .quickJS) { request in
+            try Self.response(request, body: "unused")
+        }.manifest
+        let request = try ProviderPluginHTTPResponse.Request(
+            rawURL: "https://example.test/primary",
+            options: [:],
+            method: "GET",
+            settings: [:],
+            secrets: [:],
+            manifest: manifest,
+            enforcesUserResponsePolicy: true)
+        let fetch = Task {
+            do {
+                try await BoundedTaskJoinTiming.$sleep.withValue({ duration in
+                    progress.mark("registered")
+                    try await Task.sleep(for: duration)
+                }) {
+                    _ = try await ProviderPluginHTTPResponse.fetch(
+                        request,
+                        transport: ProviderHTTPTransportHandler { request in
+                            try await withTaskCancellationHandler {
+                                progress.mark("started")
+                                try await Task.sleep(for: .seconds(30))
+                                return try Self.response(request, body: "unexpected")
+                            } onCancel: {
+                                progress.mark("cancelling")
+                                _ = release.wait(timeout: .now() + 10)
+                            }
+                        },
+                        wantsJSON: false,
+                        responseSizeLimit: 1024,
+                        enforcesUserResponsePolicy: true,
+                        rejectsNonSuccessResponses: false)
+                }
+                progress.mark("unexpectedSuccess")
+            } catch {
+                if error is CancellationError { progress.mark("cancelled") }
+                progress.mark("finished")
+            }
+        }
+        defer {
+            release.signal()
+            fetch.cancel()
+        }
+        guard await progress.waitFor("started"), await progress.waitFor("registered") else {
+            Issue.record("Transport or request join did not start")
+            return
+        }
+        DispatchQueue.global().async {
+            fetch.cancel()
+            progress.mark("cancelReturned")
+        }
+        #expect(await progress.waitFor("cancelling"))
+        #expect(await progress.waitFor("cancelReturned"))
+        #expect(await progress.waitFor("finished"))
+        #expect(progress.contains("cancelled"))
+        #expect(!progress.contains("unexpectedSuccess"))
+        release.signal()
+        await fetch.value
+    }
+
+    private final class BlockingCancellationProgress: @unchecked Sendable {
+        private let lock = NSLock()
+        private var flags: Set<String> = []
+
+        func mark(_ flag: String) {
+            self.lock.withLock { _ = self.flags.insert(flag) }
+        }
+
+        func contains(_ flag: String) -> Bool {
+            self.lock.withLock { self.flags.contains(flag) }
+        }
+
+        func waitFor(_ flag: String) async -> Bool {
+            let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+            while !self.contains(flag), ContinuousClock.now < deadline {
+                try? await Task.sleep(for: .milliseconds(10))
+            }
+            return self.contains(flag)
+        }
+    }
+
     private static func runtime(
         engine: ProviderPluginEngineKind,
         optionalURL: String = "https://example.test/optional",
