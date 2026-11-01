@@ -248,6 +248,11 @@ final class SettingsStore {
     static let mergedOverviewProviderLimit = 6
     static let productionCodexAccountReconciliationSnapshotCacheInterval: TimeInterval = 2
     static let isRunningTests = TestProcessSafety.isRunning
+    #if DEBUG
+    static let debugMenuEnabledByDefault = true
+    #else
+    static let debugMenuEnabledByDefault = false
+    #endif
 
     #if DEBUG
     static var codexAccountReconciliationSnapshotCacheIntervalOverrideForTesting: TimeInterval?
@@ -575,7 +580,8 @@ extension SettingsStore {
             refreshAllProvidersOnMenuOpen: userDefaults.object(
                 forKey: "refreshAllProvidersOnMenuOpen") as? Bool ?? false,
             launchAtLogin: userDefaults.object(forKey: "launchAtLogin") as? Bool ?? false,
-            debugMenuEnabled: userDefaults.object(forKey: "debugMenuEnabled") as? Bool ?? false,
+            debugMenuEnabled: userDefaults.object(forKey: "debugMenuEnabled") as? Bool
+                ?? Self.debugMenuEnabledByDefault,
             debugDisableKeychainAccess: debugDisableKeychainAccess,
             debugFileLoggingEnabled: userDefaults.object(forKey: "debugFileLoggingEnabled") as? Bool ?? false,
             debugLogLevelRaw: debugLogLevelRaw,
