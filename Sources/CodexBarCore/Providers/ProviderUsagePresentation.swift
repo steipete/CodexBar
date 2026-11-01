@@ -312,6 +312,8 @@ public struct ProviderMenuCardPresentation: Sendable {
     public let primaryDetailKind: ProviderPrimaryDetailKind
     public let usesAbacusPace: Bool
     public let usesSyntheticRollingRegen: Bool
+    /// Weekly credits keep hundredths and prefer a percent regen tick over a dollar regen line.
+    public let usesWeeklyCreditPrecision: Bool
     public let usesRawPrimaryResetDescription: Bool
     public let resetWindowUsesWeeklyPace: Bool
     public let blockingQuota: (windowID: String, message: String)?
@@ -339,6 +341,7 @@ public struct ProviderMenuCardPresentation: Sendable {
         primaryDetailKind: ProviderPrimaryDetailKind = .none,
         usesAbacusPace: Bool = false,
         usesSyntheticRollingRegen: Bool = false,
+        usesWeeklyCreditPrecision: Bool = false,
         usesRawPrimaryResetDescription: Bool = false,
         resetWindowUsesWeeklyPace: Bool = false,
         blockingQuota: (windowID: String, message: String)? = nil)
@@ -365,6 +368,7 @@ public struct ProviderMenuCardPresentation: Sendable {
         self.primaryDetailKind = primaryDetailKind
         self.usesAbacusPace = usesAbacusPace
         self.usesSyntheticRollingRegen = usesSyntheticRollingRegen
+        self.usesWeeklyCreditPrecision = usesWeeklyCreditPrecision
         self.usesRawPrimaryResetDescription = usesRawPrimaryResetDescription
         self.resetWindowUsesWeeklyPace = resetWindowUsesWeeklyPace
         self.blockingQuota = blockingQuota

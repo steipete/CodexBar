@@ -1475,24 +1475,24 @@ extension UsageMenuCardView.Model {
         {
             weeklyResetText = detail
         }
-        if input.provider == .synthetic,
-           (weekly.nextRegenPercent ?? 0) <= 0,
-           let regen = Self.syntheticRegenDetail(
-               weekly: weekly,
-               cost: input.snapshot?.providerCost,
-               now: input.now,
-               showUsed: input.usageBarsShowUsed)
-        {
-            weeklyResetText = regen.resetText
-            paceDetail = regen.pace
-        } else if input.provider == .synthetic,
-                  let regen = Self.syntheticPlanWeeklyRegenDetail(
-                      window: weekly,
-                      now: input.now,
-                      showUsed: input.usageBarsShowUsed)
-        {
-            weeklyResetText = regen.resetText
-            paceDetail = regen.pace
+        if input.provider == .synthetic {
+            if (weekly.nextRegenPercent ?? 0) <= 0,
+               let regen = Self.syntheticRegenDetail(
+                   weekly: weekly,
+                   cost: input.snapshot?.providerCost,
+                   now: input.now,
+                   showUsed: input.usageBarsShowUsed)
+            {
+                weeklyResetText = regen.resetText
+                paceDetail = regen.pace
+            } else if let regen = Self.syntheticPlanWeeklyRegenDetail(
+                window: weekly,
+                now: input.now,
+                showUsed: input.usageBarsShowUsed)
+            {
+                weeklyResetText = regen.resetText
+                paceDetail = regen.pace
+            }
         }
         let displayedPercent = Self.clamped(
             input.usageBarsShowUsed ? weekly.usedPercent : weekly.remainingPercent)
@@ -1525,7 +1525,8 @@ extension UsageMenuCardView.Model {
             percentLabelOverride: Self.syntheticFractionalPercentLabel(
                 percent: displayedPercent,
                 suffix: percentStyle.labelSuffix,
-                enabled: input.provider == .synthetic && Self.showsSyntheticWeeklyCredits(weekly)))
+                enabled: presentation.menuCard.usesWeeklyCreditPrecision
+                    && Self.showsSyntheticWeeklyCredits(weekly)))
     }
 }
 

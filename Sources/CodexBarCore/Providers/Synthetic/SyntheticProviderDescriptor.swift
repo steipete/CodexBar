@@ -27,7 +27,9 @@ public enum SyntheticProviderDescriptor {
                     showsTertiary: metadata.supportsOpus)
             },
             costPresenter: { _ in ProviderCostPresentation(menuCardStyle: .hidden) },
-            menuCard: ProviderMenuCardPresentation(usesSyntheticRollingRegen: true)),
+            menuCard: ProviderMenuCardPresentation(
+                usesSyntheticRollingRegen: true,
+                usesWeeklyCreditPrecision: true)),
         aliases: ["synthetic.new"],
         apiKeyField: .init(
             id: "synthetic-api-key",
