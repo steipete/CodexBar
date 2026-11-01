@@ -1,6 +1,9 @@
 import Foundation
 import Testing
 @testable import CodexBarCore
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 struct OllamaBalancePluginTests {
     @Test(arguments: BundledPluginTestSupport.engines)

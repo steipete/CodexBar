@@ -1,6 +1,9 @@
 // Offline CLI harness: run the shipped provider runtime against synthetic HTTP replies.
 import CodexBarCore
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 @main
 struct OllamaBalanceProof {
