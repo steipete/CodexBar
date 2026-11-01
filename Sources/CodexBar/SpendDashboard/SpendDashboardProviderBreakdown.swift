@@ -122,7 +122,7 @@ struct SpendProviderBreakdownRows: View {
             ForEach(Array(breakdowns.enumerated()), id: \.element.id) { index, breakdown in
                 if index > 0 {
                     Divider()
-                        .padding(.vertical, 8)
+                        .padding(.vertical, 6)
                 }
                 self.providerGroup(breakdown, share: breakdowns.count > 1 ? shares[breakdown.id] : nil)
             }
@@ -143,7 +143,7 @@ struct SpendProviderBreakdownRows: View {
     private func providerGroup(_ breakdown: SpendProviderBreakdown, share: Double?) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
-                SpendProviderIcon(provider: breakdown.provider, size: 22)
+                SpendProviderIcon(provider: breakdown.provider)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(breakdown.displayName)
                         .font(.headline)

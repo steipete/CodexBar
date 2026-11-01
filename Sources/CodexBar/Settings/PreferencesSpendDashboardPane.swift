@@ -132,14 +132,13 @@ struct SpendDashboardPane: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 18) {
                 if let request = self.sessionNavigation.request {
-                    Button {
-                        self.sessionNavigation.request = nil
-                    } label: {
-                        Label(L("Back"), systemImage: "chevron.left")
+                    HStack {
+                        Text(L("Sessions")).font(.title2.weight(.semibold))
+                        Spacer()
+                        Button(L("Usage & Spend")) { self.sessionNavigation.request = nil }
                     }
-                    .controlSize(.small)
                     SessionUsageBrowser(
                         context: request.context,
                         hidePersonalInfo: self.settings.hidePersonalInfo,
@@ -151,10 +150,10 @@ struct SpendDashboardPane: View {
                     self.refreshStatus
                     self.codexCostCatchUpPanel
                     self.content
-                    self.options
+                    self.dataControls
                 }
             }
-            .padding(20)
+            .padding(24)
         }
         .background(FocusResigningBackground())
         .modifier(SpendDashboardToolbar(
@@ -166,53 +165,53 @@ struct SpendDashboardPane: View {
             isPresented: self.$isExportingJSON,
             document: self.exportDocument,
             contentType: .json,
-            defaultFilename: SpendDashboardJSONExporter.defaultFilename(days: self.controller.model.requestedDays))
-        { result in
-            if SpendDashboardJSONDocument.exportFailed(result) {
-                NSSound.beep()
-            }
-            self.exportDocument = nil
-        }
+            defaultFilename: SpendDashboardJSONExporter.defaultFilename(days: self.controller.model.requestedDays),
+            onCompletion: { result in
+                if SpendDashboardJSONDocument.exportFailed(result) {
+                    NSSound.beep()
+                }
+                self.exportDocument = nil
+            })
         .onAppear {
-                self.isVisible = true
-                self.controller.update(configuration: self.configuration)
-                self.controller.refreshIfStale()
-                if !self.controller.isRefreshing {
-                    self.synchronizeCodexCostCatchUp()
-                }
-            }
-            .onChange(of: self.configuration) { _, configuration in
-                self.controller.update(configuration: configuration)
-            }
-            .onChange(of: self.configuration.codexAccountIdentities) { _, _ in
-                if self.isVisible, !self.controller.isRefreshing {
-                    self.synchronizeCodexCostCatchUp()
-                }
-            }
-            .onChange(of: self.configuration.costUsageEnabled) { _, _ in
-                if self.isVisible, !self.controller.isRefreshing {
-                    self.synchronizeCodexCostCatchUp()
-                }
-            }
-            .onChange(of: self.controller.isRefreshing) { _, isRefreshing in
-                if self.isVisible, !isRefreshing {
-                    self.synchronizeCodexCostCatchUp()
-                }
-            }
-            .onDisappear {
-                self.isVisible = false
+            self.isVisible = true
+            self.controller.update(configuration: self.configuration)
+            self.controller.refreshIfStale()
+            if !self.controller.isRefreshing {
                 self.synchronizeCodexCostCatchUp()
             }
-            .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
-                self.controller.refreshDateWindow()
+        }
+        .onChange(of: self.configuration) { _, configuration in
+            self.controller.update(configuration: configuration)
+        }
+        .onChange(of: self.configuration.codexAccountIdentities) { _, _ in
+            if self.isVisible, !self.controller.isRefreshing {
+                self.synchronizeCodexCostCatchUp()
             }
-            .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
-                self.controller.refreshDateWindow()
+        }
+        .onChange(of: self.configuration.costUsageEnabled) { _, _ in
+            if self.isVisible, !self.controller.isRefreshing {
+                self.synchronizeCodexCostCatchUp()
             }
-            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-                self.controller.refreshDateWindow()
-                self.controller.refreshIfStale()
+        }
+        .onChange(of: self.controller.isRefreshing) { _, isRefreshing in
+            if self.isVisible, !isRefreshing {
+                self.synchronizeCodexCostCatchUp()
             }
+        }
+        .onDisappear {
+            self.isVisible = false
+            self.synchronizeCodexCostCatchUp()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
+            self.controller.refreshDateWindow()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
+            self.controller.refreshDateWindow()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            self.controller.refreshDateWindow()
+            self.controller.refreshIfStale()
+        }
     }
 
     private var configuration: SpendDashboardConfiguration {
@@ -231,8 +230,6 @@ struct SpendDashboardPane: View {
     private func detailSelection(for currency: String) -> Binding<SpendDashboardDetailSection> {
         Binding(get: { self.detailSelections[currency] ?? .providers }, set: { self.detailSelections[currency] = $0 })
     }
-
-    // MARK: - Header
 
     /// The window title names the pane; on macOS 14/15 the controls live here instead of the toolbar.
     @ViewBuilder
@@ -335,20 +332,18 @@ struct SpendDashboardPane: View {
         .help(L("More"))
     }
 
-    // MARK: - Status
-
     @ViewBuilder
     private var refreshStatus: some View {
         if self.controller.failedSourceCount > 0 {
-            GroupBox {
-                Label(
-                    spendDashboardRefreshFailureText(self.controller.failedSourceCount),
-                    systemImage: "exclamationmark.triangle.fill")
-                    .symbolRenderingMode(.multicolor)
-                    .font(.callout)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(4)
-            }
+            Label(
+                spendDashboardRefreshFailureText(self.controller.failedSourceCount),
+                systemImage: "exclamationmark.triangle.fill")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.orange)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
     }
 
@@ -357,82 +352,73 @@ struct SpendDashboardPane: View {
         if let activity = self.store.spendDashboardCodexCostCatchUpActivity,
            activity.phase != .complete
         {
-            SpendDashboardPanel(self.codexCostCatchUpTitle(activity)) {
+            SpendDashboardPanel {
                 VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 8) {
+                        Label(
+                            self.codexCostCatchUpTitle(activity),
+                            systemImage: activity.phase == .paused ? "pause.circle" : "externaldrive")
+                            .font(.headline)
+                        Spacer()
+                        Text(codexCostCatchUpProgressText(activity))
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+
                     if let progress = activity.fractionCompleted {
-                        ProgressView(value: progress) {
-                            EmptyView()
-                        } currentValueLabel: {
-                            Text(codexCostCatchUpProgressText(activity))
-                                .monospacedDigit()
-                        }
-                    } else {
-                        HStack(spacing: 8) {
-                            if activity.phase == .indexing {
-                                ProgressView()
-                                    .controlSize(.small)
-                            }
-                            Text(codexCostCatchUpProgressText(activity))
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                        }
+                        ProgressView(value: progress)
+                    } else if activity.phase == .indexing {
+                        ProgressView()
+                            .controlSize(.small)
                     }
 
                     if let staleSnapshotUpdatedAt = activity.staleSnapshotUpdatedAt {
-                        Label {
-                            Text(L("stale data") + " · " + L(
+                        HStack(spacing: 6) {
+                            Label(L("stale data"), systemImage: "clock.badge.exclamationmark")
+                            Text(L(
                                 "Updated relative %@",
                                 staleSnapshotUpdatedAt.relativeDescription()))
-                        } icon: {
-                            Image(systemName: "clock.badge.exclamationmark")
                         }
                         .font(.caption.weight(.medium))
                         .foregroundStyle(.orange)
                     }
 
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(self.codexCostCatchUpDetail(activity))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Spacer(minLength: 12)
-                        self.codexCostCatchUpActions(activity)
+                    Text(self.codexCostCatchUpDetail(activity))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    HStack {
+                        if activity.pauseReason == .user
+                            || activity.pauseReason == .noProgress
+                            || self.codexCostCatchUpHasError(activity)
+                        {
+                            Button(L("Refresh")) {
+                                self.startCodexCostCatchUp(mode: .automatic)
+                            }
+                        } else if activity.mode == .automatic {
+                            Button(L("Finish now")) {
+                                self.startCodexCostCatchUp(mode: .accelerated)
+                            }
+                        } else {
+                            Button(L("Continue in background")) {
+                                self.userSelectedBackground = true
+                                self.startCodexCostCatchUp(mode: .automatic)
+                            }
+                        }
+
+                        if activity.pauseReason != .user,
+                           activity.pauseReason != .noProgress,
+                           !self.codexCostCatchUpHasError(activity)
+                        {
+                            Button(L("Cancel")) {
+                                self.store.stopSpendDashboardCodexCostCatchUp()
+                            }
+                        }
                     }
+                    .controlSize(.small)
                 }
             }
         }
-    }
-
-    private func codexCostCatchUpActions(_ activity: CodexCostCatchUpActivity) -> some View {
-        ControlGroup {
-            if activity.pauseReason == .user
-                || activity.pauseReason == .noProgress
-                || self.codexCostCatchUpHasError(activity)
-            {
-                Button(L("Refresh")) {
-                    self.startCodexCostCatchUp(mode: .automatic)
-                }
-            } else if activity.mode == .automatic {
-                Button(L("Finish now")) {
-                    self.startCodexCostCatchUp(mode: .accelerated)
-                }
-            } else {
-                Button(L("Continue in background")) {
-                    self.userSelectedBackground = true
-                    self.startCodexCostCatchUp(mode: .automatic)
-                }
-            }
-
-            if activity.pauseReason != .user,
-               activity.pauseReason != .noProgress,
-               !self.codexCostCatchUpHasError(activity)
-            {
-                Button(L("Cancel")) {
-                    self.store.stopSpendDashboardCodexCostCatchUp()
-                }
-            }
-        }
-        .controlSize(.small)
-        .fixedSize()
     }
 
     private func codexCostCatchUpHasError(_ activity: CodexCostCatchUpActivity) -> Bool {
@@ -499,8 +485,6 @@ struct SpendDashboardPane: View {
         }
     }
 
-    // MARK: - Content
-
     @ViewBuilder
     private var content: some View {
         if self.settings.costUsageEnabled,
@@ -531,13 +515,8 @@ struct SpendDashboardPane: View {
                     Label(L("Cost tracking is off"), systemImage: "chart.bar.xaxis")
                 } description: {
                     Text(L("Turn on Track costs to build local estimates."))
-                } actions: {
-                    Button(L("Track costs")) {
-                        self.settings.costUsageEnabled = true
-                    }
-                    .buttonStyle(.borderedProminent)
                 }
-                .frame(maxWidth: .infinity, minHeight: 240)
+                .frame(maxWidth: .infinity, minHeight: 220)
             }
         } else if self.controller.model.groups.isEmpty {
             let emptyState = SpendDashboardEmptyState.make(isRefreshing: self.controller.isRefreshing)
@@ -547,7 +526,7 @@ struct SpendDashboardPane: View {
                 } description: {
                     Text(emptyState.message)
                 }
-                .frame(maxWidth: .infinity, minHeight: 240)
+                .frame(maxWidth: .infinity, minHeight: 220)
             }
         } else {
             ForEach(self.controller.model.groups) { group in
@@ -578,37 +557,42 @@ struct SpendDashboardPane: View {
         }
     }
 
-    // MARK: - Options
-
-    private var options: some View {
+    private var dataControls: some View {
         SpendDashboardPanel(L("Options")) {
             VStack(alignment: .leading, spacing: 12) {
-                SpendDashboardOptionToggle(title: L("Track costs"), isOn: self.$settings.costUsageEnabled)
-                if self.settings.costUsageEnabled {
-                    Divider()
-                    SpendDashboardOptionToggle(
-                        title: L("Include OpenCodex usage logs"),
-                        isOn: self.$settings.openCodexUsageLogsEnabled)
-                    if self.settings.openCodexUsageLogsEnabled {
-                        Divider()
-                        SpendDashboardOptionToggle(
-                            title: L("Hide native Codex when OpenCodex is present"),
-                            isOn: self.$settings.hideNativeCodexCostWhenOpenCodexPresent)
-                    }
-                }
+                self.provenance
                 Divider()
                 SpendTimeZoneControls(settings: self.settings)
-                if self.settings.costUsageEnabled, !self.controller.model.groups.isEmpty {
-                    Divider()
-                    SpendDashboardSourceFilter(settings: self.settings, model: self.controller.model)
-                }
                 Divider()
-                Label(L("List-price equivalent — not a billing receipt."), systemImage: "lock.shield")
+                Label(L("List-price equivalent — not a billing receipt."), systemImage: "lock.shield.fill")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
         .accessibilityIdentifier("spend-dashboard-data-controls")
+    }
+
+    private var provenance: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Toggle(L("Track costs"), isOn: self.$settings.costUsageEnabled)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+            if self.settings.costUsageEnabled {
+                Toggle(L("Include OpenCodex usage logs"), isOn: self.$settings.openCodexUsageLogsEnabled)
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                if self.settings.openCodexUsageLogsEnabled {
+                    Toggle(
+                        L("Hide native Codex when OpenCodex is present"),
+                        isOn: self.$settings.hideNativeCodexCostWhenOpenCodexPresent)
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                }
+                if !self.controller.model.groups.isEmpty {
+                    SpendDashboardSourceFilter(settings: self.settings, model: self.controller.model)
+                }
+            }
+        }
     }
 
     private func copyJSON() {
@@ -665,28 +649,10 @@ private struct SpendDashboardToolbar<Range: View, Refresh: View, Actions: View>:
     }
 }
 
-private struct SpendDashboardOptionToggle: View {
-    let title: String
-    @Binding var isOn: Bool
-
-    var body: some View {
-        Toggle(isOn: self.$isOn) {
-            Text(self.title)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .toggleStyle(.switch)
-        .controlSize(.small)
-    }
-}
-
 struct SpendDashboardJSONDocument: FileDocument {
     static let readableContentTypes: [UTType] = [.json]
 
     let data: Data
-
-    init(data: Data) {
-        self.data = data
-    }
 
     /// Encodes with the same helper as Copy JSON so both actions produce identical bytes.
     init(model: SpendDashboardModel, hiddenSourceIDs: [String]) throws {
@@ -862,23 +828,23 @@ struct SpendDashboardCurrencySection: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 18) {
             SpendDashboardPanel {
                 SpendDashboardSummary(
                     group: self.group,
                     caption: spendDashboardHistoryCaption(self.group, requestedDays: self.requestedDays),
                     onClearSelectedDay: self.onClearSelectedDay)
             }
-            SpendDashboardTrendPanel(
-                group: self.group,
-                selection: self.$selectedTrendSection,
-                onSelectDay: self.onSelectDay,
-                onClearSelectedDay: self.onClearSelectedDay)
             SpendDashboardDetailPanel(
                 group: self.group,
                 hidePersonalInfo: self.hidePersonalInfo,
                 supportsCodexDetails: self.supportsCodexDetails,
                 selection: self.detailSelection ?? self.$selectedDetailSection)
+            SpendDashboardTrendPanel(
+                group: self.group,
+                selection: self.$selectedTrendSection,
+                onSelectDay: self.onSelectDay,
+                onClearSelectedDay: self.onClearSelectedDay)
             SpendDailyLedger(group: self.group)
         }
         .environment(\.timeZone, self.group.timeZone)
@@ -894,7 +860,7 @@ private struct SpendDashboardDetailPanel: View {
 
     var body: some View {
         SpendDashboardPanel(L("Usage breakdown")) {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
                 if self.availableSections.count > 1 {
                     Picker(L("Usage & Spend"), selection: self.normalizedSelection) {
                         ForEach(self.availableSections) { section in
@@ -903,7 +869,8 @@ private struct SpendDashboardDetailPanel: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.segmented)
-                    .frame(maxWidth: .infinity)
+                    .controlSize(.small)
+                    .frame(maxWidth: 460, alignment: .leading)
                     .accessibilityIdentifier("spend-dashboard-detail-picker")
                 }
 
@@ -984,11 +951,10 @@ private struct SpendProjectRows: View {
                         .foregroundStyle(.tertiary)
                         .frame(width: 26, alignment: .leading)
                     Image(systemName: row.isProjectless ? "bubble.left.and.bubble.right" : "folder")
-                        .foregroundStyle(.secondary)
-                        .frame(width: 18)
-                    VStack(alignment: .leading, spacing: 3) {
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                    VStack(alignment: .leading, spacing: 2) {
                         Text(identity.name)
-                            .fontWeight(.medium)
                             .lineLimit(1)
                             .help(identity.path ?? identity.name)
                         Text(row.providerName)
@@ -1125,7 +1091,7 @@ private struct SpendDailyLedger: View {
 
     private func headerCell(_ title: String) -> some View {
         Text(title)
-            .font(.caption.weight(.medium))
+            .font(.caption)
             .foregroundStyle(.secondary)
             .lineLimit(1)
     }
@@ -1145,13 +1111,11 @@ private struct SpendDailyLedgerRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityHidden(true)
             Text(self.tokensText)
-                .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
             Text(self.requestsText)
-                .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
             Text(spendDashboardLedgerCostText(self.summary, currencyCode: self.currencyCode))
-                .fontWeight(.semibold)
+                .fontWeight(.medium)
                 .accessibilityHidden(true)
         }
     }
@@ -1161,11 +1125,11 @@ private struct SpendDailyLedgerRow: View {
         if self.activeProviders.isEmpty {
             Text(L("No usage yet"))
                 .font(.caption)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
         } else {
-            HStack(spacing: 4) {
+            HStack(spacing: 5) {
                 ForEach(self.activeProviders.prefix(4)) { row in
-                    SpendProviderIcon(provider: row.provider, size: 16)
+                    SpendProviderIcon(provider: row.provider)
                 }
                 if self.activeProviders.count > 4 {
                     Text("+\(codexBarLocalizedInteger(self.activeProviders.count - 4))")

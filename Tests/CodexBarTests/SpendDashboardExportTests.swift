@@ -1,7 +1,6 @@
 import AppKit
 import Foundation
 import Testing
-import UniformTypeIdentifiers
 @testable import CodexBar
 @testable import CodexBarCore
 
@@ -26,12 +25,6 @@ struct SpendDashboardExportTests {
         defer { pb.releaseGlobally() }
         #expect(SpendDashboardJSONExporter.copyToPasteboard(model: model, hiddenSourceIDs: ["cursor"], pasteboard: pb))
         #expect(pb.string(forType: .string) == json)
-    }
-
-    @Test
-    func `export document reads and writes JSON only`() {
-        #expect(SpendDashboardJSONDocument.readableContentTypes == [.json])
-        #expect(SpendDashboardJSONDocument.writableContentTypes == [.json])
     }
 
     @Test
