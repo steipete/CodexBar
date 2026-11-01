@@ -1,6 +1,9 @@
 // Offline CLI harness: production plugin runtime, synthetic HTTP replies, no account access.
 import CodexBarCore
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 @main
 struct AiAndBalanceProof {
