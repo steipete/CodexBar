@@ -6,6 +6,8 @@ import FoundationNetworking
 
 /// Shared request policy and HTTP values exposed to both plugin engines.
 enum ProviderPluginHTTPResponse {
+    private static let mcpDualAccept = "application/json, text/event-stream"
+
     struct Payload: @unchecked Sendable {
         let value: [String: Any]
     }
@@ -259,7 +261,12 @@ enum ProviderPluginHTTPResponse {
                 request.setValue(value, forHTTPHeaderField: name)
             }
         }
-        if enforcesUserResponsePolicy || request.value(forHTTPHeaderField: "Accept") == nil {
+        if enforcesUserResponsePolicy {
+            let accept = method == "POST"
+                ? Self.normalizedMCPAccept(request.value(forHTTPHeaderField: "Accept"))
+                : nil
+            request.setValue(accept ?? "application/json", forHTTPHeaderField: "Accept")
+        } else if request.value(forHTTPHeaderField: "Accept") == nil {
             request.setValue("application/json", forHTTPHeaderField: "Accept")
         }
         if enforcesUserResponsePolicy {
@@ -296,6 +303,17 @@ enum ProviderPluginHTTPResponse {
         try ProviderPluginCookieJar.authenticate(
             &request, sessionID: options["cookieSession"], required: manifest.usesCookieJar, jar: cookieJar)
         return request
+    }
+
+    private static func normalizedMCPAccept(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let mediaTypes = value.split(separator: ",", omittingEmptySubsequences: false)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        guard mediaTypes.count == 2,
+              mediaTypes[0].caseInsensitiveCompare("application/json") == .orderedSame,
+              mediaTypes[1].caseInsensitiveCompare("text/event-stream") == .orderedSame
+        else { return nil }
+        return Self.mcpDualAccept
     }
 
     private static func postBody(_ options: [String: Any]) throws -> Data {

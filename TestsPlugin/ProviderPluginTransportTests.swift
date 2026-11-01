@@ -375,6 +375,82 @@ struct ProviderPluginTransportTests {
             #expect(await transport.count == ([401, 501].contains(status) ? 1 : 2))
         }
     }
+
+    @Test(arguments: Self.engines)
+    func `user policy permits only normalized MCP Accept on POST`(engine: ProviderPluginEngineKind) async throws {
+        let transport = PluginAcceptHeaderTransport()
+        let runtime = try Self.runtime(
+            engine,
+            body: """
+            await ctx.http.post('https://example.com', {
+              body: {}, headers: { Accept: 'APPLICATION/JSON ,  TEXT/EVENT-STREAM' }
+            });
+            await ctx.http.post('https://example.com', { body: {}, headers: { Accept: '*/*' } });
+            await ctx.http.post('https://example.com', {
+              body: {}, headers: { Accept: 'application/json, text/event-stream, text/html' }
+            });
+            await ctx.http.post('https://example.com', {
+              body: {}, headers: { Accept: 'application/json;q=0.9, text/event-stream' }
+            });
+            await ctx.http.post('https://example.com', {
+              body: {}, headers: { Accept: 'text/event-stream, application/json' }
+            });
+            await ctx.http.get('https://example.com', {
+              headers: { Accept: 'application/json, text/event-stream' }
+            });
+            await ctx.http.post('https://example.com', { body: {} });
+            return { identity: { loginMethod: 'ok' } };
+            """,
+            enforcesUserResponsePolicy: true,
+            transport: transport)
+
+        #expect(try await runtime.fetchUsage().identity?.loginMethod == "ok")
+        let requests = await transport.recordedRequests()
+        #expect(requests.map(\.accept) == [
+            "application/json, text/event-stream",
+            "application/json",
+            "application/json",
+            "application/json",
+            "application/json",
+            "application/json",
+            "application/json",
+        ])
+        #expect(requests.allSatisfy { $0.acceptEncoding == "identity" })
+
+        let existingProvider = try Self.runtime(
+            engine,
+            body: """
+            await ctx.http.post('https://example.com', { body: {}, headers: { Accept: '*/*' } });
+            return { identity: { loginMethod: 'ok' } };
+            """,
+            transport: transport)
+        #expect(try await existingProvider.fetchUsage().identity?.loginMethod == "ok")
+        #expect(await transport.recordedRequests().last?.accept == "*/*")
+    }
+}
+
+private actor PluginAcceptHeaderTransport: ProviderHTTPTransport {
+    struct Request: Sendable {
+        let accept: String?
+        let acceptEncoding: String?
+    }
+
+    private var requests: [Request] = []
+
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        self.requests.append(Request(
+            accept: request.value(forHTTPHeaderField: "Accept"),
+            acceptEncoding: request.value(forHTTPHeaderField: "Accept-Encoding")))
+        return (Data("{}".utf8), HTTPURLResponse(
+            url: request.url!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil)!)
+    }
+
+    func recordedRequests() -> [Request] {
+        self.requests
+    }
 }
 
 private actor PluginStatusTransport: ProviderHTTPTransport {

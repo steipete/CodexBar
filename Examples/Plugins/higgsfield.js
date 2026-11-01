@@ -17,15 +17,24 @@ defineProvider({
   async fetchUsage(ctx) {
     const endpoint = "https://mcp.higgsfield.ai/mcp";
     const protocolVersion = "2025-11-25";
-    const invalidResponse = () => ctx.fail.parseFailure("Higgsfield MCP returned an unsupported balance response.");
+    const supportRecovery = "If it persists, contact Higgsfield or CodexBar support. Do not send secrets.";
+    const unsupportedRecovery = `Update the Higgsfield plugin, then refresh. ${supportRecovery}`;
+    const temporaryRecovery = `Wait a few minutes, then refresh. ${supportRecovery}`;
+    const invalidResponse = () => ctx.fail.parseFailure(
+      `Higgsfield MCP returned an unsupported balance response. ${unsupportedRecovery}`);
 
     const failForStatus = (status) => {
       if (status === 401) {
         throw ctx.fail.authenticationExpired("Higgsfield MCP rejected the access token. Reconnect with an authorized token.");
       }
       if (status === 403) throw ctx.fail.permissionDenied("Higgsfield MCP denied access to the balance tool.");
-      if (status === 429) throw ctx.fail.rateLimited("Higgsfield MCP rate limited the balance request.");
-      if (status >= 500) throw ctx.fail.providerUnavailable(`Higgsfield MCP returned HTTP ${status}.`);
+      if (status === 429) {
+        throw ctx.fail.rateLimited(`Higgsfield MCP rate limited the balance request. ${temporaryRecovery}`);
+      }
+      if (status >= 500) {
+        throw ctx.fail.providerUnavailable(
+          `Higgsfield MCP is temporarily unavailable (HTTP ${status}). ${temporaryRecovery}`);
+      }
       if (status < 200 || status >= 300) throw ctx.fail.apiFailure(`Higgsfield MCP returned HTTP ${status}.`);
     };
 
@@ -80,7 +89,9 @@ defineProvider({
       const messages = parseMessages(response);
       const envelope = messages.find((item) => item && item.id === expectedID);
       if (!envelope || envelope.jsonrpc !== "2.0") throw invalidResponse();
-      if (envelope.error) throw ctx.fail.apiFailure("Higgsfield MCP could not complete the balance request.");
+      if (envelope.error) {
+        throw ctx.fail.apiFailure(`Higgsfield MCP could not complete the balance request. ${temporaryRecovery}`);
+      }
       if (!envelope.result || typeof envelope.result !== "object" || Array.isArray(envelope.result)) {
         throw invalidResponse();
       }
@@ -101,7 +112,8 @@ defineProvider({
       1,
     );
     if (![protocolVersion, "2025-06-18"].includes(initialized.protocolVersion)) {
-      throw ctx.fail.providerUnavailable("Higgsfield MCP negotiated an unsupported protocol version.");
+      throw ctx.fail.providerUnavailable(
+        `Higgsfield MCP negotiated an unsupported protocol version. ${unsupportedRecovery}`);
     }
     negotiatedProtocolVersion = initialized.protocolVersion;
 
@@ -124,14 +136,14 @@ defineProvider({
     const balanceTool = listed.tools.find((tool) => tool && tool.name === "balance") ||
       listed.tools.find((tool) => tool && tool.name === "higgsfield_balance");
     if (!balanceTool) {
-      throw ctx.fail.permissionDenied("Higgsfield MCP did not advertise a supported balance tool.");
+      throw ctx.fail.permissionDenied(`Higgsfield MCP did not advertise a supported balance tool. ${unsupportedRecovery}`);
     }
     if (balanceTool.annotations && balanceTool.annotations.readOnlyHint === false) {
       throw ctx.fail.permissionDenied("Higgsfield MCP marked its balance tool as non-read-only.");
     }
     if (balanceTool.inputSchema && Array.isArray(balanceTool.inputSchema.required) &&
         balanceTool.inputSchema.required.length > 0) {
-      throw ctx.fail.permissionDenied("Higgsfield MCP balance tool requires unsupported input fields.");
+      throw ctx.fail.permissionDenied(`Higgsfield MCP balance tool requires unsupported input fields. ${unsupportedRecovery}`);
     }
 
     const call = await post(
@@ -143,7 +155,9 @@ defineProvider({
       },
       3,
     );
-    if (call.isError === true) throw ctx.fail.apiFailure("Higgsfield MCP reported a balance tool error.");
+    if (call.isError === true) {
+      throw ctx.fail.apiFailure(`Higgsfield MCP reported a balance tool error. ${temporaryRecovery}`);
+    }
 
     let data = call.structuredContent;
     const hasCredits = (value) => value && typeof value === "object" && !Array.isArray(value) &&
@@ -164,7 +178,7 @@ defineProvider({
     }
     if (data && typeof data === "object" && !Array.isArray(data) &&
         (typeof data.error === "string" ? data.error.trim().length > 0 : data.error != null)) {
-      throw ctx.fail.apiFailure("Higgsfield MCP could not retrieve billing details.");
+      throw ctx.fail.apiFailure(`Higgsfield MCP could not retrieve billing details. ${temporaryRecovery}`);
     }
     if (!hasCredits(data)) throw invalidResponse();
 

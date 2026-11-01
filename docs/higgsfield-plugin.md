@@ -17,9 +17,16 @@ Codex tool and may be a wrapper name; runtime discovery checks what the endpoint
 It inspects only the first `tools/list` page; if Higgsfield paginates the balance tool onto a later page, the plugin
 reports the tool as unsupported rather than following an unverified pagination contract.
 
-The raw endpoint's authenticated `tools/list` and `tools/call` response have not been verified in this environment.
-The automated tests use a simulated MCP server response based on the balance shape observed through the connected
-Higgsfield balance tool. They do not establish that a manually supplied token is accepted by the raw MCP endpoint.
+CodexBar's installed-plugin host permits the canonical `Accept: application/json, text/event-stream` header on POST
+requests so this MCP endpoint can negotiate JSON or server-sent events. The host normalizes only that canonical value;
+its declared-origin and GET/POST restrictions, auth-header protection, `Accept-Encoding: identity` requirement, and
+response checks remain in effect.
+
+The balance shape was observed through a successfully queried connected authenticated Higgsfield tool, which may be a
+wrapper and is not proof that the local plugin works against the raw endpoint. The raw endpoint's authenticated
+`tools/list` and `tools/call` response have not been verified in this environment. Automated tests use simulated MCP
+responses and a fixture token; they do not establish that a manually supplied token is accepted by the raw endpoint or
+provide live authenticated local-plugin proof.
 
 ## Data shown
 
