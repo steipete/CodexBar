@@ -330,22 +330,42 @@ struct SettingsStoreAdditionalTests {
     }
 
     @Test
-    func `debug menu defaults on in debug builds and persists an explicit off`() throws {
+    func `debug menu default follows build configuration and persists an explicit choice`() throws {
+        #if DEBUG
+        let expectedDefault = true
+        #else
+        let expectedDefault = false
+        #endif
         let suite = "SettingsStoreAdditionalTests-debug-menu-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let configStore = testConfigStore(suiteName: suite)
 
         let initial = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
-        #expect(SettingsStore.debugMenuEnabledByDefault)
-        #expect(initial.debugMenuEnabled)
+        #expect(SettingsStore.debugMenuEnabledByDefault == expectedDefault)
+        #expect(initial.debugMenuEnabled == expectedDefault)
         #expect(defaults.object(forKey: "debugMenuEnabled") == nil)
 
-        initial.debugMenuEnabled = false
-        #expect(defaults.object(forKey: "debugMenuEnabled") as? Bool == false)
+        initial.debugMenuEnabled = !expectedDefault
+        #expect(defaults.object(forKey: "debugMenuEnabled") as? Bool == !expectedDefault)
 
         let reloaded = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
-        #expect(!reloaded.debugMenuEnabled)
+        #expect(reloaded.debugMenuEnabled == !expectedDefault)
+    }
+
+    @Test(arguments: [true, false])
+    func `stored debug menu choice survives upgrade`(stored: Bool) throws {
+        let suite = "SettingsStoreAdditionalTests-debug-menu-stored-\(stored)-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(stored, forKey: "debugMenuEnabled")
+
+        let settings = Self.makeSettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite))
+
+        #expect(settings.debugMenuEnabled == stored)
+        #expect(defaults.object(forKey: "debugMenuEnabled") as? Bool == stored)
     }
 
     private static func makeSettingsStore(suite: String) -> SettingsStore {
