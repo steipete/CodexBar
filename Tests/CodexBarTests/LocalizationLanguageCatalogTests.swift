@@ -741,6 +741,7 @@ struct LocalizationLanguageCatalogTests {
             "/Applications/TcrBar.app/Contents/MacOS/tcr",
             "<1%% %@",
             "%.0f%% %@",
+            "%.2f%% %@",
             "%@ %@",
             "%@: %@",
             "%@h",
