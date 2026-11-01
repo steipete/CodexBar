@@ -41,7 +41,8 @@ enum CursorLocalCSVReader {
         let cols = self.parseCSVLine(header)
         let hasKind = cols.contains { $0.lowercased() == "kind" }
         struct Idx { let model: Int; let inW: Int; let inWo: Int; let read: Int; let out: Int; let cost: Int }
-        let idx = if hasKind, cols.count >= 11 {
+        // Trailing billing columns do not identify the cloud-agent schema.
+        let idx = if hasKind, cols.contains(where: { $0.lowercased() == "cloud agent id" }) {
             Idx(model: 4, inW: 6, inWo: 7, read: 8, out: 9, cost: 11)
         } else if hasKind {
             Idx(model: 2, inW: 4, inWo: 5, read: 6, out: 7, cost: 9)
