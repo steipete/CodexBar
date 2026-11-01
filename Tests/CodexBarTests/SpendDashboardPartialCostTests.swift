@@ -516,6 +516,45 @@ struct SpendDashboardPartialCostTests {
         #expect(!cursor.hasPartialModelHistory)
     }
 
+    @Test
+    func `provider shares ignore a spend subtotal with an unpriced account`() throws {
+        let group = try Self.group(inputs: [
+            .init(
+                id: "codex-one",
+                provider: .codex,
+                displayName: "Codex · #1",
+                snapshot: Self.snapshot(
+                    entries: [Self.entry(day: "2026-07-15", cost: 4, tokens: 40, model: "model-one")],
+                    last30DaysTokens: 40,
+                    last30DaysCostUSD: 4)),
+            .init(
+                id: "codex-two",
+                provider: .codex,
+                displayName: "Codex · #2",
+                snapshot: Self.snapshot(
+                    entries: [Self.entry(day: "2026-07-16", cost: nil, tokens: 20, model: "model-two")],
+                    last30DaysTokens: 20,
+                    last30DaysCostUSD: nil)),
+            .init(
+                provider: .cursor,
+                displayName: "Cursor",
+                snapshot: Self.snapshot(
+                    entries: [Self.entry(day: "2026-07-15", cost: 3, tokens: 30, model: "cursor-model")],
+                    last30DaysTokens: 30,
+                    last30DaysCostUSD: 3)),
+        ])
+
+        let breakdowns = spendDashboardProviderBreakdowns(group)
+        let codex = try #require(breakdowns.first { $0.provider == .codex })
+        #expect(codex.totalCost == 4 && codex.hasPartialCost)
+        // Codex's $4 omits its unpriced account, so a $4 vs $3 spend share would overstate Cursor.
+        let shares = spendDashboardProviderShares(breakdowns)
+        let codexShare = try #require(shares[UsageProvider.codex.rawValue])
+        let cursorShare = try #require(shares[UsageProvider.cursor.rawValue])
+        #expect(abs(codexShare - 60.0 / 90.0) < 1e-12)
+        #expect(abs(cursorShare - 30.0 / 90.0) < 1e-12)
+    }
+
     @Test(arguments: [UsageProvider.claude, .pi])
     func `provider hierarchy retains incomplete source and model rows beside known subtotals`(
         provider: UsageProvider) throws
