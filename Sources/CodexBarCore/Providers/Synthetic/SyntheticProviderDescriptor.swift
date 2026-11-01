@@ -18,7 +18,8 @@ public enum SyntheticProviderDescriptor {
         missingCredentialMessage: { _ in SyntheticSettingsError.missingToken.errorDescription },
         presentation: ProviderUsagePresentation(
             rateWindowLabeler: { metadata, snapshot, _ in
-                let weeklyCredits = snapshot.secondary?.nextRegenPercent != nil
+                let weeklyCredits = snapshot.secondary?.title == "Weekly credits"
+                    || snapshot.secondary?.nextRegenPercent != nil
                 return ProviderRateWindowLabels(
                     primary: metadata.sessionLabel,
                     secondary: weeklyCredits ? "Weekly credits" : metadata.weeklyLabel,

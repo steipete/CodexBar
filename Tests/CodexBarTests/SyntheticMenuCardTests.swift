@@ -121,4 +121,47 @@ struct SyntheticMenuCardTests {
         #expect(weekly.detailLeftText == "100% after next regen")
         #expect(weekly.detailRightText == "Full in ~1 regen")
     }
+
+    @Test
+    func `plan weekly regen percent wins over a dollar regen on the same card`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let secondary = RateWindow(
+            usedPercent: 100 - 99.60392845714286,
+            windowMinutes: nil,
+            resetsAt: now.addingTimeInterval((3 * 60 + 11) * 60),
+            resetDescription: nil,
+            nextRegenPercent: 2,
+            title: "Weekly credits")
+        let cost = ProviderCostSnapshot(
+            used: 0.36,
+            limit: 36,
+            currencyCode: "USD",
+            period: "Weekly",
+            resetsAt: now.addingTimeInterval(3600),
+            nextRegenAmount: 0.72,
+            updatedAt: now)
+        let model = try Self.makeModel(
+            primary: nil,
+            secondary: secondary,
+            providerCost: cost,
+            now: now)
+        let weekly = try #require(model.metrics.first(where: { $0.id == "secondary" }))
+        #expect(weekly.resetText == "Regenerates 2% in 3h 11m")
+        #expect(weekly.title == "Weekly credits")
+    }
+
+    @Test
+    func `weekly credits keep a fractional percent without a regen tick`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let secondary = RateWindow(
+            usedPercent: 0.4,
+            windowMinutes: nil,
+            resetsAt: nil,
+            resetDescription: nil,
+            title: "Weekly credits")
+        let model = try Self.makeModel(primary: nil, secondary: secondary, now: now)
+        let weekly = try #require(model.metrics.first(where: { $0.id == "secondary" }))
+        #expect(weekly.title == "Weekly credits")
+        #expect(weekly.percentLabel == "99.60% left")
+    }
 }

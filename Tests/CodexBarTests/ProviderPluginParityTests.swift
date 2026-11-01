@@ -231,6 +231,7 @@ struct ProviderPluginParityTests {
         #expect(script.primary == nil)
         #expect(script.providerCost == nil)
         #expect(script.identity?.loginMethod == nil)
+        #expect(script.secondary?.title == "Weekly credits")
         #expect(script.secondary?.nextRegenPercent == 2)
         #expect(script.secondary?.resetsAt == weeklyReset)
         #expect(abs((script.secondary?.usedPercent ?? -1) - (100 - 99.60392845714286)) < 0.000_000_1)
@@ -242,12 +243,24 @@ struct ProviderPluginParityTests {
     func `Synthetic plan weekly percents stay on a 0 to 100 scale below 1`() async throws {
         let half = try await Self.weeklyRemaining(0.5)
         #expect(abs((half.secondary?.usedPercent ?? -1) - 99.5) < 0.000_000_1)
+        #expect(half.secondary?.title == "Weekly credits")
         #expect(half.secondary?.nextRegenPercent == 1)
         #expect(half.primary == nil)
 
         // percentRemaining of 1 is 1% left, not a fraction that becomes 100%.
         let one = try await Self.weeklyRemaining(1)
         #expect(abs((one.secondary?.usedPercent ?? -1) - 99) < 0.000_000_1)
+        #expect(one.secondary?.title == "Weekly credits")
+
+        let runtime = try ProviderPluginRuntime(
+            bundledPlugin: "synthetic",
+            transport: Self.transport(body: """
+            { "planWeeklyLimit": { "percentRemaining": 99.6 } }
+            """))
+        let unlabeledRegen = try await runtime.fetchUsage(secrets: ["SYNTHETIC_API_KEY": "fixture-key"])
+        #expect(unlabeledRegen.secondary?.title == "Weekly credits")
+        #expect(unlabeledRegen.secondary?.nextRegenPercent == nil)
+        #expect(abs((unlabeledRegen.secondary?.usedPercent ?? -1) - 0.4) < 0.000_000_1)
     }
 
     @Test

@@ -1476,6 +1476,7 @@ extension UsageMenuCardView.Model {
             weeklyResetText = detail
         }
         if input.provider == .synthetic,
+           (weekly.nextRegenPercent ?? 0) <= 0,
            let regen = Self.syntheticRegenDetail(
                weekly: weekly,
                cost: input.snapshot?.providerCost,
@@ -1524,7 +1525,7 @@ extension UsageMenuCardView.Model {
             percentLabelOverride: Self.syntheticFractionalPercentLabel(
                 percent: displayedPercent,
                 suffix: percentStyle.labelSuffix,
-                enabled: input.provider == .synthetic && weekly.nextRegenPercent != nil))
+                enabled: input.provider == .synthetic && Self.showsSyntheticWeeklyCredits(weekly)))
     }
 }
 

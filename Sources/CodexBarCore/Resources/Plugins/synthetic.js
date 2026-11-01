@@ -281,6 +281,7 @@ defineProvider({
               firstNumber(payload, ["tickPercent", "tick_percent", "nextTickPercent", "next_tick_percent"]),
             );
       if (tickPercent !== null) window.nextRegenPercent = tickPercent;
+      if (payload.absolutePercent) window.title = "Weekly credits";
 
       const costLimit = firstCurrency(payload, ["maxCredits", "max_credits"]);
       let cost = null;

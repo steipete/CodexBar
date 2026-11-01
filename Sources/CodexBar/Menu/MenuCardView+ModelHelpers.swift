@@ -1305,6 +1305,10 @@ extension UsageMenuCardView.Model {
         return (resetText, rolling.pace)
     }
 
+    static func showsSyntheticWeeklyCredits(_ window: RateWindow) -> Bool {
+        window.title == "Weekly credits" || window.nextRegenPercent != nil
+    }
+
     static func syntheticFractionalPercentLabel(percent: Double, suffix: String, enabled: Bool) -> String? {
         guard enabled else { return nil }
         let clamped = min(100, max(0, percent))
