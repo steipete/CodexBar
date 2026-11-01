@@ -20,9 +20,13 @@ struct SettingsMenuPicker<Value: Hashable, Label: View, OptionLabel: View>: View
         self.optionLabel = optionLabel
     }
 
+    private var displayedOptions: [Value] {
+        SettingsMenuPickerOptions.displayed(self.options, selection: self.selection)
+    }
+
     var body: some View {
         Picker(selection: self.$selection) {
-            ForEach(self.options, id: \.self) { option in
+            ForEach(self.displayedOptions, id: \.self) { option in
                 self.optionLabel(option)
                     .tag(option)
             }
@@ -30,6 +34,13 @@ struct SettingsMenuPicker<Value: Hashable, Label: View, OptionLabel: View>: View
             self.label()
         }
         .pickerStyle(.menu)
+    }
+}
+
+enum SettingsMenuPickerOptions {
+    /// Native `Picker` only shows a selection with a matching tag, so keep imported off-list values visible.
+    static func displayed<Value: Hashable>(_ options: [Value], selection: Value) -> [Value] {
+        options.contains(selection) ? options : options + [selection]
     }
 }
 
