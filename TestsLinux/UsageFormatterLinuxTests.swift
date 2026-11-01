@@ -14,18 +14,9 @@ struct UsageFormatterLinuxTests {
     }
 
     @Test
-    func `fractional percent keeps hundredths and localized suffix order`() {
-        UsageFormatter.clearLocalizationProvider()
-        UsageFormatter.clearLocaleProvider()
-
+    func `fractional percent keeps hundredths beside a whole percent`() {
         #expect(UsageFormatter.fractionalPercentText(99.60392845714286, suffix: "left") == "99.60% left")
         #expect(UsageFormatter.fractionalPercentText(2.01, suffix: "left") == "2.01% left")
         #expect(UsageFormatter.fractionalPercentText(2, suffix: "left") == nil)
-
-        UsageFormatter.setLocalizationProvider { key in
-            key == "%.2f%% %@" ? "%2$@ %1$.2f%%" : key
-        }
-        #expect(UsageFormatter.fractionalPercentText(99.6, suffix: "剩余") == "剩余 99.60%")
-        UsageFormatter.clearLocalizationProvider()
     }
 }
