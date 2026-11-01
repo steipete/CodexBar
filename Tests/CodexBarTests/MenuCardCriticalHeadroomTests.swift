@@ -28,25 +28,38 @@ struct MenuCardCriticalHeadroomTests {
 
     @Test
     @MainActor
-    func `critical warning preserves header height at narrow widths`() {
-        for width in stride(from: CGFloat(180), through: 340, by: 8) {
-            let healthy = Self.headerHeight(width: width, isCriticallyLow: false)
-            let critical = Self.headerHeight(width: width, isCriticallyLow: true)
-            #expect(healthy == critical, "Critical cue changed header height at width \(width)")
-        }
+    func `healthy compact headers reserve no warning glyph space`() {
+        let title = "Weekly 89% used"
+        let header = MetricRowHeader(
+            title: title,
+            layoutTitle: title,
+            resetText: nil,
+            layoutResetText: nil,
+            isHighlighted: false,
+            isCriticallyLow: false)
+        let plain = Text(title).font(.body).fontWeight(.medium).lineLimit(1)
+        let proposal = CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        let healthySize = NSHostingController(rootView: header).sizeThatFits(in: proposal)
+        let plainSize = NSHostingController(rootView: plain).sizeThatFits(in: proposal)
+        #expect(abs(healthySize.width - plainSize.width) < 1)
+        #expect(abs(healthySize.height - plainSize.height) < 1)
     }
 
+    @Test
     @MainActor
-    private static func headerHeight(width: CGFloat, isCriticallyLow: Bool) -> CGFloat {
-        let header = MetricRowHeader(
-            title: "Weekly 90% used",
-            layoutTitle: "Weekly 89% used",
-            resetText: "Resets in 3d 20h",
-            layoutResetText: "Resets in 3d 20h",
-            isHighlighted: false,
-            isCriticallyLow: isCriticallyLow)
-        return NSHostingController(rootView: header.frame(width: width))
-            .sizeThatFits(in: CGSize(width: width, height: CGFloat.greatestFiniteMagnitude)).height
+    func `critical compact headers include the visible warning glyph`() {
+        let title = "Weekly 90% used"
+        let proposal = CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        func size(critical: Bool) -> CGSize {
+            NSHostingController(rootView: MetricRowHeader(
+                title: title,
+                layoutTitle: title,
+                resetText: nil,
+                layoutResetText: nil,
+                isHighlighted: false,
+                isCriticallyLow: critical)).sizeThatFits(in: proposal)
+        }
+        #expect(size(critical: true).width > size(critical: false).width)
     }
 
     @Test
