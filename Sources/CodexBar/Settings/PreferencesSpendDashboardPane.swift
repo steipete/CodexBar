@@ -168,7 +168,7 @@ struct SpendDashboardPane: View {
             contentType: .json,
             defaultFilename: SpendDashboardJSONExporter.defaultFilename(days: self.controller.model.requestedDays))
         { result in
-            if case .failure = result {
+            if SpendDashboardJSONDocument.exportFailed(result) {
                 NSSound.beep()
             }
             self.exportDocument = nil
@@ -618,14 +618,14 @@ struct SpendDashboardPane: View {
     }
 
     private func exportJSON() {
-        guard let data = try? SpendDashboardJSONExporter.encodedData(
+        guard let document = try? SpendDashboardJSONDocument(
             model: self.controller.model,
             hiddenSourceIDs: self.settings.spendDashboardHiddenSourceIDs)
         else {
             NSSound.beep()
             return
         }
-        self.exportDocument = SpendDashboardJSONDocument(data: data)
+        self.exportDocument = document
         self.isExportingJSON = true
     }
 
@@ -688,12 +688,34 @@ struct SpendDashboardJSONDocument: FileDocument {
         self.data = data
     }
 
+    /// Encodes with the same helper as Copy JSON so both actions produce identical bytes.
+    init(model: SpendDashboardModel, hiddenSourceIDs: [String]) throws {
+        self.data = try SpendDashboardJSONExporter.encodedData(model: model, hiddenSourceIDs: hiddenSourceIDs)
+    }
+
+    init(fileWrapper: FileWrapper) throws {
+        guard fileWrapper.isRegularFile, let data = fileWrapper.regularFileContents else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        self.data = data
+    }
+
     init(configuration: ReadConfiguration) throws {
-        self.data = configuration.file.regularFileContents ?? Data()
+        try self.init(fileWrapper: configuration.file)
+    }
+
+    func fileWrapper() -> FileWrapper {
+        FileWrapper(regularFileWithContents: self.data)
     }
 
     func fileWrapper(configuration _: WriteConfiguration) throws -> FileWrapper {
-        FileWrapper(regularFileWithContents: self.data)
+        self.fileWrapper()
+    }
+
+    /// Cancelling the save panel is a normal outcome, so only real write failures beep.
+    static func exportFailed(_ result: Result<URL, any Error>) -> Bool {
+        guard case let .failure(error) = result else { return false }
+        return (error as? CocoaError)?.code != .userCancelled
     }
 }
 
@@ -1402,10 +1424,6 @@ enum SpendDashboardJSONExporter {
         return "codexbar-spend-last-\(days)-days.json"
     }
 
-    static func write(_ data: Data, to url: URL) throws {
-        try data.write(to: url, options: .atomic)
-    }
-
     @MainActor
     static func copyToPasteboard(
         model: SpendDashboardModel,
@@ -1420,38 +1438,6 @@ enum SpendDashboardJSONExporter {
         }
         pasteboard.clearContents()
         return pasteboard.setString(json, forType: .string)
-    }
-
-    @MainActor
-    static func save(
-        model: SpendDashboardModel,
-        hiddenSourceIDs: [String],
-        chooseDestination: ((String) -> URL?)? = nil) -> Bool
-    {
-        guard let data = try? self.encodedData(model: model, hiddenSourceIDs: hiddenSourceIDs) else {
-            NSSound.beep()
-            return false
-        }
-        let filename = self.defaultFilename(days: model.requestedDays)
-        let url: URL?
-        if let chooseDestination {
-            url = chooseDestination(filename)
-        } else {
-            let panel = NSSavePanel()
-            panel.allowedContentTypes = [.json]
-            panel.canCreateDirectories = true
-            panel.nameFieldStringValue = filename
-            guard panel.runModal() == .OK else { return false }
-            url = panel.url
-        }
-        guard let url else { return false }
-        do {
-            try self.write(data, to: url)
-            return true
-        } catch {
-            NSSound.beep()
-            return false
-        }
     }
 }
 
