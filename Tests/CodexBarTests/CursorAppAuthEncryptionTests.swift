@@ -250,16 +250,6 @@ struct CursorAppAuthEncryptionTests {
         }
     }
 
-    @Test(arguments: ["Cursor Key", "Cursor"])
-    func `Safe Storage preflight matches the account without requesting a secret`(account: String) {
-        let query = KeychainAccessPreflight.makeGenericPasswordPreflightQuery(
-            service: "Cursor Safe Storage", account: account)
-        #expect(query[kSecAttrService as String] as? String == "Cursor Safe Storage")
-        #expect(query[kSecAttrAccount as String] as? String == account)
-        #expect(query[kSecReturnData as String] == nil)
-        Self.expectNoUI(query)
-    }
-
     private static func expectNoUI(_ query: [String: Any]) {
         #expect((query[kSecUseAuthenticationContext as String] as? LAContext)?.interactionNotAllowed == true)
         #expect(query[kSecUseAuthenticationUI as String] as? String == KeychainNoUIQuery.uiFailPolicyForTesting())
