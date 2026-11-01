@@ -2,6 +2,10 @@
 
 ## 0.83.1 — Unreleased
 
+### Changed
+
+- Menu: use tabular digits in usage and cost rows so live percentage and amount updates no longer shift neighboring text (#4884).
+
 ## 0.83.0 — 2026-10-31
 
 ### Highlights
