@@ -40,7 +40,8 @@ The parser first looks for Synthetic's known quota slots, either at the root
 of the response or under `data`:
 
 - `rollingFiveHourLimit` -> Five-hour quota
-- `planWeeklyLimit` -> Weekly credits (percent remaining, next regeneration time, and next regeneration percent)
+- `planWeeklyLimit` -> Weekly credits (percent remaining, next regeneration time, and next regeneration percent).
+  Those percentages are already on a 0-100 scale, including values at or below 1.
 - `weeklyTokenLimit` -> Weekly tokens, used when `planWeeklyLimit` is absent
 - `search.hourly` -> Search hourly
 

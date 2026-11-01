@@ -239,6 +239,18 @@ struct ProviderPluginParityTests {
     }
 
     @Test
+    func `Synthetic plan weekly percents stay on a 0 to 100 scale below 1`() async throws {
+        let half = try await Self.weeklyRemaining(0.5)
+        #expect(abs((half.secondary?.usedPercent ?? -1) - 99.5) < 0.000_000_1)
+        #expect(half.secondary?.nextRegenPercent == 1)
+        #expect(half.primary == nil)
+
+        // percentRemaining of 1 is 1% left, not a fraction that becomes 100%.
+        let one = try await Self.weeklyRemaining(1)
+        #expect(abs((one.secondary?.usedPercent ?? -1) - 99) < 0.000_000_1)
+    }
+
+    @Test
     func `Synthetic subscription-only response still parses the request counter`() async throws {
         let body = """
         {
@@ -406,6 +418,20 @@ struct ProviderPluginParityTests {
         // in both implementations.
         #expect(script.primary?.usedPercent == 9.0914810042)
         #expect(script.detailRow(label: "API key remaining")?.value == "$454.54")
+    }
+
+    private static func weeklyRemaining(_ percentRemaining: Double) async throws -> UsageSnapshot {
+        let body = """
+        {
+          "planWeeklyLimit": {
+            "nextRegenAt": "2026-11-01T07:41:28.000Z",
+            "percentRemaining": \(percentRemaining),
+            "nextRegenPercent": 1
+          }
+        }
+        """
+        let runtime = try ProviderPluginRuntime(bundledPlugin: "synthetic", transport: Self.transport(body: body))
+        return try await runtime.fetchUsage(secrets: ["SYNTHETIC_API_KEY": "fixture-key"])
     }
 
     private static func isoDate(_ value: String) throws -> Date {

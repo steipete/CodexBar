@@ -238,9 +238,15 @@ defineProvider({
       );
     }
 
+    function asPercent(payload, value) {
+      if (value === null) return null;
+      // planWeeklyLimit reports 0-100 percents. A remaining value of 1 is 1%, not 100%.
+      return payload.absolutePercent ? value : normalizedPercent(value);
+    }
+
     function parseQuota(payload) {
-      let usedPercent = normalizedPercent(firstNumber(payload, percentUsedKeys));
-      const percentRemaining = normalizedPercent(firstNumber(payload, percentRemainingKeys));
+      let usedPercent = asPercent(payload, firstNumber(payload, percentUsedKeys));
+      const percentRemaining = asPercent(payload, firstNumber(payload, percentRemainingKeys));
       if (usedPercent === null && percentRemaining !== null) usedPercent = 100 - percentRemaining;
 
       if (usedPercent === null) {
@@ -295,9 +301,11 @@ defineProvider({
       return { label: firstString(payload, labelKeys), window, cost };
     }
 
-    function namedQuota(candidate, label) {
+    function namedQuota(candidate, label, absolutePercent) {
       if (!isQuota(candidate)) return null;
-      return Object.assign({ label }, candidate);
+      const quota = Object.assign({ label }, candidate);
+      if (absolutePercent) quota.absolutePercent = true;
+      return quota;
     }
 
     function collect(candidate) {
@@ -313,8 +321,8 @@ defineProvider({
     const slots = [
       namedQuota(root.rollingFiveHourLimit, "Rolling five-hour limit") ||
         namedQuota(data && data.rollingFiveHourLimit, "Rolling five-hour limit"),
-      namedQuota(root.planWeeklyLimit, "Weekly credits") ||
-        namedQuota(data && data.planWeeklyLimit, "Weekly credits") ||
+      namedQuota(root.planWeeklyLimit, "Weekly credits", true) ||
+        namedQuota(data && data.planWeeklyLimit, "Weekly credits", true) ||
         namedQuota(root.weeklyTokenLimit, "Weekly token limit") ||
         namedQuota(data && data.weeklyTokenLimit, "Weekly token limit"),
       namedQuota(root.search && root.search.hourly, "Search hourly") ||
