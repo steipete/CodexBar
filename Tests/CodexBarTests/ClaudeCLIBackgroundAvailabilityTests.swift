@@ -359,6 +359,110 @@ struct ClaudeCLIBackgroundAvailabilityTests {
         }
     }
 
+    @Test
+    func `disabled Keychain background Auto retries a failed attempt without waiting for a foreground refresh`()
+        async throws
+    {
+        let strategy = self.makeStrategy()
+        let profile = try self.makeProfile(accountID: "account-a")
+        defer { try? FileManager.default.removeItem(at: profile.root) }
+        let context = self.makeContext(environment: profile.environment)
+        let clock = TestClock(Date(timeIntervalSince1970: 1_000_000))
+        let retryDelay = ClaudeCLIBackgroundAvailability.initialBackgroundRetryDelay
+
+        await self.withBackgroundGates(keychainDisabled: true, promptMode: .never, oauthCredentialsMissing: false) {
+            await self.withClock(clock) {
+                // Background refreshes work, then one attempt fails while the Mac briefly wakes from sleep
+                // without a network connection.
+                #expect(await self.fetchUsage(strategy, context: context))
+                clock.advance(by: ClaudeCLIUsageSpawnThrottle.minimumBackgroundSpawnInterval + 1)
+                #expect(await !self.fetchUsage(strategy, context: context, failure: Self.offlineFailure))
+
+                #expect(await !strategy.isAvailable(context))
+                clock.advance(by: retryDelay - 1)
+                #expect(await !strategy.isAvailable(context))
+                clock.advance(by: 1)
+                #expect(await strategy.isAvailable(context))
+                #expect(await self.fetchUsage(strategy, context: context))
+            }
+        }
+    }
+
+    @Test
+    func `repeated disabled Keychain background failures double the retry delay up to its cap`() async throws {
+        let strategy = self.makeStrategy()
+        let profile = try self.makeProfile(accountID: "account-a")
+        defer { try? FileManager.default.removeItem(at: profile.root) }
+        let context = self.makeContext(environment: profile.environment)
+        let clock = TestClock(Date(timeIntervalSince1970: 1_000_000))
+
+        await self.withBackgroundGates(keychainDisabled: true, promptMode: .never, oauthCredentialsMissing: false) {
+            await self.withClock(clock) {
+                var expectedDelay = ClaudeCLIBackgroundAvailability.initialBackgroundRetryDelay
+                for _ in 0..<8 {
+                    #expect(await !self.fetchUsage(strategy, context: context, failure: Self.offlineFailure))
+                    clock.advance(by: expectedDelay - 1)
+                    #expect(await !strategy.isAvailable(context))
+                    clock.advance(by: 1)
+                    #expect(await strategy.isAvailable(context))
+                    expectedDelay = min(
+                        expectedDelay * 2,
+                        ClaudeCLIBackgroundAvailability.maximumBackgroundRetryDelay)
+                }
+            }
+        }
+    }
+
+    @Test
+    func `a successful disabled Keychain background retry resets the retry delay`() async throws {
+        let strategy = self.makeStrategy()
+        let profile = try self.makeProfile(accountID: "account-a")
+        defer { try? FileManager.default.removeItem(at: profile.root) }
+        let context = self.makeContext(environment: profile.environment)
+        let clock = TestClock(Date(timeIntervalSince1970: 1_000_000))
+        let retryDelay = ClaudeCLIBackgroundAvailability.initialBackgroundRetryDelay
+
+        await self.withBackgroundGates(keychainDisabled: true, promptMode: .never, oauthCredentialsMissing: false) {
+            await self.withClock(clock) {
+                #expect(await !self.fetchUsage(strategy, context: context, failure: Self.offlineFailure))
+                clock.advance(by: retryDelay)
+                #expect(await strategy.isAvailable(context))
+                #expect(await self.fetchUsage(strategy, context: context))
+
+                clock.advance(by: ClaudeCLIUsageSpawnThrottle.minimumBackgroundSpawnInterval + 1)
+                #expect(await !self.fetchUsage(strategy, context: context, failure: Self.offlineFailure))
+                clock.advance(by: retryDelay)
+                #expect(await strategy.isAvailable(context))
+            }
+        }
+    }
+
+    @Test
+    func `disabled Keychain background authentication failures still wait for a foreground refresh`() async throws {
+        let strategy = self.makeStrategy()
+        let profile = try self.makeProfile(accountID: "account-a")
+        defer { try? FileManager.default.removeItem(at: profile.root) }
+        let context = self.makeContext(environment: profile.environment)
+        let clock = TestClock(Date(timeIntervalSince1970: 1_000_000))
+        let signedOut = ClaudeStatusProbeError.authenticationFailed(
+            "Claude CLI token expired. Run `claude login` to refresh.")
+
+        await self.withBackgroundGates(keychainDisabled: true, promptMode: .never, oauthCredentialsMissing: false) {
+            await self.withClock(clock) {
+                #expect(await !self.fetchUsage(strategy, context: context, failure: signedOut))
+                clock.advance(by: 7 * 24 * 60 * 60)
+                #expect(await !strategy.isAvailable(context))
+
+                let recovered = await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                    await self.fetchUsage(strategy, context: context)
+                }
+                #expect(recovered)
+                clock.advance(by: ClaudeCLIUsageSpawnThrottle.minimumBackgroundSpawnInterval + 1)
+                #expect(await strategy.isAvailable(context))
+            }
+        }
+    }
+
     private func makeStrategy() -> ClaudeCLIFetchStrategy {
         ClaudeCLIFetchStrategy(
             useWebExtras: false,
@@ -370,6 +474,70 @@ struct ClaudeCLIBackgroundAvailabilityTests {
 
     private enum ExpectedFetchError: Error {
         case failed
+    }
+
+    private final class TestClock: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value: Date
+
+        init(_ value: Date) {
+            self.value = value
+        }
+
+        func now() -> Date {
+            self.lock.withLock { self.value }
+        }
+
+        func advance(by interval: TimeInterval) {
+            self.lock.withLock {
+                self.value = self.value.addingTimeInterval(interval)
+            }
+        }
+    }
+
+    /// What the probe reports when `claude` renders "Failed to load usage data" because it has no network.
+    private static let offlineFailure = ClaudeStatusProbeError.parseFailed(
+        "Claude CLI could not load usage data. Open the CLI and retry `/usage`.")
+
+    /// Runs one CLI usage fetch in the current interaction context and reports whether it succeeded.
+    private func fetchUsage(
+        _ strategy: ClaudeCLIFetchStrategy,
+        context: ProviderFetchContext,
+        failure: ClaudeStatusProbeError? = nil) async -> Bool
+    {
+        let fetchOverride: ClaudeStatusProbe.FetchOverride = { _, _, _ in
+            if let failure { throw failure }
+            return ClaudeStatusSnapshot(
+                sessionPercentLeft: 90,
+                weeklyPercentLeft: 80,
+                opusPercentLeft: nil,
+                accountEmail: "cli@example.com",
+                accountOrganization: nil,
+                loginMethod: "cli",
+                primaryResetDescription: nil,
+                secondaryResetDescription: nil,
+                opusResetDescription: nil,
+                rawText: "probe raw")
+        }
+        do {
+            _ = try await ClaudeStatusProbe.$fetchOverride.withValue(fetchOverride) {
+                try await strategy.fetch(context)
+            }
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// Drives both the availability store and the CLI spawn throttle from one test clock.
+    private func withClock<T>(_ clock: TestClock, operation: () async throws -> T) async rethrows -> T {
+        try await ClaudeCLIUsageSpawnThrottle.withIsolatedStoreForTesting {
+            try await ClaudeCLIUsageSpawnThrottle.withNowOverrideForTesting(clock.now) {
+                try await ClaudeCLIBackgroundAvailability.withNowOverrideForTesting(clock.now) {
+                    try await operation()
+                }
+            }
+        }
     }
 
     private func makeContext(
