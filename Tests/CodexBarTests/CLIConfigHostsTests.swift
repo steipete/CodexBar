@@ -9,11 +9,7 @@ struct CLIConfigHostsTests {
     // MARK: Parsing
 
     @Test
-    func `config hosts Commander parsing exposes defaults domain and rejects unsupported check`() throws {
-        let listParser = CommandParser(signature: CommandSignature.describe(ConfigHostsListOptions()).flattened())
-        let parsed = try listParser.parse(arguments: ["--defaults-domain", "fixture-domain"])
-        #expect(parsed.options["defaultsDomain"] == ["fixture-domain"])
-        #expect(parsed.positional.isEmpty)
+    func `config hosts Commander parsing rejects unsupported remove check`() throws {
         let removeParser = CommandParser(signature: CommandSignature.describe(ConfigHostsRemoveOptions()).flattened())
         #expect(throws: (any Error).self) { try removeParser.parse(arguments: ["mini", "--check"]) }
     }
@@ -25,7 +21,7 @@ struct CLIConfigHostsTests {
         ("a;b", HostPreferences.State()),
         ("k", HostPreferences.State(manualTokens: ["\u{212A}"])),
     ])
-    func `add rejects invalid hosts`(host: String, state: HostPreferences.State) {
+    func `add rejects invalid hosts and stored case fold collisions`(host: String, state: HostPreferences.State) {
         #expect(throws: (any Error).self) {
             _ = try HostPreferences.adding(host, to: state, cost: false)
         }
@@ -81,15 +77,23 @@ struct CLIConfigHostsTests {
         let unchanged = try HostPreferences.removing(
             "devbox", from: HostPreferences.State(manualTokens: ["devbox"]), costOnly: true)
         #expect(!unchanged.changed && unchanged.state.manualHosts == ["devbox"])
-        #expect(CodexBarCLI.renderConfigHostMutation(
-            ConfigHostsMutationResult(host: unchanged.host, changed: unchanged.changed, costUsage: false, check: nil),
-            action: .remove,
-            costOnly: true) == "Host unchanged: devbox")
 
         let usernames = HostPreferences.State(manualTokens: ["Alice@devbox", "alice@devbox"])
         let removedUsername = try HostPreferences.removing("alice@devbox", from: usernames, costOnly: false)
         #expect(removedUsername.state.manualHosts == ["Alice@devbox"])
         #expect(removedUsername.changed)
+
+        let raw = HostPreferences.State(
+            manualTokens: [" DevBox ", "bad host", "-bad", "BAD HOST", "", "devbox", "mini", "a\tb"],
+            costUsageHosts: ["DevBox"])
+        let removed = try HostPreferences.removing("bad host", from: raw, costOnly: false)
+        #expect(removed.state.manualTokens == [" DevBox ", "-bad", "", "devbox", "mini", "a\tb"])
+        #expect(removed.changed)
+        let removedDash = try HostPreferences.removing("-bad", from: removed.state, costOnly: false)
+        #expect(removedDash.state.manualTokens == [" DevBox ", "", "devbox", "mini", "a\tb"])
+        let removedTab = try HostPreferences.removing("a\tb", from: removedDash.state, costOnly: false)
+        #expect(removedTab.state.manualTokens == [" DevBox ", "", "devbox", "mini"])
+        #expect(!CodexBarCLI.configHostsEntries(removedTab.state).contains { !$0.valid })
     }
 
     @Test(arguments: ["", "one,two"])
@@ -116,7 +120,7 @@ struct CLIConfigHostsTests {
     // MARK: JSON shapes
 
     @Test
-    func `list JSON shape keeps checks with explicit null errors`() throws {
+    func `list JSON shape and text keep check and mutation results`() throws {
         let result = ConfigHostsListResult(hosts: [
             ConfigHostsEntry(
                 host: "devbox",
@@ -127,7 +131,7 @@ struct CLIConfigHostsTests {
                 host: "weird;host",
                 valid: false,
                 costUsage: false,
-                check: ConfigHostsCheckResult(ok: false, error: "Enter one SSH host alias or user@host.")),
+                check: ConfigHostsCheckResult(ok: false, error: RemoteCodexCostError.invalidHost.errorDescription)),
             ConfigHostsEntry(host: "mini", valid: true, costUsage: false, check: nil),
         ])
 
@@ -143,9 +147,15 @@ struct CLIConfigHostsTests {
 
         let failed = try #require(hosts[1]["check"] as? [String: Any])
         #expect(failed["ok"] as? Bool == false)
-        #expect(failed["error"] as? String == "Enter one SSH host alias or user@host.")
+        #expect(failed["error"] as? String == RemoteCodexCostError.invalidHost.errorDescription)
 
         #expect(hosts[2]["check"] == nil)
+        let invalid = ConfigHostsEntry(host: "bad host", valid: false, costUsage: false, check: nil)
+        #expect(CodexBarCLI.renderConfigHostEntry(invalid) == "bad host: invalid for spend")
+        #expect(CodexBarCLI.renderConfigHostMutation(
+            ConfigHostsMutationResult(host: "devbox", changed: false, costUsage: false, check: nil),
+            action: .remove,
+            costOnly: true) == "Host unchanged: devbox")
     }
 
     // MARK: Check

@@ -339,7 +339,7 @@ final class SettingsStore {
         tokenAccountStore: any ProviderTokenAccountStoring = FileTokenAccountStore(),
         antigravityOAuthCredentialsStore: AntigravityOAuthCredentialsStore = AntigravityOAuthCredentialsStore(),
         keychainAccessPolicy: SettingsStoreKeychainAccessPolicy = .defaultPolicy,
-        hostPreferencesLockURL: URL? = HostPreferences.lockURL,
+        hostPreferencesLockURL: URL? = SettingsStore.isRunningTests ? nil : HostPreferences.lockURL,
         performInitialProviderDetection: Bool = !SettingsStore.isRunningTests)
     {
         // Legacy credential migration must see the saved policy, including shared-defaults fallback.

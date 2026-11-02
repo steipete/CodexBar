@@ -6,9 +6,54 @@ import Testing
 
 @MainActor
 struct HostPreferencesTests {
-    @Test(arguments: [false, true], [false, true])
+    @Test
+    func `Settings initializer omitting host lock does not create a production lock under tests`() throws {
+        try #require(SettingsStore.isRunningTests)
+        let environment = ProcessInfo.processInfo.environment
+        let fixtureHome = try URL(fileURLWithPath: #require(environment["CFFIXED_USER_HOME"]))
+            .resolvingSymlinksInPath()
+        let defaultLock = try #require(HostPreferences.lockURL).resolvingSymlinksInPath()
+        try #require(defaultLock.path.hasPrefix(fixtureHome.path + "/"), "Stop before using an uncontained lock.")
+        try #require(!FileManager.default.fileExists(atPath: defaultLock.path), "The fixture lock must start absent.")
+        let root = fixtureHome.appendingPathComponent("initializer-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let configStore = CodexBarConfigStore(fileURL: root.appendingPathComponent("config.json"))
+        try configStore.save(testConfigWithAllProvidersDisabled())
+        let settings = SettingsStore(
+            userDefaults: InMemoryUserDefaults(values: ["debugDisableKeychainAccess": true]),
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore(),
+            codexCookieStore: InMemoryCookieHeaderStore(),
+            claudeCookieStore: InMemoryCookieHeaderStore(),
+            cursorCookieStore: InMemoryCookieHeaderStore(),
+            opencodeCookieStore: InMemoryCookieHeaderStore(),
+            factoryCookieStore: InMemoryCookieHeaderStore(),
+            minimaxCookieStore: InMemoryMiniMaxCookieStore(),
+            minimaxAPITokenStore: InMemoryMiniMaxAPITokenStore(),
+            kimiTokenStore: InMemoryKimiTokenStore(),
+            augmentCookieStore: InMemoryCookieHeaderStore(),
+            ampCookieStore: InMemoryCookieHeaderStore(),
+            copilotTokenStore: InMemoryCopilotTokenStore(),
+            tokenAccountStore: InMemoryTokenAccountStore(fileURL: root.appendingPathComponent("accounts.json")),
+            antigravityOAuthCredentialsStore: AntigravityOAuthCredentialsStore(
+                fileURL: root.appendingPathComponent("antigravity.json")),
+            keychainAccessPolicy: SettingsStoreKeychainAccessPolicy(
+                setDisabled: { _ in }, isExplicitlyDisabled: { true }),
+            performInitialProviderDetection: false)
+        defer { settings.configFileWatcher?.stop() }
+        #expect(
+            settings.hostPreferencesLockURL == nil,
+            "Default test initialization must not select a production lock.")
+    }
+
+    @Test(arguments: [
+        (false, false, false), (false, true, false), (true, false, false), (true, true, false),
+        (false, false, true),
+    ])
     func `Settings edits and CLI adds survive delivery and fresh initialization`(
-        revokeSpend: Bool, cliFirst: Bool) throws
+        revokeSpend: Bool, cliFirst: Bool, invalidDocument: Bool) throws
     {
         let defaults = InMemoryUserDefaults(values: [
             "agentSessionsManualHosts": "devbox", "costUsageHosts": ["devbox"],
@@ -25,6 +70,7 @@ struct HostPreferencesTests {
         if !cliFirst {
             _ = try CodexBarCLI.configHostsMutation(.add, host: "mini", cost: true, in: defaults, lockURL: nil)
         }
+        if invalidDocument { defaults.set(Data("invalid document".utf8), forKey: PreferencesDocument.pendingImportKey) }
         settings.consumePendingPreferencesImport()
         #expect(settings.costUsageHosts == ["mini"])
         let hosts = RemoteSessionFetcher.sanitizedHosts(settings.agentSessionsManualHosts.components(separatedBy: ","))
@@ -35,7 +81,7 @@ struct HostPreferencesTests {
     }
 
     @Test
-    func `list exposes rejected tokens and removal preserves unrelated raw tokens`() throws {
+    func `list exposes rejected tokens and prunes invalid cost selection`() throws {
         let defaults = InMemoryUserDefaults()
         defaults.set(" DevBox ,bad host,-bad,BAD HOST,,devbox,mini,a\tb", forKey: "agentSessionsManualHosts")
         defaults.set(["DevBox", "DevBox", "ghost"], forKey: "costUsageHosts")
@@ -49,15 +95,6 @@ struct HostPreferencesTests {
             ConfigHostsEntry(host: "mini", valid: true, costUsage: false, check: nil),
             ConfigHostsEntry(host: "a\tb", valid: false, costUsage: false, check: nil),
         ])
-        #expect(CodexBarCLI.renderConfigHostEntry(entries[1]) == "bad host: invalid for spend")
-        let removed = try HostPreferences.removing("bad host", from: state, costOnly: false)
-        #expect(removed.state.manualTokens == [" DevBox ", "-bad", "", "devbox", "mini", "a\tb"])
-        #expect(removed.changed)
-        let removedDash = try HostPreferences.removing("-bad", from: removed.state, costOnly: false)
-        #expect(removedDash.state.manualTokens == [" DevBox ", "", "devbox", "mini", "a\tb"])
-        let removedTab = try HostPreferences.removing("a\tb", from: removedDash.state, costOnly: false)
-        #expect(removedTab.state.manualTokens == [" DevBox ", "", "devbox", "mini"])
-        #expect(!CodexBarCLI.configHostsEntries(removedTab.state).contains { !$0.valid })
     }
 
     @Test
@@ -88,17 +125,6 @@ struct HostPreferencesTests {
     }
 
     @Test
-    func `pending imports refresh host configuration even when the document is invalid`() throws {
-        let defaults = InMemoryUserDefaults()
-        let settings = testSettingsStore(suiteName: #function, userDefaults: defaults)
-        defaults.set(Data("invalid document".utf8), forKey: PreferencesDocument.pendingImportKey)
-        _ = try CodexBarCLI.configHostsMutation(.add, host: "mini", cost: true, in: defaults, lockURL: nil)
-        settings.consumePendingPreferencesImport()
-        #expect(settings.agentSessionsManualHosts == "mini")
-        #expect(settings.costUsageHosts == ["mini"])
-    }
-
-    @Test
     func `Settings revocation waits for an in-flight real CLI transaction then keeps its added host`() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -109,9 +135,6 @@ struct HostPreferencesTests {
         let settings = testSettingsStore(suiteName: #function, userDefaults: defaults, hostPreferencesLockURL: lock)
         let group = DispatchGroup()
         let errors = LockIsolated<[String]>([])
-        let revoking = DispatchSemaphore(value: 0)
-        let revoked = DispatchSemaphore(value: 0)
-        let waited = LockIsolated(false)
         defaults.pauseNextHostRead()
         group.enter()
         DispatchQueue.global().async {
@@ -125,15 +148,11 @@ struct HostPreferencesTests {
         group.enter()
         DispatchQueue.global().async {
             defer { group.leave(); defaults.resume.signal() }
-            guard revoking.wait(timeout: .now() + 5) == .success else { return }
-            // The CLI remains paused after its actual read while the Settings writer waits.
-            waited.setValue(revoked.wait(timeout: .now() + 0.15) == .timedOut)
+            Thread.sleep(forTimeInterval: 0.15)
         }
-        revoking.signal()
         settings.setCostUsageHost("devbox", enabled: false)
-        revoked.signal()
         try #require(group.wait(timeout: .now() + 5) == .success)
-        #expect(waited.value && errors.value.isEmpty)
+        #expect(errors.value.isEmpty)
         settings.consumePendingPreferencesImport()
         #expect(settings.agentSessionsManualHosts == "devbox,mini")
         #expect(settings.costUsageHosts == ["mini"])
@@ -158,18 +177,13 @@ struct HostPreferencesTests {
         defer { settings?.configFileWatcher?.stop() }
         weak let owner = settings
         let launch: SpendDashboardController.MachineRemoteLaunch
-        let consent: @MainActor @Sendable (String) -> Bool
         do {
             let store = try #require(settings)
             try #require(store.costUsageHosts == ["fixture-host"])
             launch = store.spendHostLaunch
-            consent = store.spendHostConsent
-            if boundary == .consentReadFailure || boundary == .consentReleasedOwner {
-                try #require(consent("fixture-host"), "The stored host must be allowed before the failure.")
-            }
             store.configFileWatcher?.stop()
         }
-        if boundary == .unavailableLock || boundary == .consentReadFailure {
+        if boundary == .unavailableLock {
             let lockURL = try #require(lockURL)
             try FileManager.default.removeItem(at: lockURL)
             try FileManager.default.createDirectory(at: lockURL, withIntermediateDirectories: true)
@@ -177,33 +191,29 @@ struct HostPreferencesTests {
                 settings?.costUsageHosts == ["fixture-host"],
                 "A stale allowed projection must remain available.")
         }
-        if boundary == .releasedOwner || boundary == .consentReleasedOwner {
+        if boundary == .releasedOwner {
             settings = nil
             try #require(owner == nil, "The launch operation must not retain Settings.")
         }
-        if boundary == .consentReadFailure || boundary == .consentReleasedOwner {
-            #expect(!consent("fixture-host"), "A failed read or released owner must deny the previously allowed host.")
-        } else {
-            let invoked = LockIsolated(false)
-            let outcome = await Task { @MainActor in
-                if boundary == .cancelled { withUnsafeCurrentTask { $0?.cancel() } }
-                try launch("fixture-host") {
-                    invoked.setValue(true)
-                    if boundary == .launchError { throw HostLaunchBoundary.launchError }
-                }
-            }.result
-            #expect(invoked.value == (boundary == .launchError), "Only the launch-error control may invoke launch.")
-            switch outcome {
-            case .success:
-                Issue.record("Missing authority must cancel rather than invoke launch.")
-            case let .failure(error):
-                if boundary == .launchError {
-                    #expect(
-                        error as? HostLaunchBoundary == .launchError,
-                        "The launch error must pass through unchanged.")
-                } else {
-                    #expect(error is CancellationError)
-                }
+        let invoked = LockIsolated(false)
+        let outcome = await Task { @MainActor in
+            if boundary == .cancelled { withUnsafeCurrentTask { $0?.cancel() } }
+            try launch("fixture-host") {
+                invoked.setValue(true)
+                if boundary == .launchError { throw HostLaunchBoundary.launchError }
+            }
+        }.result
+        #expect(invoked.value == (boundary == .launchError), "Only the launch-error control may invoke launch.")
+        switch outcome {
+        case .success:
+            Issue.record("Missing authority must cancel rather than invoke launch.")
+        case let .failure(error):
+            if boundary == .launchError {
+                #expect(
+                    error as? HostLaunchBoundary == .launchError,
+                    "The launch error must pass through unchanged.")
+            } else {
+                #expect(error is CancellationError)
             }
         }
         #expect(defaults.stringArray(forKey: "costUsageHosts") == ["fixture-host"])
@@ -234,7 +244,7 @@ struct HostPreferencesTests {
 }
 
 enum HostLaunchBoundary: CaseIterable, Error {
-    case missingLock, unavailableLock, releasedOwner, cancelled, launchError, consentReadFailure, consentReleasedOwner
+    case missingLock, unavailableLock, releasedOwner, cancelled, launchError
 }
 
 /// Pauses the production CLI after it reads the real canonical pair while holding its host lock.

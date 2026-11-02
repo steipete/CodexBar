@@ -20,26 +20,17 @@ extension SettingsStore {
         self.updateHostPreferences { _ in }
     }
 
-    /// Each app SSH spend fetch re-reads canonical consent first; a failed read or released store denies it.
-    var spendHostConsent: @MainActor @Sendable (String) -> Bool {
-        { [weak self] host in
-            guard let self, self.refreshHostPreferences() else { return false }
-            return self.costUsageHosts.contains(host)
-        }
-    }
-
-    /// Spawns an app SSH spend fetch inside the canonical host transaction, so a committed removal prevents it.
+    /// Projects canonical hosts, then spawns an app SSH spend fetch in that transaction, so removal prevents it.
     var spendHostLaunch: @MainActor @Sendable (String, @Sendable () throws -> Void) throws -> Void {
         { [weak self] host, launch in
-            var launched = false
-            do {
-                guard let self, let lockURL = self.hostPreferencesLockURL else { throw CancellationError() }
-                _ = try HostPreferences.update(in: self.userDefaults, lockURL: lockURL) { state in
-                    guard state.costUsageHosts.contains(host), !Task.isCancelled else { throw CancellationError() }
-                    launched = true
-                    try launch()
-                }
-            } catch _ where !launched { throw CancellationError() }
+            guard let self, let lockURL = self.hostPreferencesLockURL else { throw CancellationError() }
+            let launched = try? HostPreferences.update(in: self.userDefaults, lockURL: lockURL) { state in
+                self.projectHostPreferences(state)
+                guard state.costUsageHosts.contains(host), !Task.isCancelled else { throw CancellationError() }
+                return Result { try launch() }
+            }
+            guard let launched else { throw CancellationError() }
+            try launched.result.get()
         }
     }
 

@@ -1963,7 +1963,6 @@ extension SpendDashboardController {
     }
 
     nonisolated static func makeMachineLoader(
-        isHostConsented: @escaping @MainActor @Sendable (String) -> Bool = { _ in true },
         launchRemote: @escaping MachineRemoteLaunch = { _, launch in try launch() },
         local: @escaping @Sendable (Int64, Int64) async throws -> CodexRequestLedger = CodexRequestLedger.load,
         fetchRemote: @escaping MachineRemoteFetcher = SpendDashboardController.sshFetchRemote) -> MachineLoader
@@ -1976,8 +1975,7 @@ extension SpendDashboardController {
                 includeSourceSubtotals: true,
                 local: { try await local(start, end) },
                 fetchRemote: { host in
-                    guard await isHostConsented(host) else { throw CancellationError() }
-                    return try await fetchRemote(host, days, start, end) { try await launchRemote(host, $0) }
+                    try await fetchRemote(host, days, start, end) { try await launchRemote(host, $0) }
                 })
         }
     }

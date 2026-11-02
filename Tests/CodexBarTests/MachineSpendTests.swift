@@ -207,77 +207,10 @@ struct MachineSpendTests {
         field.sendAction(field.action, to: field.target)
     }
 
-    @Test(.timeLimit(.minutes(1)), arguments: [false, true])
-    func `machine loader factory with Settings consent rejects a revocation without notification`(
-        revokeBeta: Bool) async throws
+    @Test(.timeLimit(.minutes(1)), arguments: MachineHostRevocation.allCases)
+    func `machine launch projects consent and cancels revoked collections before spawn`(
+        revocation: MachineHostRevocation) async throws
     {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
-        let defaults = InMemoryUserDefaults(values: [
-            "agentSessionsManualHosts": "alpha,beta", "costUsageHosts": ["alpha", "beta"],
-        ])
-        let lockURL = root.appendingPathComponent("hosts.lock")
-        let settings = testSettingsStore(
-            suiteName: #function,
-            userDefaults: defaults,
-            config: testConfigWithAllProvidersDisabled(),
-            hostPreferencesLockURL: lockURL)
-        let alphaStarted = LockIsolated(false)
-        let transport = PausedMachineTransport(alphaStarted: alphaStarted)
-        let cancelled = LockIsolated(false)
-        let productionLoader = SpendDashboardController.makeMachineLoader(
-            isHostConsented: settings.spendHostConsent,
-            local: { start, end in CodexRequestLedger(startUnixMs: start, endUnixMs: end) },
-            fetchRemote: { host, _, start, end, _ in await transport.fetch(host, start: start, end: end) })
-        let controller = SpendDashboardController(
-            userDefaults: InMemoryUserDefaults(),
-            requestBuilder: Self.loadRequest,
-            machineLoader: { hosts, days, start, end in
-                do {
-                    return try await productionLoader(hosts, days, start, end)
-                } catch {
-                    cancelled.setValue(error is CancellationError)
-                    throw error
-                }
-            },
-            nowProvider: { Date(timeIntervalSince1970: 172_800) })
-        controller.selectPeriod(.rolling(days: 2))
-        defer { controller.stop(); settings.configFileWatcher?.stop() }
-        try #require(settings.costUsageHosts == ["alpha", "beta"])
-        controller.runMachineSpend(hosts: settings.costUsageHosts, eligible: true, localPartial: false)
-        let alphaDeadline = ContinuousClock.now.advanced(by: .seconds(5))
-        while !alphaStarted.value, ContinuousClock.now < alphaDeadline {
-            try await Task.sleep(for: .milliseconds(10))
-        }
-        try #require(alphaStarted.value, "The synthetic alpha transport must start before revocation.")
-        try #require(await transport.hosts == ["alpha"])
-        try #require(controller.machineRunning && controller.machineRequestedHosts == ["alpha", "beta"])
-        if revokeBeta {
-            let committed = try HostPreferences.update(in: defaults, lockURL: lockURL) {
-                $0.setCostUsage("beta", enabled: false)
-            }
-            try #require(committed.state.costUsageHosts == ["alpha"])
-        }
-        try #require(settings.costUsageHosts == ["alpha", "beta"], "No notification refreshed Settings.")
-        try #require(controller.machineRunning, "No explicit cancellation occurred while alpha was pending.")
-        await transport.finishAlpha()
-        try await SpendDashboardStateWait.until { !controller.machineRunning }
-        if revokeBeta {
-            #expect(await transport.hosts == ["alpha"], "Revoked beta must never reach the app transport.")
-            #expect(cancelled.value, "Revocation must end the app collection as cancellation.")
-            #expect(controller.machineResult == nil, "A cancelled run publishes neither reports nor SSH error rows.")
-        } else {
-            #expect(await transport.hosts == ["alpha", "beta"])
-            #expect(!cancelled.value)
-            let result = try #require(controller.machineResult)
-            #expect(result.reports.map(\.host) == ["local", "alpha", "beta"])
-            #expect(result.allSourcesAvailable && result.reports.allSatisfy { $0.error == nil })
-        }
-    }
-
-    @Test(.timeLimit(.minutes(1)), arguments: [false, true])
-    func `machine launch rejects removal committed after the early consent read`(removeHost: Bool) async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -290,13 +223,11 @@ struct MachineSpendTests {
             userDefaults: defaults,
             config: testConfigWithAllProvidersDisabled(),
             hostPreferencesLockURL: lockURL)
-        defer { settings.configFileWatcher?.stop() }
         let childEnvironment = ["PATH": "/usr/bin:/bin"]
         let marker = root.appendingPathComponent("spawned")
         let launchPending = LockIsolated(false)
         let resume = AsyncStream<Void>.makeStream()
         let loader = SpendDashboardController.makeMachineLoader(
-            isHostConsented: settings.spendHostConsent,
             launchRemote: settings.spendHostLaunch,
             local: { start, end in CodexRequestLedger(startUnixMs: start, endUnixMs: end) },
             fetchRemote: { _, _, start, end, launch in
@@ -323,39 +254,66 @@ struct MachineSpendTests {
                     label: "contained machine launch fixture")
                 return try JSONDecoder().decode(CodexRequestLedger.self, from: Data(output.stdout.utf8))
             })
-        let run = Task { try await loader(["fixture-host"], 1, 0, 86_399_999) }
-        defer { resume.continuation.finish(); run.cancel() }
+        let recordedOutcome = LockIsolated<Result<CodexIdentifiedResult, any Error>?>(nil)
+        let controller = SpendDashboardController(
+            userDefaults: InMemoryUserDefaults(),
+            requestBuilder: Self.loadRequest,
+            machineLoader: { hosts, days, start, end in
+                do {
+                    let result = try await loader(hosts, days, start, end)
+                    recordedOutcome.setValue(.success(result))
+                    return result
+                } catch {
+                    recordedOutcome.setValue(.failure(error))
+                    throw error
+                }
+            })
+        defer { resume.continuation.finish(); controller.stop(); settings.configFileWatcher?.stop() }
+        controller.runMachineSpend(hosts: ["fixture-host"], eligible: true, localPartial: false)
         let deadline = ContinuousClock.now.advanced(by: .seconds(5))
         while !launchPending.value, ContinuousClock.now < deadline {
             try? await Task.sleep(for: .milliseconds(10))
         }
         var removalError: (any Error)?
-        if removeHost {
+        if revocation != .control {
             do {
                 let removed = try HostPreferences.update(in: defaults, lockURL: lockURL) {
-                    $0 = try HostPreferences.removing("fixture-host", from: $0, costOnly: false).state
+                    $0 = try HostPreferences.removing(
+                        "fixture-host", from: $0, costOnly: revocation == .costOnly).state
                 }
-                #expect(removed.state.manualHosts.isEmpty && removed.state.costUsageHosts.isEmpty)
+                #expect(removed.state.costUsageHosts.isEmpty)
+                #expect(removed.state.manualHosts == (revocation == .fullRemoval ? [] : ["fixture-host"]))
             } catch { removalError = error }
         }
         #expect(settings.costUsageHosts == ["fixture-host"], "No notification refreshed Settings.")
         #expect(!FileManager.default.fileExists(atPath: marker.path), "The same invocation is paused before spawn.")
+        #expect(controller.machineRunning, "No explicit cancellation occurred while process launch was paused.")
         resume.continuation.finish()
-        let outcome = await run.result
+        try await SpendDashboardStateWait.until { !controller.machineRunning }
+        let outcome = try #require(recordedOutcome.value)
         if let removalError { throw removalError }
-        try #require(launchPending.value, "The allowed early read must reach the shared process-launch boundary.")
-        if removeHost {
-            #expect(!FileManager.default.fileExists(atPath: marker.path), "A committed removal must prevent spawn.")
+        try #require(launchPending.value, "The allowed host must reach the shared process-launch boundary.")
+        if revocation != .control {
+            #expect(!FileManager.default.fileExists(atPath: marker.path), "Committed revocation must prevent spawn.")
             switch outcome {
             case .success:
-                Issue.record("The collection must cancel when removal committed before process launch.")
+                Issue.record("The collection must cancel when revocation committed before process launch.")
             case let .failure(error):
                 #expect(error is CancellationError)
             }
+            #expect(settings.agentSessionsManualHosts == (revocation == .fullRemoval ? "" : "fixture-host"))
+            #expect(settings.selectableCostUsageHosts == (revocation == .fullRemoval ? [] : ["fixture-host"]))
+            #expect(settings.costUsageHosts.isEmpty)
+            #expect(controller.machineResult == nil, "A cancelled run publishes neither reports nor SSH error rows.")
+            #expect(!controller.machineRunning)
         } else {
             #expect(FileManager.default.fileExists(atPath: marker.path), "The allowed control must actually spawn.")
-            let result = try outcome.get()
+            _ = try outcome.get()
+            let result = try #require(controller.machineResult)
             #expect(result.allSourcesAvailable && result.reports.map(\.host) == ["local", "fixture-host"])
+            #expect(result.reports.allSatisfy { $0.error == nil })
+            #expect(settings.agentSessionsManualHosts == "fixture-host")
+            #expect(settings.costUsageHosts == ["fixture-host"])
         }
     }
 
@@ -381,18 +339,11 @@ struct MachineSpendTests {
             store.stopSharedSpendDashboardPublication()
             settings.configFileWatcher?.stop()
         }
-        MachineSpendDetail(settings: settings, store: store, controller: controller).run()
-        while await pending.calls.isEmpty {
-            await Task.yield()
-        }
-        await pending.finish()
-        try await SpendDashboardStateWait.until { controller.machineResult != nil }
-        try #require(controller.machineResult?.reports.contains { $0.host == "devbox" } == true)
         _ = try CodexBarCLI.configHostsMutation(.remove, host: "devbox", cost: true, in: defaults, lockURL: nil)
         try #require(settings.costUsageHosts == ["devbox", "mini"], "No notification was delivered.")
         MachineSpendDetail(settings: settings, store: store, controller: controller).run()
         try #require(controller.machineRunning && controller.machineRequestedHosts == ["mini"])
-        while await pending.calls.count < 2 {
+        while await pending.calls.isEmpty {
             await Task.yield()
         }
         await pending.finish()
@@ -402,7 +353,7 @@ struct MachineSpendTests {
     }
 
     @Test(.timeLimit(.minutes(1)))
-    func `manual runs receive hosts and period and cancel or stop rejects late completion`() async throws {
+    func `period and host changes preserve same runs while cancellation and stop reject late results`() async throws {
         let pending = PendingMachineCollection()
         let controller = SpendDashboardController(
             userDefaults: InMemoryUserDefaults(),
@@ -433,7 +384,7 @@ struct MachineSpendTests {
         // A deferred SwiftUI onChange from pre-run projection must keep this same-host request.
         controller.reconcileMachineSpendHosts(["selected"])
         #expect(controller.machineRunning && controller.machineRequestedHosts == ["selected"])
-        controller.reconcileMachineSpendHosts([])
+        controller.cancelMachineSpend()
         #expect(!controller.machineRunning && controller.machineRequestedHosts == nil)
         await pending.finish()
         for await _ in cancelledCompletion.stream {}
@@ -441,12 +392,25 @@ struct MachineSpendTests {
         controller.runMachineSpend(hosts: ["disabled"], eligible: false, localPartial: false)
         #expect(!controller.machineRunning && controller.machineWindow == nil)
 
-        #expect(await pending.calls.count == 2)
+        let reconciledCompletion = AsyncStream<Void>.makeStream()
+        MachineTaskCompletion.$token.withValue(MachineTaskCompletion.Token(reconciledCompletion.continuation)) {
+            controller.runMachineSpend(hosts: ["selected"], eligible: true, localPartial: false)
+        }
+        while await pending.calls.count < 3 {
+            await Task.yield()
+        }
+        controller.reconcileMachineSpendHosts([])
+        #expect(!controller.machineRunning && controller.machineRequestedHosts == nil)
+        await pending.finish()
+        for await _ in reconciledCompletion.stream {}
+        #expect(controller.machineResult == nil && !controller.machineRunning)
+
+        #expect(await pending.calls.count == 3)
         let stoppedCompletion = AsyncStream<Void>.makeStream()
         MachineTaskCompletion.$token.withValue(MachineTaskCompletion.Token(stoppedCompletion.continuation)) {
             controller.runMachineSpend(hosts: ["selected"], eligible: true, localPartial: false)
         }
-        while await pending.calls.count < 3 {
+        while await pending.calls.count < 4 {
             await Task.yield()
         }
         #expect(controller.machineRunning && controller.machineWindow != nil)
@@ -458,34 +422,8 @@ struct MachineSpendTests {
     }
 }
 
-private actor PausedMachineTransport {
-    private let alphaStarted: LockIsolated<Bool>
-    private var alphaContinuation: CheckedContinuation<Void, Never>?
-    private(set) var hosts: [String] = []
-
-    init(alphaStarted: LockIsolated<Bool>) {
-        self.alphaStarted = alphaStarted
-    }
-
-    func fetch(_ host: String, start: Int64, end: Int64) async -> CodexRequestLedger {
-        self.hosts.append(host)
-        if host == "alpha" {
-            await withTaskCancellationHandler {
-                await withCheckedContinuation { continuation in
-                    self.alphaContinuation = continuation
-                    self.alphaStarted.setValue(true)
-                }
-            } onCancel: {
-                Task { await self.finishAlpha() }
-            }
-        }
-        return CodexRequestLedger(startUnixMs: start, endUnixMs: end)
-    }
-
-    func finishAlpha() {
-        self.alphaContinuation?.resume()
-        self.alphaContinuation = nil
-    }
+enum MachineHostRevocation: CaseIterable {
+    case control, fullRemoval, costOnly
 }
 
 private actor PendingMachineCollection {
