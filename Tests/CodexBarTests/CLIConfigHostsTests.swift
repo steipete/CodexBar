@@ -9,28 +9,23 @@ struct CLIConfigHostsTests {
     // MARK: Parsing
 
     @Test
-    func `config hosts list options expose the alternate defaults domain`() throws {
-        let parser = CommandParser(signature: CommandSignature.describe(ConfigHostsListOptions()).flattened())
-        let parsed = try parser.parse(arguments: ["--defaults-domain", "fixture-domain"])
-
+    func `config hosts Commander parsing exposes defaults domain and rejects unsupported check`() throws {
+        let listParser = CommandParser(signature: CommandSignature.describe(ConfigHostsListOptions()).flattened())
+        let parsed = try listParser.parse(arguments: ["--defaults-domain", "fixture-domain"])
         #expect(parsed.options["defaultsDomain"] == ["fixture-domain"])
         #expect(parsed.positional.isEmpty)
-    }
-
-    @Test
-    func `config hosts remove rejects check`() throws {
-        let parser = CommandParser(signature: CommandSignature.describe(ConfigHostsRemoveOptions()).flattened())
-        #expect(throws: (any Error).self) { try parser.parse(arguments: ["mini", "--check"]) }
+        let removeParser = CommandParser(signature: CommandSignature.describe(ConfigHostsRemoveOptions()).flattened())
+        #expect(throws: (any Error).self) { try removeParser.parse(arguments: ["mini", "--check"]) }
     }
 
     // MARK: Add
 
-    @Test(arguments: ["", "a;b", "k"])
-    func `add rejects invalid hosts`(host: String) {
-        // U+212A lowercases to k but fails the SSH host charset.
-        let state = HostPreferences.State(
-            manualTokens: [host == "k" ? "\u{212A}" : "devbox"],
-            costUsageHosts: host == "k" ? [] : ["devbox"])
+    @Test(arguments: [
+        ("", HostPreferences.State()),
+        ("a;b", HostPreferences.State()),
+        ("k", HostPreferences.State(manualTokens: ["\u{212A}"])),
+    ])
+    func `add rejects invalid hosts`(host: String, state: HostPreferences.State) {
         #expect(throws: (any Error).self) {
             _ = try HostPreferences.adding(host, to: state, cost: false)
         }
@@ -62,17 +57,9 @@ struct CLIConfigHostsTests {
         let untouched = try HostPreferences.adding("devbox", to: caseVariant, cost: false)
         #expect(untouched.state.manualHosts == ["DevBox"])
         #expect(untouched.state.costUsageHosts.isEmpty)
-    }
 
-    @Test
-    func `distinct ssh usernames stay distinct`() throws {
-        let state = HostPreferences.State(manualTokens: ["Alice@devbox", "alice@devbox"], costUsageHosts: [])
-        let result = try HostPreferences.removing("alice@devbox", from: state, costOnly: false)
-
-        #expect(result.state.manualHosts == ["Alice@devbox"])
-        #expect(result.changed)
-
-        let added = try HostPreferences.adding("alice@DevBox", to: result.state, cost: false)
+        let username = HostPreferences.State(manualTokens: ["Alice@devbox"])
+        let added = try HostPreferences.adding("alice@DevBox", to: username, cost: false)
         #expect(added.state.manualHosts == ["Alice@devbox", "alice@DevBox"])
     }
 
@@ -98,6 +85,11 @@ struct CLIConfigHostsTests {
             ConfigHostsMutationResult(host: unchanged.host, changed: unchanged.changed, costUsage: false, check: nil),
             action: .remove,
             costOnly: true) == "Host unchanged: devbox")
+
+        let usernames = HostPreferences.State(manualTokens: ["Alice@devbox", "alice@devbox"])
+        let removedUsername = try HostPreferences.removing("alice@devbox", from: usernames, costOnly: false)
+        #expect(removedUsername.state.manualHosts == ["Alice@devbox"])
+        #expect(removedUsername.changed)
     }
 
     @Test(arguments: ["", "one,two"])

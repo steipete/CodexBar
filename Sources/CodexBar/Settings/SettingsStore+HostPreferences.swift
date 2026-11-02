@@ -28,6 +28,21 @@ extension SettingsStore {
         }
     }
 
+    /// Spawns an app SSH spend fetch inside the canonical host transaction, so a committed removal prevents it.
+    var spendHostLaunch: @MainActor @Sendable (String, @Sendable () throws -> Void) throws -> Void {
+        { [weak self] host, launch in
+            var launched = false
+            do {
+                guard let self, let lockURL = self.hostPreferencesLockURL else { throw CancellationError() }
+                _ = try HostPreferences.update(in: self.userDefaults, lockURL: lockURL) { state in
+                    guard state.costUsageHosts.contains(host), !Task.isCancelled else { throw CancellationError() }
+                    launched = true
+                    try launch()
+                }
+            } catch _ where !launched { throw CancellationError() }
+        }
+    }
+
     @discardableResult
     func updateHostPreferences(_ operation: (inout HostPreferences.State) -> Void) -> Bool {
         do {

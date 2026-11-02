@@ -5,9 +5,7 @@ import Observation
 @MainActor
 extension UsageStore {
     func sharedSpendDashboardController() -> SpendDashboardController {
-        if let controller = self.sharedSpendDashboardControllerStorage {
-            return controller
-        }
+        if let controller = self.sharedSpendDashboardControllerStorage { return controller }
         let controller = SpendDashboardController(
             requestBuilder: { [weak self] mode in
                 guard let self else {
@@ -28,7 +26,8 @@ extension UsageStore {
                     mode: mode)
             },
             cachedLoader: SpendDashboardSource.loadCached,
-            machineLoader: SpendDashboardController.makeMachineLoader(isHostConsented: self.settings.spendHostConsent),
+            machineLoader: SpendDashboardController.makeMachineLoader(
+                isHostConsented: self.settings.spendHostConsent, launchRemote: self.settings.spendHostLaunch),
             publicationHandler: { [weak self] publication in
                 self?.spendDashboardPublication = publication
             })

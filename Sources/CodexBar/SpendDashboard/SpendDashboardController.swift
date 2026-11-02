@@ -1948,15 +1948,25 @@ final class SpendDashboardController {
 }
 
 extension SpendDashboardController {
-    typealias MachineRemoteFetcher = @Sendable (String, Int, Int64, Int64) async throws -> CodexRequestLedger
+    typealias MachineRemoteFetcher = @Sendable (
+        String,
+        Int,
+        Int64,
+        Int64,
+        @escaping SubprocessRunner.Launch) async throws
+        -> CodexRequestLedger
+    typealias MachineRemoteLaunch = @MainActor @Sendable (String, @Sendable () throws -> Void) throws -> Void
+
+    nonisolated static let sshFetchRemote: MachineRemoteFetcher = { host, days, start, end, launch in
+        try await RemoteCodexCostFetcher(launch: launch).fetchIdentifiedUsage(
+            host: host, historyDays: days, startUnixMs: start, endUnixMs: end)
+    }
 
     nonisolated static func makeMachineLoader(
         isHostConsented: @escaping @MainActor @Sendable (String) -> Bool = { _ in true },
+        launchRemote: @escaping MachineRemoteLaunch = { _, launch in try launch() },
         local: @escaping @Sendable (Int64, Int64) async throws -> CodexRequestLedger = CodexRequestLedger.load,
-        fetchRemote: @escaping MachineRemoteFetcher = { host, days, start, end in
-            try await RemoteCodexCostFetcher().fetchIdentifiedUsage(
-                host: host, historyDays: days, startUnixMs: start, endUnixMs: end)
-        }) -> MachineLoader
+        fetchRemote: @escaping MachineRemoteFetcher = SpendDashboardController.sshFetchRemote) -> MachineLoader
     {
         { hosts, days, start, end in
             try await CodexIdentifiedCollection.collect(
@@ -1967,7 +1977,7 @@ extension SpendDashboardController {
                 local: { try await local(start, end) },
                 fetchRemote: { host in
                     guard await isHostConsented(host) else { throw CancellationError() }
-                    return try await fetchRemote(host, days, start, end)
+                    return try await fetchRemote(host, days, start, end) { try await launchRemote(host, $0) }
                 })
         }
     }

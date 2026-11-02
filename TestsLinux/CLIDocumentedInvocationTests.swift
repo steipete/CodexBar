@@ -115,11 +115,10 @@ struct CLIDocumentedInvocationTests {
             options: ["format": ["json"]],
             flags: ["check", "pretty"]),
         .init(
-            "config hosts remove devbox --cost --format json",
+            "config hosts remove --format json -- -bad",
             path: "config hosts remove",
             options: ["format": ["json"]],
-            flags: ["cost"],
-            positional: ["devbox"]),
+            positional: ["-bad"]),
         .init(
             "config set-cookie --provider claude --stdin",
             path: "config set-cookie",

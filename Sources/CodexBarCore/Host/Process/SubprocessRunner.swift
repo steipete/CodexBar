@@ -40,6 +40,8 @@ public struct SubprocessResult: Sendable {
 }
 
 public enum SubprocessRunner {
+    public typealias Launch = @Sendable (@Sendable () throws -> Void) async throws -> Void
+
     private static let log = CodexBarLog.logger(LogCategories.subprocess)
     private static let timeoutQueue = DispatchQueue(
         label: "com.steipete.codexbar.subprocess.timeout",
@@ -143,6 +145,7 @@ public enum SubprocessRunner {
         acceptsNonZeroExit: Bool = false,
         // Mark this invocation so even detached descendants can be reaped after it exits.
         reapDescendants: Bool = false,
+        launch: Launch = { try $0() },
         label: String) async throws -> SubprocessResult
     {
         let executableURL = URL(fileURLWithPath: binary).standardizedFileURL
@@ -185,19 +188,17 @@ public enum SubprocessRunner {
         let stderrCapture = ProcessPipeCapture(pipe: stderrPipe, maxBytes: captureMaxBytes)
 
         let termination = ProcessTermination()
-        process.terminationHandler = { process in
-            termination.resolve(process.terminationStatus)
-        }
+        process.terminationHandler = { termination.resolve($0.terminationStatus) }
 
         do {
-            try process.run()
+            try await launch { try process.run() }
         } catch {
             process.terminationHandler = nil
             stdoutCapture.stop()
             stdoutPipe.fileHandleForWriting.closeFile()
             stderrCapture.stop()
             stderrPipe.fileHandleForWriting.closeFile()
-            throw SubprocessRunnerError.launchFailed(error.localizedDescription)
+            throw error is CancellationError ? error : SubprocessRunnerError.launchFailed(error.localizedDescription)
         }
         defer { ProcessExitRelease.afterExit(process) }
         stdoutCapture.start()

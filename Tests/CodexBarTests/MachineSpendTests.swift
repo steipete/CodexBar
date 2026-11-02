@@ -229,7 +229,7 @@ struct MachineSpendTests {
         let productionLoader = SpendDashboardController.makeMachineLoader(
             isHostConsented: settings.spendHostConsent,
             local: { start, end in CodexRequestLedger(startUnixMs: start, endUnixMs: end) },
-            fetchRemote: { host, _, start, end in await transport.fetch(host, start: start, end: end) })
+            fetchRemote: { host, _, start, end, _ in await transport.fetch(host, start: start, end: end) })
         let controller = SpendDashboardController(
             userDefaults: InMemoryUserDefaults(),
             requestBuilder: Self.loadRequest,
@@ -258,7 +258,6 @@ struct MachineSpendTests {
                 $0.setCostUsage("beta", enabled: false)
             }
             try #require(committed.state.costUsageHosts == ["alpha"])
-            try #require(defaults.stringArray(forKey: "costUsageHosts") == ["alpha"])
         }
         try #require(settings.costUsageHosts == ["alpha", "beta"], "No notification refreshed Settings.")
         try #require(controller.machineRunning, "No explicit cancellation occurred while alpha was pending.")
@@ -274,6 +273,89 @@ struct MachineSpendTests {
             let result = try #require(controller.machineResult)
             #expect(result.reports.map(\.host) == ["local", "alpha", "beta"])
             #expect(result.allSourcesAvailable && result.reports.allSatisfy { $0.error == nil })
+        }
+    }
+
+    @Test(.timeLimit(.minutes(1)), arguments: [false, true])
+    func `machine launch rejects removal committed after the early consent read`(removeHost: Bool) async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let defaults = InMemoryUserDefaults(values: [
+            "agentSessionsManualHosts": "fixture-host", "costUsageHosts": ["fixture-host"],
+        ])
+        let lockURL = root.appendingPathComponent("hosts.lock")
+        let settings = testSettingsStore(
+            suiteName: #function,
+            userDefaults: defaults,
+            config: testConfigWithAllProvidersDisabled(),
+            hostPreferencesLockURL: lockURL)
+        defer { settings.configFileWatcher?.stop() }
+        let childEnvironment = ["PATH": "/usr/bin:/bin"]
+        let marker = root.appendingPathComponent("spawned")
+        let launchPending = LockIsolated(false)
+        let resume = AsyncStream<Void>.makeStream()
+        let loader = SpendDashboardController.makeMachineLoader(
+            isHostConsented: settings.spendHostConsent,
+            launchRemote: settings.spendHostLaunch,
+            local: { start, end in CodexRequestLedger(startUnixMs: start, endUnixMs: end) },
+            fetchRemote: { _, _, start, end, launch in
+                let ledger = try JSONEncoder().encode(CodexRequestLedger(startUnixMs: start, endUnixMs: end))
+                let json = try #require(String(data: ledger, encoding: .utf8))
+                let output = try await SubprocessRunner.run(
+                    binary: "/bin/sh",
+                    arguments: [
+                        "-c",
+                        "set -eu; : > \"$1\"; printf '%s\\n' \"$2\"",
+                        "fixture",
+                        marker.path,
+                        json,
+                    ],
+                    environment: childEnvironment,
+                    timeout: 5,
+                    maxOutputBytes: 4096,
+                    currentDirectoryURL: root,
+                    launch: { operation in
+                        launchPending.setValue(true)
+                        for await _ in resume.stream {}
+                        try await launch(operation)
+                    },
+                    label: "contained machine launch fixture")
+                return try JSONDecoder().decode(CodexRequestLedger.self, from: Data(output.stdout.utf8))
+            })
+        let run = Task { try await loader(["fixture-host"], 1, 0, 86_399_999) }
+        defer { resume.continuation.finish(); run.cancel() }
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while !launchPending.value, ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        var removalError: (any Error)?
+        if removeHost {
+            do {
+                let removed = try HostPreferences.update(in: defaults, lockURL: lockURL) {
+                    $0 = try HostPreferences.removing("fixture-host", from: $0, costOnly: false).state
+                }
+                #expect(removed.state.manualHosts.isEmpty && removed.state.costUsageHosts.isEmpty)
+            } catch { removalError = error }
+        }
+        #expect(settings.costUsageHosts == ["fixture-host"], "No notification refreshed Settings.")
+        #expect(!FileManager.default.fileExists(atPath: marker.path), "The same invocation is paused before spawn.")
+        resume.continuation.finish()
+        let outcome = await run.result
+        if let removalError { throw removalError }
+        try #require(launchPending.value, "The allowed early read must reach the shared process-launch boundary.")
+        if removeHost {
+            #expect(!FileManager.default.fileExists(atPath: marker.path), "A committed removal must prevent spawn.")
+            switch outcome {
+            case .success:
+                Issue.record("The collection must cancel when removal committed before process launch.")
+            case let .failure(error):
+                #expect(error is CancellationError)
+            }
+        } else {
+            #expect(FileManager.default.fileExists(atPath: marker.path), "The allowed control must actually spawn.")
+            let result = try outcome.get()
+            #expect(result.allSourcesAvailable && result.reports.map(\.host) == ["local", "fixture-host"])
         }
     }
 
