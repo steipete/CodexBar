@@ -11,6 +11,9 @@ struct LangdockProfileScreenshotTests {
     func `render selected profile settings with synthetic data when requested`() throws {
         guard let path = ProcessInfo.processInfo.environment["CODEXBAR_LANGDOCK_PROOF_DIR"] else { return }
         let fixture = try ProviderSettingsDescriptorTests().makeSettingsFixture(suite: #function)
+        defer {
+            try? FileManager.default.removeItem(at: fixture.settings.configStore.fileURL.deletingLastPathComponent())
+        }
         let implementation = PluginCookieProviderImplementation(spec: LangdockProviderDescriptor.spec)
         let context = fixture.settingsContext(provider: .langdock)
         let browsers = try #require(LangdockProviderDescriptor.descriptor.settingsSection.selectedProfileBrowsers)

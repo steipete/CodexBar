@@ -346,6 +346,11 @@ struct ProviderSettingsPickerDescriptor: Identifiable {
 struct ProviderSettingsPickerOption: Identifiable {
     let id: String
     let title: String
+    var localizesTitle = true
+
+    var displayTitle: String {
+        self.localizesTitle ? L(self.title) : self.title
+    }
 }
 
 /// Shared action descriptor rendered under a settings toggle.

@@ -2,6 +2,10 @@
 
 ## 0.83.1 — Unreleased
 
+### Fixed
+
+- Langdock: show saved Edge and Chrome profile names in the profile picker while preserving the selected profile when it is renamed.
+
 ## 0.83.0 — 2026-10-31
 
 ### Highlights
