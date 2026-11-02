@@ -700,15 +700,16 @@ extension ClaudeUsageFetcher {
                 resetDescription: resetText)
         }
 
-        guard let session = makeWindow(
+        let session = makeWindow(
             firstWindowDict(["session_5h"]),
             windowMinutes: Self.sessionWindowMinutes)
-        else {
-            throw ClaudeUsageError.parseFailed("missing session data")
-        }
         let weekAll = makeWindow(
             firstWindowDict(["week_all_models", "week_all"]),
             windowMinutes: Self.weeklyWindowMinutes)
+        // Weekly-only plans have no session window; only an empty payload is a parse failure.
+        guard session != nil || weekAll != nil else {
+            throw ClaudeUsageError.parseFailed("missing session data")
+        }
 
         let rawEmail = (obj["account_email"] as? String)?.trimmingCharacters(
             in: .whitespacesAndNewlines)
@@ -978,26 +979,27 @@ extension ClaudeUsageFetcher {
         let loginMethod = ClaudePlan.oauthLoginMethod(
             subscriptionType: credentials.subscriptionType,
             rateLimitTier: credentials.rateLimitTier)
-        let primary = makeWindow(usage.fiveHour, windowMinutes: 5 * 60)
-            ?? makeWindow(usage.sevenDay, windowMinutes: 7 * 24 * 60)
-            ?? makeWindow(usage.sevenDayOAuthApps, windowMinutes: 7 * 24 * 60)
-            ?? makeWindow(usage.sevenDaySonnet, windowMinutes: 7 * 24 * 60)
-            ?? makeWindow(usage.sevenDayOpus, windowMinutes: 7 * 24 * 60)
-        let treatAsSpendLimit = primary == nil && usage.extraUsage?.isEnabled == true
+        // Claude sends `five_hour: null` for plans without a session limit (weekly-only Max plans,
+        // enterprise). Keep the session window absent instead of promoting a weekly window into it,
+        // matching Claude Code's own /usage panel, which only renders rows the API reports.
+        let primary = makeWindow(usage.fiveHour, windowMinutes: Self.sessionWindowMinutes)
+        let weekly = makeWindow(usage.sevenDay, windowMinutes: Self.weeklyWindowMinutes)
+            ?? makeWindow(usage.sevenDayOAuthApps, windowMinutes: Self.weeklyWindowMinutes)
+        let modelSpecific = makeWindow(
+            usage.sevenDaySonnet ?? usage.sevenDayOpus,
+            windowMinutes: Self.weeklyWindowMinutes)
+        let hasUsageWindow = primary != nil || weekly != nil || modelSpecific != nil
+        let treatAsSpendLimit = !hasUsageWindow && usage.extraUsage?.isEnabled == true
         let providerCost = Self.oauthExtraUsageCost(
             usage.extraUsage,
             loginMethod: loginMethod,
             treatAsSpendLimit: treatAsSpendLimit)
 
-        guard primary != nil || providerCost?.spendLimitWindow != nil
+        guard hasUsageWindow || providerCost?.spendLimitWindow != nil
         else {
             throw ClaudeUsageError.parseFailed("missing session data")
         }
 
-        let weekly = makeWindow(usage.sevenDay, windowMinutes: 7 * 24 * 60)
-        let modelSpecific = makeWindow(
-            usage.sevenDaySonnet ?? usage.sevenDayOpus,
-            windowMinutes: 7 * 24 * 60)
         let extraRateWindows = Self.oauthExtraRateWindows(from: usage)
 
         let updatedAt = Date()
@@ -1197,7 +1199,8 @@ extension ClaudeUsageFetcher {
         from snap: ClaudeStatusSnapshot,
         now: Date = .init()) throws -> ClaudeUsageSnapshot
     {
-        guard let sessionPctLeft = snap.sessionPercentLeft else {
+        // Weekly-only plans render no "Current session" row; require at least one usage window.
+        guard snap.sessionPercentLeft != nil || snap.weeklyPercentLeft != nil else {
             throw ClaudeUsageError.parseFailed("missing session data")
         }
 
@@ -1216,9 +1219,9 @@ extension ClaudeUsageFetcher {
         }
 
         let primary = makeWindow(
-            pctLeft: sessionPctLeft,
+            pctLeft: snap.sessionPercentLeft,
             reset: snap.primaryResetDescription,
-            windowMinutes: Self.sessionWindowMinutes)!
+            windowMinutes: Self.sessionWindowMinutes)
         let weekly = makeWindow(
             pctLeft: snap.weeklyPercentLeft,
             reset: snap.secondaryResetDescription,

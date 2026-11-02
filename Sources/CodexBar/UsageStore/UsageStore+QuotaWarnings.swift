@@ -154,10 +154,14 @@ extension UsageStore {
             return
         }
         guard let rateWindow else {
-            self.quotaWarningState.removeValue(forKey: key)
+            // Claude omits `five_hour` on weekly-only plans and in occasional payloads; keep the session lane's
+            // fired thresholds so a returning session window does not repeat a warning.
+            if provider != .claude || window != .session {
+                self.quotaWarningState.removeValue(forKey: key)
+            }
             return
         }
-        // Claude promotes weekly usage to primary when its session payload is missing.
+        // Only a 5-hour window counts as Claude's session lane (older cached snapshots may hold a weekly one).
         guard provider != .claude || window != .session || Self.isSessionWindow(rateWindow) else { return }
         guard !rateWindow.isSyntheticPlaceholder else { return }
 

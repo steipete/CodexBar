@@ -280,16 +280,19 @@ extension ClaudeStatusProbe {
         let opusModels = Set(opusLabels.compactMap(self.weeklyModelName).map(self.normalizedForLabelSearch))
         let hasOpusLabel = !weeklyModels.isDisjoint(with: opusModels)
 
-        if sessionPct == nil {
+        // Weekly-only plans render no session row, so the first percentage would be the weekly one; only
+        // scrape by order when a (possibly garbled) session label is on screen.
+        let hasSessionLabel = labelContext.normalizedLines.contains { $0.contains("session") }
+        if sessionPct == nil, hasSessionLabel {
             let ordered = self.allPercents(usagePanelText)
-            if sessionPct == nil, ordered.indices.contains(0) {
+            if ordered.indices.contains(0) {
                 sessionPct = ordered[0]
             }
         }
 
         let identity = Self.extractIdentity(usageText: clean, statusText: statusClean)
 
-        guard let sessionPct else {
+        guard sessionPct != nil || weeklyPct != nil else {
             Self.dumpIfNeeded(
                 enabled: shouldDump,
                 reason: "missing session label",
