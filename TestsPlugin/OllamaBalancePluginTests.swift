@@ -62,8 +62,8 @@ struct OllamaBalancePluginTests {
     func `cooldown caches success rate limits and unavailable reporting by credential`() async throws {
         for status in [200, 429, 503] {
             let base = BalanceFixtureTransport(status: status)
-            let transport = OllamaBalanceTransport(base: base)
             let now = Date(timeIntervalSince1970: 1_800_000_000)
+            let transport = OllamaBalanceTransport(base: base, clock: { now })
             var request = try URLRequest(url: #require(URL(string: "https://ollama.com/api/balance")))
             request.httpMethod = "GET"
             request.setValue("Bearer synthetic-a", forHTTPHeaderField: "Authorization")
@@ -126,6 +126,50 @@ struct OllamaBalancePluginTests {
             #expect(result.usage.primary?.usedPercent == 12)
             #expect(outcome.attempts.map(\.strategyID) == ["ollama.api", "fixture.web"])
         }
+    }
+
+    @Test(arguments: [URLError.Code.timedOut, .notConnectedToInternet, .cannotConnectToHost])
+    func `missing cookie fallback preserves the API connectivity error`(code: URLError.Code) async throws {
+        let browser = BrowserDetection(cacheTTL: 0)
+        let context = ProviderFetchContext(
+            runtime: .cli,
+            sourceMode: .auto,
+            includeCredits: false,
+            webTimeout: 1,
+            webDebugDumpHTML: false,
+            verbose: false,
+            env: ["OLLAMA_API_KEY": "fixture-key"],
+            settings: nil,
+            fetcher: UsageFetcher(environment: [:]),
+            claudeFetcher: ClaudeUsageFetcher(browserDetection: browser, environment: [:]),
+            browserDetection: browser)
+        let pipeline = ProviderFetchPipeline(
+            resolveStrategies: { _ in
+                [OllamaProviderDescriptor.apiStrategy(transport: ProviderHTTPTransportHandler { _ in
+                    throw URLError(code)
+                }), BalanceFixtureMissingCookieStrategy()]
+            },
+            resolveFallbackError: OllamaProviderDescriptor.resolveFallbackError)
+        let outcome = await pipeline.fetch(context: context, provider: .ollama)
+        #expect(outcome.attempts.map(\.strategyID) == ["ollama.api", "fixture.missing-cookie"])
+        do {
+            _ = try outcome.result.get()
+            Issue.record("Expected API connectivity failure")
+        } catch {
+            #expect((error as? URLError)?.code == code)
+        }
+    }
+
+    @Test
+    func `fallback preserves actionable cookie failures and cancellation`() {
+        let previous = URLError(.timedOut)
+        for current in [OllamaUsageError.invalidCredentials, .safariCookieAccessDenied] {
+            let resolved = OllamaProviderDescriptor.resolveFallbackError(previous, current)
+            #expect(resolved.localizedDescription == current.localizedDescription)
+        }
+        #expect(OllamaProviderDescriptor.resolveFallbackError(previous, CancellationError()) is CancellationError)
+        let noSession = OllamaProviderDescriptor.resolveFallbackError(nil, OllamaUsageError.noSessionCookie)
+        #expect(noSession.localizedDescription == OllamaUsageError.noSessionCookie.localizedDescription)
     }
 
     @Test
@@ -201,5 +245,15 @@ private struct BalanceFixtureWebStrategy: ProviderFetchStrategy {
     func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
         let snapshot = try OllamaUsageParser.parse(html: "<span>Session usage</span><span>12% used</span>")
         return self.makeResult(usage: snapshot.toUsageSnapshot(), sourceLabel: "web")
+    }
+}
+
+private struct BalanceFixtureMissingCookieStrategy: ProviderFetchStrategy {
+    let id = "fixture.missing-cookie"
+    let kind: ProviderFetchKind = .web
+    func isAvailable(_: ProviderFetchContext) async -> Bool { true }
+    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool { false }
+    func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
+        throw OllamaUsageError.noSessionCookie
     }
 }

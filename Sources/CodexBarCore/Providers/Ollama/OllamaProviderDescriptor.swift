@@ -84,7 +84,9 @@ public enum OllamaProviderDescriptor {
                 }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web, .api],
-                pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
+                pipeline: ProviderFetchPipeline(
+                    resolveStrategies: self.resolveStrategies,
+                    resolveFallbackError: self.resolveFallbackError)),
             cli: ProviderCLIConfig(
                 name: "ollama",
                 versionDetector: nil,
@@ -126,6 +128,12 @@ public enum OllamaProviderDescriptor {
             },
             resolveSecret: { ProviderTokenResolver.token(for: .ollama, environment: $0) },
             isEnabled: { _ in true }))
+    }
+
+    static func resolveFallbackError(_ previous: Error?, _ current: Error) -> Error {
+        // Missing web credentials say nothing about the configured API key's connectivity.
+        if let previous, case OllamaUsageError.noSessionCookie = current { return previous }
+        return current
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
