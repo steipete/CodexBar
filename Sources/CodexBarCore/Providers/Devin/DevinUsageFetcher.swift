@@ -192,13 +192,15 @@ public struct DevinUsageFetcher: Sendable {
         #if os(macOS)
         let normalizedOrganizationOverride = Self.normalizedOrganization(organizationOverride)
         logger?("[devin] Trying the Devin app session")
-        return self.devinAppImporter.importSessions(logger: logger).map { session in
-            RequestAuth(
-                bearerToken: session.accessToken,
-                organization: normalizedOrganizationOverride ?? Self.normalizedOrganization(session.organization),
-                internalOrganizationID: session.internalOrganizationID,
-                sourceLabel: session.sourceLabel)
-        }
+        return self.devinAppImporter
+            .importSessions(organizationOverride: normalizedOrganizationOverride, logger: logger)
+            .map { session in
+                RequestAuth(
+                    bearerToken: session.accessToken,
+                    organization: normalizedOrganizationOverride ?? Self.normalizedOrganization(session.organization),
+                    internalOrganizationID: session.internalOrganizationID,
+                    sourceLabel: session.sourceLabel)
+            }
         #else
         []
         #endif

@@ -142,6 +142,61 @@ struct DevinAppSessionImporterTests {
     }
 
     @Test
+    func `an explicit organization selection drops the cached internal id`() throws {
+        let importer = try Self.importer(
+            payload: Self.sessionsPayload(tokens: ["devin-synthetic.token.sig"]),
+            organizationKeys: ["devin.desktopShell.spacesMigration.org_alpha12345"])
+
+        let sessions = try Self.withKeychain {
+            importer.importSessions(organizationOverride: "org/beta-slug")
+        }
+
+        #expect(sessions.count == 1)
+        #expect(sessions.first?.organization == "org/beta-slug")
+        #expect(sessions.first?.internalOrganizationID == nil)
+    }
+
+    @Test
+    func `an explicit internal organization override keeps its own id`() throws {
+        let importer = try Self.importer(
+            payload: Self.sessionsPayload(tokens: ["devin-synthetic.token.sig"]),
+            organizationKeys: ["devin.desktopShell.spacesMigration.org_alpha12345"])
+
+        let sessions = try Self.withKeychain {
+            importer.importSessions(organizationOverride: "organizations/org_beta99999")
+        }
+
+        #expect(sessions.count == 1)
+        #expect(sessions.first?.organization == "organizations/org_beta99999")
+        #expect(sessions.first?.internalOrganizationID == "org_beta99999")
+    }
+
+    @Test
+    func `an explicit organization selection does not send the cached internal id`() async throws {
+        let importer = try Self.importer(
+            payload: Self.sessionsPayload(tokens: ["devin-synthetic.app-token.signature"]),
+            organizationKeys: ["devin.desktopShell.spacesMigration.org_alpha12345"])
+        let fetcher = DevinUsageFetcher(
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            devinAppImporter: importer)
+        let stub = ProviderHTTPTransportStub { request in
+            #expect(request.value(forHTTPHeaderField: "x-cog-org-id") == nil)
+            #expect(request.url?.path == "/api/org/beta-slug/billing/quota/usage")
+            return (
+                Data(#"{"daily_percentage":7,"weekly_percentage":8}"#.utf8),
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+        }
+
+        let snapshot = try await Self.withKeychain {
+            try await DevinSessionImporter.withImportSessionOverrideForTesting { _, _, _ in nil } operation: {
+                try await fetcher.fetch(organizationOverride: "beta-slug", transport: stub)
+            }
+        }
+
+        #expect(snapshot.daily?.usedPercent == 7)
+    }
+
+    @Test
     func `missing Devin app database yields no sessions`() throws {
         let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let importer = DevinAppSessionImporter(home: home.path)

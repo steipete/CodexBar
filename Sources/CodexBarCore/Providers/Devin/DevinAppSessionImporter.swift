@@ -33,7 +33,10 @@ struct DevinAppSessionImporter {
         self.localStorageURL = localStorageURL ?? root.appendingPathComponent(Self.localStoragePath)
     }
 
-    func importSessions(logger: ((String) -> Void)? = nil) -> [DevinSessionImporter.SessionInfo] {
+    func importSessions(
+        organizationOverride: String? = nil,
+        logger: ((String) -> Void)? = nil) -> [DevinSessionImporter.SessionInfo]
+    {
         let log: (String) -> Void = { msg in logger?("[devin-storage] \(msg)") }
         var tokens: [String] = []
         for payload in self.decryptedSessionsPayloads(logger: log) {
@@ -45,7 +48,7 @@ struct DevinAppSessionImporter {
             log("No Devin app session found in app secret storage")
             return []
         }
-        let orgInfo = self.organizationInfo(logger: log)
+        let orgInfo = self.organizationInfo(organizationOverride: organizationOverride, logger: log)
         log("Found Devin app session; internalOrganizationID=\(orgInfo.internalOrganizationID != nil)")
         return tokens.map {
             DevinSessionImporter.SessionInfo(
@@ -134,16 +137,26 @@ struct DevinAppSessionImporter {
     // MARK: - Organization
 
     private func organizationInfo(
+        organizationOverride: String?,
         logger: @escaping (String) -> Void) -> (organization: String?, internalOrganizationID: String?)
     {
         // Devin.app keeps the same organization metadata keys as browser sessions.
         if let storage = try? DevinSessionImporter.readLocalStorage(from: self.localStorageURL),
            !storage.isEmpty
         {
-            let info = DevinSessionImporter.organizationInfo(from: storage, organizationOverride: nil)
+            let info = DevinSessionImporter.organizationInfo(
+                from: storage,
+                organizationOverride: organizationOverride)
             if info.organization != nil || info.internalOrganizationID != nil {
                 return info
             }
+        }
+
+        // An explicit selection decides the organization; a database key scoped to another
+        // organization's internal id must not ride along under the selected name.
+        if let override = DevinUsageFetcher.normalizedOrganization(organizationOverride) {
+            guard override.hasPrefix("organizations/") else { return (override, nil) }
+            return (override, String(override.dropFirst("organizations/".count)))
         }
 
         // The app database scopes several rows by internal org id (devin.desktopShell.….org-…).

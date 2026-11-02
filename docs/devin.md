@@ -34,7 +34,7 @@ later refreshes silent, and the same denial cooldowns as browser cookie imports 
 never prompt — they reuse an existing grant or skip the Devin app source until an explicit refresh.
 
 For accounts with multiple organizations, set **Organization** to select one explicitly. An internal `org-...` or
-`org_...` ID takes precedence over the browser's cached organization metadata. A slug uses only its matching cached ID;
+`org_...` ID takes precedence over cached organization metadata from browsers or the Devin app. A slug uses only its matching cached ID;
 open that organization's Usage & Limits page in your Chromium browser if the metadata is missing.
 Inferred names and internal IDs must belong to the same storage record or JSON object. Incomplete metadata never
 borrows an ID from another organization, and an explicit selection prefers its complete matching record.
