@@ -30,10 +30,23 @@ public struct DevinUsageFetcher: Sendable {
     }
 
     public let browserDetection: BrowserDetection
+    #if os(macOS)
+    private let devinAppImporter: DevinAppSessionImporter
+    #endif
 
     public init(browserDetection: BrowserDetection) {
         self.browserDetection = browserDetection
+        #if os(macOS)
+        self.devinAppImporter = DevinAppSessionImporter()
+        #endif
     }
+
+    #if DEBUG && os(macOS)
+    init(browserDetection: BrowserDetection, devinAppImporter: DevinAppSessionImporter) {
+        self.browserDetection = browserDetection
+        self.devinAppImporter = devinAppImporter
+    }
+    #endif
 
     public func fetch(
         bearerTokenOverride: String? = nil,
@@ -43,25 +56,41 @@ public struct DevinUsageFetcher: Sendable {
         now: Date = Date(),
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> DevinUsageSnapshot
     {
-        let auths = try self.resolveAuths(
-            bearerTokenOverride: bearerTokenOverride,
-            organizationOverride: organizationOverride,
-            logger: logger)
         var lastError: Error?
-        for auth in auths {
-            do {
-                return try await Self.fetchQuotaUsage(
-                    auth: auth,
-                    organizationOverride: organizationOverride,
-                    timeout: timeout,
-                    logger: logger,
-                    now: now,
-                    transport: transport)
-            } catch {
-                lastError = error
-                logger?("[devin] Session from \(auth.sourceLabel) failed: \(error.localizedDescription)")
-                if auth.sourceLabel == "manual" || !Self.shouldTryNextSession(after: error) {
-                    throw error
+        let auths: [RequestAuth]
+        do {
+            auths = try self.resolveAuths(
+                bearerTokenOverride: bearerTokenOverride,
+                organizationOverride: organizationOverride,
+                logger: logger)
+        } catch {
+            // An unreadable browser store still surfaces when no Devin app session can take over.
+            auths = []
+            lastError = error
+        }
+        // The Devin.app session lives behind a Keychain-gated decrypt; it is only read once the
+        // browser path is exhausted so a working browser sign-in never spends the manual action's
+        // Keychain allowance on a token that would go unused.
+        let authStages: [() -> [RequestAuth]] = [
+            { auths },
+            { self.appSessionAuths(organizationOverride: organizationOverride, logger: logger) },
+        ]
+        for stage in authStages {
+            for auth in stage() {
+                do {
+                    return try await Self.fetchQuotaUsage(
+                        auth: auth,
+                        organizationOverride: organizationOverride,
+                        timeout: timeout,
+                        logger: logger,
+                        now: now,
+                        transport: transport)
+                } catch {
+                    lastError = error
+                    logger?("[devin] Session from \(auth.sourceLabel) failed: \(error.localizedDescription)")
+                    if auth.sourceLabel == "manual" || !Self.shouldTryNextSession(after: error) {
+                        throw error
+                    }
                 }
             }
         }
@@ -143,10 +172,7 @@ public struct DevinUsageFetcher: Sendable {
             browserDetection: self.browserDetection,
             organizationOverride: normalizedOrganizationOverride,
             logger: logger)
-        guard !sessions.isEmpty else {
-            throw DevinUsageError.noSession
-        }
-        logger?("[devin] Found \(sessions.count) session(s)")
+        logger?("[devin] Found \(sessions.count) browser session(s)")
         return sessions.map { session in
             RequestAuth(
                 bearerToken: session.accessToken,
@@ -156,6 +182,25 @@ public struct DevinUsageFetcher: Sendable {
         }
         #else
         throw DevinUsageError.noSession
+        #endif
+    }
+
+    private func appSessionAuths(
+        organizationOverride: String?,
+        logger: ((String) -> Void)?) -> [RequestAuth]
+    {
+        #if os(macOS)
+        let normalizedOrganizationOverride = Self.normalizedOrganization(organizationOverride)
+        logger?("[devin] Trying the Devin app session")
+        return self.devinAppImporter.importSessions(logger: logger).map { session in
+            RequestAuth(
+                bearerToken: session.accessToken,
+                organization: normalizedOrganizationOverride ?? Self.normalizedOrganization(session.organization),
+                internalOrganizationID: session.internalOrganizationID,
+                sourceLabel: session.sourceLabel)
+        }
+        #else
+        []
         #endif
     }
 

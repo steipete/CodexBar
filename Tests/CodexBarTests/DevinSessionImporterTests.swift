@@ -71,10 +71,7 @@ struct DevinSessionImporterTests {
             ChromiumLocalStorageDiscovery.profileCandidates(root: $0.url, labelPrefix: $0.labelPrefix)
         }
 
-        let sessions = try DevinSessionImporter.importSessions(
-            browserDetection: detection,
-            candidates: candidates,
-            devinAppImporter: nil)
+        let sessions = try DevinSessionImporter.importSessions(browserDetection: detection, candidates: candidates)
 
         #expect(sessions.count == 1)
         #expect(sessions.first?.sourceLabel == "\(browser.displayName) Profile 2")
@@ -99,8 +96,7 @@ struct DevinSessionImporterTests {
         do {
             let sessions = try DevinSessionImporter.importSessions(
                 browserDetection: BrowserDetection(homeDirectory: directory.path, cacheTTL: 0),
-                candidates: candidates,
-                devinAppImporter: nil)
+                candidates: candidates)
             #expect(hasSession)
             #expect(sessions.map(\.sourceLabel) == ["Readable profile"])
         } catch DevinUsageError.browserStorageUnreadable {
@@ -112,8 +108,7 @@ struct DevinSessionImporterTests {
     func `no discovered profiles is not a storage read failure`() throws {
         let sessions = try DevinSessionImporter.importSessions(
             browserDetection: BrowserDetection(cacheTTL: 0),
-            candidates: [],
-            devinAppImporter: nil)
+            candidates: [])
 
         #expect(sessions.isEmpty)
     }

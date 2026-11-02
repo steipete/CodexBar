@@ -28,47 +28,117 @@ struct DevinAppSessionImporterTests {
     }
 
     @Test
-    func `Devin app session merges with browser sessions`() throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("devin-merge-\(UUID())")
-        defer { try? FileManager.default.removeItem(at: directory) }
-        try Self.writeLocalStorageLog([
-            (key: "auth1_session", value: #"{"token":"auth1_synthetic-browser"}"#),
-        ], to: directory)
-        let candidates = [ChromiumLocalStorageDiscovery.Candidate(label: "Chrome Default", url: directory)]
+    func `Devin app session is used when no browser session exists`() async throws {
         let importer = try Self.importer(
-            payload: Self.sessionsPayload(tokens: ["devin-synthetic.app-token.signature"]))
-
-        let sessions = try Self.withKeychain {
-            try DevinSessionImporter.importSessions(
-                browserDetection: BrowserDetection(homeDirectory: directory.path, cacheTTL: 0),
-                candidates: candidates,
-                devinAppImporter: importer)
+            payload: Self.sessionsPayload(tokens: ["devin-synthetic.app-token.signature"]),
+            organizationKeys: ["devin.desktopShell.spacesMigration.org_example12345"])
+        let fetcher = DevinUsageFetcher(
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            devinAppImporter: importer)
+        let stub = ProviderHTTPTransportStub { request in
+            #expect(request.value(forHTTPHeaderField: "Authorization") ==
+                "Bearer devin-synthetic.app-token.signature")
+            #expect(request.value(forHTTPHeaderField: "x-cog-org-id") == "org_example12345")
+            return (
+                Data(#"{"daily_percentage":10,"weekly_percentage":20}"#.utf8),
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
         }
 
-        #expect(sessions.map(\.accessToken) == ["auth1_synthetic-browser", "devin-synthetic.app-token.signature"])
-        #expect(sessions.map(\.sourceLabel) == ["Chrome Default", "Devin app"])
+        let snapshot = try await Self.withKeychain {
+            try await DevinSessionImporter.withImportSessionOverrideForTesting { _, _, _ in nil } operation: {
+                try await fetcher.fetch(transport: stub)
+            }
+        }
+
+        #expect(snapshot.daily?.usedPercent == 10)
+        #expect(snapshot.weekly?.usedPercent == 20)
     }
 
     @Test
-    func `Devin app sessions deduplicate with browser session by token`() throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("devin-dedup-\(UUID())")
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let shared = "devin-synthetic.shared-token.signature"
-        try Self.writeLocalStorageLog([
-            (key: "any-key", value: #"{"access_token":"\#(shared)"}"#),
-        ], to: directory)
-        let candidates = [ChromiumLocalStorageDiscovery.Candidate(label: "Chrome Default", url: directory)]
-        let importer = try Self.importer(payload: Self.sessionsPayload(tokens: [shared]))
-
-        let sessions = try Self.withKeychain {
-            try DevinSessionImporter.importSessions(
-                browserDetection: BrowserDetection(homeDirectory: directory.path, cacheTTL: 0),
-                candidates: candidates,
-                devinAppImporter: importer)
+    func `a working browser session never consults the Devin app Safe Storage`() async throws {
+        // Regression: the desktop import used to run eagerly and could spend the manual action's
+        // single interactive Keychain allowance even when the browser session worked.
+        let importer = try Self.importer(
+            payload: Self.sessionsPayload(tokens: ["devin-synthetic.app-token.signature"]),
+            organizationKeys: ["devin.desktopShell.spacesMigration.org_example12345"])
+        let fetcher = DevinUsageFetcher(
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            devinAppImporter: importer)
+        let browserSession = DevinSessionImporter.SessionInfo(
+            accessToken: "auth1_synthetic-browser-token",
+            organization: "org/browser-org",
+            internalOrganizationID: "org_browser12345",
+            sourceLabel: "Chrome Default")
+        let stub = ProviderHTTPTransportStub { request in
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer auth1_synthetic-browser-token")
+            return (
+                Data(#"{"daily_percentage":5,"weekly_percentage":6}"#.utf8),
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
         }
 
-        #expect(sessions.count == 1)
-        #expect(sessions.first?.sourceLabel == "Chrome Default")
+        let snapshot = try await Self.withKeychain(
+            read: { _ in
+                Issue.record("The Devin Safe Storage read must be deferred while a browser session works")
+                return (errSecSuccess, Data(Self.password.utf8))
+            },
+            preflight: .interactionRequired,
+            onPreflight: {
+                Issue.record("The Devin Safe Storage ACL must not be consulted while a browser session works")
+            },
+            interaction: .userInitiated,
+            operation: {
+                try await BrowserCookieAccessGate.withExplicitRetry {
+                    try await DevinSessionImporter
+                        .withImportSessionOverrideForTesting { _, _, _ in browserSession } operation: {
+                            try await fetcher.fetch(transport: stub)
+                        }
+                }
+            })
+
+        #expect(snapshot.daily?.usedPercent == 5)
+        let requests = await stub.requests()
+        #expect(requests.count == 1)
+    }
+
+    @Test
+    func `a rejected browser session falls back to the Devin app session`() async throws {
+        let importer = try Self.importer(
+            payload: Self.sessionsPayload(tokens: ["devin-synthetic.app-token.signature"]),
+            organizationKeys: ["devin.desktopShell.spacesMigration.org_example12345"])
+        let fetcher = DevinUsageFetcher(
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            devinAppImporter: importer)
+        let browserSession = DevinSessionImporter.SessionInfo(
+            accessToken: "auth1_synthetic-stale-browser-token",
+            organization: "org/browser-org",
+            internalOrganizationID: "org_browser12345",
+            sourceLabel: "Chrome Default")
+        let stub = ProviderHTTPTransportStub { request in
+            let browserToken = request.value(forHTTPHeaderField: "Authorization") ==
+                "Bearer auth1_synthetic-stale-browser-token"
+            return (
+                Data(#"{"daily_percentage":30,"weekly_percentage":40}"#.utf8),
+                HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: browserToken ? 401 : 200,
+                    httpVersion: nil,
+                    headerFields: nil)!)
+        }
+
+        let snapshot = try await Self.withKeychain {
+            try await DevinSessionImporter
+                .withImportSessionOverrideForTesting { _, _, _ in browserSession } operation: {
+                    try await fetcher.fetch(transport: stub)
+                }
+        }
+
+        #expect(snapshot.daily?.usedPercent == 30)
+        let authorizations = await stub.requests()
+            .map { $0.value(forHTTPHeaderField: "Authorization") }
+        #expect(authorizations == [
+            "Bearer auth1_synthetic-stale-browser-token",
+            "Bearer devin-synthetic.app-token.signature",
+        ])
     }
 
     @Test
@@ -224,6 +294,40 @@ struct DevinAppSessionImporterTests {
                 } operation: {
                     try ChromiumSafeStorage.$readOverrideForTesting.withValue(lookup) {
                         try ProviderInteractionContext.$current.withValue(interaction, operation: operation)
+                    }
+                }
+            }
+        }
+    }
+
+    static func withKeychain<T>(
+        read: @escaping @Sendable ([String: Any]) -> (OSStatus, Data?) = { _ in
+            (errSecSuccess, Data(Self.password.utf8))
+        },
+        preflight: KeychainAccessPreflight.Outcome = .allowed,
+        onPreflight: (@Sendable () -> Void)? = nil,
+        interaction: ProviderInteraction = .background,
+        operation: () async throws -> T) async throws -> T
+    {
+        let lookup: @Sendable ([String: Any]) -> (OSStatus, Data?) = { query in
+            #expect(query[kSecAttrService as String] as? String == "Devin Safe Storage")
+            #expect(query[kSecAttrAccount as String] as? String == "Devin Key")
+            #expect(query[kSecReturnData as String] as? Bool == true)
+            return read(query)
+        }
+        let promptHandler = BrowserCookieKeychainPromptHandler.handler
+        BrowserCookieKeychainPromptHandler.handler = nil
+        defer { BrowserCookieKeychainPromptHandler.handler = promptHandler }
+        return try await KeychainAccessGate.withTaskOverrideForTesting(false) {
+            try await BrowserCookieAccessGate.withIsolatedStateForTesting {
+                try await KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
+                    onPreflight?()
+                    return preflight
+                } operation: {
+                    try await ChromiumSafeStorage.$readOverrideForTesting.withValue(lookup) {
+                        try await ProviderInteractionContext.$current.withValue(interaction) {
+                            try await operation()
+                        }
                     }
                 }
             }

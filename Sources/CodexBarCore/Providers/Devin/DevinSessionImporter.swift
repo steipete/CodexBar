@@ -40,7 +40,6 @@ enum DevinSessionImporter {
         browserDetection: BrowserDetection,
         candidates: [ChromiumLocalStorageDiscovery.Candidate]? = nil,
         organizationOverride: String? = nil,
-        devinAppImporter: DevinAppSessionImporter? = DevinAppSessionImporter(),
         logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
     {
         #if DEBUG
@@ -80,9 +79,6 @@ enum DevinSessionImporter {
                     "\(session.internalOrganizationID != nil)")
             sessions.append(session)
         }
-        // Devin.app keeps its signed-in session in the app's own secret storage, outside
-        // browser local storage; merge it after the browser candidates so browser stays primary.
-        sessions.append(contentsOf: devinAppImporter?.importSessions(logger: log) ?? [])
         sessions = self.rankSessions(self.deduplicateSessions(sessions))
 
         if sessions.isEmpty {

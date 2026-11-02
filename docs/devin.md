@@ -23,8 +23,10 @@ The origin-filtered reader streams the browser store and decodes only Devin valu
 Local Storage data. Current values and deletions determine the session. CodexBar sends the session token only to
 `https://app.devin.ai`.
 
-When no browser session exists, automatic mode also imports the session stored by the Devin desktop app
-(`~/Library/Application Support/Devin`). Devin.app keeps the signed-in session in its VS Code-style secret
+When the browser path finds no session — or every imported browser session is rejected — automatic mode falls
+back to the session stored by the Devin desktop app (`~/Library/Application Support/Devin`). The app source is
+only consulted after the browser sessions have been tried, so a working browser sign-in never triggers its
+Keychain item. Devin.app keeps the signed-in session in its VS Code-style secret
 storage (`User/globalStorage/state.vscdb`, `windsurf_auth.sessions`), encrypted with the app's Safe Storage
 key like Chromium `v10` values. Decrypting it needs the `Devin Safe Storage` Keychain item, so the first
 refresh can show one macOS Keychain prompt from the app or the bundled CLI; choosing **Always Allow** keeps
