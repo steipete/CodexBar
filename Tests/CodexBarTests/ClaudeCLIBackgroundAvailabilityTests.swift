@@ -463,6 +463,31 @@ struct ClaudeCLIBackgroundAvailabilityTests {
         }
     }
 
+    @Test
+    func `an authentication lockout survives a later non-authentication failure`() async throws {
+        let strategy = self.makeStrategy()
+        let profile = try self.makeProfile(accountID: "account-a")
+        defer { try? FileManager.default.removeItem(at: profile.root) }
+        let context = self.makeContext(environment: profile.environment)
+        let clock = TestClock(Date(timeIntervalSince1970: 1_000_000))
+        let signedOut = ClaudeStatusProbeError.authenticationFailed(
+            "Claude CLI token expired. Run `claude login` to refresh.")
+
+        await self.withBackgroundGates(keychainDisabled: true, promptMode: .never, oauthCredentialsMissing: false) {
+            await self.withClock(clock) {
+                #expect(await !self.fetchUsage(strategy, context: context, failure: signedOut))
+
+                // The user clicks Refresh while offline, so the foreground attempt fails for another reason.
+                let refreshed = await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                    await self.fetchUsage(strategy, context: context, failure: Self.offlineFailure)
+                }
+                #expect(!refreshed)
+                clock.advance(by: 7 * 24 * 60 * 60)
+                #expect(await !strategy.isAvailable(context))
+            }
+        }
+    }
+
     private func makeStrategy() -> ClaudeCLIFetchStrategy {
         ClaudeCLIFetchStrategy(
             useWebExtras: false,

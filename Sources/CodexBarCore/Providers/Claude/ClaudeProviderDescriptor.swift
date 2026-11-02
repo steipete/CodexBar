@@ -1252,11 +1252,14 @@ enum ClaudeCLIBackgroundAvailability {
         func remove(_ marker: Marker, at date: Date, requiresForegroundRefresh: Bool) {
             self.lock.withLock {
                 self.markers.remove(marker)
-                let failures = (self.revocations[marker]?.consecutiveFailures ?? 0) + 1
+                let previous = self.revocations[marker]
                 self.revocations[marker] = Revocation(
                     revokedAt: date,
-                    consecutiveFailures: failures,
-                    requiresForegroundRefresh: requiresForegroundRefresh)
+                    consecutiveFailures: (previous?.consecutiveFailures ?? 0) + 1,
+                    // A later failure of another kind does not lift an authentication lockout;
+                    // only a successful fetch does.
+                    requiresForegroundRefresh: requiresForegroundRefresh
+                        || previous?.requiresForegroundRefresh == true)
             }
         }
 
