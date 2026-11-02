@@ -38,8 +38,20 @@ struct DevinAppSessionImporter {
         logger: ((String) -> Void)? = nil) -> [DevinSessionImporter.SessionInfo]
     {
         let log: (String) -> Void = { msg in logger?("[devin-storage] \(msg)") }
+        var itemTableKeys: [String] = []
+        var secretBlobs: [Data] = []
+        do {
+            let rows = try self.itemTableRows()
+            itemTableKeys = rows.map(\.key)
+            secretBlobs = rows
+                .filter { $0.key.hasPrefix("secret://") && $0.key.contains(Self.sessionsSecretName) }
+                .compactMap { Self.bufferData(fromSecretValue: $0.value) }
+        } catch {
+            log("Devin app database unreadable: \(error.localizedDescription)")
+        }
+
         var tokens: [String] = []
-        for payload in self.decryptedSessionsPayloads(logger: log) {
+        for payload in self.decryptedSessionsPayloads(secretBlobs: secretBlobs, logger: log) {
             for token in Self.accessTokens(fromSessionsPayload: payload) where !tokens.contains(token) {
                 tokens.append(token)
             }
@@ -48,7 +60,10 @@ struct DevinAppSessionImporter {
             log("No Devin app session found in app secret storage")
             return []
         }
-        let orgInfo = self.organizationInfo(organizationOverride: organizationOverride, logger: log)
+        let orgInfo = self.organizationInfo(
+            organizationOverride: organizationOverride,
+            itemTableKeys: itemTableKeys,
+            logger: log)
         log("Found Devin app session; internalOrganizationID=\(orgInfo.internalOrganizationID != nil)")
         return tokens.map {
             DevinSessionImporter.SessionInfo(
@@ -61,8 +76,11 @@ struct DevinAppSessionImporter {
 
     // MARK: - Secret storage
 
-    private func decryptedSessionsPayloads(logger: @escaping (String) -> Void) -> [String] {
-        guard let blobs = try? self.encryptedSessionsBlobs(), !blobs.isEmpty else { return [] }
+    private func decryptedSessionsPayloads(
+        secretBlobs: [Data],
+        logger: @escaping (String) -> Void) -> [String]
+    {
+        guard !secretBlobs.isEmpty else { return [] }
         guard let password = ChromiumSafeStorage.password(
             service: Self.safeStorageService,
             account: Self.safeStorageAccount,
@@ -72,7 +90,7 @@ struct DevinAppSessionImporter {
             return []
         }
         let key = ChromiumSafeStorage.deriveKey(from: password)
-        return blobs.compactMap {
+        return secretBlobs.compactMap {
             guard let data = ChromiumSafeStorage.decrypt($0, key: key),
                   let text = String(data: data, encoding: .utf8),
                   !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -83,13 +101,6 @@ struct DevinAppSessionImporter {
 
     /// Values of `secret://{"extensionId":…,"key":"windsurf_auth.sessions"}` rows, which VS Code
     /// secret storage writes as `{"type":"Buffer","data":[…]}` where bytes are a `v10` blob.
-    private func encryptedSessionsBlobs() throws -> [Data] {
-        guard FileManager.default.fileExists(atPath: self.dbPath) else { return [] }
-        return try self.itemTableRows()
-            .filter { $0.key.hasPrefix("secret://") && $0.key.contains(Self.sessionsSecretName) }
-            .compactMap { Self.bufferData(fromSecretValue: $0.value) }
-    }
-
     private static func bufferData(fromSecretValue raw: String) -> Data? {
         guard let data = raw.data(using: .utf8),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -138,6 +149,7 @@ struct DevinAppSessionImporter {
 
     private func organizationInfo(
         organizationOverride: String?,
+        itemTableKeys: [String],
         logger: @escaping (String) -> Void) -> (organization: String?, internalOrganizationID: String?)
     {
         // Devin.app keeps the same organization metadata keys as browser sessions.
@@ -161,7 +173,7 @@ struct DevinAppSessionImporter {
 
         // The app database scopes several rows by internal org id (devin.desktopShell.….org-…).
         // A single distinct id is unambiguous; several mean the caller must pick one explicitly.
-        let ids = Set(((try? self.itemTableKeys()) ?? []).compactMap(Self.internalOrganizationID))
+        let ids = Set(itemTableKeys.compactMap(Self.internalOrganizationID))
         if ids.count == 1, let id = ids.first {
             return ("organizations/\(id)", id)
         }
@@ -180,10 +192,6 @@ struct DevinAppSessionImporter {
     }
 
     // MARK: - state.vscdb access
-
-    private func itemTableKeys() throws -> [String] {
-        try self.itemTableRows().map(\.key)
-    }
 
     private struct ItemRow {
         let key: String
