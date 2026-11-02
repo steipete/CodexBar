@@ -74,6 +74,8 @@ Environment overrides:
 
 - `DEVIN_BEARER_TOKEN` or `DEVIN_AUTHORIZATION`
 - `DEVIN_ORGANIZATION` or `DEVIN_ORG`
+- `CODEXBAR_DEVIN_APP_HOME` redirects the Devin.app data root for diagnostics (the app
+  session importer reads `$CODEXBAR_DEVIN_APP_HOME/Library/Application Support/Devin`).
 
 ## CLI (macOS and Linux)
 

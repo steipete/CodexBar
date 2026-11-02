@@ -28,7 +28,12 @@ struct DevinAppSessionImporter {
     private let localStorageURL: URL
 
     init(dbPath: String? = nil, localStorageURL: URL? = nil, home: String = NSHomeDirectory()) {
-        let root = URL(fileURLWithPath: home).appendingPathComponent(Self.appSupportDirectory)
+        // CODEXBAR_DEVIN_APP_HOME points the importer at another Devin.app data root for
+        // diagnostics or isolated verification (same idea as CODEXBAR_CONFIG for the CLI).
+        let effectiveHome = ProcessInfo.processInfo.environment["CODEXBAR_DEVIN_APP_HOME"].flatMap {
+            $0.isEmpty ? nil : $0
+        } ?? home
+        let root = URL(fileURLWithPath: effectiveHome).appendingPathComponent(Self.appSupportDirectory)
         self.dbPath = dbPath ?? root.appendingPathComponent(Self.stateDatabasePath).path
         self.localStorageURL = localStorageURL ?? root.appendingPathComponent(Self.localStoragePath)
     }
