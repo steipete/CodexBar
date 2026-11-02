@@ -93,7 +93,42 @@ public enum CopilotProviderDescriptor {
             cli: ProviderCLIConfig(
                 name: "copilot",
                 loginCommand: "codexbar config login --provider copilot",
-                versionDetector: nil))
+                versionDetector: nil),
+            setup: ProviderSetup(
+                routes: [
+                    .init(
+                        id: "device-login",
+                        method: .deviceCode,
+                        platforms: [.macOS, .linux],
+                        command: "codexbar config login --provider copilot",
+                        hint: "Authorize GitHub's device code to save a Copilot token account."),
+                    .init(
+                        id: "github-token",
+                        method: .token,
+                        platforms: [.macOS, .linux],
+                        requiredInputs: [.init(
+                            id: "github-token",
+                            configFields: ["apiKey", "tokenAccounts.accounts[].token"],
+                            environmentVariables: ["COPILOT_API_TOKEN"])],
+                        hint: "Supply a GitHub token accepted by the Copilot usage API."),
+                ],
+                optionalCapabilities: [.init(
+                    id: "budget-extras",
+                    hint: "Optional, best-effort budgets for public github.com only. Enable Budget extras; " +
+                        "the browser session must match the token account. Quota usage does not need cookies.",
+                    routes: [
+                        .init(
+                            id: "manual-cookie",
+                            method: .cookieHeader,
+                            platforms: [.macOS, .linux],
+                            requiredInputs: [.init(id: "github-cookie", configFields: ["cookieHeader"])],
+                            hint: "Select manual cookie source and supply the matching GitHub Cookie header."),
+                        .init(
+                            id: "browser-session",
+                            method: .browserSession,
+                            platforms: [.macOS],
+                            hint: "Sign in to GitHub in a supported browser and select automatic cookie import."),
+                    ])]))
     }
 }
 
