@@ -146,7 +146,7 @@ public struct DevinUsageFetcher: Sendable {
         guard !sessions.isEmpty else {
             throw DevinUsageError.noSession
         }
-        logger?("[devin] Found \(sessions.count) browser session(s)")
+        logger?("[devin] Found \(sessions.count) session(s)")
         return sessions.map { session in
             RequestAuth(
                 bearerToken: session.accessToken,

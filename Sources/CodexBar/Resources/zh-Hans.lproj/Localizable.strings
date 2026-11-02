@@ -1754,7 +1754,7 @@
 "Automatic imports longcat.chat cookies from your browser." = "自动从浏览器导入 longcat.chat cookies。";
 "Automatically imports browser cookies for budget extras." = "自动导入浏览器 Cookie，以读取预算附加信息。";
 "Automatically imports browser cookies for github.com budget extras." = "自动导入 github.com 的浏览器 Cookie，以读取预算附加信息。";
-"Automatically imports the app.devin.ai session from Chromium browsers." = "自动从 Chromium 浏览器导入 app.devin.ai 会话。";
+"Automatically imports the app.devin.ai session from the Devin app or Chromium browsers." = "自动从 Devin 应用或 Chromium 浏览器导入 app.devin.ai 会话。";
 "Automatically imports the browser session cookie." = "自动导入浏览器会话 cookie。";
 "Automatically signs in using your ZoomMate session cookies from Chrome." = "使用 Chrome 中的 ZoomMate 会话 cookies 自动登录。";
 "BY USAGE" = "按用量排序";

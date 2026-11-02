@@ -13,7 +13,7 @@ The Devin provider tracks included daily and weekly usage quotas from
 
 ## Setup
 
-1. Sign in to Devin in Chrome, Brave, Edge, Arc, or another supported Chromium browser.
+1. Sign in to Devin in Chrome, Brave, Edge, Arc, another supported Chromium browser, or the Devin desktop app.
 2. Open the organization Usage & Limits page once.
 3. Enable **Devin** in **Settings → Providers**.
 
@@ -22,6 +22,14 @@ using the shared browser catalog and skipping browsers without profile data. It 
 The origin-filtered reader streams the browser store and decodes only Devin values, avoiding retention of other sites'
 Local Storage data. Current values and deletions determine the session. CodexBar sends the session token only to
 `https://app.devin.ai`.
+
+When no browser session exists, automatic mode also imports the session stored by the Devin desktop app
+(`~/Library/Application Support/Devin`). Devin.app keeps the signed-in session in its VS Code-style secret
+storage (`User/globalStorage/state.vscdb`, `windsurf_auth.sessions`), encrypted with the app's Safe Storage
+key like Chromium `v10` values. Decrypting it needs the `Devin Safe Storage` Keychain item, so the first
+refresh can show one macOS Keychain prompt from the app or the bundled CLI; choosing **Always Allow** keeps
+later refreshes silent, and the same denial cooldowns as browser cookie imports apply. Background refreshes
+never prompt — they reuse an existing grant or skip the Devin app source until an explicit refresh.
 
 For accounts with multiple organizations, set **Organization** to select one explicitly. An internal `org-...` or
 `org_...` ID takes precedence over the browser's cached organization metadata. A slug uses only its matching cached ID;
@@ -94,7 +102,9 @@ without enabling automatic auth; an empty override does not fall back to the con
   are not supported. Open `app.devin.ai` and the organization's Usage & Limits page in your Chromium browser.
 - Devin uses **localStorage**, not the Cookies database. CodexBar reads `auth1_session` (an `auth1_` token) or
   Auth0 cached `access_token` / `accessToken` values for `app.devin.ai`. Cookies for `.devin.ai` or `api.devin.ai`, Chrome
-  Safe Storage Keychain permissions, and Safari cookie permissions are not part of this import path.
+  Safe Storage Keychain permissions, and Safari cookie permissions are not part of this import path. The Devin
+  desktop app is the one exception: its session lives in Devin.app's own encrypted secret storage, which needs the
+  `Devin Safe Storage` Keychain permission described above.
 - A **no session** error means no supported session was found in the discovered Chromium storage. A **could not read
   Chromium local storage** error means a discovered store could not be opened; it does not mean Devin rejected your token.
   Reopen your browser and its Devin Usage & Limits page, refresh CodexBar, or use Manual auth above.

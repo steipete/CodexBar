@@ -17,8 +17,8 @@ public enum DevinUsageError: LocalizedError, Sendable {
     public var errorDescription: String? {
         switch self {
         case .noSession:
-            "No Devin session found. Sign in to app.devin.ai in a supported Chromium browser on macOS, " +
-                "then open Usage & Limits. " +
+            "No Devin session found. Sign in to app.devin.ai in the Devin app or a supported Chromium " +
+                "browser on macOS, then open Usage & Limits. " +
                 Self.manualAuthHelp
         case .browserStorageUnreadable:
             "Could not read Chromium local storage for Devin. Reopen your browser and try again. " + Self.manualAuthHelp

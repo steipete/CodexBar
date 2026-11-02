@@ -2,6 +2,10 @@
 
 ## 0.83.1 — Unreleased
 
+### Fixed
+
+- Devin: also import the signed-in session from the Devin desktop app's encrypted secret storage, so automatic auth works without a Chromium browser sign-in; the first refresh can show one `Devin Safe Storage` Keychain prompt.
+
 ## 0.83.0 — 2026-10-31
 
 ### Highlights
