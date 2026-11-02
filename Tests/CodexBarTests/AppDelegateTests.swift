@@ -24,7 +24,8 @@ struct AppDelegateTests {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "AppDelegateTests"),
             zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+            syntheticTokenStore: NoopSyntheticTokenStore(),
+            hostPreferencesLockURL: nil)
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
         let account = fetcher.loadAccountInfo()

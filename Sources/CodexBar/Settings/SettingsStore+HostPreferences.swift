@@ -20,6 +20,14 @@ extension SettingsStore {
         self.updateHostPreferences { _ in }
     }
 
+    /// Each app SSH spend fetch re-reads canonical consent first; a failed read or released store denies it.
+    var spendHostConsent: @MainActor @Sendable (String) -> Bool {
+        { [weak self] host in
+            guard let self, self.refreshHostPreferences() else { return false }
+            return self.costUsageHosts.contains(host)
+        }
+    }
+
     @discardableResult
     func updateHostPreferences(_ operation: (inout HostPreferences.State) -> Void) -> Bool {
         do {

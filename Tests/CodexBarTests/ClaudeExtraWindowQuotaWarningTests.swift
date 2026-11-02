@@ -12,7 +12,8 @@ struct ClaudeExtraWindowQuotaWarningTests {
             userDefaults: defaults,
             configStore: testConfigStore(suiteName: suiteName),
             zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+            syntheticTokenStore: NoopSyntheticTokenStore(),
+            hostPreferencesLockURL: nil)
     }
 
     @MainActor

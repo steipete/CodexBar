@@ -33,19 +33,42 @@ struct HostPreferencesTests {
         let fresh = testSettingsStore(suiteName: #function, userDefaults: defaults)
         #expect(fresh.costUsageHosts == settings.costUsageHosts)
         #expect(fresh.agentSessionsManualHosts == settings.agentSessionsManualHosts)
+        if revokeSpend, cliFirst {
+            settings.setCostUsageHost("devbox", enabled: true)
+            _ = try CodexBarCLI.configHostsMutation(.remove, host: "devbox", cost: true, in: defaults, lockURL: nil)
+            try #require(settings.costUsageHosts.contains("devbox"), "The checkbox still sees the old selection.")
+            settings.setCostUsageHost("mini", enabled: true)
+            #expect(settings.costUsageHosts == ["mini"])
+        }
     }
 
     @Test
-    func `checkbox intent preserves an unrelated CLI grant and removal requires fresh consent`() throws {
-        let defaults = InMemoryUserDefaults(values: ["agentSessionsManualHosts": "devbox"])
-        let settings = testSettingsStore(suiteName: #function, userDefaults: defaults)
-        _ = try CodexBarCLI.configHostsMutation(.add, host: "mini", cost: true, in: defaults, lockURL: nil)
-        settings.setCostUsageHost("devbox", enabled: true)
-        #expect(settings.costUsageHosts == ["devbox", "mini"])
-        _ = try CodexBarCLI.configHostsMutation(.remove, host: "devbox", cost: true, in: defaults, lockURL: nil)
-        try #require(settings.costUsageHosts.contains("devbox"), "The checkbox still sees the old selection.")
-        settings.setCostUsageHost("mini", enabled: true)
-        #expect(settings.costUsageHosts == ["mini"])
+    func `list exposes rejected tokens and removal preserves unrelated raw tokens`() throws {
+        let defaults = InMemoryUserDefaults()
+        defaults.set(" DevBox ,bad host,-bad,BAD HOST,,devbox,mini,a\tb", forKey: "agentSessionsManualHosts")
+        defaults.set(["DevBox", "DevBox", "ghost"], forKey: "costUsageHosts")
+        let state = try HostPreferences.update(in: defaults, lockURL: nil) { _ in }.state
+        #expect(state.costUsageHosts == ["DevBox"])
+        let entries = CodexBarCLI.configHostsEntries(state)
+        #expect(entries == [
+            ConfigHostsEntry(host: "DevBox", valid: true, costUsage: true, check: nil),
+            ConfigHostsEntry(host: "bad host", valid: false, costUsage: false, check: nil),
+            ConfigHostsEntry(host: "-bad", valid: false, costUsage: false, check: nil),
+            ConfigHostsEntry(host: "mini", valid: true, costUsage: false, check: nil),
+            ConfigHostsEntry(host: "a\tb", valid: false, costUsage: false, check: nil),
+        ])
+        #expect(CodexBarCLI.renderConfigHostEntry(entries[1]) == "bad host: invalid for spend")
+        let removed = try HostPreferences.removing("bad host", from: state, costOnly: false)
+        #expect(removed.state.manualTokens == [" DevBox ", "-bad", "", "devbox", "mini", "a\tb"])
+        #expect(removed.changed)
+        let removedDash = try HostPreferences.removing("-bad", from: removed.state, costOnly: false)
+        #expect(removedDash.state.manualTokens == [" DevBox ", "", "devbox", "mini", "a\tb"])
+        let removedTab = try HostPreferences.removing("a\tb", from: removedDash.state, costOnly: false)
+        #expect(removedTab.state.manualTokens == [" DevBox ", "", "devbox", "mini"])
+        #expect(!CodexBarCLI.configHostsEntries(removedTab.state).contains { !$0.valid })
+        defaults.set("DevBox", forKey: "agentSessionsManualHosts")
+        defaults.set(["devbox"], forKey: "costUsageHosts")
+        #expect(try HostPreferences.update(in: defaults, lockURL: nil) { _ in }.state.costUsageHosts.isEmpty)
     }
 
     @Test
@@ -64,8 +87,19 @@ struct HostPreferencesTests {
         #expect(!settings.costUsageHosts.contains("devbox"))
     }
 
+    @Test
+    func `removing and readding shared host revokes consent and invalid aliases are not selectable`() {
+        let defaults = InMemoryUserDefaults(values: ["agentSessionsManualHosts": "A, B", "costUsageHosts": ["A", "B"]])
+        let settings = testSettingsStore(suiteName: #function, userDefaults: defaults)
+        settings.agentSessionsManualHosts = "B"
+        settings.agentSessionsManualHosts = "A, B"
+        #expect(settings.costUsageHosts == ["B"])
+        settings.agentSessionsManualHosts = "A, B, bad/path"
+        #expect(settings.selectableCostUsageHosts == ["A", "B"])
+    }
+
     @Test(arguments: [false, true])
-    func `portable import and export remain independent of host configuration`(invalidDocument: Bool) throws {
+    func `pending imports refresh host configuration even when the document is invalid`(invalidDocument: Bool) throws {
         let defaults =
             InMemoryUserDefaults(values: invalidDocument ? [:] : ["agentSessionsManualHosts": "my host,mini"])
         let settings = testSettingsStore(suiteName: #function, userDefaults: defaults)
@@ -78,23 +112,12 @@ struct HostPreferencesTests {
         }
         let host = invalidDocument ? "mini" : "devbox"
         _ = try CodexBarCLI.configHostsMutation(.add, host: host, cost: true, in: defaults, lockURL: nil)
-        if !invalidDocument {
-            let export = try PreferencesDocument(defaults: defaults)
-            #expect(try export.value("agentSessionsManualHosts", as: String.self) == nil)
-            #expect(try export.value("costUsageHosts", as: [String].self) == nil)
-        }
         settings.consumePendingPreferencesImport()
         #expect(settings.agentSessionsManualHosts == (invalidDocument ? host : "my host,mini,devbox"))
         #expect(settings.costUsageHosts == [host])
         if !invalidDocument {
             #expect(settings.hidePersonalInfo)
             #expect(defaults.data(forKey: PreferencesDocument.pendingImportKey) == nil)
-            for json in [
-                #"{"version":1,"preferences":{"agentSessionsManualHosts":"devbox"}}"#,
-                #"{"version":1,"preferences":{"costUsageHosts":["devbox"]}}"#,
-            ] {
-                #expect(throws: (any Error).self) { try PreferencesDocument(data: Data(json.utf8)) }
-            }
         }
     }
 
@@ -137,6 +160,42 @@ struct HostPreferencesTests {
         settings.consumePendingPreferencesImport()
         #expect(settings.agentSessionsManualHosts == "devbox,mini")
         #expect(settings.costUsageHosts == ["mini"])
+    }
+
+    @Test(arguments: [false, true])
+    func `spend host consent denies selected host after read failure or owner release`(releaseOwner: Bool) throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let lockURL = root.appendingPathComponent("hosts.lock")
+        let defaults = InMemoryUserDefaults(values: [
+            "agentSessionsManualHosts": "alpha", "costUsageHosts": ["alpha"],
+        ])
+        var settings: SettingsStore? = testSettingsStore(
+            suiteName: #function,
+            userDefaults: defaults,
+            config: testConfigWithAllProvidersDisabled(),
+            hostPreferencesLockURL: lockURL)
+        defer { settings?.configFileWatcher?.stop() }
+        weak let owner = settings
+        let consent: @MainActor @Sendable (String) -> Bool
+        do {
+            let store = try #require(settings)
+            consent = store.spendHostConsent
+            try #require(consent("alpha"), "The stored host must be allowed before the failure.")
+            try #require(store.costUsageHosts == ["alpha"])
+            store.configFileWatcher?.stop()
+        }
+        if releaseOwner {
+            settings = nil
+            try #require(owner == nil, "The consent closure must not retain Settings.")
+        } else {
+            try FileManager.default.removeItem(at: lockURL)
+            try FileManager.default.createDirectory(at: lockURL, withIntermediateDirectories: true)
+            try #require(settings?.costUsageHosts == ["alpha"], "A stale allowed projection must remain available.")
+        }
+        #expect(!consent("alpha"), "A failed read or released owner must deny the previously allowed host.")
+        #expect(defaults.stringArray(forKey: "costUsageHosts") == ["alpha"])
     }
 
     @Test

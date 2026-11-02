@@ -27,9 +27,8 @@ extension UsageStore {
                     store: self,
                     mode: mode)
             },
-            cachedLoader: { request in
-                await SpendDashboardSource.loadCached(request)
-            },
+            cachedLoader: SpendDashboardSource.loadCached,
+            machineLoader: SpendDashboardController.makeMachineLoader(isHostConsented: self.settings.spendHostConsent),
             publicationHandler: { [weak self] publication in
                 self?.spendDashboardPublication = publication
             })

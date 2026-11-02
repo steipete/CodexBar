@@ -10,7 +10,8 @@ struct OpenAIWebAccountSwitchTests {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "OpenAIWebAccountSwitchTests-clears"),
             zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+            syntheticTokenStore: NoopSyntheticTokenStore(),
+            hostPreferencesLockURL: nil)
         settings.refreshFrequency = .manual
 
         let store = UsageStore(
@@ -39,7 +40,8 @@ struct OpenAIWebAccountSwitchTests {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "OpenAIWebAccountSwitchTests-keeps"),
             zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+            syntheticTokenStore: NoopSyntheticTokenStore(),
+            hostPreferencesLockURL: nil)
         settings.refreshFrequency = .manual
 
         let store = UsageStore(
@@ -67,7 +69,8 @@ struct OpenAIWebAccountSwitchTests {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "OpenAIWebAccountSwitchTests-profile-source"),
             zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+            syntheticTokenStore: NoopSyntheticTokenStore(),
+            hostPreferencesLockURL: nil)
         let store = UsageStore(
             fetcher: UsageFetcher(),
             browserDetection: BrowserDetection(cacheTTL: 0),

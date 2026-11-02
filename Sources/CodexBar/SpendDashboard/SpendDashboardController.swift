@@ -1221,18 +1221,7 @@ final class SpendDashboardController {
         requestBuilder: @escaping RequestBuilder,
         cachedLoader: CachedLoader? = nil,
         loader: @escaping Loader = SpendDashboardSource.load,
-        machineLoader: @escaping MachineLoader = { hosts, days, start, end in
-            try await CodexIdentifiedCollection.collect(
-                remotes: hosts,
-                startUnixMs: start,
-                endUnixMs: end,
-                includeSourceSubtotals: true,
-                local: { try await CodexRequestLedger.load(startUnixMs: start, endUnixMs: end) },
-                fetchRemote: {
-                    try await RemoteCodexCostFetcher().fetchIdentifiedUsage(
-                        host: $0, historyDays: days, startUnixMs: start, endUnixMs: end)
-                })
-        },
+        machineLoader: MachineLoader? = nil,
         nowProvider: @escaping @Sendable () -> Date = { Date() },
         publicationHandler: PublicationHandler? = nil)
     {
@@ -1240,7 +1229,7 @@ final class SpendDashboardController {
         self.requestBuilder = requestBuilder
         self.cachedLoader = cachedLoader
         self.loader = loader
-        self.machineLoader = machineLoader
+        self.machineLoader = machineLoader ?? Self.makeMachineLoader()
         self.nowProvider = nowProvider
         self.publicationHandler = publicationHandler
         let legacyDays = userDefaults.object(forKey: "settingsSpendDashboardDays") as? Int
@@ -1959,6 +1948,30 @@ final class SpendDashboardController {
 }
 
 extension SpendDashboardController {
+    typealias MachineRemoteFetcher = @Sendable (String, Int, Int64, Int64) async throws -> CodexRequestLedger
+
+    nonisolated static func makeMachineLoader(
+        isHostConsented: @escaping @MainActor @Sendable (String) -> Bool = { _ in true },
+        local: @escaping @Sendable (Int64, Int64) async throws -> CodexRequestLedger = CodexRequestLedger.load,
+        fetchRemote: @escaping MachineRemoteFetcher = { host, days, start, end in
+            try await RemoteCodexCostFetcher().fetchIdentifiedUsage(
+                host: host, historyDays: days, startUnixMs: start, endUnixMs: end)
+        }) -> MachineLoader
+    {
+        { hosts, days, start, end in
+            try await CodexIdentifiedCollection.collect(
+                remotes: hosts,
+                startUnixMs: start,
+                endUnixMs: end,
+                includeSourceSubtotals: true,
+                local: { try await local(start, end) },
+                fetchRemote: { host in
+                    guard await isHostConsented(host) else { throw CancellationError() }
+                    return try await fetchRemote(host, days, start, end)
+                })
+        }
+    }
+
     func reconcileMachineSpendHosts(_ hosts: [String]) {
         if self.machineRequestedHosts != hosts { self.cancelMachineSpend() }
     }

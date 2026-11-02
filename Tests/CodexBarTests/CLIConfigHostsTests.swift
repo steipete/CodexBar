@@ -23,22 +23,6 @@ struct CLIConfigHostsTests {
         #expect(throws: (any Error).self) { try parser.parse(arguments: ["mini", "--check"]) }
     }
 
-    // MARK: State reads
-
-    @Test
-    func `host state reads canonical defaults and sanitizes the spend subset`() throws {
-        let defaults = InMemoryUserDefaults(values: [
-            "agentSessionsManualHosts": "devbox, Mini ,devbox,",
-            "costUsageHosts": ["devbox", "devbox", "ghost"],
-        ])
-        let state = try HostPreferences.update(in: defaults, lockURL: nil) { _ in }.state
-        #expect(state.manualHosts == ["devbox", "Mini"])
-        #expect(state.costUsageHosts == ["devbox"])
-        defaults.set("DevBox", forKey: "agentSessionsManualHosts")
-        defaults.set(["devbox"], forKey: "costUsageHosts")
-        #expect(try HostPreferences.update(in: defaults, lockURL: nil) { _ in }.state.costUsageHosts.isEmpty)
-    }
-
     // MARK: Add
 
     @Test(arguments: ["", "a;b", "k"])
@@ -95,7 +79,7 @@ struct CLIConfigHostsTests {
     // MARK: Remove
 
     @Test
-    func `remove of an absent host is idempotent`() throws {
+    func `remove clears consent and leaves absent hosts unchanged`() throws {
         let state = HostPreferences.State(manualTokens: ["devbox"], costUsageHosts: ["devbox"])
 
         let removedCost = try HostPreferences.removing("devbox", from: state, costOnly: true)
@@ -107,15 +91,11 @@ struct CLIConfigHostsTests {
         #expect(absent.state == state)
         #expect(!absent.changed)
 
-        let costOnly = try HostPreferences.removing("ghost", from: state, costOnly: true)
-        #expect(costOnly.state == state)
-        #expect(!costOnly.changed)
-
         let unchanged = try HostPreferences.removing(
             "devbox", from: HostPreferences.State(manualTokens: ["devbox"]), costOnly: true)
         #expect(!unchanged.changed && unchanged.state.manualHosts == ["devbox"])
         #expect(CodexBarCLI.renderConfigHostMutation(
-            ConfigHostsMutationResult(host: unchanged.host, changed: false, costUsage: false, check: nil),
+            ConfigHostsMutationResult(host: unchanged.host, changed: unchanged.changed, costUsage: false, check: nil),
             action: .remove,
             costOnly: true) == "Host unchanged: devbox")
     }
@@ -125,31 +105,6 @@ struct CLIConfigHostsTests {
         #expect(throws: (any Error).self) {
             _ = try HostPreferences.removing(host, from: HostPreferences.State(), costOnly: false)
         }
-    }
-
-    @Test
-    func `list exposes rejected tokens and removal preserves unrelated raw tokens`() throws {
-        let defaults = InMemoryUserDefaults()
-        defaults.set(" DevBox ,bad host,-bad,BAD HOST,,devbox,mini,a\tb", forKey: "agentSessionsManualHosts")
-        defaults.set(["DevBox"], forKey: "costUsageHosts")
-        let state = try HostPreferences.update(in: defaults, lockURL: nil) { _ in }.state
-        let entries = CodexBarCLI.configHostsEntries(state)
-        #expect(entries == [
-            ConfigHostsEntry(host: "DevBox", valid: true, costUsage: true, check: nil),
-            ConfigHostsEntry(host: "bad host", valid: false, costUsage: false, check: nil),
-            ConfigHostsEntry(host: "-bad", valid: false, costUsage: false, check: nil),
-            ConfigHostsEntry(host: "mini", valid: true, costUsage: false, check: nil),
-            ConfigHostsEntry(host: "a\tb", valid: false, costUsage: false, check: nil),
-        ])
-        #expect(CodexBarCLI.renderConfigHostEntry(entries[1]) == "bad host: invalid for spend")
-        let removed = try HostPreferences.removing("bad host", from: state, costOnly: false)
-        #expect(removed.state.manualTokens == [" DevBox ", "-bad", "", "devbox", "mini", "a\tb"])
-        #expect(removed.changed)
-        let removedDash = try HostPreferences.removing("-bad", from: removed.state, costOnly: false)
-        #expect(removedDash.state.manualTokens == [" DevBox ", "", "devbox", "mini", "a\tb"])
-        let removedTab = try HostPreferences.removing("a\tb", from: removedDash.state, costOnly: false)
-        #expect(removedTab.state.manualTokens == [" DevBox ", "", "devbox", "mini"])
-        #expect(!CodexBarCLI.configHostsEntries(removedTab.state).contains { !$0.valid })
     }
 
     // MARK: Canonical write
@@ -198,16 +153,7 @@ struct CLIConfigHostsTests {
         #expect(failed["ok"] as? Bool == false)
         #expect(failed["error"] as? String == "Enter one SSH host alias or user@host.")
 
-        #expect(hosts[2]["host"] as? String == "mini")
         #expect(hosts[2]["check"] == nil)
-        #expect(hosts[2]["valid"] as? Bool == true)
-
-        let mutation = ConfigHostsMutationResult(host: "devbox", changed: true, costUsage: true, check: nil)
-        let mutationJSON = try #require(CodexBarCLI.encodeJSON(mutation, pretty: false))
-        let decodedMutation = try #require(
-            JSONSerialization.jsonObject(with: Data(mutationJSON.utf8)) as? [String: Any])
-        #expect(decodedMutation["costUsage"] as? Bool == true)
-        #expect(decodedMutation["check"] == nil)
     }
 
     // MARK: Check

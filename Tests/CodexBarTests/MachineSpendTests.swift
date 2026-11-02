@@ -43,33 +43,13 @@ struct MachineSpendTests {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
-        let settings = testSettingsStore(
-            suiteName: #function,
-            userDefaults: InMemoryUserDefaults(),
-            config: testConfigWithAllProvidersDisabled())
-        enableTestProviders([.codex], settings: settings)
-        settings.costUsageEnabled = true
+        let (settings, store) = Self.machineFixture(
+            root: root, suiteName: #function, defaults: InMemoryUserDefaults())
         settings.hidePersonalInfo = false
         settings.agentSessionsManualHosts = "fixture-host"
         settings.setCostUsageHost("fixture-host", enabled: true)
         settings.refreshFrequency = .manual
         settings.statusChecksEnabled = false
-        let environment = ["HOME": root.path, "CODEX_HOME": root.appendingPathComponent("codex").path]
-        let store = UsageStore(
-            fetcher: UsageFetcher(environment: environment),
-            browserDetection: BrowserDetection(homeDirectory: root.path, cacheTTL: 0),
-            costUsageFetcher: CostUsageFetcher(cacheRoot: root.appendingPathComponent("cost")),
-            settings: settings,
-            historicalUsageHistoryStore: HistoricalUsageHistoryStore(fileURL: root.appendingPathComponent("history")),
-            planUtilizationHistoryStore: PlanUtilizationHistoryStore(directoryURL: nil),
-            startupBehavior: .testing,
-            environmentBase: environment,
-            pluginApprovalStore: ProviderPluginApprovalStore(fileURL: root.appendingPathComponent("approvals")),
-            widgetSnapshotURL: root.appendingPathComponent("widget"),
-            cliUsageCacheURL: root.appendingPathComponent("cli"),
-            widgetTimelineReloader: {})
-        store._test_providerRefreshOverride = { _ in Issue.record("Unexpected provider transport") }
-        store._test_widgetSnapshotSaveOverride = { _ in }
         defer { store.stopSharedSpendDashboardPublication(); settings.configFileWatcher?.stop() }
         for unavailable in [true, false] {
             let controller = SpendDashboardController(
@@ -151,6 +131,32 @@ struct MachineSpendTests {
         }
     }
 
+    private static func machineFixture(
+        root: URL, suiteName: String, defaults: InMemoryUserDefaults) -> (SettingsStore, UsageStore)
+    {
+        let settings = testSettingsStore(
+            suiteName: suiteName, userDefaults: defaults, config: testConfigWithAllProvidersDisabled())
+        enableTestProviders([.codex], settings: settings)
+        settings.costUsageEnabled = true
+        let environment = ["HOME": root.path, "CODEX_HOME": root.appendingPathComponent("codex").path]
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: environment),
+            browserDetection: BrowserDetection(homeDirectory: root.path, cacheTTL: 0),
+            costUsageFetcher: CostUsageFetcher(cacheRoot: root.appendingPathComponent("cost")),
+            settings: settings,
+            historicalUsageHistoryStore: HistoricalUsageHistoryStore(fileURL: root.appendingPathComponent("history")),
+            planUtilizationHistoryStore: PlanUtilizationHistoryStore(directoryURL: nil),
+            startupBehavior: .testing,
+            environmentBase: environment,
+            pluginApprovalStore: ProviderPluginApprovalStore(fileURL: root.appendingPathComponent("approvals")),
+            widgetSnapshotURL: root.appendingPathComponent("widget"),
+            cliUsageCacheURL: root.appendingPathComponent("cli"),
+            widgetTimelineReloader: {})
+        store._test_providerRefreshOverride = { _ in Issue.record("Unexpected provider transport") }
+        store._test_widgetSnapshotSaveOverride = { _ in }
+        return (settings, store)
+    }
+
     private static func loadRequest(_: SpendDashboardRequestBuildMode) async -> SpendDashboardLoadRequest {
         SpendDashboardLoadRequest(
             configuration: .init(costUsageEnabled: false, providerIDs: [], codexAccountIdentities: []),
@@ -201,33 +207,84 @@ struct MachineSpendTests {
         field.sendAction(field.action, to: field.target)
     }
 
-    @Test
+    @Test(.timeLimit(.minutes(1)), arguments: [false, true])
+    func `machine loader factory with Settings consent rejects a revocation without notification`(
+        revokeBeta: Bool) async throws
+    {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let defaults = InMemoryUserDefaults(values: [
+            "agentSessionsManualHosts": "alpha,beta", "costUsageHosts": ["alpha", "beta"],
+        ])
+        let lockURL = root.appendingPathComponent("hosts.lock")
+        let settings = testSettingsStore(
+            suiteName: #function,
+            userDefaults: defaults,
+            config: testConfigWithAllProvidersDisabled(),
+            hostPreferencesLockURL: lockURL)
+        let alphaStarted = LockIsolated(false)
+        let transport = PausedMachineTransport(alphaStarted: alphaStarted)
+        let cancelled = LockIsolated(false)
+        let productionLoader = SpendDashboardController.makeMachineLoader(
+            isHostConsented: settings.spendHostConsent,
+            local: { start, end in CodexRequestLedger(startUnixMs: start, endUnixMs: end) },
+            fetchRemote: { host, _, start, end in await transport.fetch(host, start: start, end: end) })
+        let controller = SpendDashboardController(
+            userDefaults: InMemoryUserDefaults(),
+            requestBuilder: Self.loadRequest,
+            machineLoader: { hosts, days, start, end in
+                do {
+                    return try await productionLoader(hosts, days, start, end)
+                } catch {
+                    cancelled.setValue(error is CancellationError)
+                    throw error
+                }
+            },
+            nowProvider: { Date(timeIntervalSince1970: 172_800) })
+        controller.selectPeriod(.rolling(days: 2))
+        defer { controller.stop(); settings.configFileWatcher?.stop() }
+        try #require(settings.costUsageHosts == ["alpha", "beta"])
+        controller.runMachineSpend(hosts: settings.costUsageHosts, eligible: true, localPartial: false)
+        let alphaDeadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while !alphaStarted.value, ContinuousClock.now < alphaDeadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        try #require(alphaStarted.value, "The synthetic alpha transport must start before revocation.")
+        try #require(await transport.hosts == ["alpha"])
+        try #require(controller.machineRunning && controller.machineRequestedHosts == ["alpha", "beta"])
+        if revokeBeta {
+            let committed = try HostPreferences.update(in: defaults, lockURL: lockURL) {
+                $0.setCostUsage("beta", enabled: false)
+            }
+            try #require(committed.state.costUsageHosts == ["alpha"])
+            try #require(defaults.stringArray(forKey: "costUsageHosts") == ["alpha"])
+        }
+        try #require(settings.costUsageHosts == ["alpha", "beta"], "No notification refreshed Settings.")
+        try #require(controller.machineRunning, "No explicit cancellation occurred while alpha was pending.")
+        await transport.finishAlpha()
+        try await SpendDashboardStateWait.until { !controller.machineRunning }
+        if revokeBeta {
+            #expect(await transport.hosts == ["alpha"], "Revoked beta must never reach the app transport.")
+            #expect(cancelled.value, "Revocation must end the app collection as cancellation.")
+            #expect(controller.machineResult == nil, "A cancelled run publishes neither reports nor SSH error rows.")
+        } else {
+            #expect(await transport.hosts == ["alpha", "beta"])
+            #expect(!cancelled.value)
+            let result = try #require(controller.machineResult)
+            #expect(result.reports.map(\.host) == ["local", "alpha", "beta"])
+            #expect(result.allSourcesAvailable && result.reports.allSatisfy { $0.error == nil })
+        }
+    }
+
+    @Test(.timeLimit(.minutes(1)))
     func `manual machine run respects a committed CLI revocation before notification`() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let defaults = InMemoryUserDefaults(values: [
             "agentSessionsManualHosts": "devbox,mini", "costUsageHosts": ["devbox", "mini"],
         ])
-        let settings = testSettingsStore(
-            suiteName: #function, userDefaults: defaults, config: testConfigWithAllProvidersDisabled())
-        enableTestProviders([.codex], settings: settings)
-        settings.costUsageEnabled = true
-        let environment = ["HOME": root.path, "CODEX_HOME": root.appendingPathComponent("codex").path]
-        let store = UsageStore(
-            fetcher: UsageFetcher(environment: environment),
-            browserDetection: BrowserDetection(homeDirectory: root.path, cacheTTL: 0),
-            costUsageFetcher: CostUsageFetcher(cacheRoot: root.appendingPathComponent("cost")),
-            settings: settings,
-            historicalUsageHistoryStore: HistoricalUsageHistoryStore(fileURL: root.appendingPathComponent("history")),
-            planUtilizationHistoryStore: PlanUtilizationHistoryStore(directoryURL: nil),
-            startupBehavior: .testing,
-            environmentBase: environment,
-            pluginApprovalStore: ProviderPluginApprovalStore(fileURL: root.appendingPathComponent("approvals")),
-            widgetSnapshotURL: root.appendingPathComponent("widget"),
-            cliUsageCacheURL: root.appendingPathComponent("cli"),
-            widgetTimelineReloader: {})
-        store._test_providerRefreshOverride = { _ in Issue.record("Unexpected provider transport") }
-        store._test_widgetSnapshotSaveOverride = { _ in }
+        let (settings, store) = Self.machineFixture(root: root, suiteName: #function, defaults: defaults)
         let received = LockIsolated<[String]?>(nil)
         let pending = PendingMachineCollection()
         let controller = SpendDashboardController(
@@ -253,7 +310,6 @@ struct MachineSpendTests {
         try #require(settings.costUsageHosts == ["devbox", "mini"], "No notification was delivered.")
         MachineSpendDetail(settings: settings, store: store, controller: controller).run()
         try #require(controller.machineRunning && controller.machineRequestedHosts == ["mini"])
-        #expect(controller.machineResult == nil, "Revoked-host rows must disappear while the fresh request is pending.")
         while await pending.calls.count < 2 {
             await Task.yield()
         }
@@ -263,19 +319,8 @@ struct MachineSpendTests {
         #expect(settings.costUsageHosts == ["mini"])
     }
 
-    @Test
-    func `removing and readding shared host revokes consent and invalid aliases are not selectable`() {
-        let defaults = InMemoryUserDefaults(values: ["agentSessionsManualHosts": "A, B", "costUsageHosts": ["A", "B"]])
-        let settings = testSettingsStore(suiteName: #function, userDefaults: defaults)
-        settings.agentSessionsManualHosts = "B"
-        settings.agentSessionsManualHosts = "A, B"
-        #expect(settings.costUsageHosts == ["B"])
-        settings.agentSessionsManualHosts = "A, B, bad/path"
-        #expect(settings.selectableCostUsageHosts == ["A", "B"])
-    }
-
     @Test(.timeLimit(.minutes(1)))
-    func `manual runs receive hosts and period and cancel or stop rejects late completion`() async {
+    func `manual runs receive hosts and period and cancel or stop rejects late completion`() async throws {
         let pending = PendingMachineCollection()
         let controller = SpendDashboardController(
             userDefaults: InMemoryUserDefaults(),
@@ -283,15 +328,25 @@ struct MachineSpendTests {
             machineLoader: { hosts, days, _, _ in await pending.load(hosts, days: days) },
             nowProvider: { Date(timeIntervalSince1970: 172_800) })
         controller.selectPeriod(.rolling(days: 2))
+        controller.runMachineSpend(hosts: ["previous"], eligible: true, localPartial: false)
+        while await pending.calls.isEmpty {
+            await Task.yield()
+        }
+        await pending.finish()
+        try await SpendDashboardStateWait.until { controller.machineResult != nil }
+        try #require(controller.machineResult?.reports.contains { $0.host == "previous" } == true)
         let cancelledCompletion = AsyncStream<Void>.makeStream()
         MachineTaskCompletion.$token.withValue(MachineTaskCompletion.Token(cancelledCompletion.continuation)) {
             controller.runMachineSpend(hosts: ["selected"], eligible: true, localPartial: false)
         }
-        while await pending.calls.isEmpty {
+        #expect(
+            controller.machineResult == nil,
+            "Prior-host rows must disappear while the changed-host run is pending.")
+        while await pending.calls.count < 2 {
             await Task.yield()
         }
-        #expect(await pending.calls.first?.0 == ["selected"])
-        #expect(await pending.calls.first?.1 == 2)
+        #expect(await pending.calls.last?.0 == ["selected"])
+        #expect(await pending.calls.last?.1 == 2)
         #expect(controller.machineWindow?.lowerBound == Date(timeIntervalSince1970: 86400))
         // A deferred SwiftUI onChange from pre-run projection must keep this same-host request.
         controller.reconcileMachineSpendHosts(["selected"])
@@ -304,12 +359,12 @@ struct MachineSpendTests {
         controller.runMachineSpend(hosts: ["disabled"], eligible: false, localPartial: false)
         #expect(!controller.machineRunning && controller.machineWindow == nil)
 
-        #expect(await pending.calls.count == 1)
+        #expect(await pending.calls.count == 2)
         let stoppedCompletion = AsyncStream<Void>.makeStream()
         MachineTaskCompletion.$token.withValue(MachineTaskCompletion.Token(stoppedCompletion.continuation)) {
             controller.runMachineSpend(hosts: ["selected"], eligible: true, localPartial: false)
         }
-        while await pending.calls.count < 2 {
+        while await pending.calls.count < 3 {
             await Task.yield()
         }
         #expect(controller.machineRunning && controller.machineWindow != nil)
@@ -318,6 +373,36 @@ struct MachineSpendTests {
         await pending.finish()
         for await _ in stoppedCompletion.stream {}
         #expect(controller.machineResult == nil)
+    }
+}
+
+private actor PausedMachineTransport {
+    private let alphaStarted: LockIsolated<Bool>
+    private var alphaContinuation: CheckedContinuation<Void, Never>?
+    private(set) var hosts: [String] = []
+
+    init(alphaStarted: LockIsolated<Bool>) {
+        self.alphaStarted = alphaStarted
+    }
+
+    func fetch(_ host: String, start: Int64, end: Int64) async -> CodexRequestLedger {
+        self.hosts.append(host)
+        if host == "alpha" {
+            await withTaskCancellationHandler {
+                await withCheckedContinuation { continuation in
+                    self.alphaContinuation = continuation
+                    self.alphaStarted.setValue(true)
+                }
+            } onCancel: {
+                Task { await self.finishAlpha() }
+            }
+        }
+        return CodexRequestLedger(startUnixMs: start, endUnixMs: end)
+    }
+
+    func finishAlpha() {
+        self.alphaContinuation?.resume()
+        self.alphaContinuation = nil
     }
 }
 
