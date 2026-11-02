@@ -31,6 +31,30 @@ struct AiAndBalancePluginTests {
     }
 
     @Test(arguments: BundledPluginTestSupport.engines)
+    func `wallet parsing fixtures wait for an optional response beyond the production collection budget`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let (primary, collected) = AsyncStream<Void>.makeStream()
+        defer { collected.finish() }
+        let transport = AiAndBalanceFixtureTransport()
+        let usage = try await Self.fetch(
+            engine,
+            transport: ProviderHTTPTransportHandler { request in
+                if request.url?.path == "/billing/balance" {
+                    var iterator = primary.makeAsyncIterator()
+                    _ = await iterator.next()
+                    try await Task.sleep(for: .milliseconds(300))
+                }
+                return try await transport.data(for: request)
+            },
+            didCollectHTTPCompletion: { completion in
+                if case .primary = completion { collected.yield() }
+            })
+        #expect(usage.detailRow(label: "Settled wallet balance")?.value == "42.75000000 USD")
+        #expect(usage.providerCost?.used == 2.5)
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
     func `failed optional balance cannot erase log spend`(engine: ProviderPluginEngineKind) async throws {
         for status in [401, 403, 429, 503] {
             let usage = try await Self.fetch(engine, transport: AiAndBalanceFixtureTransport(status: status))
@@ -94,9 +118,22 @@ struct AiAndBalancePluginTests {
 
     private static func fetch(
         _ engine: ProviderPluginEngineKind,
-        transport: any ProviderHTTPTransport) async throws -> UsageSnapshot
+        transport: any ProviderHTTPTransport,
+        didCollectHTTPCompletion: (@Sendable (ProviderPluginHTTPResponse.Completion) -> Void)? = nil) async throws
+        -> UsageSnapshot
     {
-        let runtime = try BundledPluginTestSupport.runtime("aiand", engine: engine, transport: transport)
+        let runtime = try BundledPluginTestSupport.runtime(
+            "aiand", engine: engine, transport: transport,
+            contextOptions: ProviderPluginContextOptions(
+                optionalRequestTimeoutSeconds: nil,
+                waitForOptionalDeadline: { _, _ in
+                    // Parser fixtures must not race the production 200 ms collection deadline.
+                    let (pending, release) = AsyncStream<Void>.makeStream()
+                    defer { release.finish() }
+                    for await _ in pending {}
+                    try Task.checkCancellation()
+                },
+                didCollectHTTPCompletion: didCollectHTTPCompletion))
         return try await runtime.fetchUsage(secrets: ["AIAND_API_KEY": "fixture-key"])
     }
 }
