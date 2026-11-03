@@ -114,20 +114,23 @@ public enum CopilotProviderDescriptor {
                 ],
                 optionalCapabilities: [.init(
                     id: "budget-extras",
-                    hint: "Optional, best-effort budgets for public github.com only. Enable Budget extras; " +
-                        "the browser session must match the token account. Quota usage does not need cookies.",
+                    hint: "Optional, best-effort budgets for public github.com only. " +
+                        "Enable Budget extras in the macOS app; the browser session must match the token account. " +
+                        "Quota usage does not need cookies.",
                     routes: [
                         .init(
                             id: "manual-cookie",
                             method: .cookieHeader,
-                            platforms: [.macOS, .linux],
+                            platforms: [.macOS],
                             requiredInputs: [.init(id: "github-cookie", configFields: ["cookieHeader"])],
-                            hint: "Select manual cookie source and supply the matching GitHub Cookie header."),
+                            hint: "In the macOS app, select manual cookie source and supply the matching " +
+                                "GitHub Cookie header."),
                         .init(
                             id: "browser-session",
                             method: .browserSession,
                             platforms: [.macOS],
-                            hint: "Sign in to GitHub in a supported browser and select automatic cookie import."),
+                            hint: "Sign in to GitHub in a supported browser and select automatic cookie import " +
+                                "in the macOS app."),
                     ])]))
     }
 }

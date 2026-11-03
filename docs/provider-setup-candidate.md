@@ -51,16 +51,16 @@ Copilot:
   ],
   "optionalCapabilities": [{
     "id": "budget-extras",
-    "hint": "Optional, best-effort budgets for public github.com only. Enable Budget extras; the browser session must match the token account. Quota usage does not need cookies.",
+    "hint": "Optional, best-effort budgets for public github.com only. Enable Budget extras in the macOS app; the browser session must match the token account. Quota usage does not need cookies.",
     "routes": [
       {
-        "id": "manual-cookie", "method": "cookieHeader", "platforms": ["macOS", "linux"],
+        "id": "manual-cookie", "method": "cookieHeader", "platforms": ["macOS"],
         "requiredInputs": [{"id": "github-cookie", "configFields": ["cookieHeader"], "environmentVariables": []}],
-        "hint": "Select manual cookie source and supply the matching GitHub Cookie header."
+        "hint": "In the macOS app, select manual cookie source and supply the matching GitHub Cookie header."
       },
       {
         "id": "browser-session", "method": "browserSession", "platforms": ["macOS"], "requiredInputs": [],
-        "hint": "Sign in to GitHub in a supported browser and select automatic cookie import."
+        "hint": "Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app."
       }
     ]
   }]
@@ -117,7 +117,8 @@ All other built-in providers, loaded user plugins, and retained unavailable plug
 Sources: [Copilot](copilot.md) and its device flow/budget fetcher; [OpenAI API](openai.md),
 `OpenAIAPISettingsReader` and the bundled `openai` plugin; [Azure OpenAI](azure-openai.md) and its settings reader.
 Existing runtime precedence, selected-account behavior, platform support, and permission restrictions still apply.
-Copilot budget enrichment must be enabled separately and does not apply to enterprise hosts. OpenAI project scoping
+Copilot budget enrichment must be enabled separately in the macOS app and does not apply to enterprise hosts.
+The current CLI settings path cannot enable it, including with a manual cookie on Linux. OpenAI project scoping
 is optional and may suppress legacy fallback; an Admin key in either listed environment variable must actually have
 Admin API access. This describes API Platform access, not ChatGPT/Codex subscription credits; it does not resolve #4844.
 

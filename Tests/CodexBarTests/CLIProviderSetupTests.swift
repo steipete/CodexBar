@@ -24,7 +24,7 @@ struct CLIProviderSetupTests {
     }
 
     @Test
-    func `Copilot budget cookies are optional with browser import limited to macOS`() throws {
+    func `Copilot budget cookies are optional and require macOS app setup`() throws {
         let setup = try Self.setup("copilot")
         let capabilities = try #require(setup["optionalCapabilities"] as? [[String: Any]])
         #expect(capabilities.compactMap { $0["id"] as? String } == ["budget-extras"])
@@ -32,13 +32,37 @@ struct CLIProviderSetupTests {
         #expect(routes.compactMap { $0["id"] as? String } == ["manual-cookie", "browser-session"])
         let manual = try #require(routes.first)
         #expect(manual["method"] as? String == "cookieHeader")
-        #expect(manual["platforms"] as? [String] == ["macOS", "linux"])
+        #expect(manual["platforms"] as? [String] == ["macOS"])
         let inputs = try #require(manual["requiredInputs"] as? [[String: Any]])
         #expect(inputs.first?["configFields"] as? [String] == ["cookieHeader"])
         #expect(inputs.first?["environmentVariables"] as? [String] == [])
         let browser = try #require(routes.last)
         #expect(browser["method"] as? String == "browserSession")
         #expect(browser["platforms"] as? [String] == ["macOS"])
+    }
+
+    @Test
+    func `manual cookies cannot advertise Linux budgets without CLI settings support`() throws {
+        let config = CodexBarConfig(providers: [ProviderConfig(
+            id: .copilot,
+            extrasEnabled: true,
+            apiKey: "synthetic-copilot-token",
+            cookieHeader: "user_session=synthetic-copilot-cookie",
+            cookieSource: .manual)])
+        let storeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("setup-fixture-\(UUID())/config.json")
+        let context = try TokenAccountCLIContext(
+            selection: TokenAccountCLISelection(label: nil, index: nil, allAccounts: false),
+            config: config,
+            verbose: false,
+            baseEnvironment: [:],
+            configStore: CodexBarConfigStore(fileURL: storeURL))
+        let settings = context.settingsSnapshot(for: .copilot, account: nil)?.copilot
+        let setup = try Self.setup("copilot")
+        let capabilities = try #require(setup["optionalCapabilities"] as? [[String: Any]])
+        let routes = try #require(capabilities.first?["routes"] as? [[String: Any]])
+        let advertisesLinux = routes.contains { ($0["platforms"] as? [String])?.contains("linux") == true }
+        #expect(!advertisesLinux || settings?.budgetExtrasEnabled == true)
     }
 
     @Test
