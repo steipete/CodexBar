@@ -136,12 +136,32 @@ Use the path to the CLI your dashboard or service actually runs. Configure the v
 environment so it applies to future invocations. An export in a different terminal does not configure an
 already-running dashboard or service.
 
+For a `launchd` job, add this entry to the job plist's top-level dictionary. If it already has an
+`EnvironmentVariables` dictionary, add the variable to that dictionary instead:
+
+```xml
+<key>EnvironmentVariables</key>
+<dict>
+    <key>CODEXBAR_DISABLE_KEYCHAIN_ACCESS</key>
+    <string>1</string>
+</dict>
+```
+
+Reload the job's configuration and restart it using the service's normal setup procedure.
+
 The app's Advanced preference can also affect compatible CLI builds through shared preferences. The environment
 variable requests the control explicitly for the selected CLI invocation. Only the exact value `1` activates it;
 `0` leaves the saved preferences in force.
 
-For an unexpected prompt, record the requesting executable's exact path and the output of that executable's
-`--version` command. Check whether the dashboard or service launches a different installed copy.
+For an unexpected prompt, first check how your terminal resolves `codexbar`:
+
+```sh
+command -v codexbar
+codexbar --version
+```
+
+A dashboard or service may use a different PATH or an absolute executable path. Check its configured path and
+record the output of that executable's `--version` command too.
 
 ## Safe troubleshooting
 
