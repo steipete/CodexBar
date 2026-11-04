@@ -142,6 +142,61 @@ struct DevinAppSessionImporterTests {
     }
 
     @Test
+    func `a service error never consults the Devin app Safe Storage`() async throws {
+        // A 5xx is a service-wide failure, not a credential rejection: falling back to the app
+        // stage would spend the interactive Keychain allowance on a request that fails identically.
+        let importer = try Self.importer(
+            payload: Self.sessionsPayload(tokens: ["devin-synthetic.app-token.signature"]),
+            organizationKeys: ["devin.desktopShell.spacesMigration.org_example12345"])
+        let fetcher = DevinUsageFetcher(
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            devinAppImporter: importer)
+        let browserSession = DevinSessionImporter.SessionInfo(
+            accessToken: "auth1_synthetic-browser-token",
+            organization: "org/browser-org",
+            internalOrganizationID: "org_browser12345",
+            sourceLabel: "Chrome Default")
+        let stub = ProviderHTTPTransportStub { request in
+            (
+                Data("Service Unavailable".utf8),
+                HTTPURLResponse(url: request.url!, statusCode: 503, httpVersion: nil, headerFields: nil)!)
+        }
+
+        var thrown: Error?
+        _ = try await Self.withKeychain(
+            read: { _ in
+                Issue.record("The Devin Safe Storage read must not run on a service error")
+                return (errSecSuccess, Data(Self.password.utf8))
+            },
+            preflight: .interactionRequired,
+            onPreflight: {
+                Issue.record("The Devin Safe Storage ACL must not be consulted on a service error")
+            },
+            interaction: .userInitiated,
+            operation: {
+                do {
+                    _ = try await BrowserCookieAccessGate.withExplicitRetry {
+                        try await DevinSessionImporter
+                            .withImportSessionOverrideForTesting { _, _, _ in browserSession } operation: {
+                                try await fetcher.fetch(transport: stub)
+                            }
+                    }
+                } catch {
+                    thrown = error
+                }
+            })
+
+        guard let error = thrown as? DevinUsageError, case .apiError = error else {
+            Issue.record("expected apiError, got \(String(describing: thrown))")
+            return
+        }
+        let authorizations = await stub.requests()
+            .map { $0.value(forHTTPHeaderField: "Authorization") }
+        #expect(authorizations.allSatisfy { $0 == "Bearer auth1_synthetic-browser-token" })
+        #expect(!authorizations.isEmpty)
+    }
+
+    @Test
     func `an explicit organization selection drops the cached internal id`() throws {
         let importer = try Self.importer(
             payload: Self.sessionsPayload(tokens: ["devin-synthetic.token.sig"]),

@@ -75,8 +75,9 @@ public struct DevinUsageFetcher: Sendable {
             { auths },
             { self.appSessionAuths(organizationOverride: organizationOverride, logger: logger) },
         ]
-        for stage in authStages {
-            for auth in stage() {
+        for (index, stage) in authStages.enumerated() {
+            let candidates = stage()
+            for auth in candidates {
                 do {
                     return try await Self.fetchQuotaUsage(
                         auth: auth,
@@ -92,6 +93,16 @@ public struct DevinUsageFetcher: Sendable {
                         throw error
                     }
                 }
+            }
+            // Advancing to the app stage spends a Keychain-gated read; only failures an alternate
+            // credential can resolve justify it. A service-wide error (5xx apiError) would fail
+            // identically for the Devin app session and must not request unrelated Keychain access.
+            if index < authStages.count - 1,
+               !candidates.isEmpty,
+               let lastError,
+               !Self.shouldTryDevinAppSession(after: lastError)
+            {
+                throw lastError
             }
         }
         throw lastError ?? DevinUsageError.noSession
@@ -209,6 +220,17 @@ public struct DevinUsageFetcher: Sendable {
     static func shouldTryNextSession(after error: Error) -> Bool {
         switch error {
         case DevinUsageError.invalidCredentials, DevinUsageError.apiError, DevinUsageError.missingOrganization:
+            true
+        default:
+            false
+        }
+    }
+
+    /// Whether a browser-stage failure justifies consulting the Keychain-gated Devin app source:
+    /// only rejections an alternate credential can resolve — not service-side errors.
+    static func shouldTryDevinAppSession(after error: Error) -> Bool {
+        switch error {
+        case DevinUsageError.invalidCredentials, DevinUsageError.missingOrganization:
             true
         default:
             false
