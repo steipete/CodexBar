@@ -2771,3 +2771,6 @@
 "Leave blank to use the default name." = "留空以使用預設名稱。";
 "Rewards" = "獎勵";
 "Reward expiry" = "獎勵到期日期";
+"SiliconFlow cost history is not available." = "無法取得 SiliconFlow 費用歷史。";
+"China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "預設為中國區（人民幣）。國際帳號請使用 https://api.siliconflow.com（美元）。";
+"https://api.siliconflow.cn" = "https://api.siliconflow.cn";

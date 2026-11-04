@@ -2798,3 +2798,6 @@
 "Leave blank to use the default name." = "Leave blank to use the default name.";
 "Rewards" = "Rewards";
 "Reward expiry" = "Reward expiry";
+"SiliconFlow cost history is not available." = "SiliconFlow cost history is not available.";
+"China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "China (CNY) is the default. International accounts use https://api.siliconflow.com (USD).";
+"https://api.siliconflow.cn" = "https://api.siliconflow.cn";

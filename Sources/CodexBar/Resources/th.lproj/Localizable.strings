@@ -2795,3 +2795,6 @@
 "Leave blank to use the default name." = "เว้นว่างไว้เพื่อใช้ชื่อเริ่มต้น";
 "Rewards" = "รางวัล";
 "Reward expiry" = "วันหมดอายุของรางวัล";
+"SiliconFlow cost history is not available." = "ไม่มีประวัติค่าใช้จ่ายของ SiliconFlow";
+"China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "ค่าเริ่มต้นคือจีน (CNY) บัญชีต่างประเทศใช้ https://api.siliconflow.com (USD)";
+"https://api.siliconflow.cn" = "https://api.siliconflow.cn";

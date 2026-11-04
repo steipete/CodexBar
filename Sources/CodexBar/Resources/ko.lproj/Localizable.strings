@@ -2761,3 +2761,6 @@
 "Leave blank to use the default name." = "기본 이름을 사용하려면 비워 두세요.";
 "Rewards" = "보상";
 "Reward expiry" = "보상 만료일";
+"SiliconFlow cost history is not available." = "SiliconFlow 비용 내역을 확인할 수 없습니다.";
+"China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "기본값은 중국(CNY)입니다. 해외 계정은 https://api.siliconflow.com(USD)를 사용합니다.";
+"https://api.siliconflow.cn" = "https://api.siliconflow.cn";

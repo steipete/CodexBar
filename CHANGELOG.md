@@ -2,6 +2,10 @@
 
 ## 0.83.1 — Unreleased
 
+### Added
+
+- SiliconFlow: show the prepaid account balance from the official user-info API, in CNY for China and USD for the international origin.
+
 ## 0.83.0 — 2026-10-31
 
 ### Highlights

@@ -809,6 +809,7 @@ struct LocalizationLanguageCatalogTests {
             "hooks_threshold_placeholder",
             "http_server_dashboard",
             "https://api.aixy-gateway.com",
+            "https://api.siliconflow.cn",
             "https://bifrost.example.com",
             "https://litellm.example.com",
             "https://openrouter.ai/api/v1",

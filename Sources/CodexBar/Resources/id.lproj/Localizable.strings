@@ -2795,3 +2795,6 @@
 "Leave blank to use the default name." = "Biarkan kosong untuk menggunakan nama bawaan.";
 "Rewards" = "Hadiah";
 "Reward expiry" = "Kedaluwarsa hadiah";
+"SiliconFlow cost history is not available." = "Riwayat biaya SiliconFlow tidak tersedia.";
+"China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "Default adalah Tiongkok (CNY). Akun internasional memakai https://api.siliconflow.com (USD).";
+"https://api.siliconflow.cn" = "https://api.siliconflow.cn";

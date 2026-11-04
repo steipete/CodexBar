@@ -2792,3 +2792,6 @@
 "Leave blank to use the default name." = "Lämna tomt för att använda standardnamnet.";
 "Rewards" = "Belöningar";
 "Reward expiry" = "Belöningarnas utgångsdatum";
+"SiliconFlow cost history is not available." = "Kostnadshistorik för SiliconFlow är inte tillgänglig.";
+"China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "Kina (CNY) är standard. Internationella konton använder https://api.siliconflow.com (USD).";
+"https://api.siliconflow.cn" = "https://api.siliconflow.cn";

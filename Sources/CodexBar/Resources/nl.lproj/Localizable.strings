@@ -2790,3 +2790,6 @@
 "Leave blank to use the default name." = "Laat dit veld leeg om de standaardnaam te gebruiken.";
 "Rewards" = "Beloningen";
 "Reward expiry" = "Vervaldatum beloningen";
+"SiliconFlow cost history is not available." = "De kostengeschiedenis van SiliconFlow is niet beschikbaar.";
+"China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "China (CNY) is de standaard. Internationale accounts gebruiken https://api.siliconflow.com (USD).";
+"https://api.siliconflow.cn" = "https://api.siliconflow.cn";

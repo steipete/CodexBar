@@ -1,0 +1,72 @@
+defineProvider({
+  id: "siliconflow",
+  name: "SiliconFlow",
+  endpoints: ["https://api.siliconflow.cn", "https://api.siliconflow.com"],
+  auth: { type: "bearer", secret: "SILICONFLOW_API_KEY" },
+  settings: [
+    { key: "SILICONFLOW_API_KEY", title: "API key", type: "secure" },
+    { key: "SILICONFLOW_BASE_URL", title: "API URL", type: "plain" },
+  ],
+  capabilities: ["http-status"],
+  async fetchUsage(ctx) {
+    const origin = ctx.settings.get("SILICONFLOW_BASE_URL");
+    const currency =
+      origin === "https://api.siliconflow.cn" ? "CNY" : origin === "https://api.siliconflow.com" ? "USD" : "";
+    if (!currency) {
+      throw ctx.fail.apiFailure(
+        "SiliconFlow API origin must be https://api.siliconflow.cn or https://api.siliconflow.com.",
+      );
+    }
+    const response = await ctx.http.get(`${origin}/v1/user/info`, {
+      headers: { Accept: "application/json" },
+    });
+    const retired = "SiliconFlow refused the balance query. Check the balance in the SiliconFlow console.";
+    const checkKey = "Check your SiliconFlow API key in Settings.";
+    const tryLater = "SiliconFlow request failed. Try refreshing later.";
+    if (response.status === 410) throw ctx.fail.providerUnavailable(retired);
+    if (response.status === 401 || response.status === 403) throw ctx.fail.authenticationExpired(checkKey);
+    if (response.status === 429) throw ctx.fail.rateLimited("SiliconFlow is rate limiting requests. Try again later.");
+    if (response.status >= 500) throw ctx.fail.providerUnavailable(tryLater);
+    if (response.status !== 200) throw ctx.fail.apiFailure(tryLater);
+    const fail = (): never => {
+      throw ctx.fail.parseFailure("SiliconFlow returned an unrecognized response. Update CodexBar and try again.");
+    };
+    const record = (value: unknown): Record<string, unknown> | undefined =>
+      value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
+    let decoded: unknown;
+    try {
+      decoded = JSON.parse(response.bodyText);
+    } catch (error) {
+      void error;
+      return fail();
+    }
+    const root = record(decoded);
+    if (!root || typeof root.code !== "number" || !Number.isInteger(root.code)) return fail();
+    if (root.code === 20092) throw ctx.fail.providerUnavailable(retired);
+    if (root.code === 30014) throw ctx.fail.authenticationExpired(checkKey);
+    if (root.code !== 20000 || root.status !== true) return fail();
+    const data = record(root.data);
+    if (!data) return fail();
+    const money = (value: unknown): number => {
+      if (typeof value === "number" && Number.isFinite(value)) return value;
+      if (typeof value !== "string" || !/^-?(?:\d+|\d+\.\d+)$/.test(value)) return fail();
+      const amount = Number(value);
+      return Number.isFinite(amount) ? amount : fail();
+    };
+    const rows: CodexBarDetailRow[] = [
+      { label: "Total balance", value: ctx.format.currency(money(data.totalBalance), currency) },
+    ];
+    if (data.chargeBalance !== undefined && data.chargeBalance !== null) {
+      rows.push({ label: "Charged balance", value: ctx.format.currency(money(data.chargeBalance), currency) });
+    }
+    if (data.balance !== undefined && data.balance !== null) {
+      rows.push({ label: "Bonus balance", value: ctx.format.currency(money(data.balance), currency) });
+    }
+    const status = data.status;
+    if (status !== undefined && status !== null) {
+      if (typeof status !== "string" || !/^[A-Za-z0-9_-]{1,32}$/.test(status)) return fail();
+      if (status !== "normal") rows.push({ label: "Account status", value: status });
+    }
+    return { details: [{ title: "Account balance", rows }], dataConfidence: "exact" };
+  },
+});

@@ -2794,3 +2794,6 @@
 "Leave blank to use the default name." = "Залиште поле порожнім, щоб використовувати назву за замовчуванням.";
 "Rewards" = "Винагороди";
 "Reward expiry" = "Термін дії винагород";
+"SiliconFlow cost history is not available." = "Історія витрат SiliconFlow недоступна.";
+"China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "За замовчуванням — Китай (CNY). Міжнародні акаунти використовують https://api.siliconflow.com (USD).";
+"https://api.siliconflow.cn" = "https://api.siliconflow.cn";

@@ -156,9 +156,9 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        // OpenDesign extends the audited palette without changing existing provider colors.
-        #expect(widgetFingerprint == 12_294_021_938_397_504_337)
-        #expect(burnDownFingerprint == 9_386_534_283_149_694_433)
+        // SiliconFlow extends the audited palette without changing existing provider colors.
+        #expect(widgetFingerprint == 4_431_545_105_121_365_491)
+        #expect(burnDownFingerprint == 4_490_339_647_619_223_034)
     }
 
     @Test
@@ -198,7 +198,7 @@ struct ProviderArchitectureGatekeeperTests {
         let descriptors = ProviderDescriptorRegistry.all
         #expect(Set(descriptors.filter(\.metadata.balanceOnly).map(\.id)) == [
             .deepseek, .deepinfra, .moonshot, .poe, .hyper, .atlascloud, .vercel, .lithosai, .xapi, .linkup, .tinyapi,
-            .sailresearch, .sofya, .fal, .flora, .parallel,
+            .sailresearch, .sofya, .fal, .flora, .parallel, .siliconflow,
         ])
         #expect(Set(descriptors.filter(\.metadata.usesDetailBackedWindow).map(\.id)) == [
             .perplexity,

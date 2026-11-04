@@ -2796,3 +2796,6 @@
 "Leave blank to use the default name." = "Varsayılan adı kullanmak için boş bırakın.";
 "Rewards" = "Ödüller";
 "Reward expiry" = "Ödüllerin son kullanma tarihi";
+"SiliconFlow cost history is not available." = "SiliconFlow maliyet geçmişi mevcut değil.";
+"China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "Varsayılan Çin'dir (CNY). Uluslararası hesaplar https://api.siliconflow.com (USD) kullanır.";
+"https://api.siliconflow.cn" = "https://api.siliconflow.cn";

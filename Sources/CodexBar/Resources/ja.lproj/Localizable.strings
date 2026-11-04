@@ -2793,3 +2793,6 @@
 "Leave blank to use the default name." = "空欄にするとデフォルトの名前を使用します。";
 "Rewards" = "報酬";
 "Reward expiry" = "報酬の有効期限";
+"SiliconFlow cost history is not available." = "SiliconFlow のコスト履歴は利用できません。";
+"China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "既定は中国（CNY）です。海外アカウントは https://api.siliconflow.com（USD）を使います。";
+"https://api.siliconflow.cn" = "https://api.siliconflow.cn";

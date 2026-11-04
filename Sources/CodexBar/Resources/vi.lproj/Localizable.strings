@@ -2794,3 +2794,6 @@
 "Leave blank to use the default name." = "Để trống để dùng tên mặc định.";
 "Rewards" = "Phần thưởng";
 "Reward expiry" = "Ngày hết hạn phần thưởng";
+"SiliconFlow cost history is not available." = "Không có lịch sử chi phí của SiliconFlow.";
+"China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "Mặc định là Trung Quốc (CNY). Tài khoản quốc tế dùng https://api.siliconflow.com (USD).";
+"https://api.siliconflow.cn" = "https://api.siliconflow.cn";

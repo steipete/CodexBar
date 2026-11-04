@@ -2797,3 +2797,6 @@
 "Leave blank to use the default name." = "اتركه فارغًا لاستخدام الاسم الافتراضي.";
 "Rewards" = "المكافآت";
 "Reward expiry" = "انتهاء صلاحية المكافآت";
+"SiliconFlow cost history is not available." = "سجل تكلفة SiliconFlow غير متاح.";
+"China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "الصين (CNY) هي الافتراضي. الحسابات الدولية تستخدم https://api.siliconflow.com (USD).";
+"https://api.siliconflow.cn" = "https://api.siliconflow.cn";

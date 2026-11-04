@@ -2797,3 +2797,6 @@
 "Leave blank to use the default name." = "برای استفاده از نام پیش‌فرض، این قسمت را خالی بگذارید.";
 "Rewards" = "پاداش‌ها";
 "Reward expiry" = "انقضای پاداش‌ها";
+"SiliconFlow cost history is not available." = "تاریخچه هزینه SiliconFlow در دسترس نیست.";
+"China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "پیش‌فرض چین (CNY) است. حساب‌های بین‌المللی از https://api.siliconflow.com (USD) استفاده می‌کنند.";
+"https://api.siliconflow.cn" = "https://api.siliconflow.cn";
