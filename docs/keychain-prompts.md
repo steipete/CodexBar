@@ -3,6 +3,7 @@ summary: "Why macOS Keychain prompts appear, how CodexBar limits them, and safe 
 read_when:
   - Investigating Chromium Safe Storage or Claude credential prompts
   - Choosing whether to allow or disable Keychain access
+  - Running the CLI from scripts or launch agents without prompts
   - Collecting safe support details without exposing secrets
 ---
 
@@ -118,6 +119,53 @@ Alternatives depend on the provider:
 - Configure an API key or OAuth/device flow that does not depend on browser Safe Storage.
 - Use a supported file-backed or local provider source.
 - For Claude, leave direct foreign-item consent off and choose a CLI, Web, or usable credentials-file path.
+
+## CLI and separately installed copies
+
+The **Disable Keychain access** preference belongs to the CodexBar app. The bundled
+`CodexBar.app/Contents/Helpers/CodexBarCLI` applies it when the executable can resolve its containing app, but a
+separately downloaded release-tarball CLI, an older copy, or a `swift build` binary is a different executable with its
+own preferences and may not observe the app setting. Those copies can still prompt for `Chrome Safe Storage` even
+after the app preference is enabled.
+
+For non-interactive CLI use, set the process environment opt-out instead:
+
+```bash
+CODEXBAR_DISABLE_KEYCHAIN_ACCESS=1 codexbar usage --provider claude --json
+```
+
+`CODEXBAR_DISABLE_KEYCHAIN_ACCESS=1` makes that process fail closed for CodexBar-owned Keychain access: Chromium Safe
+Storage decryption and CodexBar Keychain cache reads/writes are skipped, and a provider that needs browser cookies
+returns a classified cookie/permission error instead of showing a prompt. Persist it in the caller rather than an
+interactive shell:
+
+- launchd: add `EnvironmentVariables` to the job's plist:
+
+  ```xml
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>CODEXBAR_DISABLE_KEYCHAIN_ACCESS</key>
+    <string>1</string>
+  </dict>
+  ```
+
+- systemd (Linux): add `Environment=CODEXBAR_DISABLE_KEYCHAIN_ACCESS=1` to the unit.
+- Dashboards, cron wrappers, and agent launchers: export it in the service environment before invoking the CLI.
+
+The opt-out does not constrain a provider-owned CLI that CodexBar itself launches; that executable owns its own
+credential store and prompt behavior.
+
+Verify which binary the caller actually runs before changing app settings:
+
+```bash
+command -v codexbar
+codexbar --version
+```
+
+An older or separately installed copy can keep prompting after the app setting is enabled. Remove or update it, or run
+it with the environment opt-out. When Keychain access is unavailable, the CLI reports the missing cookie/permission
+state instead of retrying interactively; switch the provider to a manual Cookie header, an API key, or another source
+that does not need browser Safe Storage.
 
 ## Safe troubleshooting
 
