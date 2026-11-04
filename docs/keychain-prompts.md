@@ -119,6 +119,30 @@ Alternatives depend on the provider:
 - Use a supported file-backed or local provider source.
 - For Claude, leave direct foreign-item consent off and choose a CLI, Web, or usable credentials-file path.
 
+## CLI and external dashboards
+
+On macOS, set `CODEXBAR_DISABLE_KEYCHAIN_ACCESS=1` in the environment of a separately launched CLI:
+
+```sh
+CODEXBAR_DISABLE_KEYCHAIN_ACCESS=1 /absolute/path/to/codexbar usage --provider claude --json
+```
+
+This blocks CodexBar's Security.framework item operations and Keychain-dependent Chromium cookie decryption.
+Fetching may fail when no other configured source is usable. A provider-owned CLI, such as Claude Code, can still
+use its own credential store and may prompt. Existing manual credentials, file-backed credentials, and other
+supported sources may still be used. See [Claude source setup](claude.md) and the [CLI guide](cli.md).
+
+Use the path to the CLI your dashboard or service actually runs. Configure the variable in that launcher's
+environment so it applies to future invocations. An export in a different terminal does not configure an
+already-running dashboard or service.
+
+The app's Advanced preference can also affect compatible CLI builds through shared preferences. The environment
+variable requests the control explicitly for the selected CLI invocation. Only the exact value `1` activates it;
+`0` leaves the saved preferences in force.
+
+For an unexpected prompt, record the requesting executable's exact path and the output of that executable's
+`--version` command. Check whether the dashboard or service launches a different installed copy.
+
 ## Safe troubleshooting
 
 If a prompt appears unexpectedly, first read the full item name and requesting app/path. Quit CodexBar, then check for
