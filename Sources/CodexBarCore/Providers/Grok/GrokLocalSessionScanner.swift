@@ -213,7 +213,8 @@ public enum GrokLocalSessionScanner {
               let records = json["turns"] as? [[String: Any]]
         else { return nil }
         let turns = records.compactMap { record -> UsageTurn? in
-            guard let endedAt = ISO8601DateParser.parse(record["endedAt"] as? String),
+            guard let timestamp = record["endedAt"] as? String,
+                  let endedAt = CostUsageScanner.dateFromTimestamp(timestamp),
                   let totalTokens = record["totalTokens"] as? Int, totalTokens >= 0
             else { return nil }
             let usageModels = (record["modelUsage"] as? [String: Any]).map { Array($0.keys) } ?? []
