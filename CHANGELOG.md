@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.83.1 — Unreleased
+
+### Fixed
+
+- Neuralwatt: expose prepaid credit balances in provider cost JSON so balance consumers receive the remaining amount (#4870). Thanks @Josephur!
+
 ## 0.83.0 — 2026-10-31
 
 ### Highlights
