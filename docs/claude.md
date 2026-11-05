@@ -58,6 +58,10 @@ Completed requests for models without a known price keep their token usage and r
 - A lower-level direct Claude fetcher still contains a separate `.auto` order. That inconsistency is tracked in
   [docs/refactor/claude-current-baseline.md](refactor/claude-current-baseline.md).
 
+With **Disable Keychain access** on, a failed background Auto CLI fetch retries after 15 minutes.
+Consecutive failures double the delay up to four hours; a successful fetch resets it. Explicit authentication
+failures still wait for a successful manual refresh. Keychain-enabled background access keeps its existing policy.
+
 Usage source picker:
 - Preferences → Providers → Claude → Usage source (Auto/OAuth/Web/CLI).
 
