@@ -25,6 +25,16 @@ To reduce automatic requests, open **Settings → General → Refreshing** and c
 and **Refresh when the menu opens** can still fetch data. Turn off that option as well to reduce menu-triggered requests.
 Disable AWS Bedrock in Providers to stop its app refreshes; separate CLI invocations can still make billed requests.
 
+Successful Cost Explorer measurements are reused for up to six hours within the running app or CLI server. The
+bounded in-memory cache holds one monthly total and one daily report (up to 1 MiB), keyed by the resolved AWS access
+key ID, configured region, endpoint, and requested UTC period. Profile reassignment and credential rotation miss the
+cache; a new UTC day, changed reporting period, or process restart can also make a new paid request. Cached usage and
+cost history retain their original `updatedAt` timestamps. Errors and unavailable data are not cached; measured zero
+remains a valid result. CloudWatch activity continues to refresh separately.
+
+An explicitly user-initiated app usage refresh bypasses the monthly cache, and `codexbar cost --provider bedrock --refresh` bypasses the daily cache. A fresh CLI invocation starts with an empty cache. Endpoint overrides bypass the
+shared cache. There is no persistent billing cache or cache-duration setting.
+
 The optional monthly budget only changes the displayed progress. It does not cap AWS charges or stop polling.
 The AWS Bedrock provider's Connection settings show these monitoring charges, link to current Cost Explorer pricing,
 and explain how the shared refresh controls reduce requests in both access-key and AWS-profile modes.
