@@ -12,6 +12,9 @@ extension UsageStore {
     private nonisolated static let codexWeeklyResetCandidateMinimumAge: TimeInterval = 60
     private nonisolated static let codexWeeklyResetCandidateMaximumAge: TimeInterval = 30 * 60
     private nonisolated static let codexWeeklyResetCandidateBoundaryToleranceSeconds: TimeInterval = 1
+    /// Grok can advertise its next weekly boundary days before the current window ends.
+    /// A reset is only accepted once the previously known boundary has actually elapsed.
+    private nonisolated static let grokWeeklyResetBoundaryToleranceSeconds: TimeInterval = 60
 
     struct LimitResetDetectorState: Codable, Equatable {
         static let currentCodexWeeklyEvidenceVersion = 2
@@ -351,10 +354,29 @@ extension UsageStore {
             && resetBoundaryAllowsPost
             && !claudeWeeklyRecoveryPending
         // Sessions retain the last non-regressed boundary on every guarded sample. Codex weekly crossings
-        // adopt a newly appearing boundary so a later genuine advance can still trigger once.
+        // adopt a newly appearing boundary so a later genuine advance can still trigger once. Grok weekly
+        // samples keep the pre-reset boundary until a crossing actually posts, because a still-high sample
+        // can advertise the next boundary right after rollover.
+        let grokWeeklyBoundary = input.provider == .grok && input.seriesName == .weekly
+        // A fresh detector can first see a transient low sample that advertises a later boundary. Let a
+        // later sample whose boundary is earlier replace that untrusted seed instead of freezing it.
+        var grokWeeklyBoundaryRebaselines = false
+        if grokWeeklyBoundary, !shouldPost,
+           let previousBoundary = previousState?.resetBoundary,
+           let currentBoundary = observation.resetBoundary,
+           currentBoundary < previousBoundary
+        {
+            grokWeeklyBoundaryRebaselines = true
+        }
+        let preserveGrokWeeklyBoundary = grokWeeklyBoundary
+            && !shouldPost
+            && !grokWeeklyBoundaryRebaselines
+            && previousState?.resetBoundary != nil
         let shouldPreserveBoundary = !sourceChanged
-            && !resetBoundaryAllowsPost
-            && (input.seriesName == .session || previousState?.resetBoundary != nil)
+            && !grokWeeklyBoundaryRebaselines
+            && (preserveGrokWeeklyBoundary
+                || (!resetBoundaryAllowsPost
+                    && (input.seriesName == .session || previousState?.resetBoundary != nil)))
         let shouldPreserveBaseline = suppressedGuardedCrossing
             && !planChanged
             && !codexDecision.expiredCandidate
@@ -503,7 +525,29 @@ extension UsageStore {
                 current: input.observation.resetBoundary,
                 requiresPreviousBoundary: true)
         }
+        if input.provider == .grok, input.seriesName == .weekly {
+            return self.grokWeeklyResetBoundaryAllowsPost(input: input)
+        }
         return true
+    }
+
+    /// Grok weekly readings can flip between high and 0% while the current window is still
+    /// running, and the flipped samples may advertise a later boundary. Require the previous
+    /// boundary to have elapsed, an advanced boundary, and a boundary that has not posted yet.
+    private nonisolated static func grokWeeklyResetBoundaryAllowsPost(
+        input: LimitResetDetectorTransitionInput) -> Bool
+    {
+        guard let previousBoundary = input.previousState?.resetBoundary,
+              let currentBoundary = input.observation.resetBoundary,
+              currentBoundary > previousBoundary,
+              !self.codexWeeklyResetCandidateBoundaryMatches(
+                  input.previousState?.lastPostedResetBoundary,
+                  currentBoundary)
+        else {
+            return false
+        }
+        return input.observation.observedAt
+            >= previousBoundary.addingTimeInterval(-self.grokWeeklyResetBoundaryToleranceSeconds)
     }
 
     private nonisolated static func limitResetPlanIdentifier(_ snapshot: UsageSnapshot) -> String? {
