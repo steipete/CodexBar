@@ -13,7 +13,7 @@
 - Settings: find panes by title alongside provider names in sidebar search, with an empty state covering both (#4875). Thanks @elijahfriedman!
 ### Fixed
 
-- Menu bar: use the provider’s current window name for layout elements, so monthly Cursor Auto allowances no longer read as Weekly (#4873). Thanks @roblight!
+- Menu bar: use the provider’s current window name for layout elements, so monthly Cursor Auto allowances no longer read as Weekly, while preserving default labels before usage is available (#4873, #4935). Thanks @roblight!
 - Settings: report protected CLI install destinations alongside successful links and link to installation help (#4929). Thanks @jack61714z!
 
 - Settings: hide provider sorting controls while the sidebar is collapsed and restore them when it reopens (#4872). Thanks @elijahfriedman!

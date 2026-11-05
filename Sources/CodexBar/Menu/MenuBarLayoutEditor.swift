@@ -1178,7 +1178,9 @@ extension MenuBarLayoutToken {
         case .weekly: .weekly
         case .scopedWeekly, .automatic, .spend: nil
         }
-        guard let localizedLabel = preference?.label(for: provider, snapshot: snapshot) else { return nil }
+        guard let localizedLabel = snapshot == nil
+            ? window.providerLabel(provider: provider)
+            : preference?.label(for: provider, snapshot: snapshot) else { return nil }
         return switch self {
         case .percent: L("%@ %@", localizedLabel, "%")
         case .pace: L("%@ %@", localizedLabel, L("display_mode_pace").lowercased())
