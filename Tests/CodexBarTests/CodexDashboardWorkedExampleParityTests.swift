@@ -93,7 +93,8 @@ struct CodexDashboardWorkedExampleParityTests {
             let restored = CodexBarCLI.loadOpenAIDashboardIfAvailable(
                 usage: self.makeUsage(email: "work@company.com"),
                 sourceLabel: "codex-cli",
-                context: cliContext)
+                context: cliContext,
+                now: Date(timeIntervalSince1970: 2000))
 
             #expect(restored == nil)
             #expect(OpenAIDashboardCacheStore.load() == nil)
@@ -185,7 +186,8 @@ struct CodexDashboardWorkedExampleParityTests {
             let restored = CodexBarCLI.loadOpenAIDashboardIfAvailable(
                 usage: self.makeUsage(email: "work@company.com"),
                 sourceLabel: "codex-cli",
-                context: cliContext)
+                context: cliContext,
+                now: Date(timeIntervalSince1970: 2000))
 
             #expect(restored == nil)
             #expect(OpenAIDashboardCacheStore.load() == nil)
@@ -236,7 +238,8 @@ struct CodexDashboardWorkedExampleParityTests {
             let restored = CodexBarCLI.loadOpenAIDashboardIfAvailable(
                 usage: self.makeUsage(email: "work@company.com"),
                 sourceLabel: "codex-cli",
-                context: cliContext)
+                context: cliContext,
+                now: Date(timeIntervalSince1970: 2000))
             let cliInput = CodexCLIDashboardAuthorityContext.makeCachedDashboardInput(
                 dashboard: dashboard,
                 cachedAccountEmail: "stale-route@example.com",
@@ -324,7 +327,8 @@ struct CodexDashboardWorkedExampleParityTests {
             let initiallyRestored = CodexBarCLI.loadOpenAIDashboardIfAvailable(
                 usage: self.makeUsage(email: "shared@example.com"),
                 sourceLabel: "codex-cli",
-                context: attachableContext)
+                context: attachableContext,
+                now: Date(timeIntervalSince1970: 2000))
             #expect(initiallyRestored == initialDashboard)
 
             let ambiguousContext = self.makeCLIContext(
@@ -341,7 +345,8 @@ struct CodexDashboardWorkedExampleParityTests {
             let downgradedRestored = CodexBarCLI.loadOpenAIDashboardIfAvailable(
                 usage: self.makeUsage(email: "shared@example.com"),
                 sourceLabel: "codex-cli",
-                context: ambiguousContext)
+                context: ambiguousContext,
+                now: Date(timeIntervalSince1970: 2000))
 
             #expect(downgradedRestored == nil)
             #expect(OpenAIDashboardCacheStore.load() == nil)

@@ -66,6 +66,54 @@ struct KiroUsageRecoveryTests {
         #expect(!FileManager.default.fileExists(atPath: fixture.root.appendingPathComponent("context.pipe").path))
     }
 
+    @Test
+    func `profileless API usage avoids chat probes through the real database reader`() async throws {
+        let database = try KiroRegionalEnrichmentTests().makeDatabase(profileARN: nil)
+        defer { try? FileManager.default.removeItem(at: database.deletingLastPathComponent()) }
+        let fixture = try Fixture(usage: UsageFailure.v3Prompt.script)
+        defer { fixture.remove() }
+        let transport = ProviderHTTPTransportStub { request in
+            let requestURL = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: requestURL, statusCode: 200, httpVersion: nil, headerFields: nil))
+            return (Data(KiroUsageLimitsAPITests.overageInUseResponse.utf8), response)
+        }
+        let snapshot = try await fixture.probe {
+            try await KiroUsageLimitsAPI.fetch(databaseURL: database, transport: transport)
+        }.fetch()
+
+        #expect(snapshot.creditsUsed == 10000)
+        #expect(snapshot.creditsTotal == 10000)
+        #expect(snapshot.accountEmail == "kiro@example.com")
+        #expect(await transport.requests().count == 1)
+        #expect(!FileManager.default.fileExists(atPath: fixture.root.appendingPathComponent("usage.pipe").path))
+        #expect(!FileManager.default.fileExists(atPath: fixture.root.appendingPathComponent("context.pipe").path))
+    }
+
+    @Test(arguments: [401, 403, 500])
+    func `profileless API rejection retains the working CLI fallback`(status: Int) async throws {
+        let database = try KiroRegionalEnrichmentTests().makeDatabase(profileARN: nil)
+        defer { try? FileManager.default.removeItem(at: database.deletingLastPathComponent()) }
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let transport = ProviderHTTPTransportStub { request in
+            let requestURL = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: requestURL, statusCode: status, httpVersion: nil, headerFields: nil))
+            return (Data(), response)
+        }
+        let snapshot = try await fixture.probe {
+            try await KiroUsageLimitsAPI.fetch(databaseURL: database, transport: transport)
+        }.fetch()
+
+        #expect(snapshot.creditsUsed == 20)
+        #expect(snapshot.creditsTotal == 50)
+        #expect(snapshot.contextUsage?.totalPercentUsed == 7.5)
+        #expect(await transport.requests().count == 2)
+        #expect(try fixture.arguments(for: "usage", transport: "pipe")
+            == ["chat", "--no-interactive", "/usage", "--v2"])
+    }
+
     @Test(arguments: UsageFailure.allCases, UnsafeAllowance.allCases)
     func `ambiguous or nonpositive API allowance preserves the original CLI error`(
         failure: UsageFailure,
