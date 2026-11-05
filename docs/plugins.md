@@ -262,6 +262,8 @@ so portable third-party plugins must use the host helpers below instead of ECMA-
   only collects an already completed secondary; a fast primary can wait for the remainder of that budget.
   Failed optional work is discarded. Unfinished optional work is cancelled on collection, primary failure, or caller
   cancellation. This works on both engines without JavaScript promise concurrency. HTTP responses expose their final `url`.
+  Timeout and cancellation results return without waiting for a transport's cancellation handler. Cancellation of
+  already-started network work is best effort; this does not guarantee recovery from a stuck networking session.
 - `await ctx.http.postJSON(url, {body, headers?})` performs JSON POST. `body` must be JSON-serializable.
 - `await ctx.http.post(url, {body, headers?})` sends the same JSON POST and returns `{status, headers, bodyText}` so a
   plugin can classify non-JSON error pages before parsing a successful response.
@@ -599,8 +601,9 @@ error and can also be deleted.
 
 ## Security and limitations
 
-User-plugin HTTP sessions are scoped to a single request and released after success or failure.
-Reloading or removing plugins does not leave inactive sessions retained by their delegates. Redirect and credential-isolation rules remain unchanged.
+User plugins share one process-lifetime HTTP session with a stateless delegate. Each request has its own response
+buffer and byte limit; completion or cancellation removes its state. The session retains no plugin runtime or client.
+Cookies, caches, and credential storage remain disabled, redirects are refused, and both session timeouts remain 15 seconds.
 
 Treat a plugin like code you run locally, even though its host capabilities are narrow. Read the manifest and source,
 verify every origin, and avoid installing files from untrusted repositories. Approval grants the listed origin network
