@@ -23,11 +23,13 @@ struct MetricRow: View {
                     .lineLimit(1)
             } else {
                 MetricRowHeader(
-                    title: presentation.titleText,
-                    layoutTitle: layoutPresentation.titleText,
+                    title: self.title,
+                    layoutTitle: self.title,
                     resetText: self.compact ? nil : presentation.resetText,
                     layoutResetText: self.compact ? nil : layoutPresentation.resetText,
-                    isHighlighted: self.isHighlighted)
+                    isHighlighted: self.isHighlighted,
+                    percentText: self.metric.percentLabel,
+                    layoutPercentText: self.layoutMetric.percentLabel)
                 UsageProgressBar(
                     percent: self.metric.percent,
                     tint: self.progressColor,
@@ -67,6 +69,7 @@ struct MetricRow: View {
         lineLimit: Int) -> some View
     {
         Text(layoutText)
+            .monospacedDigit()
             .font(.footnote)
             .lineLimit(lineLimit)
             .fixedSize(horizontal: false, vertical: true)
@@ -76,6 +79,7 @@ struct MetricRow: View {
             .overlay(alignment: .topLeading) {
                 if let text, !text.isEmpty {
                     Text(text)
+                        .monospacedDigit()
                         .font(.footnote)
                         .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                         .lineLimit(lineLimit)

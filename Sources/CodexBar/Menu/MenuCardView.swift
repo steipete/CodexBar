@@ -527,19 +527,19 @@ private struct TokenUsageSectionContent: View {
                         .accessibilityLabel(L("Refreshing"))
                 }
             }
-            Text(self.tokenUsage.sessionLine)
+            Text(self.tokenUsage.sessionLine).monospacedDigit()
                 .font(self.lineFont)
                 .lineLimit(1)
-            Text(self.tokenUsage.monthLine)
+            Text(self.tokenUsage.monthLine).monospacedDigit()
                 .font(self.lineFont)
                 .lineLimit(1)
             if let metered = self.tokenUsage.meteredLine, !metered.isEmpty {
-                Text(metered)
+                Text(metered).monospacedDigit()
                     .font(self.lineFont)
                     .lineLimit(1)
             }
             ForEach(self.tokenUsage.comparisonLines, id: \.self) { line in
-                Text(line)
+                Text(line).monospacedDigit()
                     .font(self.lineFont)
                     .lineLimit(1)
             }
@@ -821,18 +821,18 @@ private struct CreditsBarContent: View {
                     tint: self.progressColor,
                     accessibilityLabel: L("Credits remaining"))
                 HStack(alignment: .firstTextBaseline) {
-                    Text(self.creditsText)
+                    Text(self.creditsText).monospacedDigit()
                         .font(.caption)
                         .lineLimit(1)
                     Spacer()
                     if let scaleText {
-                        Text(scaleText)
+                        Text(scaleText).monospacedDigit()
                             .font(.caption)
                             .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                     }
                 }
             } else {
-                Text(self.creditsText)
+                Text(self.creditsText).monospacedDigit()
                     .font(.caption)
             }
             if let hintText, !hintText.isEmpty {
