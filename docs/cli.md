@@ -11,6 +11,9 @@ read_when:
 A lightweight Commander-based CLI that mirrors the menu bar app’s provider fetchers and config file.
 Use it when you need usage numbers in scripts, CI, or dashboards without UI.
 
+Startup builds option metadata only for the selected command family. `--version` exits before command metadata and
+provider descriptors are built; provider discovery and fetching retain their existing behavior for other commands.
+
 ## Install
 - In the app: **Preferences → Advanced → Install CLI**. This symlinks `CodexBarCLI` to `/usr/local/bin/codexbar` and `/opt/homebrew/bin/codexbar`.
 - From the repo, after installing `CodexBar.app` in `/Applications`: `./bin/install-codexbar-cli.sh` (same symlink targets; requires macOS administrator approval).
