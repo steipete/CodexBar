@@ -2797,3 +2797,5 @@
 "Leave blank to use the default name." = "برای استفاده از نام پیش‌فرض، این قسمت را خالی بگذارید.";
 "Rewards" = "پاداش‌ها";
 "Reward expiry" = "انقضای پاداش‌ها";
+
+"Absolute path to a quota JSON file. Refresh the file every 15 minutes." = "مسیر مطلق فایل JSON سهمیه. فایل را هر 15 دقیقه به‌روز کنید.";

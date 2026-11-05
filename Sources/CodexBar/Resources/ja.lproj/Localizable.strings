@@ -2793,3 +2793,5 @@
 "Leave blank to use the default name." = "空欄にするとデフォルトの名前を使用します。";
 "Rewards" = "報酬";
 "Reward expiry" = "報酬の有効期限";
+
+"Absolute path to a quota JSON file. Refresh the file every 15 minutes." = "クォータJSONファイルの絶対パス。15分ごとにファイルを更新してください。";

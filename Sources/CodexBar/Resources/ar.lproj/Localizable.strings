@@ -2797,3 +2797,5 @@
 "Leave blank to use the default name." = "اتركه فارغًا لاستخدام الاسم الافتراضي.";
 "Rewards" = "المكافآت";
 "Reward expiry" = "انتهاء صلاحية المكافآت";
+
+"Absolute path to a quota JSON file. Refresh the file every 15 minutes." = "المسار المطلق لملف حصة بصيغة JSON. حدّث الملف كل 15 دقيقة.";

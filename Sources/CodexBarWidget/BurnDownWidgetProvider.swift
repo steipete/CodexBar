@@ -99,6 +99,7 @@ enum BurnProviderChoice: String, AppEnum {
     case museai
     case lithosai
     case workbuddy
+    case quotafeed
     case tavily
     case linkup
     case tinyapi
@@ -217,6 +218,7 @@ enum BurnProviderChoice: String, AppEnum {
         .museai: DisplayRepresentation(title: "Muse (muse.ai)"),
         .lithosai: DisplayRepresentation(title: "LithosAI"),
         .workbuddy: DisplayRepresentation(title: "WorkBuddy"),
+        .quotafeed: DisplayRepresentation(title: "Quota Feed"),
         .tavily: DisplayRepresentation(title: "Tavily"),
         .linkup: DisplayRepresentation(title: "Linkup"),
         .tinyapi: DisplayRepresentation(title: "TinyApi"),

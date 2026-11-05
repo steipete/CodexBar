@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 111 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 112 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -174,6 +174,7 @@ complete when the available scan window covers fewer days.
 | [Future AGI](futureagi.md) | API key and secret key (billing-period usage, allowances, and estimated cost). |
 | [LithosAI](lithosai.md) | Browser or manual console cookies for prepaid USD balance and optional UTC spend. |
 | [WorkBuddy](workbuddy.md) | Chrome or manual www.workbuddy.cn cookies for the monthly credits allowance, plan name, cycle reset, and the platform reward credits. |
+| [Quota Feed](quotafeed.md) | Explicit local JSON file; no account access or network requests |
 | [Tavily](tavily.md) | API key for account-plan, per-key, and pay-as-you-go credit totals. |
 | [Linkup](linkup.md) | API key for the current prepaid USD credit balance. |
 | [TinyApi](tinyapi.md) | Browser or manual session cookies for aggregate available credits. |

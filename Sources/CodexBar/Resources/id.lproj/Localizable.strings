@@ -2795,3 +2795,5 @@
 "Leave blank to use the default name." = "Biarkan kosong untuk menggunakan nama bawaan.";
 "Rewards" = "Hadiah";
 "Reward expiry" = "Kedaluwarsa hadiah";
+
+"Absolute path to a quota JSON file. Refresh the file every 15 minutes." = "Jalur absolut ke file JSON kuota. Perbarui file setiap 15 menit.";

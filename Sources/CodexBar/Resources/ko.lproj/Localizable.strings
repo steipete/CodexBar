@@ -2761,3 +2761,5 @@
 "Leave blank to use the default name." = "기본 이름을 사용하려면 비워 두세요.";
 "Rewards" = "보상";
 "Reward expiry" = "보상 만료일";
+
+"Absolute path to a quota JSON file. Refresh the file every 15 minutes." = "할당량 JSON 파일의 절대 경로입니다. 15분마다 파일을 갱신하세요.";

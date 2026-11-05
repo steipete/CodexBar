@@ -2796,3 +2796,5 @@
 "Leave blank to use the default name." = "Varsayılan adı kullanmak için boş bırakın.";
 "Rewards" = "Ödüller";
 "Reward expiry" = "Ödüllerin son kullanma tarihi";
+
+"Absolute path to a quota JSON file. Refresh the file every 15 minutes." = "Kota JSON dosyasının mutlak yolu. Dosyayı her 15 dakikada bir yenileyin.";

@@ -2794,3 +2794,5 @@
 "Leave blank to use the default name." = "Để trống để dùng tên mặc định.";
 "Rewards" = "Phần thưởng";
 "Reward expiry" = "Ngày hết hạn phần thưởng";
+
+"Absolute path to a quota JSON file. Refresh the file every 15 minutes." = "Đường dẫn tuyệt đối đến tệp JSON hạn mức. Cập nhật tệp mỗi 15 phút.";

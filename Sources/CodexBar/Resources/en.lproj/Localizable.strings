@@ -2798,3 +2798,5 @@
 "Leave blank to use the default name." = "Leave blank to use the default name.";
 "Rewards" = "Rewards";
 "Reward expiry" = "Reward expiry";
+
+"Absolute path to a quota JSON file. Refresh the file every 15 minutes." = "Absolute path to a quota JSON file. Refresh the file every 15 minutes.";

@@ -2795,3 +2795,5 @@
 "Leave blank to use the default name." = "Deixa-ho en blanc per fer servir el nom per defecte.";
 "Rewards" = "Recompenses";
 "Reward expiry" = "Caducitat de les recompenses";
+
+"Absolute path to a quota JSON file. Refresh the file every 15 minutes." = "Camí absolut a un fitxer JSON de quota. Actualitzeu el fitxer cada 15 minuts.";

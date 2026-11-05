@@ -2785,3 +2785,5 @@
 "Leave blank to use the default name." = "留空以使用默认名称。";
 "Rewards" = "奖励";
 "Reward expiry" = "奖励到期日期";
+
+"Absolute path to a quota JSON file. Refresh the file every 15 minutes." = "额度JSON文件的绝对路径。请每15分钟更新文件。";

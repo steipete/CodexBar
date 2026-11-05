@@ -2792,3 +2792,5 @@
 "Leave blank to use the default name." = "Lämna tomt för att använda standardnamnet.";
 "Rewards" = "Belöningar";
 "Reward expiry" = "Belöningarnas utgångsdatum";
+
+"Absolute path to a quota JSON file. Refresh the file every 15 minutes." = "Absolut sökväg till en JSON-kvotfil. Uppdatera filen var 15:e minut.";

@@ -2790,3 +2790,5 @@
 "Leave blank to use the default name." = "Laat dit veld leeg om de standaardnaam te gebruiken.";
 "Rewards" = "Beloningen";
 "Reward expiry" = "Vervaldatum beloningen";
+
+"Absolute path to a quota JSON file. Refresh the file every 15 minutes." = "Absoluut pad naar een JSON-quotabestand. Vernieuw het bestand elke 15 minuten.";

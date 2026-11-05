@@ -2791,3 +2791,5 @@
 "Leave blank to use the default name." = "Deja este campo vacío para usar el nombre predeterminado.";
 "Rewards" = "Recompensas";
 "Reward expiry" = "Vencimiento de las recompensas";
+
+"Absolute path to a quota JSON file. Refresh the file every 15 minutes." = "Ruta absoluta a un archivo JSON de cuota. Actualiza el archivo cada 15 minutos.";

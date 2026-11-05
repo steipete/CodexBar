@@ -2796,3 +2796,5 @@
 "Leave blank to use the default name." = "Pozostaw puste, aby użyć domyślnej nazwy.";
 "Rewards" = "Nagrody";
 "Reward expiry" = "Wygaśnięcie nagród";
+
+"Absolute path to a quota JSON file. Refresh the file every 15 minutes." = "Bezwzględna ścieżka do pliku JSON limitu. Odświeżaj plik co 15 minut.";

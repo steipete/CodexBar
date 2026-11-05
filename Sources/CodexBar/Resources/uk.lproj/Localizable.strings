@@ -2794,3 +2794,5 @@
 "Leave blank to use the default name." = "Залиште поле порожнім, щоб використовувати назву за замовчуванням.";
 "Rewards" = "Винагороди";
 "Reward expiry" = "Термін дії винагород";
+
+"Absolute path to a quota JSON file. Refresh the file every 15 minutes." = "Абсолютний шлях до JSON-файлу квоти. Оновлюйте файл кожні 15 хвилин.";

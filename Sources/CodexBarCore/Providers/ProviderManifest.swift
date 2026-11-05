@@ -99,6 +99,7 @@ public enum ProviderManifest {
         MuseAIProviderDescriptor.descriptor,
         LithosAIProviderDescriptor.descriptor,
         WorkBuddyProviderDescriptor.descriptor,
+        QuotaFeedProviderDescriptor.descriptor,
         TavilyProviderDescriptor.descriptor,
         LinkupProviderDescriptor.descriptor,
         TinyApiProviderDescriptor.descriptor,

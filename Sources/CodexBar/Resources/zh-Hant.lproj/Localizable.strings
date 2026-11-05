@@ -2771,3 +2771,5 @@
 "Leave blank to use the default name." = "留空以使用預設名稱。";
 "Rewards" = "獎勵";
 "Reward expiry" = "獎勵到期日期";
+
+"Absolute path to a quota JSON file. Refresh the file every 15 minutes." = "額度JSON檔案的絕對路徑。請每15分鐘更新檔案。";

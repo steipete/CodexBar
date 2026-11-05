@@ -113,6 +113,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case museai
     case lithosai
     case workbuddy
+    case quotafeed
     case tavily
     case linkup
     case tinyapi

@@ -2795,3 +2795,5 @@
 "Leave blank to use the default name." = "เว้นว่างไว้เพื่อใช้ชื่อเริ่มต้น";
 "Rewards" = "รางวัล";
 "Reward expiry" = "วันหมดอายุของรางวัล";
+
+"Absolute path to a quota JSON file. Refresh the file every 15 minutes." = "เส้นทางแบบเต็มไปยังไฟล์ JSON โควตา อัปเดตไฟล์ทุก 15 นาที";
