@@ -945,7 +945,7 @@ struct ClaudeOAuthUsageMappingTests {
 
     @Test
     func `oauth usage for weekly only max plan shows weekly without a session window`() throws {
-        // Shape observed from a Max 20x account after Anthropic removed its 5-hour limit.
+        // Captured Max 20x response with no five-hour window; availability follows the payload, not the plan name.
         let json = """
         {
           "five_hour": null,

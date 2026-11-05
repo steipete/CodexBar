@@ -58,6 +58,10 @@ Completed requests for models without a known price keep their token usage and r
 - A lower-level direct Claude fetcher still contains a separate `.auto` order. That inconsistency is tracked in
   [docs/refactor/claude-current-baseline.md](refactor/claude-current-baseline.md).
 
+With **Disable Keychain access** on, a failed background Auto CLI fetch retries after 15 minutes.
+Consecutive failures double the delay up to four hours; a successful fetch resets it. Explicit authentication
+failures still wait for a successful manual refresh. Keychain-enabled background access keeps its existing policy.
+
 Usage source picker:
 - Preferences → Providers → Claude → Usage source (Auto/OAuth/Web/CLI).
 
@@ -225,13 +229,13 @@ change the existing prompt policy or switch to another credential source.
   - `anthropic-beta: oauth-2025-04-20`
   - Reset inventory uses `claude-cli/<detected-version> (external, cli)`; eligibility remains server-controlled.
 - Mapping:
-  - `five_hour` → session window.
-  - `seven_day` → weekly window; also becomes the primary fallback when `five_hour` is absent or has no utilization.
+  - `five_hour` → session window only when it reports utilization; missing or null five-hour data leaves the session row absent.
+  - `seven_day` → weekly window, with `seven_day_oauth_apps` as its fallback. Weekly data never fills the session lane.
   - `seven_day_sonnet` / `seven_day_opus` → model-specific weekly window.
   - `limits[].weekly_scoped` → model-specific weekly windows; generic `All models` scopes stay in the main weekly row.
     OAuth and Web share per-entry parsing: malformed siblings or optional fields do not hide valid model rows. Boolean and string percentages are ignored.
   - The menu localizes scoped titles as a model name plus weekly duration; canonical snapshot and CLI titles remain unchanged.
-  - Automatic and Session + Weekly menu bar metrics fall back to the most constrained known scoped weekly window when the regular quota windows are missing. Unknown scoped measurements remain unavailable; Extra usage stays a spend-only fallback.
+  - Automatic and Session + Weekly menu bar metrics use a measured Sonnet/Opus weekly window when regular quotas are absent, then the most constrained known scoped weekly window. Unknown scoped measurements remain unavailable; Extra usage stays a spend-only fallback.
   - `seven_day_routines` / `seven_day_cowork` → Daily Routines extra window.
   - Claude Design/Omelette keys are ignored because Claude Design shares the main Claude usage limit.
   - `extra_usage` → Extra usage cost (monthly spend/limit).
@@ -303,7 +307,7 @@ action, and honors denial cooldowns. OAuth and Claude Code login sources are unc
   The fixtures cover the reported subscription schema, including cancellation and absent dates; they do not
   establish that every plan or organization role can access this endpoint. Team/Enterprise billing access and
   live cancelled subscriptions remain unverified. Quota resets and Extra usage balances are independent.
-- Session quota warnings ignore a weekly quota promoted into the primary field when the five-hour payload is missing. Existing session warning history stays tied to its account, and weekly warnings continue independently.
+- Missing five-hour readings preserve the account’s session warning history. Legacy cached weekly windows in the primary field still do not count as session usage, and weekly warnings continue independently.
 - Preferences → Providers → Claude → Cookie source (Automatic or Manual).
 - Manual mode accepts a `Cookie:` header from a claude.ai request.
 Each Claude token account can optionally select a **Claude config directory** in Settings → Providers → Claude.

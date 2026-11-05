@@ -153,8 +153,8 @@ extension UsageStore {
             self.clearQuotaWarningState(provider: provider, window: window)
             return
         }
-        // Claude omits `five_hour` on weekly-only plans and in occasional payloads, so its session lane keeps fired
-        // thresholds across a missing window, and only a 5-hour window counts (older caches may hold a weekly one).
+        // Missing five-hour readings preserve session warning history. Older caches may have a weekly window
+        // in the primary slot, so only a five-hour window belongs to this lane.
         let isClaudeSessionLane = provider == .claude && window == .session
         guard let rateWindow else {
             if !isClaudeSessionLane {

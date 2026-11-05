@@ -706,10 +706,6 @@ extension ClaudeUsageFetcher {
         let weekAll = makeWindow(
             firstWindowDict(["week_all_models", "week_all"]),
             windowMinutes: Self.weeklyWindowMinutes)
-        // Weekly-only plans have no session window; only an empty payload is a parse failure.
-        guard session != nil || weekAll != nil else {
-            throw ClaudeUsageError.parseFailed("missing session data")
-        }
 
         let rawEmail = (obj["account_email"] as? String)?.trimmingCharacters(
             in: .whitespacesAndNewlines)
@@ -726,6 +722,9 @@ extension ClaudeUsageFetcher {
                 "week_opus",
             ]),
             windowMinutes: Self.weeklyWindowMinutes)
+        guard session != nil || weekAll != nil || opusWindow != nil else {
+            throw ClaudeUsageError.parseFailed("missing session data")
+        }
         return ClaudeUsageSnapshot(
             primary: session,
             secondary: weekAll,
@@ -778,6 +777,12 @@ extension ClaudeUsageFetcher {
         }
         let message = error.localizedDescription.lowercased()
         return message.contains("timed out") || message.contains("timeout")
+    }
+
+    /// The CLI reported a signed-out or unauthorized account, which only the user can fix.
+    static func isCLIAuthenticationError(_ error: Error) -> Bool {
+        if case ClaudeStatusProbeError.authenticationFailed = error { return true }
+        return false
     }
 
     public static func isCLIRateLimitError(_ error: Error) -> Bool {
@@ -979,16 +984,15 @@ extension ClaudeUsageFetcher {
         let loginMethod = ClaudePlan.oauthLoginMethod(
             subscriptionType: credentials.subscriptionType,
             rateLimitTier: credentials.rateLimitTier)
-        // Claude sends `five_hour: null` for plans without a session limit (weekly-only Max plans,
-        // enterprise). Keep the session window absent instead of promoting a weekly window into it,
-        // matching Claude Code's own /usage panel, which only renders rows the API reports.
+        // Missing five-hour data stays absent; weekly quotas retain their own lanes.
         let primary = makeWindow(usage.fiveHour, windowMinutes: Self.sessionWindowMinutes)
         let weekly = makeWindow(usage.sevenDay, windowMinutes: Self.weeklyWindowMinutes)
             ?? makeWindow(usage.sevenDayOAuthApps, windowMinutes: Self.weeklyWindowMinutes)
-        let modelSpecific = makeWindow(
-            usage.sevenDaySonnet ?? usage.sevenDayOpus,
-            windowMinutes: Self.weeklyWindowMinutes)
+        let modelSpecific = makeWindow(usage.sevenDaySonnet, windowMinutes: Self.weeklyWindowMinutes)
+            ?? makeWindow(usage.sevenDayOpus, windowMinutes: Self.weeklyWindowMinutes)
+        let extraRateWindows = Self.oauthExtraRateWindows(from: usage)
         let hasUsageWindow = primary != nil || weekly != nil || modelSpecific != nil
+            || extraRateWindows.contains { $0.id.hasPrefix("claude-weekly-scoped-") && $0.usageKnown }
         let treatAsSpendLimit = !hasUsageWindow && usage.extraUsage?.isEnabled == true
         let providerCost = Self.oauthExtraUsageCost(
             usage.extraUsage,
@@ -999,8 +1003,6 @@ extension ClaudeUsageFetcher {
         else {
             throw ClaudeUsageError.parseFailed("missing session data")
         }
-
-        let extraRateWindows = Self.oauthExtraRateWindows(from: usage)
 
         let updatedAt = Date()
         return ClaudeUsageSnapshot(
@@ -1199,8 +1201,9 @@ extension ClaudeUsageFetcher {
         from snap: ClaudeStatusSnapshot,
         now: Date = .init()) throws -> ClaudeUsageSnapshot
     {
-        // Weekly-only plans render no "Current session" row; require at least one usage window.
-        guard snap.sessionPercentLeft != nil || snap.weeklyPercentLeft != nil else {
+        guard snap.sessionPercentLeft != nil || snap.weeklyPercentLeft != nil || snap.opusPercentLeft != nil
+            || snap.extraRateWindows.contains(where: { $0.usageKnown && !$0.window.isSyntheticPlaceholder })
+        else {
             throw ClaudeUsageError.parseFailed("missing session data")
         }
 

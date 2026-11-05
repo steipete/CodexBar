@@ -281,10 +281,10 @@ public enum ClaudeProviderDescriptor {
         }
         guard context.metric == .automatic || context.metric == .primaryAndSecondary,
               context.snapshot.secondary == nil,
-              context.snapshot.tertiary == nil,
               context.snapshot.primary == nil || context.snapshot.primary?.isSyntheticPlaceholder == true
         else { return .unhandled }
-        let window = context.snapshot.claudeScopedWeeklyWindow?.window
+        let window = context.snapshot.tertiary?.measured
+            ?? context.snapshot.claudeScopedWeeklyWindow?.window
             ?? context.snapshot.claudeMonthlySpendWindow?.window
         return .resolved(window)
     }
@@ -1166,7 +1166,9 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
                 throw error
             }
             if let backgroundAvailabilityMarker {
-                ClaudeCLIBackgroundAvailability.revoke(backgroundAvailabilityMarker)
+                ClaudeCLIBackgroundAvailability.revoke(
+                    backgroundAvailabilityMarker,
+                    requiresForegroundRefresh: ClaudeUsageFetcher.isCLIAuthenticationError(error))
             }
             throw error
         }
@@ -1175,6 +1177,8 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
            let backgroundAvailabilityMarker
         {
             ClaudeCLIBackgroundAvailability.establish(backgroundAvailabilityMarker)
+        } else if let backgroundAvailabilityMarker {
+            ClaudeCLIBackgroundAvailability.recordSuccessfulFetch(backgroundAvailabilityMarker)
         }
         let result = self.makeResult(
             // The PTY /usage panel exposes rendered percentages only, so CLI-sourced data carries an
@@ -1216,10 +1220,23 @@ enum ClaudeCLIBackgroundAvailability {
         let accountScope: String
     }
 
+    /// With Keychain access disabled, a failed attempt pauses background usage fetches for this long,
+    /// matching the CLI spawn floor.
+    static let initialBackgroundRetryDelay = ClaudeCLIUsageSpawnThrottle.minimumBackgroundSpawnInterval
+    /// Each further failure doubles the pause, up to this cap.
+    static let maximumBackgroundRetryDelay: TimeInterval = 4 * 60 * 60
+
     final class Store: @unchecked Sendable {
+        private struct Revocation {
+            let revokedAt: Date
+            let consecutiveFailures: Int
+            /// Authentication failures need the user to sign in again, so they never retry in the background.
+            let requiresForegroundRefresh: Bool
+        }
+
         private let lock = NSLock()
         private var markers: Set<Marker> = []
-        private var revokedMarkers: Set<Marker> = []
+        private var revocations: [Marker: Revocation] = [:]
 
         func contains(_ marker: Marker) -> Bool {
             self.lock.withLock { self.markers.contains(marker) }
@@ -1228,27 +1245,56 @@ enum ClaudeCLIBackgroundAvailability {
         func insert(_ marker: Marker) {
             self.lock.withLock {
                 _ = self.markers.insert(marker)
-                self.revokedMarkers.remove(marker)
+                self.revocations.removeValue(forKey: marker)
             }
         }
 
-        func remove(_ marker: Marker) {
+        func remove(_ marker: Marker, at date: Date, requiresForegroundRefresh: Bool) {
             self.lock.withLock {
                 self.markers.remove(marker)
-                _ = self.revokedMarkers.insert(marker)
+                let previous = self.revocations[marker]
+                self.revocations[marker] = Revocation(
+                    revokedAt: date,
+                    consecutiveFailures: (previous?.consecutiveFailures ?? 0) + 1,
+                    // A later failure of another kind does not lift an authentication lockout;
+                    // only a successful fetch does.
+                    requiresForegroundRefresh: requiresForegroundRefresh
+                        || previous?.requiresForegroundRefresh == true)
+            }
+        }
+
+        func clearRevocation(_ marker: Marker) {
+            self.lock.withLock {
+                _ = self.revocations.removeValue(forKey: marker)
             }
         }
 
         func isRevoked(_ marker: Marker) -> Bool {
-            self.lock.withLock { self.revokedMarkers.contains(marker) }
+            self.lock.withLock { self.revocations[marker] != nil }
+        }
+
+        /// True when the marker is not revoked, or its background retry delay has elapsed.
+        func allowsBackgroundRetry(_ marker: Marker, at date: Date) -> Bool {
+            self.lock.withLock {
+                guard let revocation = self.revocations[marker] else { return true }
+                guard !revocation.requiresForegroundRefresh else { return false }
+                let delay = ClaudeCLIBackgroundAvailability.backgroundRetryDelay(
+                    afterFailures: revocation.consecutiveFailures)
+                return date.timeIntervalSince(revocation.revokedAt) >= delay
+            }
         }
     }
 
     private static let sharedStore = Store()
     @TaskLocal private static var storeOverrideForTesting: Store?
+    @TaskLocal private static var nowOverrideForTesting: (@Sendable () -> Date)?
 
     private static var store: Store {
         self.storeOverrideForTesting ?? self.sharedStore
+    }
+
+    private static var now: Date {
+        self.nowOverrideForTesting?() ?? Date()
     }
 
     static func isEstablished(binary: String, environment: [String: String]) -> Bool {
@@ -1306,10 +1352,17 @@ enum ClaudeCLIBackgroundAvailability {
             guard ClaudeOAuthKeychainPromptPreference.storedMode() == .always else { return false }
             return oauthCredentialsConfirmedAbsent()
         }
-        // Disable Keychain explicitly permits one owner-CLI usage attempt on a cold profile. A failed attempt
-        // records revocation below, preventing each background timer tick from retrying until a foreground success.
+        // Disable Keychain explicitly permits owner-CLI usage attempts on a cold profile. A failed attempt pauses
+        // background attempts, and each further failure doubles the pause, so timer ticks cannot retry in a
+        // storm. A failure during a brief wake from sleep (no network yet, slow PTY) still recovers without a
+        // foreground refresh. Authentication failures wait for a foreground success.
         guard let marker = self.captureMarker(binary: binary, environment: environment) else { return false }
-        return !self.store.isRevoked(marker)
+        return self.store.allowsBackgroundRetry(marker, at: self.now)
+    }
+
+    static func backgroundRetryDelay(afterFailures failures: Int) -> TimeInterval {
+        let doublings = min(max(failures - 1, 0), 16)
+        return min(self.initialBackgroundRetryDelay * Double(1 << doublings), self.maximumBackgroundRetryDelay)
     }
 
     static func establish(binary: String, environment: [String: String]) {
@@ -1321,8 +1374,14 @@ enum ClaudeCLIBackgroundAvailability {
         self.store.insert(marker)
     }
 
-    static func revoke(_ marker: Marker) {
-        self.store.remove(marker)
+    static func revoke(_ marker: Marker, requiresForegroundRefresh: Bool = false) {
+        self.store.remove(marker, at: self.now, requiresForegroundRefresh: requiresForegroundRefresh)
+    }
+
+    /// Ends any background retry pause without establishing the marker, so version and auth children still
+    /// need a foreground success.
+    static func recordSuccessfulFetch(_ marker: Marker) {
+        self.store.clearRevocation(marker)
     }
 
     static func captureMarker(binary: String, environment: [String: String]) -> Marker? {
@@ -1337,6 +1396,15 @@ enum ClaudeCLIBackgroundAvailability {
         operation: () async throws -> T) async rethrows -> T
     {
         try await self.$storeOverrideForTesting.withValue(Store()) {
+            try await operation()
+        }
+    }
+
+    static func withNowOverrideForTesting<T>(
+        _ now: @escaping @Sendable () -> Date,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$nowOverrideForTesting.withValue(now) {
             try await operation()
         }
     }
