@@ -193,7 +193,6 @@ enum BedrockUsageFetcher {
             endpoint: environment[BedrockSettingsReader.apiURLKey],
             start: startDate,
             end: endDate)
-        let cache = cache ?? (key.endpoint == nil ? .shared : nil)
         if !forceRefresh, let entry = cache?.daily.load(now: until),
            entry.key == key, entry.updatedAt <= until
         {
@@ -207,8 +206,8 @@ enum BedrockUsageFetcher {
             environment: environment)
         let report = try CostUsageDailyReport(data: Self.parseDailyResponses(pages), summary: nil)
         // Retain one parsed report, never raw billing responses or unbounded account history.
-        if let bytes = try? JSONEncoder().encode(report), bytes.count <= 1_048_576 {
-            cache?.daily.store((key, report, until), now: until)
+        if let cache, let bytes = try? JSONEncoder().encode(report), bytes.count <= 1_048_576 {
+            cache.daily.store((key, report, until), now: until)
         }
         return (report, until)
     }
@@ -228,7 +227,6 @@ enum BedrockUsageFetcher {
             endpoint: environment[BedrockSettingsReader.apiURLKey],
             start: startDate,
             end: endDate)
-        let cache = cache ?? (key.endpoint == nil ? .shared : nil)
         if ProviderInteractionContext.current != .userInitiated,
            let entry = cache?.monthly.load(now: now), entry.key == key, entry.updatedAt <= now
         {

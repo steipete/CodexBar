@@ -769,6 +769,58 @@ struct BedrockUsageStatsTests {
 }
 
 extension BedrockUsageStatsTests {
+    @Test(arguments: [ProviderRuntime.app, .cli])
+    func `app cache reuse does not suppress CLI measurements`(runtime: ProviderRuntime) async throws {
+        let registered = URLProtocol.registerClass(BedrockStubURLProtocol.self)
+        defer {
+            if registered { URLProtocol.unregisterClass(BedrockStubURLProtocol.self) }
+            BedrockStubURLProtocol.handler = nil
+        }
+        let capture = BedrockRequestCapture()
+        BedrockStubURLProtocol.handler = { request in
+            let url = try #require(request.url)
+            guard url.host == "ce.us-east-1.amazonaws.com" else {
+                return Self.makeResponse(url: url, body: #"{"MetricDataResults":[]}"#)
+            }
+            capture.append(request)
+            let amount = String(capture.requests.count)
+            return Self.makeResponse(url: url, body: """
+            {"ResultsByTime":[{"Groups":[{"Keys":["Amazon Bedrock"],
+              "Metrics":{"UnblendedCost":{"Amount":"\(amount)","Unit":"USD"}}}]}]}
+            """)
+        }
+        let environment = [
+            BedrockSettingsReader.accessKeyIDKey: "cli-refresh-" + UUID().uuidString,
+            BedrockSettingsReader.secretAccessKeyKey: "fixture",
+            BedrockSettingsReader.cloudWatchAPIURLKey: "https://bedrock.test/cloudwatch",
+            "AWS_REGION": "us-east-1",
+        ]
+        let browserDetection = BrowserDetection(cacheTTL: 0)
+        let context = ProviderFetchContext(
+            runtime: runtime,
+            sourceMode: .api,
+            includeCredits: false,
+            webTimeout: 1,
+            webDebugDumpHTML: false,
+            verbose: false,
+            env: environment,
+            settings: nil,
+            fetcher: UsageFetcher(environment: [:]),
+            claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection, environment: [:]),
+            browserDetection: browserDetection)
+        try await ProviderInteractionContext.$current.withValue(.background) {
+            let first = try await BedrockAPIFetchStrategy().fetch(context)
+            let second = try await BedrockAPIFetchStrategy().fetch(context)
+            let sameDay = CostUsageBucketTimeZone.calendar(identifier: "UTC")
+                .isDate(first.usage.updatedAt, inSameDayAs: second.usage.updatedAt)
+            let expectedRequests = runtime == .app && sameDay ? 1 : 2
+            #expect(first.usage.providerCost?.used == 1)
+            #expect(second.usage.providerCost?.used == Double(expectedRequests))
+            #expect(capture.requests.count == expectedRequests)
+            #expect(ProviderInteractionContext.current == .background)
+        }
+    }
+
     @Test
     func `cost cache isolates queries expires and bypasses explicit refreshes`() async throws {
         let registered = URLProtocol.registerClass(BedrockStubURLProtocol.self)
@@ -925,6 +977,7 @@ extension BedrockUsageStatsTests {
         let later = now.addingTimeInterval(60)
         let credentials = BedrockAWSSigner.Credentials(
             accessKeyID: "cache-regression-" + UUID().uuidString, secretAccessKey: "fixture", sessionToken: nil)
+        let cache = BedrockCostExplorerCache()
         let offline = ProviderHTTPTransportHandler { _ in throw URLError(.notConnectedToInternet) }
         let first = try await BedrockUsageFetcher.fetchUsage(
             credentials: credentials,
@@ -932,14 +985,16 @@ extension BedrockUsageStatsTests {
             budget: 100,
             environment: [:],
             now: now,
-            cloudWatchTransport: offline)
+            cloudWatchTransport: offline,
+            cache: cache)
         let second = try await BedrockUsageFetcher.fetchUsage(
             credentials: credentials,
             region: "us-east-1",
             budget: 100,
             environment: [:],
             now: later,
-            cloudWatchTransport: offline)
+            cloudWatchTransport: offline,
+            cache: cache)
         #expect(capture.requests.count == 1)
         #expect(second.monthlySpend == first.monthlySpend)
         #expect(second.updatedAt == first.updatedAt)

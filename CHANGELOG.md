@@ -4,7 +4,10 @@
 
 ### Fixed
 
-- Bedrock: reuse bounded, account-scoped Cost Explorer measurements for up to six hours within each process, reducing paid refresh requests while preserving their original timestamps (#4874). Thanks @djbclark!
+- Bedrock: reuse bounded, account-scoped Cost Explorer results for periodic app usage and cost history for up to six hours, preserving original timestamps and fresh CLI usage requests (#4874). Thanks @djbclark!
+- Claude: recover background Auto usage after temporary CLI failures when Keychain access is disabled, with bounded retry delays. (#4907, #4908) Thanks @hy-ong!
+- CLI: document noninteractive browser access and the Keychain opt-out for dashboard and service launchers. (#4912, #4920) Thanks @vincent-peng and @LeoLin990405!
+- Cursor: read encrypted app sessions from the current `Cursor Key` and legacy Safe Storage accounts. (#4880, #4913) Thanks @vincent-peng and @SaahiilM!
 
 ## 0.83.0 — 2026-10-31
 

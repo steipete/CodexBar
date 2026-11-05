@@ -1683,7 +1683,8 @@ public struct CostUsageFetcher: Sendable {
             since: since,
             until: until,
             environment: environment,
-            forceRefresh: forceRefresh)
+            forceRefresh: forceRefresh,
+            cache: environment[BedrockSettingsReader.apiURLKey] == nil ? .shared : nil)
     }
 
     #if os(macOS)
