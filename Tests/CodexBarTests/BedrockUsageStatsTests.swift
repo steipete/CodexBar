@@ -228,6 +228,7 @@ struct BedrockUsageStatsTests {
         await #expect(throws: unavailable) {
             try await BedrockUsageFetcher.fetchDailyReport(
                 credentials: credentials,
+                region: "us-east-1",
                 since: Date(timeIntervalSince1970: 1_791_849_600),
                 until: Date(timeIntervalSince1970: 1_791_936_000),
                 environment: [BedrockSettingsReader.apiURLKey: "https://bedrock.test"])
@@ -767,6 +768,269 @@ struct BedrockUsageStatsTests {
     }
 }
 
+extension BedrockUsageStatsTests {
+    @Test(arguments: [ProviderRuntime.app, .cli])
+    func `app cache reuse does not suppress CLI measurements`(runtime: ProviderRuntime) async throws {
+        let registered = URLProtocol.registerClass(BedrockStubURLProtocol.self)
+        defer {
+            if registered { URLProtocol.unregisterClass(BedrockStubURLProtocol.self) }
+            BedrockStubURLProtocol.handler = nil
+        }
+        let capture = BedrockRequestCapture()
+        BedrockStubURLProtocol.handler = { request in
+            let url = try #require(request.url)
+            guard url.host == "ce.us-east-1.amazonaws.com" else {
+                return Self.makeResponse(url: url, body: #"{"MetricDataResults":[]}"#)
+            }
+            capture.append(request)
+            let amount = String(capture.requests.count)
+            return Self.makeResponse(url: url, body: """
+            {"ResultsByTime":[{"Groups":[{"Keys":["Amazon Bedrock"],
+              "Metrics":{"UnblendedCost":{"Amount":"\(amount)","Unit":"USD"}}}]}]}
+            """)
+        }
+        let environment = [
+            BedrockSettingsReader.accessKeyIDKey: "cli-refresh-" + UUID().uuidString,
+            BedrockSettingsReader.secretAccessKeyKey: "fixture",
+            BedrockSettingsReader.cloudWatchAPIURLKey: "https://bedrock.test/cloudwatch",
+            "AWS_REGION": "us-east-1",
+        ]
+        let browserDetection = BrowserDetection(cacheTTL: 0)
+        let context = ProviderFetchContext(
+            runtime: runtime,
+            sourceMode: .api,
+            includeCredits: false,
+            webTimeout: 1,
+            webDebugDumpHTML: false,
+            verbose: false,
+            env: environment,
+            settings: nil,
+            fetcher: UsageFetcher(environment: [:]),
+            claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection, environment: [:]),
+            browserDetection: browserDetection)
+        try await ProviderInteractionContext.$current.withValue(.background) {
+            let first = try await BedrockAPIFetchStrategy().fetch(context)
+            let second = try await BedrockAPIFetchStrategy().fetch(context)
+            let sameDay = CostUsageBucketTimeZone.calendar(identifier: "UTC")
+                .isDate(first.usage.updatedAt, inSameDayAs: second.usage.updatedAt)
+            let expectedRequests = runtime == .app && sameDay ? 1 : 2
+            #expect(first.usage.providerCost?.used == 1)
+            #expect(second.usage.providerCost?.used == Double(expectedRequests))
+            #expect(capture.requests.count == expectedRequests)
+            #expect(ProviderInteractionContext.current == .background)
+        }
+    }
+
+    @Test
+    func `cost cache isolates queries expires and bypasses explicit refreshes`() async throws {
+        let registered = URLProtocol.registerClass(BedrockStubURLProtocol.self)
+        defer {
+            if registered { URLProtocol.unregisterClass(BedrockStubURLProtocol.self) }
+            BedrockStubURLProtocol.handler = nil
+        }
+        let capture = BedrockRequestCapture()
+        BedrockStubURLProtocol.handler = { request in
+            capture.append(request)
+            return try Self.makeResponse(url: #require(request.url), body: #"{"ResultsByTime":[]}"#)
+        }
+        let cache = BedrockCostExplorerCache()
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-04-06T12:00:00Z"))
+        let environment = [BedrockSettingsReader.apiURLKey: "https://bedrock.test"]
+        func fetch(
+            key: String = "account-a",
+            region: String = "us-east-1",
+            time: Date,
+            env: [String: String]? = nil) async throws -> BedrockUsageSnapshot
+        {
+            try await BedrockUsageFetcher.fetchUsage(
+                credentials: .init(accessKeyID: key, secretAccessKey: "fixture", sessionToken: nil),
+                region: region,
+                budget: nil,
+                environment: env ?? environment,
+                now: time,
+                cache: cache)
+        }
+        _ = try await fetch(time: now)
+        let cached = try await fetch(time: now.addingTimeInterval(60))
+        #expect(capture.requests.count == 1)
+        #expect(cached.updatedAt == now)
+        _ = try await fetch(key: "account-b", time: now)
+        _ = try await fetch(key: "account-b", region: "us-west-2", time: now)
+        _ = try await fetch(
+            key: "account-b",
+            region: "us-west-2",
+            time: now,
+            env: [BedrockSettingsReader.apiURLKey: "https://bedrock.test/other"])
+        #expect(capture.requests.count == 4)
+        _ = try await fetch(time: now)
+        _ = try await fetch(time: now.addingTimeInterval(6 * 60 * 60))
+        _ = try await fetch(time: now.addingTimeInterval(24 * 60 * 60))
+        #expect(capture.requests.count == 7)
+        _ = try await ProviderInteractionContext.$current.withValue(.userInitiated) {
+            try await fetch(time: now.addingTimeInterval(24 * 60 * 60 + 60))
+        }
+        #expect(capture.requests.count == 8)
+        _ = try await fetch(time: now)
+        #expect(capture.requests.count == 9)
+    }
+
+    @Test
+    func `failed cost responses never poison successful zero measurements`() async throws {
+        let registered = URLProtocol.registerClass(BedrockStubURLProtocol.self)
+        defer {
+            if registered { URLProtocol.unregisterClass(BedrockStubURLProtocol.self) }
+            BedrockStubURLProtocol.handler = nil
+        }
+        let cache = BedrockCostExplorerCache()
+        let capture = BedrockRequestCapture()
+        let responses = BedrockStubResponseQueue(["{}", #"{"ResultsByTime":[]}"#])
+        BedrockStubURLProtocol.handler = { request in
+            capture.append(request)
+            return try responses.next(url: #require(request.url))
+        }
+        let now = Date(timeIntervalSince1970: 1_775_476_800)
+        let environment = [BedrockSettingsReader.apiURLKey: "https://bedrock.test"]
+        await #expect(throws: BedrockUsageError.parseFailed("Missing ResultsByTime in Cost Explorer response")) {
+            try await BedrockUsageFetcher.fetchUsage(
+                credentials: Self.testCredentials,
+                region: "us-east-1",
+                budget: nil,
+                environment: environment,
+                now: now,
+                cache: cache)
+        }
+        let measured = try await BedrockUsageFetcher.fetchUsage(
+            credentials: Self.testCredentials,
+            region: "us-east-1",
+            budget: nil,
+            environment: environment,
+            now: now,
+            cache: cache)
+        let cached = try await BedrockUsageFetcher.fetchUsage(
+            credentials: Self.testCredentials,
+            region: "us-east-1",
+            budget: nil,
+            environment: environment,
+            now: now.addingTimeInterval(60),
+            cache: cache)
+        #expect(measured.monthlySpend == 0)
+        #expect(cached.monthlySpend == 0)
+        #expect(cached.updatedAt == now)
+        #expect(capture.requests.count == 2)
+    }
+
+    @Test
+    func `oversized daily reports are returned without retaining a cache entry`() async throws {
+        let registered = URLProtocol.registerClass(BedrockStubURLProtocol.self)
+        defer {
+            if registered { URLProtocol.unregisterClass(BedrockStubURLProtocol.self) }
+            BedrockStubURLProtocol.handler = nil
+        }
+        let body = try JSONSerialization.data(withJSONObject: ["ResultsByTime": [[
+            "TimePeriod": ["Start": "2026-04-06"],
+            "Groups": [[
+                "Keys": ["Amazon Bedrock " + String(repeating: "x", count: 600_000)],
+                "Metrics": ["UnblendedCost": ["Amount": "1"]],
+            ]],
+        ]]])
+        let capture = BedrockRequestCapture()
+        BedrockStubURLProtocol.handler = { request in
+            capture.append(request)
+            let url = try #require(request.url)
+            return try (#require(HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil)), body)
+        }
+        let cache = BedrockCostExplorerCache()
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-04-06T12:00:00Z"))
+        for _ in 0..<2 {
+            let result = try await BedrockUsageFetcher.fetchDailyReport(
+                credentials: Self.testCredentials,
+                region: "us-east-1",
+                since: now,
+                until: now,
+                environment: [BedrockSettingsReader.apiURLKey: "https://bedrock.test"],
+                cache: cache)
+            #expect(result.report.data.first?.costUSD == 1)
+        }
+        #expect(capture.requests.count == 2)
+        #expect(cache.daily.load(now: now) == nil)
+    }
+
+    @Test
+    func `repeated cost refreshes reuse paid measurements and their timestamps`() async throws {
+        let registered = URLProtocol.registerClass(BedrockStubURLProtocol.self)
+        defer {
+            if registered { URLProtocol.unregisterClass(BedrockStubURLProtocol.self) }
+            BedrockStubURLProtocol.handler = nil
+        }
+        let capture = BedrockRequestCapture()
+        BedrockStubURLProtocol.handler = { request in
+            capture.append(request)
+            return try Self.makeResponse(
+                url: #require(request.url),
+                body: #"{"ResultsByTime":[]}"#)
+        }
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-04-06T12:00:00Z"))
+        let later = now.addingTimeInterval(60)
+        let credentials = BedrockAWSSigner.Credentials(
+            accessKeyID: "cache-regression-" + UUID().uuidString, secretAccessKey: "fixture", sessionToken: nil)
+        let cache = BedrockCostExplorerCache()
+        let offline = ProviderHTTPTransportHandler { _ in throw URLError(.notConnectedToInternet) }
+        let first = try await BedrockUsageFetcher.fetchUsage(
+            credentials: credentials,
+            region: "us-east-1",
+            budget: 100,
+            environment: [:],
+            now: now,
+            cloudWatchTransport: offline,
+            cache: cache)
+        let second = try await BedrockUsageFetcher.fetchUsage(
+            credentials: credentials,
+            region: "us-east-1",
+            budget: 100,
+            environment: [:],
+            now: later,
+            cloudWatchTransport: offline,
+            cache: cache)
+        #expect(capture.requests.count == 1)
+        #expect(second.monthlySpend == first.monthlySpend)
+        #expect(second.updatedAt == first.updatedAt)
+        #expect(second.toUsageSnapshot().providerCost?.updatedAt == now)
+
+        let fetcher = CostUsageFetcher(calendar: CostUsageBucketTimeZone.calendar(identifier: "UTC"))
+        let environment = [
+            BedrockSettingsReader.accessKeyIDKey: credentials.accessKeyID,
+            BedrockSettingsReader.secretAccessKeyKey: "fixture",
+            "AWS_REGION": "us-east-1",
+        ]
+        let daily = try await fetcher.loadTokenSnapshot(
+            provider: .bedrock,
+            environment: environment,
+            now: now,
+            allowPricingRefresh: false,
+            includePiSessions: false)
+        let cached = try await fetcher.loadTokenSnapshot(
+            provider: .bedrock,
+            environment: environment,
+            now: later,
+            allowPricingRefresh: false,
+            includePiSessions: false)
+        #expect(capture.requests.count == 2)
+        #expect(cached.updatedAt == daily.updatedAt)
+        _ = try await fetcher.loadTokenSnapshot(
+            provider: .bedrock,
+            environment: environment,
+            now: later,
+            forceRefresh: true,
+            allowPricingRefresh: false,
+            includePiSessions: false)
+        #expect(capture.requests.count == 3)
+    }
+}
+
 private final class BedrockRequestCapture: @unchecked Sendable {
     private let lock = NSLock()
     private var storage: [URLRequest] = []
@@ -792,7 +1056,7 @@ final class BedrockStubURLProtocol: URLProtocol {
     }
 
     override static func canInit(with request: URLRequest) -> Bool {
-        request.url?.host == "bedrock.test"
+        ["bedrock.test", "ce.us-east-1.amazonaws.com"].contains(request.url?.host ?? "")
     }
 
     override static func canonicalRequest(for request: URLRequest) -> URLRequest {

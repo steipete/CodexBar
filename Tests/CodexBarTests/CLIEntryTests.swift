@@ -55,6 +55,19 @@ final class CLIEntryTests: XCTestCase {
         XCTAssertFalse(result.stderr.isEmpty)
     }
 
+    func test_costRejectsMalformedDaysInsteadOfUsingSavedPeriod() throws {
+        for days in ["banana", "1.5", "99999999999999999999999999999"] {
+            let result = try Self.runCLI(
+                arguments: ["cost", "--provider", "codex", "--provider-native-only", "--days", days, "--json"],
+                environment: ["CODEXBAR_DISABLE_KEYCHAIN_ACCESS": "1"])
+            XCTAssertEqual(result.status, 1, days)
+            let rows = try XCTUnwrap(JSONSerialization.jsonObject(with: result.stdout) as? [[String: Any]])
+            let error = try XCTUnwrap(rows.first?["error"] as? [String: Any])
+            XCTAssertEqual(error["kind"] as? String, "args", days)
+            XCTAssertEqual(error["message"] as? String, "Error: --days must be an integer.", days)
+        }
+    }
+
     /// `Program.resolve` throws before `ParsedValues` (and `resolveUsageOutputPreferences`) exist, so
     /// a genuine parse failure -- an unrecognized option here -- has to go through the argv-level
     /// `CLIOutputPreferences.from(argv:)` bootstrap scanner. Regression test for that scanner not
