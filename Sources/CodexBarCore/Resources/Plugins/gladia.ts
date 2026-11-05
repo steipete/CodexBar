@@ -58,26 +58,31 @@ defineProvider({
 
     const total = async (kind: "pre-recorded" | "live") => {
       const sum = { seconds: 0, jobs: 0, truncated: false };
+      let offset = 0;
       for (let page = 0; page < maxPages; page += 1) {
         const data = await getPage(
-          `https://api.gladia.io/v2/${kind}?after_date=${after}&offset=${page * pageSize}&limit=${pageSize}`,
+          `https://api.gladia.io/v2/${kind}?after_date=${after}&offset=${offset}&limit=${pageSize}`,
         );
         if (!Array.isArray(data.items)) return invalid(`${kind} items`);
+        if (data.next !== undefined && data.next !== null && typeof data.next !== "string") {
+          return invalid(`${kind} next`);
+        }
         for (const item of data.items) {
           if (!isObject(item) || typeof item.status !== "string") return invalid(`${kind} item status`);
           if (item.status !== "done") continue;
           const result = item.result;
           const metadata = isObject(result) ? result.metadata : undefined;
           const billed = isObject(metadata) ? metadata.billing_time : undefined;
-          if (billed !== undefined && billed !== null) {
-            if (typeof billed !== "number" || !Number.isFinite(billed) || billed < 0) {
-              return invalid(`${kind} billing_time`);
-            }
-            sum.seconds += billed;
+          if (typeof billed !== "number" || !Number.isFinite(billed) || billed < 0) {
+            return invalid(`${kind} billing_time`);
           }
+          sum.seconds += billed;
           sum.jobs += 1;
         }
-        if (data.next === null || data.next === undefined || data.items.length < pageSize) return sum;
+        offset += data.items.length;
+        // `next` is authoritative; servers may return short pages. Without it, a short page ends the list.
+        const hasNext = typeof data.next === "string" ? true : data.next === undefined && data.items.length >= pageSize;
+        if (!hasNext || data.items.length === 0) return sum;
       }
       sum.truncated = true;
       return sum;

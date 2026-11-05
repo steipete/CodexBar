@@ -93,6 +93,27 @@ struct GladiaPluginTests {
         #expect(recorder.urls.count == 2)
     }
 
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `a short page with a next link keeps paging from the received count`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let recorder = GladiaRequestRecorder()
+        let usage = try await Self.fetch(
+            engine,
+            preRecordedPages: [
+                0: Self.page(Array(repeating: Self.item(billingTime: "60"), count: 100), next: true),
+                100: Self.page([Self.item(billingTime: "60")]),
+            ],
+            live: Self.page([]),
+            recorder: recorder)
+        #expect(usage.detailRow(label: "Pre-recorded")?.value == "1.7 h")
+        #expect(usage.detailRow(label: "Transcriptions")?.value == "101")
+        let offsets = recorder.urls.filter { $0.contains("/v2/pre-recorded") }.map {
+            $0.components(separatedBy: "offset=")[1].components(separatedBy: "&")[0]
+        }
+        #expect(offsets == ["0", "100"])
+    }
+
     @Test(arguments: [
         ("pre-recorded", "not-json"),
         ("pre-recorded", "[]"),
@@ -101,6 +122,10 @@ struct GladiaPluginTests {
         ("pre-recorded", #"{"items":[{"status":1}]}"#),
         ("live", #"{"items":[{"status":"done","result":{"metadata":{"billing_time":"60"}}}]}"#),
         ("live", #"{"items":[{"status":"done","result":{"metadata":{"billing_time":-1}}}]}"#),
+        ("live", #"{"items":[{"status":"done","result":null}]}"#),
+        ("live", #"{"items":[{"status":"done","result":{"metadata":{"billing_time":null}}}]}"#),
+        ("live", #"{"items":[{"status":"done","result":{"metadata":{}}}]}"#),
+        ("pre-recorded", #"{"items":[],"next":5}"#),
     ], BundledPluginTestSupport.engines)
     func `malformed lists are rejected rather than reported as zero usage`(
         fixture: (String, String), engine: ProviderPluginEngineKind) async
@@ -152,6 +177,7 @@ struct GladiaPluginTests {
         _ engine: ProviderPluginEngineKind,
         now: Date = Self.now,
         preRecorded: String = Self.preRecorded,
+        preRecordedPages: [Int: String] = [:],
         live: String = Self.live,
         failurePath: String? = nil,
         status: Int = 200,
@@ -166,8 +192,10 @@ struct GladiaPluginTests {
             #expect(request.value(forHTTPHeaderField: "x-gladia-key") == "gladia-fixture")
             #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
             let path = String(url.path.dropFirst("/v2/".count))
+            let offset = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first { $0.name == "offset" }?.value.flatMap(Int.init) ?? 0
             let body: String = switch path {
-            case "pre-recorded": preRecorded
+            case "pre-recorded": preRecordedPages[offset] ?? preRecorded
             case "live": live
             default: throw URLError(.badURL)
             }
