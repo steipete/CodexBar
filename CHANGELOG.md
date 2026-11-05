@@ -13,6 +13,7 @@
 - Kiro: preserve the `+` in CLI-reported plan names so Pro+ subscriptions are shown as Kiro Pro+. (#4928) Thanks @jeanroloff!
 ### Changed
 
+- Codex: avoid forced checkpoints during unchanged local cost refreshes while preserving scan timestamps and cache budgets (#4620).
 - Menu: dim retained quota and Code Review bars after their own refresh failures, while keeping successful fallback readings and separate credit/cost sections in their normal colors (#4883). Thanks @Chipagosfinest!
 - Menu: use tabular digits for usage and cost values to reduce movement when equal-length numbers change (#4884). Thanks @Chipagosfinest!
 

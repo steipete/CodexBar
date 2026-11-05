@@ -98,7 +98,8 @@ extension CostUsageStore {
                 maxFileBytes: fileBudgetBytes,
                 requestedSinceDay: budgetProtectionWindow.sinceKey,
                 requestedUntilDay: budgetProtectionWindow.untilKey,
-                calendar: calendar)
+                calendar: calendar,
+                forceCheckpoint: false)
             guard !result.catchUpRequired else { return result }
             self.codexSavePreLockCheckpoint()
             guard self.beginSaveTransaction() else { return Self.rescanRequired(result) }
