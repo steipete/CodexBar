@@ -177,19 +177,15 @@ enum DashboardSnapshotBuilder {
             warnings: self.makeWarnings(provider: provider, usage: payload.usage))
     }
 
-    /// Surfaces partial-data notices that would otherwise look like an absent limit.
-    static func makeWarnings(provider: UsageProvider?, usage: UsageSnapshot?) -> [DashboardWarningPayload] {
+    /// Surfaces partial data without forwarding provider-controlled text.
+    static func makeWarnings(provider: UsageProvider?, usage: UsageSnapshot?) -> [DashboardWarningCode] {
         // Provider-specific by design: only Claude emits this unavailable-model-breakdown detail row.
-        guard provider == .claude, let usage else { return [] }
-        return usage.details
-            .flatMap(\.rows)
-            .filter { $0.id == ClaudeStatusProbe.modelBreakdownDetailRowID }
-            .prefix(1)
-            .map {
-                DashboardWarningPayload(
-                    code: DashboardWarningPayload.claudeModelBreakdownUnavailable,
-                    message: $0.value)
-            }
+        guard provider == .claude,
+              usage?.details.contains(where: { section in
+                  section.rows.contains { $0.id == ClaudeStatusProbe.modelBreakdownDetailRowID }
+              }) == true
+        else { return [] }
+        return [.modelBreakdownUnavailable]
     }
 
     private static func accountCollectionIncomplete(

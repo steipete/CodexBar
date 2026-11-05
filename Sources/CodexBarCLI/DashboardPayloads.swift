@@ -60,7 +60,7 @@ struct DashboardProviderPayload: Encodable {
     /// Row-local failure of the multi-account source; the ambient provider row stays intact.
     let accountsError: String?
     /// Additive schema-v1 data; absent unless the provider reported a partial-data condition.
-    let warnings: [DashboardWarningPayload]?
+    let warnings: [DashboardWarningCode]?
     private let detail: DashboardSnapshotDetail
 
     init(
@@ -78,7 +78,7 @@ struct DashboardProviderPayload: Encodable {
         updatedAt: Date?,
         accounts: [DashboardAccountPayload]?,
         accountsError: String?,
-        warnings: [DashboardWarningPayload]? = nil,
+        warnings: [DashboardWarningCode]? = nil,
         detail: DashboardSnapshotDetail = .full)
     {
         self.id = id
@@ -138,12 +138,9 @@ struct DashboardProviderPayload: Encodable {
     }
 }
 
-/// A provider-reported condition where the row is usable but some data is missing.
-struct DashboardWarningPayload: Encodable, Equatable {
-    static let claudeModelBreakdownUnavailable = "model-breakdown-unavailable"
-
-    let code: String
-    let message: String
+/// Fixed partial-data codes; provider notice text never crosses the dashboard identity boundary.
+enum DashboardWarningCode: String, Encodable, Equatable {
+    case modelBreakdownUnavailable = "model-breakdown-unavailable"
 }
 
 struct DashboardAccountPayload: Encodable {

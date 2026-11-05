@@ -414,8 +414,8 @@ A managed Codex entry in redacted mode (other account fields use the same shapes
   - `updatedAt`: Account snapshot update timestamp, or `null`.
 - `providers[].accountsError`: Whole-adapter diagnostic when account collection fails; `accounts` is then absent and
   the ambient provider data remains available.
-- `providers[].warnings`: Partial-data conditions where the row is still usable but some data is missing, as
-  `[{ "code", "message" }]`. The key appears only when a warning exists, so other rows keep their previous shape. This
-  is an additive schema-v1 extension. Claude emits `model-breakdown-unavailable` when Claude Code reports
-  `Per-model breakdown unavailable`; session and all-model weekly windows remain, and the missing model-specific
-  window must not be read as an account without that limit. `message` is the CLI's notice text. Shell rows omit it.
+- `providers[].warnings`: Optional array of fixed partial-data codes, such as
+  `["model-breakdown-unavailable"]`. This additive schema-v1 field is omitted when there is no warning and from shell
+  rows. Claude emits this code when its CLI reports an unavailable per-model breakdown: session and all-model weekly
+  windows remain usable, and the missing model-specific window must not be read as an account without that limit.
+  The code disappears after a successful breakdown. Provider notice text is never included, in any identity mode.

@@ -10,15 +10,16 @@ struct DashboardProviderWarningsTests {
     func `claude breakdown notice becomes a dashboard warning while quotas stay intact`() throws {
         let row = try #require(self.snapshot(self.payload(notice: Self.notice)).providers.first)
         #expect(row.warnings == [
-            DashboardWarningPayload(code: "model-breakdown-unavailable", message: Self.notice),
+            .modelBreakdownUnavailable,
         ])
         #expect(row.windows.first?.usedPercent == 25)
         #expect(row.error == nil)
 
         let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(row))
         let object = try #require(json as? [String: Any])
-        let warnings = try #require(object["warnings"] as? [[String: String]])
-        #expect(warnings == [["code": "model-breakdown-unavailable", "message": Self.notice]])
+        let warnings = try #require(object["warnings"] as? [String])
+        #expect(warnings == ["model-breakdown-unavailable"])
+        #expect(try !self.json(row).contains(Self.notice))
     }
 
     @Test
@@ -52,7 +53,7 @@ struct DashboardProviderWarningsTests {
             updatedAt: nil,
             accounts: nil,
             accountsError: nil,
-            warnings: [DashboardWarningPayload(code: "model-breakdown-unavailable", message: Self.notice)],
+            warnings: [.modelBreakdownUnavailable],
             detail: .shell)
         #expect(try !self.json(shell).contains("warnings"))
     }
