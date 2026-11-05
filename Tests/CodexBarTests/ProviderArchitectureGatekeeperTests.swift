@@ -156,9 +156,9 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        // OpenDesign extends the audited palette without changing existing provider colors.
-        #expect(widgetFingerprint == 12_294_021_938_397_504_337)
-        #expect(burnDownFingerprint == 9_386_534_283_149_694_433)
+        // Quota Feed extends the audited palette without changing existing provider colors.
+        #expect(widgetFingerprint == 8_170_844_049_556_855_659)
+        #expect(burnDownFingerprint == 17_791_881_881_353_041_751)
     }
 
     @Test
