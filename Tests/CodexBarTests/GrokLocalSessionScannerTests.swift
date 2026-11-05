@@ -77,6 +77,112 @@ struct GrokLocalSessionScannerTests {
     }
 
     @Test
+    func `usage file turns count tokens the signals file has compacted away`() throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent("grok-usage-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let session = home.appendingPathComponent("sessions/project/session-a")
+        try FileManager.default.createDirectory(at: session, withIntermediateDirectories: true)
+        let now = Date(timeIntervalSince1970: 1_787_079_600)
+        try self.writeSignals(
+            at: session.appendingPathComponent("signals.json"),
+            tokens: 100,
+            model: "grok-4.7",
+            date: now)
+        try self.writeUsage(in: session, turns: [(now, 4000, "grok-4.7"), (now, 1000, "grok-4.6")], modified: now)
+
+        let summary = GrokLocalSessionScanner.summarize(env: ["GROK_HOME": home.path], lookbackDays: 7, now: now)
+
+        #expect(summary.sessionCount == 1)
+        #expect(summary.totalTokens == 5000)
+        #expect(summary.daily.map(\.sessionCount) == [1])
+        #expect(Set(summary.models) == ["grok-4.7", "grok-4.6"])
+    }
+
+    @Test
+    func `usage file turns land on the day they ended and respect the window`() throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent("grok-days-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let session = home.appendingPathComponent("sessions/project/session-a")
+        try FileManager.default.createDirectory(at: session, withIntermediateDirectories: true)
+        let calendar = Calendar.current
+        let now = calendar.startOfDay(for: Date(timeIntervalSince1970: 1_787_079_600)).addingTimeInterval(12 * 3600)
+        let yesterday = try #require(calendar.date(byAdding: .day, value: -1, to: now))
+        let outside = try #require(calendar.date(byAdding: .day, value: -7, to: now))
+        try self.writeUsage(
+            in: session,
+            turns: [(outside, 9000, "grok-4.6"), (yesterday, 300, "grok-4.7"), (now, 200, "grok-4.7")],
+            modified: now)
+
+        let summary = GrokLocalSessionScanner.summarize(env: ["GROK_HOME": home.path], lookbackDays: 7, now: now)
+
+        #expect(summary.totalTokens == 500)
+        #expect(summary.daily.map(\.totalTokens) == [300, 200])
+        #expect(summary.daily.map(\.sessionCount) == [1, 1])
+        #expect(summary.sessionCount == 1)
+        #expect(summary.lastSessionAt.map { abs($0.timeIntervalSince(now)) < 1 } == true)
+        #expect(!summary.models.contains("grok-4.6"))
+    }
+
+    @Test
+    func `usage file costs stay hidden until dollars are a separate decision`() throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent("grok-cost-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let session = home.appendingPathComponent("sessions/project/session-a")
+        try FileManager.default.createDirectory(at: session, withIntermediateDirectories: true)
+        let now = Date(timeIntervalSince1970: 1_787_079_600)
+        try self.writeUsage(in: session, turns: [(now, 200, "grok-4.7")], modified: now)
+
+        let summary = GrokLocalSessionScanner.summarize(env: ["GROK_HOME": home.path], lookbackDays: 7, now: now)
+        let snapshot = try #require(summary.toCostUsageTokenSnapshot(historyDays: 7))
+
+        #expect(snapshot.last30DaysTokens == 200)
+        #expect(snapshot.last30DaysCostUSD == nil)
+        #expect(snapshot.daily.allSatisfy { $0.costUSD == nil })
+    }
+
+    @Test(arguments: ["not json", #"{"session":{}}"#, #"{"turns":[]}"#, #"{"turns":[{"totalTokens":5}]}"#])
+    func `unusable usage file falls back to the signals file`(contents: String) throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent("grok-fallback-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let session = home.appendingPathComponent("sessions/project/session-a")
+        try FileManager.default.createDirectory(at: session, withIntermediateDirectories: true)
+        let now = Date(timeIntervalSince1970: 1_787_079_600)
+        try self.writeSignals(
+            at: session.appendingPathComponent("signals.json"),
+            tokens: 100,
+            model: "grok-4.7",
+            date: now)
+        try contents.write(to: session.appendingPathComponent("usage.json"), atomically: true, encoding: .utf8)
+
+        let summary = GrokLocalSessionScanner.summarize(env: ["GROK_HOME": home.path], lookbackDays: 7, now: now)
+
+        #expect(summary.sessionCount == 1)
+        #expect(summary.totalTokens == 100)
+    }
+
+    /// Mirrors a real grok CLI `usage.json`, including its microsecond `endedAt` format.
+    private func writeUsage(in session: URL, turns: [(Date, Int, String)], modified: Date) throws {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS'176+00:00'"
+        let records: [[String: Any]] = turns.enumerated().map { index, turn in
+            [
+                "turnNumber": index + 1,
+                "endedAt": formatter.string(from: turn.0),
+                "totalTokens": turn.1,
+                "costUsdTicks": 10_000_000_000,
+                "primaryModelId": turn.2,
+                "modelUsage": [turn.2: ["totalTokens": turn.1, "costUsdTicks": 10_000_000_000]],
+            ]
+        }
+        let url = session.appendingPathComponent("usage.json")
+        let data = try JSONSerialization.data(withJSONObject: ["sessionId": "session-a", "turns": records])
+        try data.write(to: url)
+        try FileManager.default.setAttributes([.modificationDate: modified], ofItemAtPath: url.path)
+    }
+
+    @Test
     func `idle days do not reuse yesterday as today`() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("grok-session-idle-\(UUID().uuidString)", isDirectory: true)
@@ -215,8 +321,7 @@ private final class GrokScanRecordingFileManager: FileManager, @unchecked Sendab
         options mask: FileManager.DirectoryEnumerationOptions = [],
         errorHandler handler: ((URL, Error) -> Bool)? = nil) -> FileManager.DirectoryEnumerator?
     {
-        guard !self.refusesEnumeration else { return nil }
-        guard let enumerator = super.__enumerator(
+        guard !self.refusesEnumeration, let enumerator = super.__enumerator(
             at: url, includingPropertiesForKeys: keys, options: mask, errorHandler: handler)
         else { return nil }
         return GrokScanRecordingEnumerator(base: enumerator) { self.visitedNames.append($0.lastPathComponent) }

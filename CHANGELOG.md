@@ -7,6 +7,7 @@
 - Menu: use tabular digits for usage and cost values to reduce movement when equal-length numbers change (#4884). Thanks @Chipagosfinest!
 
 - Settings: use native popup selectors while keeping imported custom choices visible (#4895). Thanks @elijahfriedman!
+- Grok: count local tokens from each turn in `usage.json`, so compacted sessions no longer undercount Usage & Spend.
 ### Added
 
 - Settings: find panes by title alongside provider names in sidebar search, with an empty state covering both (#4875). Thanks @elijahfriedman!
