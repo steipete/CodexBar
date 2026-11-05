@@ -2,6 +2,10 @@
 
 ## 0.83.1 — Unreleased
 
+### Fixed
+
+- Grok: celebrate weekly resets only after the prior boundary has elapsed, preserve genuine resets, and suppress repeated or stale-sample celebrations across restarts (#4917, #4923). Thanks @LeoLin990405!
+
 ## 0.83.0 — 2026-10-31
 
 ### Highlights
