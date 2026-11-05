@@ -59,6 +59,7 @@ struct ClaudeSwapAccountMenuDisplay {
                 accountError: account.error,
                 adapterError: adapterError,
                 switchError: switchError),
+            quotaRefreshFailed: account.usesLastKnownUsage || account.error != nil || adapterError != nil,
             info: AccountInfo(email: account.displayLabel, plan: nil),
             privacyOrdinal: self.privacyOrdinal(for: account),
             historySelection: historySelection,

@@ -10,6 +10,7 @@ enum UsageMenuCardContext {
     struct Account {
         var snapshot: UsageSnapshot?
         var error: String?
+        var quotaRefreshFailed: Bool?
         var info: AccountInfo?
         var privacyOrdinal: PersonalInfoRedactor.AccountOrdinal?
         var historySelection: PlanUtilizationHistorySelection?
@@ -145,7 +146,8 @@ extension UsageStore {
             isRefreshing: isSettings ? self.refreshingProviders.contains(provider.instanceID)
                 : self.shouldShowRefreshingMenuCardIndicator(for: provider),
             lastError: lastError,
-            quotaRefreshFailed: isLive ? self.errors[provider.instanceID] != nil : account?.error != nil,
+            quotaRefreshFailed: isLive ? self.errors[provider.instanceID] != nil
+                : (account?.quotaRefreshFailed ?? (account?.error != nil)),
             dashboardRefreshFailed: isLive && self.lastOpenAIDashboardError != nil,
             limitsAvailability: isSettings && !isLive ? nil : self.knownLimitsAvailability(for: provider),
             usageBarsShowUsed: self.settings.usageBarsShowUsed,

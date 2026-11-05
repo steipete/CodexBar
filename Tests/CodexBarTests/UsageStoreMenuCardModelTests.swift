@@ -72,6 +72,35 @@ struct UsageStoreMenuCardModelTests {
         #expect(model.lastKnownUsageText != nil)
     }
 
+    @Test(arguments: [false, true], [false, true])
+    func `failed account switch does not dim successfully refreshed Claude quotas`(
+        usageFailed: Bool,
+        adapterFailed: Bool)
+    {
+        let store = self.makeStore()
+        let snapshot = self.snapshot()
+        let account = ProviderAccountUsageSnapshot(
+            id: ProviderAccountIdentity(source: "claude-swap", opaqueID: "2"),
+            provider: .claude,
+            displayLabel: "account@example.com",
+            isActive: true,
+            usesLastKnownUsage: usageFailed,
+            snapshot: snapshot,
+            error: usageFailed ? "Quota refresh failed" : nil,
+            sourceLabel: "claude-swap")
+        let context = ClaudeSwapAccountMenuDisplay.cardContext(
+            for: account,
+            planLabel: nil,
+            adapterError: adapterFailed ? "Account list refresh failed" : nil,
+            switchError: "Activation failed")
+
+        let model = store.menuCardModel(for: .claude, context: context, now: snapshot.updatedAt)
+
+        #expect(model.subtitleText == "Account switch failed: Activation failed")
+        #expect(!model.metrics.isEmpty)
+        #expect(model.showsRetainedMeasurement == (usageFailed || adapterFailed))
+    }
+
     @Test(arguments: [UsageProvider.claude, .grok])
     func `empty account context cannot borrow live usage identity or cost`(provider: UsageProvider) {
         let store = self.makeStore()

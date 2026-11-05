@@ -51,7 +51,7 @@ On macOS 26 and later, Settings uses the system split-view sidebar, toolbar, sea
 
 ## Menu bar
 
-After a quota refresh fails, retained usage bars use a neutral tint until recovery, even with an account subtitle override. Successful fallback diagnostics keep the provider color. Code Review follows its own dashboard refresh outcome; separately refreshed monthly credit meters, supplemental costs, and charts keep their own color.
+After a quota refresh fails, retained usage bars use a neutral tint until recovery, even with an account subtitle override. Successful fallback diagnostics and account-switch failures with successfully refreshed quotas keep the provider color. Code Review follows its own dashboard refresh outcome; separately refreshed monthly credit meters, supplemental costs, and charts keep their own color.
 
 Stacked rows with leading window labels align their values and meters after the widest label. Rows that begin with names, explicit spaces, or inline icons retain their natural spacing; hiding percentage window labels is unchanged.
 - Provider cards with both live throughput and daily history use a fixed-height Live · Spend chart switch; Live is the default, and the choice is remembered locally per provider instance.
