@@ -12,6 +12,7 @@ struct MenuCardStaleTintTests {
         lastError: String?,
         providerCost: ProviderCostSnapshot? = nil,
         hasSnapshot: Bool = true,
+        quotaRefreshFailed: Bool = true,
         subtitleOverride: String? = nil) throws -> UsageMenuCardView.Model
     {
         let snapshot = UsageSnapshot(
@@ -39,6 +40,7 @@ struct MenuCardStaleTintTests {
             account: AccountInfo(email: nil, plan: nil),
             isRefreshing: false,
             lastError: lastError,
+            quotaRefreshFailed: quotaRefreshFailed && lastError != nil,
             usageBarsShowUsed: true,
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
@@ -96,6 +98,13 @@ struct MenuCardStaleTintTests {
         let model = try self.model(lastError: "Claude Code credentials changed.", hasSnapshot: false)
         #expect(!model.showsRetainedMeasurement)
         #expect(model.progressColor == UsageMenuCardView.Model.progressColor(for: .claude))
+    }
+
+    @Test
+    func `successful refresh diagnostic keeps the provider tint`() throws {
+        let model = try self.model(lastError: "Fallback succeeded", quotaRefreshFailed: false)
+        #expect(!model.showsRetainedMeasurement)
+        #expect(self.quotaBarTint(model) == model.progressColor)
     }
 
     @Test

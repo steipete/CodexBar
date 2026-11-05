@@ -486,7 +486,7 @@ struct MenuCardModelCodexProjectionTests {
         #expect(model.metrics.contains { $0.title == "Code review" && $0.percent == 27 })
     }
 
-    @Test
+    @Test @MainActor
     func `shows code review metric when dashboard present`() throws {
         let now = Date()
         let identity = ProviderIdentitySnapshot(
@@ -538,7 +538,8 @@ struct MenuCardModelCodexProjectionTests {
             tokenError: nil,
             account: AccountInfo(email: "codex@example.com", plan: nil),
             isRefreshing: false,
-            lastError: nil,
+            lastError: "Quota failed",
+            quotaRefreshFailed: true,
             usageBarsShowUsed: false,
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
@@ -549,6 +550,14 @@ struct MenuCardModelCodexProjectionTests {
         #expect(model.metrics.contains { $0.title == "Code review" && $0.percent == 73 })
         let codeReviewMetric = model.metrics.first { $0.id == "code-review" }
         #expect(codeReviewMetric?.resetText?.contains("Resets") == true)
+        let metric = try #require(codeReviewMetric)
+        let row = MetricRow(
+            metric: metric,
+            layoutMetric: metric,
+            title: metric.title,
+            progressColor: model.progressColor,
+            isRetainedMeasurement: model.showsRetainedMeasurement)
+        #expect(row.barTint == model.progressColor)
     }
 
     @Test

@@ -145,6 +145,8 @@ extension UsageStore {
             isRefreshing: isSettings ? self.refreshingProviders.contains(provider.instanceID)
                 : self.shouldShowRefreshingMenuCardIndicator(for: provider),
             lastError: lastError,
+            quotaRefreshFailed: isLive ? self.errors[provider.instanceID] != nil : account?.error != nil,
+            dashboardRefreshFailed: isLive && self.lastOpenAIDashboardError != nil,
             limitsAvailability: isSettings && !isLive ? nil : self.knownLimitsAvailability(for: provider),
             usageBarsShowUsed: self.settings.usageBarsShowUsed,
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,

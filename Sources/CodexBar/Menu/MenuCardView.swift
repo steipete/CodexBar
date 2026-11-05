@@ -51,6 +51,7 @@ struct UsageMenuCardView: View {
             let cardStyle: Bool
             var sessionEquivalentDetail: UsagePaceText.SessionEquivalentDetail?
             let isSyntheticCreditLane: Bool
+            let retainedMeasurementOverride: Bool?
             var helpText: String?
 
             init(
@@ -71,7 +72,8 @@ struct UsageMenuCardView: View {
                 workdayTickAppearance: WorkdayTickAppearance = .subtle,
                 cardStyle: Bool = false,
                 sessionEquivalentDetail: UsagePaceText.SessionEquivalentDetail? = nil,
-                isSyntheticCreditLane: Bool = false)
+                isSyntheticCreditLane: Bool = false,
+                retainedMeasurementOverride: Bool? = nil)
             {
                 self.id = id
                 self.title = title
@@ -91,6 +93,7 @@ struct UsageMenuCardView: View {
                 self.cardStyle = cardStyle
                 self.sessionEquivalentDetail = sessionEquivalentDetail
                 self.isSyntheticCreditLane = isSyntheticCreditLane
+                self.retainedMeasurementOverride = retainedMeasurementOverride
             }
 
             var percentLabel: String {
@@ -973,7 +976,7 @@ extension UsageMenuCardView.Model {
                 now: input.now)
         let redacted = Self.redactedText(input: input, subtitle: subtitle)
         // Derived from the refresh outcome, not the subtitle, which account overrides can replace.
-        let showsRetainedMeasurement = input.snapshot != nil && Self.lastError(input: input) != nil
+        let showsRetainedMeasurement = input.snapshot != nil && input.quotaRefreshFailed
         let placeholder = Self.placeholder(input: input)
         let providerDetails = Self.visibleProviderDetails(
             input: input,
@@ -1323,7 +1326,8 @@ extension UsageMenuCardView.Model {
                 detailLeftText: nil,
                 detailRightText: nil,
                 pacePercent: nil,
-                paceOnTop: true))
+                paceOnTop: true,
+                retainedMeasurementOverride: input.dashboardRefreshFailed))
         }
         return Self.blockingQuotaMetrics(metrics, input: input, snapshot: snapshot)
     }
@@ -1436,10 +1440,10 @@ extension UsageMenuCardView.Model {
         if input.provider == .kiro,
            let remainingText = input.snapshot?.detailRow(label: "Bonus credits left")?.value,
            let totalText = input.snapshot?.detailRow(label: "Bonus credits left")?.secondaryValue?
-               .split(separator: "·", maxSplits: 1)
-               .first?
-               .trimmingCharacters(in: .whitespacesAndNewlines)
-               .replacingOccurrences(of: "of ", with: "")
+            .split(separator: "·", maxSplits: 1)
+            .first?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "of ", with: "")
         {
             paceDetail = PaceDetail(
                 leftLabel: String(format: L("%@ of %@ bonus credits left"), remainingText, totalText),

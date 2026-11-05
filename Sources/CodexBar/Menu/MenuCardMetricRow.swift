@@ -12,7 +12,7 @@ struct MetricRow: View {
 
     /// Synthetic credit lanes refresh independently of quota measurements.
     var barTint: Color {
-        self.isRetainedMeasurement && !self.metric.isSyntheticCreditLane
+        (self.metric.retainedMeasurementOverride ?? (self.isRetainedMeasurement && !self.metric.isSyntheticCreditLane))
             ? UsageMenuCardView.Model.staleProgressColor : self.progressColor
     }
 
