@@ -174,24 +174,22 @@ struct AbacusPluginTests {
         let sessions = Sessions()
         let (cancellations, cancelled) = AsyncStream<Bool>.makeStream()
         defer { cancelled.finish() }
-        let requestTimeout = 2.0
+        // The successful candidate must not race an artificial sleep against its request deadline.
+        let requestTimeout = 15.0
         let bundle = try #require(CodexBarCoreResources.bundle)
         let url = try #require(bundle.url(forResource: "abacus", withExtension: "js"))
         let runtime = try ProviderPluginRuntime(
             source: String(contentsOf: url, encoding: .utf8),
             resourceBundle: bundle,
             transport: ProviderHTTPTransportHandler { request in
-                #expect(request.timeoutInterval == requestTimeout)
+                #expect(request.timeoutInterval == (request.httpMethod == "POST" ? 5 : requestTimeout))
                 if request.httpMethod == "POST" { return Self.response(request, body: Self.billing) }
                 if request.value(forHTTPHeaderField: "Cookie") == "session=stale" {
-                    do {
-                        try await Task.sleep(for: .seconds(30))
-                    } catch {
-                        cancelled.yield(Task.isCancelled)
-                        throw error
-                    }
-                } else {
-                    try await Task.sleep(for: .seconds(1.5))
+                    let (pending, release) = AsyncStream<Void>.makeStream()
+                    defer { release.finish() }
+                    for await _ in pending {}
+                    cancelled.yield(Task.isCancelled)
+                    try Task.checkCancellation()
                 }
                 return Self.response(request, body: Self.points)
             },
