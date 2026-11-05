@@ -19,6 +19,40 @@ public struct ProviderBrowserProfile: Sendable, Equatable {
     }
 
     #if os(macOS)
+    public static func selectableProfiles(from stores: [BrowserCookieStore]) -> [BrowserProfile] {
+        var seen = Set<String>()
+        var namesByRoot: [URL: [String: String]] = [:]
+        return stores.compactMap { store -> BrowserProfile? in
+            guard let profile = Self.selectableProfile(for: store), seen.insert(profile.id).inserted else { return nil }
+            guard store.browser.usesChromiumProfileStore, profile.id.hasPrefix("/") else { return profile }
+            let directory = URL(fileURLWithPath: profile.id)
+            let root = directory.deletingLastPathComponent()
+            if namesByRoot[root] == nil {
+                namesByRoot[root] = Self.chromiumProfileNames(root: root)
+            }
+            // Names are presentation metadata. The saved profile ID and cookie-store selection stay unchanged.
+            return BrowserProfile(
+                id: profile.id,
+                name: namesByRoot[root]?[directory.lastPathComponent] ?? profile.name)
+        }
+    }
+
+    static func chromiumProfileNames(root: URL, nameKeys: [String] = ["name"]) -> [String: String] {
+        guard let data = try? Data(contentsOf: root.appendingPathComponent("Local State")),
+              let state = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let profile = state["profile"] as? [String: Any],
+              let cache = profile["info_cache"] as? [String: Any]
+        else { return [:] }
+        return cache.compactMapValues { value in
+            guard let entry = value as? [String: Any],
+                  let name = nameKeys.lazy.compactMap({ entry[$0] as? String }).first?
+                      .trimmingCharacters(in: .whitespacesAndNewlines),
+                      !name.isEmpty
+            else { return nil }
+            return name
+        }
+    }
+
     public static func selectableProfile(for store: BrowserCookieStore) -> BrowserProfile? {
         guard let file = store.databaseURL else { return nil }
         // Safari datastore IDs can move to another file when a duplicate store disappears.
