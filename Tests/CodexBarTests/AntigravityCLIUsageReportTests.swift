@@ -17,6 +17,44 @@ private actor SpawnCounter {
 
 extension AntigravityCLIHTTPSFetchStrategyTests {
     @Test
+    func `unchanged agy executable reuses its version across refreshes and rechecks replacements`() async throws {
+        let fixture = try Self.printExecutable("exit 0", version: "1.2.2")
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let versionCache = AntigravityCLIHTTPSFetchStrategy.AgyVersionCache()
+        for _ in 0..<3 {
+            let version = try await AntigravityCLIHTTPSFetchStrategy.agyVersion(
+                binary: fixture.binary.path,
+                environment: fixture.environment,
+                versionCache: versionCache)
+            #expect(version?.0 == 1 && version?.1 == 2 && version?.2 == 2)
+        }
+        #expect(Self.versionCallCount(in: fixture.directory) == 1)
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSince1970: 1000)],
+            ofItemAtPath: fixture.binary.path)
+        _ = try await AntigravityCLIHTTPSFetchStrategy.agyVersion(
+            binary: fixture.binary.path,
+            environment: fixture.environment,
+            versionCache: versionCache)
+        #expect(Self.versionCallCount(in: fixture.directory) == 2)
+        let replacement = try Data(contentsOf: fixture.binary)
+        try replacement.write(to: fixture.binary, options: .atomic)
+        try "1.2.3".write(
+            to: fixture.directory.appendingPathComponent("version"),
+            atomically: true,
+            encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSince1970: 1000), .posixPermissions: 0o700],
+            ofItemAtPath: fixture.binary.path)
+        let updated = try await AntigravityCLIHTTPSFetchStrategy.agyVersion(
+            binary: fixture.binary.path,
+            environment: fixture.environment,
+            versionCache: versionCache)
+        #expect(updated?.2 == 3)
+        #expect(Self.versionCallCount(in: fixture.directory) == 3)
+    }
+
+    @Test
     func `CLI report parses structured quotas`() throws {
         let json = """
         {
@@ -559,8 +597,8 @@ extension AntigravityCLIHTTPSFetchStrategyTests {
                 warmDependencies: Self.noWarmSession(),
                 spawnFetch: { _, _, _, _ in throw AntigravityStatusProbeError.timedOut })
         }
-        // One run per fetch: shared within a fetch, never across fetches.
-        #expect(Self.versionCallCount(in: fixture.directory) == 2)
+        // Other parallel fixtures can evict the shared single-binary cache between these fetches.
+        #expect((1...2).contains(Self.versionCallCount(in: fixture.directory)))
     }
 
     @Test
