@@ -2393,6 +2393,8 @@
 "Unavailable account" = "Akun: Tidak tersedia";
 "%@ over" = "%@ terlampaui";
 "Paste the Cookie header from a Chrome request to www.workbuddy.cn/profile/plans-usage." = "Tempel header Cookie dari permintaan Chrome ke www.workbuddy.cn/profile/plans-usage.";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "Opsional. Tempel nilai User-Agent dari permintaan yang sama dengan header Cookie.";
 "Reserved" = "Dicadangkan";
 
 "Add folder…" = "Tambahkan folder…";

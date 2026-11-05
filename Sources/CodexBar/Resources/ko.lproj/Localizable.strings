@@ -2357,6 +2357,8 @@
 "Unavailable account" = "계정: 사용할 수 없음";
 "%@ over" = "%@ 초과";
 "Paste the Cookie header from a Chrome request to www.workbuddy.cn/profile/plans-usage." = "Chrome에서 www.workbuddy.cn/profile/plans-usage로 보낸 요청의 Cookie 헤더를 붙여넣으세요.";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "선택 사항입니다. Cookie 헤더와 동일한 요청의 User-Agent 값을 붙여넣으세요.";
 "Reserved" = "보류됨";
 
 "Add folder…" = "폴더 추가…";

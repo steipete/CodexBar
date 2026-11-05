@@ -2388,6 +2388,8 @@
 "Unavailable account" = "Konto: Inte tillgänglig";
 "%@ over" = "%@ över gränsen";
 "Paste the Cookie header from a Chrome request to www.workbuddy.cn/profile/plans-usage." = "Klistra in Cookie-headern från en Chrome-begäran till www.workbuddy.cn/profile/plans-usage.";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "Valfritt. Klistra in User-Agent-värdet från samma begäran som Cookie-huvudet.";
 "Reserved" = "Reserverat";
 
 "Add folder…" = "Lägg till mapp…";

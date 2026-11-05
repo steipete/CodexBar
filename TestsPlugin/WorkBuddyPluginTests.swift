@@ -371,7 +371,9 @@ struct WorkBuddyPluginTests {
         let context = ProviderFetchContext(
             runtime: .cli, sourceMode: .web, includeCredits: false,
             webTimeout: 60, webDebugDumpHTML: false, verbose: false, env: [:],
-            settings: .make(workbuddy: .init(cookieSource: .manual, manualCookieHeader: Self.fixtureCookie)),
+            settings: .make(workbuddy: .init(cookies: .init(
+                cookieSource: .manual,
+                manualCookieHeader: Self.fixtureCookie))),
             fetcher: UsageFetcher(environment: [:]),
             claudeFetcher: WorkBuddyUnusedClaudeFetcher(),
             browserDetection: BrowserDetection(
@@ -605,13 +607,59 @@ struct WorkBuddyPluginTests {
             })
         let sessions = SessionTrace(headers: [Self.fixtureCookie])
         let usage = try await runtime.fetchUsage(
-            settings: ["chromeMajorVersion": "154"],
+            settings: ["chromeMajorVersion": "154", "manualUserAgent": "Unused UA fixture"],
             now: Self.now,
             cookieSessionResolver: { _, _ in sessions.next() },
             cookieSessionValidator: { _, _ in })
         #expect(agents.values == [Self.chromeUserAgent(154), Self.chromeUserAgent(153)])
         #expect(usage.primary?.resetsAt == Self.octoberReset)
         #expect(sessions.rejected.isEmpty)
+    }
+
+    @Test(arguments: ["Mozilla/5.0 Edge fixture", "   "], BundledPluginTestSupport.engines)
+    func `manual usage sends the selected user agent to every billing endpoint`(
+        configured: String,
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let expected = configured.trimmingCharacters(in: .whitespaces).isEmpty ? Self.chromeUserAgent(154) : configured
+        let settings = configured == expected
+            ? ["manualUserAgent": configured]
+            : ["manualUserAgent": configured, "chromeMajorVersion": "154"]
+        let paths = PathTrace()
+        let runtime = try BundledPluginTestSupport.runtime(
+            "workbuddy", engine: engine,
+            transport: ProviderHTTPTransportHandler { request in
+                let path = request.url?.path ?? ""
+                #expect(request.value(forHTTPHeaderField: "User-Agent") == expected)
+                paths.append(path)
+                if path == Self.paidPath {
+                    return try Self.response(request, body: #"{"code":0,"data":{"Accounts":[]}}"#)
+                }
+                return try Self.response(request, body: Self.route(path).1)
+            })
+        let sessions = SessionTrace(headers: [Self.fixtureCookie])
+        let usage = try await runtime.fetchUsage(
+            settings: settings, now: Self.now, cookieSource: .manual,
+            cookieSessionResolver: { _, _ in sessions.next() })
+        #expect(usage.primary?.resetsAt == Self.octoberReset)
+        #expect(Set(paths.values) == [Self.summaryPath, Self.paidPath, Self.freePath])
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `manual user agent with a line break fails before accessing cookies`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let sessions = SessionTrace(headers: [Self.fixtureCookie])
+        let runtime = try BundledPluginTestSupport.runtime(
+            "workbuddy", engine: engine,
+            transport: ProviderHTTPTransportHandler { _ in throw URLError(.badURL) })
+        await Self.expectFailure(.missingCredential) {
+            _ = try await runtime.fetchUsage(
+                settings: ["manualUserAgent": "Mozilla/5.0\nUnexpected: fixture"],
+                now: Self.now, cookieSource: .manual,
+                cookieSessionResolver: { _, _ in sessions.next() })
+        }
+        #expect(sessions.consumed == 0)
     }
 
     @Test(arguments: ["154", nil], BundledPluginTestSupport.engines)

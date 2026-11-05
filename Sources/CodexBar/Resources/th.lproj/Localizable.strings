@@ -2393,6 +2393,8 @@
 "Unavailable account" = "บัญชี: ไม่พร้อมใช้งาน";
 "%@ over" = "เกิน %@";
 "Paste the Cookie header from a Chrome request to www.workbuddy.cn/profile/plans-usage." = "วางส่วนหัว Cookie จากคำขอของ Chrome ไปยัง www.workbuddy.cn/profile/plans-usage";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "ไม่บังคับ วางค่า User-Agent จากคำขอเดียวกับที่มีส่วนหัว Cookie";
 "Reserved" = "สำรองไว้";
 
 "Add folder…" = "เพิ่มโฟลเดอร์…";

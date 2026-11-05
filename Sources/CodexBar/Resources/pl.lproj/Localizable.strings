@@ -2392,6 +2392,8 @@
 "Unavailable account" = "Konto: Niedostępne";
 "%@ over" = "%@ ponad limit";
 "Paste the Cookie header from a Chrome request to www.workbuddy.cn/profile/plans-usage." = "Wklej nagłówek Cookie z żądania Chrome do www.workbuddy.cn/profile/plans-usage.";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "Opcjonalnie. Wklej wartość User-Agent z tego samego żądania co nagłówek Cookie.";
 "Reserved" = "Zarezerwowane";
 
 "Add folder…" = "Dodaj folder…";

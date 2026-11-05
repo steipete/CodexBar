@@ -2394,6 +2394,8 @@
 "Unavailable account" = "Unavailable account";
 "%@ over" = "%@ over";
 "Paste the Cookie header from a Chrome request to www.workbuddy.cn/profile/plans-usage." = "Paste the Cookie header from a Chrome request to www.workbuddy.cn/profile/plans-usage.";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "Optional. Paste the User-Agent value from the same request as the Cookie.";
 "Reserved" = "Reserved";
 
 "Add folder…" = "Add folder…";

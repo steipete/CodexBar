@@ -2382,6 +2382,8 @@
 "Unavailable account" = "账户: 不可用";
 "%@ over" = "超出 %@";
 "Paste the Cookie header from a Chrome request to www.workbuddy.cn/profile/plans-usage." = "粘贴 Chrome 向 www.workbuddy.cn/profile/plans-usage 发送的请求中的 Cookie 标头。";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "选填。粘贴与 Cookie 来自同一请求的 User-Agent 值。";
 "Reserved" = "已预留";
 
 "Add folder…" = "添加文件夹…";

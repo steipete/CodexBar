@@ -2390,6 +2390,8 @@
 "Unavailable account" = "Обліковий запис недоступний";
 "%@ over" = "%@ понад ліміт";
 "Paste the Cookie header from a Chrome request to www.workbuddy.cn/profile/plans-usage." = "Вставте заголовок Cookie із запиту Chrome до www.workbuddy.cn/profile/plans-usage.";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "Необов’язково. Вставте значення User-Agent із того самого запиту, що й заголовок Cookie.";
 "Reserved" = "Зарезервовано";
 
 "Add folder…" = "Додати папку…";

@@ -2388,6 +2388,8 @@
 "Unavailable account" = "Account: Niet beschikbaar";
 "%@ over" = "%@ overschreden";
 "Paste the Cookie header from a Chrome request to www.workbuddy.cn/profile/plans-usage." = "Plak de Cookie-header van een Chrome-verzoek aan www.workbuddy.cn/profile/plans-usage.";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "Optioneel. Plak de User-Agent-waarde uit hetzelfde verzoek als de Cookie-header.";
 "Reserved" = "Gereserveerd";
 
 "Add folder…" = "Map toevoegen…";

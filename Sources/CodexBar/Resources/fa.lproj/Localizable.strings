@@ -2393,6 +2393,8 @@
 "Unavailable account" = "حساب: در دسترس نیست";
 "%@ over" = "مازاد %@";
 "Paste the Cookie header from a Chrome request to www.workbuddy.cn/profile/plans-usage." = "هدر Cookie را از یک درخواست Chrome به www.workbuddy.cn/profile/plans-usage جای‌گذاری کنید.";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "اختیاری. مقدار User-Agent را از همان درخواستی که سربرگ Cookie را دارد جای‌گذاری کنید.";
 "Reserved" = "رزروشده";
 
 "Add folder…" = "افزودن پوشه…";

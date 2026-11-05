@@ -2371,6 +2371,8 @@
 "Unavailable account" = "帳號: 無法使用";
 "%@ over" = "超出 %@";
 "Paste the Cookie header from a Chrome request to www.workbuddy.cn/profile/plans-usage." = "貼上 Chrome 向 www.workbuddy.cn/profile/plans-usage 傳送的請求中的 Cookie 標頭。";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "選填。貼上與 Cookie 來自同一請求的 User-Agent 值。";
 "Reserved" = "已保留";
 
 "Add folder…" = "新增資料夾…";

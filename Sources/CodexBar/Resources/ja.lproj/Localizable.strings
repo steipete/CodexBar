@@ -2389,6 +2389,8 @@
 "Unavailable account" = "アカウント: 利用不可";
 "%@ over" = "%@ 超過";
 "Paste the Cookie header from a Chrome request to www.workbuddy.cn/profile/plans-usage." = "Chrome で www.workbuddy.cn/profile/plans-usage に送信したリクエストの Cookie ヘッダーを貼り付けてください。";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "任意。Cookie ヘッダーと同じリクエストの User-Agent 値を貼り付けてください。";
 "Reserved" = "確保済み";
 
 "Add folder…" = "フォルダを追加…";

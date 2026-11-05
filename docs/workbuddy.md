@@ -31,8 +31,9 @@ WorkBuddy is off by default. In Settings → Providers → WorkBuddy, enable it 
 - **Automatic:** sign in to `www.workbuddy.cn` in Chrome, then refresh once (or run
   `codexbar cookie refresh --provider workbuddy --allow-keychain-prompt`). Only Chrome is queried. The imported
   session is cached after the billing API accepts it, so later background refreshes do not need a Keychain prompt.
-- **Manual:** paste the Cookie header from a Chrome request to `www.workbuddy.cn/profile/plans-usage` into
-  **Cookie header**. It stays pinned to that account with no Chrome fallback.
+- **Manual:** paste the Cookie header from a request to `www.workbuddy.cn/profile/plans-usage` into
+  **Cookie header**. For a session from Edge or another browser, paste the **User-Agent** value from the
+  same request. The manual session stays pinned to that account.
 - **Off:** disables cookie access and billing requests.
 
 The WorkBuddy desktop app calls the same endpoints with its own bearer token, which it stores encrypted under
@@ -45,10 +46,10 @@ User-Agent, including an older Chrome version. Chrome's reduced User-Agent diffe
 reads the installed Chrome version (`/Applications/Google Chrome.app` or `~/Applications/Google Chrome.app`) and sends
 `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/<major>.0.0.0 Safari/537.36`.
 If that is rejected, it retries once with the previous major version, which covers an installed Chrome update that
-has not been relaunched yet. Manual cookies therefore need to come from that Chrome. Without a readable Chrome
-version the request has no browser User-Agent and is expected to fail as an expired session.
-This binding is why WorkBuddy retains Chrome-only import instead of the shared browser order. Authentication currently
-requires Chrome on macOS; the Linux CLI cannot discover a matching browser User-Agent.
+has not been relaunched yet. WorkBuddy uses this Chrome behavior in Automatic mode or when the manual User-Agent
+field is blank. A supplied manual User-Agent is used for both the billing summary and package requests, including
+on systems without Chrome. For the CLI, the provider's configuration entry accepts the optional
+`workBuddyUserAgent` string with `cookieSource` set to `manual`.
 
 Automatic mode tries the next session when every User-Agent attempt returns HTTP 401. Permission
 failures, rate limits, service errors, non-zero API codes, and malformed payloads stop retries without rejecting the

@@ -2390,6 +2390,8 @@
 "Unavailable account" = "Tài khoản: Không có sẵn";
 "%@ over" = "Vượt %@";
 "Paste the Cookie header from a Chrome request to www.workbuddy.cn/profile/plans-usage." = "Dán tiêu đề Cookie từ yêu cầu Chrome tới www.workbuddy.cn/profile/plans-usage.";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "Không bắt buộc. Dán giá trị User-Agent từ cùng yêu cầu chứa tiêu đề Cookie.";
 "Reserved" = "Đã giữ lại";
 
 "Add folder…" = "Thêm thư mục…";

@@ -37,19 +37,30 @@ public enum WorkBuddyProviderDescriptor {
                 primaryDescriptionIsDetail: { _ in true }),
             planRow: ProviderPlanRowPresentation(label: "Plan")),
         webSource: .init(
-            settingsSection: .init(WorkBuddyProviderSettingsKey.self, cookieSettings: CookieProviderSettings.self),
+            settingsSection: .init(
+                WorkBuddyProviderSettingsKey.self,
+                cookieSettings: { $0.cookies },
+                credentialSettings: { context in
+                    WorkBuddyProviderSettings(
+                        cookies: context.cookieSettings(for: .workbuddy),
+                        manualUserAgent: context.config?.workBuddyUserAgent)
+                }),
             browserCookieOrder: Self.browserCookieOrder,
             timeout: Self.webTimeout,
             browserSupportExemption: { _, _, settings in
-                settings?.workbuddy?.cookieSource == .manual
+                settings?.workbuddy?.cookies.cookieSource == .manual
             },
             resolveValues: { context in
-                guard context.settings?.workbuddy?.cookieSource != .off else { return nil }
+                let workbuddy = context.settings?.workbuddy
+                guard workbuddy?.cookies.cookieSource != .off else { return nil }
                 var settings = [
                     "webTimeoutSeconds": String(context.webTimeout),
                     "resetDeadlineMillis": String(Date().addingTimeInterval(Self.webTimeout.resolve(context) - 1)
                         .timeIntervalSince1970 * 1000),
                 ]
+                if workbuddy?.cookies.cookieSource == .manual {
+                    settings["manualUserAgent"] = workbuddy?.manualUserAgent
+                }
                 if let major = WorkBuddyChromeVersion.majorVersion() {
                     settings["chromeMajorVersion"] = String(major)
                 }
@@ -58,7 +69,7 @@ public enum WorkBuddyProviderDescriptor {
             field: .init(
                 id: "workbuddy-cookie-header",
                 title: "Cookie header",
-                subtitle: "Paste the Cookie header from a Chrome request to www.workbuddy.cn/profile/plans-usage.",
+                subtitle: "Paste the Cookie header from a billing-page request.",
                 placeholder: "Cookie: …",
                 action: (
                     id: "workbuddy-open-usage",
