@@ -2762,3 +2762,9 @@
 "Leave blank to use the default name." = "기본 이름을 사용하려면 비워 두세요.";
 "Rewards" = "보상";
 "Reward expiry" = "보상 만료일";
+
+"Tripo" = "Tripo";
+"Show Tripo usage" = "Tripo 사용량 표시";
+"Tripo is rate limiting requests. Try again later." = "Tripo가 요청 빈도를 제한하고 있습니다. 나중에 다시 시도하세요.";
+"Tripo request failed. Try refreshing later." = "Tripo 요청에 실패했습니다. 나중에 다시 새로 고침하세요.";
+"Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo가 알 수 없는 응답을 반환했습니다. CodexBar를 업데이트하고 다시 시도하세요.";

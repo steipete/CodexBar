@@ -2796,3 +2796,9 @@
 "Leave blank to use the default name." = "เว้นว่างไว้เพื่อใช้ชื่อเริ่มต้น";
 "Rewards" = "รางวัล";
 "Reward expiry" = "วันหมดอายุของรางวัล";
+
+"Tripo" = "Tripo";
+"Show Tripo usage" = "แสดงการใช้งาน Tripo";
+"Tripo is rate limiting requests. Try again later." = "Tripo กำลังจำกัดความถี่ของคำขอ ลองอีกครั้งในภายหลัง";
+"Tripo request failed. Try refreshing later." = "คำขอ Tripo ล้มเหลว ลองรีเฟรชอีกครั้งในภายหลัง";
+"Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo ส่งการตอบกลับที่ไม่รู้จัก โปรดอัปเดต CodexBar แล้วลองอีกครั้ง";

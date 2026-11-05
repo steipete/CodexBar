@@ -116,5 +116,6 @@ public enum ProviderManifest {
         ChatboxProviderDescriptor.descriptor,
         AbliterationProviderDescriptor.descriptor,
         OpenDesignProviderDescriptor.descriptor,
+        TripoProviderDescriptor.descriptor,
     ]
 }

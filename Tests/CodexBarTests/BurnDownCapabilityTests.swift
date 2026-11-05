@@ -29,6 +29,7 @@ struct BurnDownCapabilityTests {
                 .chatbox,
                 .abliteration,
                 .opendesign,
+                .tripo,
             ]
                 .contains(provider) ? [] : [provider]
             for minutes in [90, 300, 1440, 10080, 43200] {

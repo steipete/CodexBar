@@ -2791,3 +2791,9 @@
 "Leave blank to use the default name." = "Laat dit veld leeg om de standaardnaam te gebruiken.";
 "Rewards" = "Beloningen";
 "Reward expiry" = "Vervaldatum beloningen";
+
+"Tripo" = "Tripo";
+"Show Tripo usage" = "Tripo-gebruik tonen";
+"Tripo is rate limiting requests. Try again later." = "Tripo beperkt het aantal verzoeken. Probeer het later opnieuw.";
+"Tripo request failed. Try refreshing later." = "Het Tripo-verzoek is mislukt. Probeer later opnieuw te vernieuwen.";
+"Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo heeft een onbekend antwoord teruggegeven. Werk CodexBar bij en probeer het opnieuw.";

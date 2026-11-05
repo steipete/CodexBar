@@ -2798,3 +2798,9 @@
 "Leave blank to use the default name." = "اتركه فارغًا لاستخدام الاسم الافتراضي.";
 "Rewards" = "المكافآت";
 "Reward expiry" = "انتهاء صلاحية المكافآت";
+
+"Tripo" = "Tripo";
+"Show Tripo usage" = "إظهار استخدام Tripo";
+"Tripo is rate limiting requests. Try again later." = "يفرض Tripo حدًا على عدد الطلبات. حاول لاحقًا.";
+"Tripo request failed. Try refreshing later." = "فشل طلب Tripo. حاول التحديث لاحقًا.";
+"Tripo returned an unrecognized response. Update CodexBar and try again." = "أعاد Tripo استجابة غير معروفة. حدّث CodexBar وحاول مجددًا.";

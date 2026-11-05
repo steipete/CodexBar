@@ -2795,3 +2795,9 @@
 "Leave blank to use the default name." = "Để trống để dùng tên mặc định.";
 "Rewards" = "Phần thưởng";
 "Reward expiry" = "Ngày hết hạn phần thưởng";
+
+"Tripo" = "Tripo";
+"Show Tripo usage" = "Hiển thị mức sử dụng Tripo";
+"Tripo is rate limiting requests. Try again later." = "Tripo đang giới hạn tần suất yêu cầu. Hãy thử lại sau.";
+"Tripo request failed. Try refreshing later." = "Yêu cầu Tripo không thành công. Hãy thử làm mới sau.";
+"Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo trả về phản hồi không nhận dạng được. Hãy cập nhật CodexBar rồi thử lại.";

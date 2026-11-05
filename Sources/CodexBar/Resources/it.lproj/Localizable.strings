@@ -2798,3 +2798,9 @@
 "Leave blank to use the default name." = "Lascia vuoto per usare il nome predefinito.";
 "Rewards" = "Premi";
 "Reward expiry" = "Scadenza dei premi";
+
+"Tripo" = "Tripo";
+"Show Tripo usage" = "Mostra l’utilizzo di Tripo";
+"Tripo is rate limiting requests. Try again later." = "Tripo sta limitando la frequenza delle richieste. Riprova più tardi.";
+"Tripo request failed. Try refreshing later." = "La richiesta a Tripo non è riuscita. Riprova ad aggiornare più tardi.";
+"Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo ha restituito una risposta sconosciuta. Aggiorna CodexBar e riprova.";

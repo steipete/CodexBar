@@ -2794,3 +2794,9 @@
 "Leave blank to use the default name." = "空欄にするとデフォルトの名前を使用します。";
 "Rewards" = "報酬";
 "Reward expiry" = "報酬の有効期限";
+
+"Tripo" = "Tripo";
+"Show Tripo usage" = "Tripo の使用状況を表示";
+"Tripo is rate limiting requests. Try again later." = "Tripo がリクエストの頻度を制限しています。後でもう一度お試しください。";
+"Tripo request failed. Try refreshing later." = "Tripo へのリクエストに失敗しました。後でもう一度更新してください。";
+"Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo から認識できない応答が返されました。CodexBar を更新して、もう一度お試しください。";

@@ -16,6 +16,7 @@
 - Settings: use native popup selectors while keeping imported custom choices visible (#4895). Thanks @elijahfriedman!
 ### Added
 
+- Tripo: show available and reserved API credits through the official balance endpoint (#4927). Thanks @hendryque for the shared social-card artwork!
 - Settings: find panes by title alongside provider names in sidebar search, with an empty state covering both (#4875). Thanks @elijahfriedman!
 
 - Settings: hide provider sorting controls while the sidebar is collapsed and restore them when it reopens (#4872). Thanks @elijahfriedman!

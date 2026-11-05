@@ -2797,3 +2797,9 @@
 "Leave blank to use the default name." = "Varsayılan adı kullanmak için boş bırakın.";
 "Rewards" = "Ödüller";
 "Reward expiry" = "Ödüllerin son kullanma tarihi";
+
+"Tripo" = "Tripo";
+"Show Tripo usage" = "Tripo kullanımını göster";
+"Tripo is rate limiting requests. Try again later." = "Tripo istek sıklığını sınırlıyor. Daha sonra tekrar deneyin.";
+"Tripo request failed. Try refreshing later." = "Tripo isteği başarısız oldu. Daha sonra yeniden yenileyin.";
+"Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo tanınmayan bir yanıt döndürdü. CodexBar’ı güncelleyip tekrar deneyin.";

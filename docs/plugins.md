@@ -100,6 +100,9 @@ WorkBuddy uses this shared cookie host for its billing-only plugin. Its descript
 version because the website binds sessions to the browser User-Agent; cookie values stay opaque to the script.
 See [WorkBuddy](workbuddy.md) for the request contract, bounded optional reset lookup, and account coverage.
 
+[Tripo](tripo.md) reads available and reserved API credits with one fixed-origin bearer request. It keeps credits
+as credits, without inferred quota windows or dollar conversions.
+
 [abliteration.ai](abliteration.md) uses a fixed-origin bearer request to read prepaid USD credits. It reuses the
 standard API-key field and classified errors, with no browser access or inferred reset schedule.
 
