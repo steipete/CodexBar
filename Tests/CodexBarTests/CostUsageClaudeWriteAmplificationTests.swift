@@ -68,6 +68,8 @@ struct CostUsageClaudeWriteAmplificationTests {
             let saved = try CostUsageClaudeCacheIO.save(
                 provider: .claude, cache: cache, cacheRoot: fixture.env.cacheRoot)
             #expect(saved == before[0])
+        }
+        for _ in 0..<3 {
             CostUsageClaudeReportMemo.shared.store(
                 provider: .claude,
                 canonicalCachePath: cacheURL.path,
@@ -287,6 +289,8 @@ struct CostUsageClaudeWriteAmplificationTests {
         let fixture = try Fixture(rowCount: 128)
         defer { fixture.env.cleanup() }
         _ = try fixture.load(context: .regular)
+        // Publication released the rows; warm an explicit artifact cycle before measuring its reuse.
+        _ = CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: fixture.env.cacheRoot)
         let recorder = CostUsageScanner.ClaudeScanWorkRecorder()
         try CostUsageScanner.withClaudeScanWorkRecorderForTesting(recorder) {
             for cycle in 1...3 {
@@ -624,6 +628,74 @@ struct CostUsageClaudeWriteAmplificationTests {
                 options: options,
                 reportContext: context,
                 checkCancellation: nil)
+        }
+    }
+}
+
+extension CostUsageClaudeWriteAmplificationTests {
+    @Test
+    func `publishing a report releases cached source rows without cooling report reuse`() throws {
+        let fixture = try Fixture(rowCount: 128)
+        defer { fixture.env.cleanup() }
+        let initial = try fixture.load(context: .spendDashboard)
+        let url = fixture.cacheURL(context: .spendDashboard).standardizedFileURL.resolvingSymlinksInPath()
+        let memo = try #require(CostUsageClaudeReportMemo.shared.entry(
+            provider: .claude, canonicalCachePath: url.path))
+        let file = try self.cachedFileLifetime(fixture)
+        #expect(file.isAlive)
+        let before = try fixture.stamps(context: .spendDashboard)
+
+        let work = CostUsageScanner.ClaudeScanWorkRecorder()
+        CostUsageScanner.withClaudeScanWorkRecorderForTesting(work) {
+            CostUsageClaudeReportMemo.shared.store(
+                provider: .claude,
+                canonicalCachePath: url.path,
+                sourceInventory: memo.sourceInventory,
+                reportKey: memo.reportKey,
+                report: memo.report,
+                hasWindowScopedRows: memo.hasWindowScopedRows)
+        }
+        #expect(!file.isAlive)
+
+        let cached = try CostUsageScanner.withClaudeScanWorkRecorderForTesting(work) {
+            try fixture.load(context: .spendDashboard, cycle: 1)
+        }
+        #expect(cached.data == initial.data)
+        #expect(cached.summary == initial.summary)
+        #expect(cached.hourly == initial.hourly)
+        #expect(cached.quotaSlices == initial.quotaSlices)
+        CostUsageScanner.withClaudeScanWorkRecorderForTesting(work) {
+            CostUsageClaudeReportMemo.shared.store(
+                provider: .claude,
+                canonicalCachePath: url.path,
+                sourceInventory: memo.sourceInventory,
+                reportKey: memo.reportKey,
+                report: memo.report,
+                hasWindowScopedRows: memo.hasWindowScopedRows)
+        }
+        #expect(work.snapshot() == CostUsageScanner.ClaudeScanWorkMetrics())
+        #expect(work.persistenceSnapshot().reads == 0)
+        #expect(work.persistenceSnapshot().writes == 0)
+        #expect(try fixture.stamps(context: .spendDashboard) == before)
+    }
+
+    private func cachedFileLifetime(_ fixture: Fixture) throws -> FileLifetime {
+        try autoreleasepool {
+            let cache = CostUsageClaudeCacheIO.load(
+                provider: .claude, cacheRoot: fixture.env.cacheRoot, reportContext: .spendDashboard)
+            let (_, files) = try cache.split()
+            return try FileLifetime(#require(files.values.first))
+        }
+    }
+
+    private final class FileLifetime {
+        private weak var file: CostUsageClaudeCache.File?
+        var isAlive: Bool {
+            self.file != nil
+        }
+
+        init(_ file: CostUsageClaudeCache.File) {
+            self.file = file
         }
     }
 }
