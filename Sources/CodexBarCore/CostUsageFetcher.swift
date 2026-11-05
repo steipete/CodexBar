@@ -1726,7 +1726,7 @@ public struct CostUsageFetcher: Sendable {
     {
         let allRows = CursorLocalCSVReader.cachedCSVPaths().flatMap { CursorLocalCSVReader.parseFile(at: $0) }
         guard !allRows.isEmpty else { return nil }
-        let full = CursorLocalCSVReader.makeDailyReport(from: allRows, calendar: calendar, now: now)
+        let full = CursorLocalCSVReader.makeDailyReport(from: allRows, calendar: calendar)
         let daily = Self.windowedDailyReport(full, historyDays: historyDays, now: now, calendar: calendar)
         guard !daily.data.isEmpty else { return nil }
         return Self.tokenSnapshot(

@@ -37,11 +37,38 @@ struct ProviderPluginOptionalPOSTTests {
         #expect(try await runtime.fetchUsage().identity?.loginMethod == "ready")
     }
 
-    @Test(arguments: BundledPluginTestSupport.engines)
+    @Test(.timeLimit(.minutes(1)), arguments: BundledPluginTestSupport.engines)
     func `optional POST can collect beyond the existing GET default`(engine: ProviderPluginEngineKind) async throws {
-        let runtime = try Self.runtime(engine, budget: "5") { request in
-            if request.httpMethod == "POST" { try await Task.sleep(for: .seconds(1)) }
-            return ProviderPluginConsoleCapabilitiesTests.response(request, body: "ready")
+        let (primary, primaryCollected) = AsyncStream<Void>.makeStream()
+        let (deadlines, deadlineObserved) = AsyncStream<Void>.makeStream()
+        let (pending, release) = AsyncStream<Void>.makeStream()
+        defer {
+            primaryCollected.finish()
+            deadlineObserved.finish()
+            release.finish()
+        }
+        let options = ProviderPluginContextOptions(
+            optionalRequestTimeoutSeconds: nil,
+            waitForOptionalDeadline: { _, budget in
+                #expect(budget == .seconds(5))
+                #expect(budget > ProviderPluginContextOptions.production.optionalCollectionBudget)
+                deadlineObserved.yield()
+                for await _ in pending {}
+                try Task.checkCancellation()
+            },
+            beforeHTTPAttempt: { request in
+                if request.httpMethod == "POST" {
+                    var iterator = primary.makeAsyncIterator()
+                    #expect(await iterator.next() != nil)
+                    var deadline = deadlines.makeAsyncIterator()
+                    #expect(await deadline.next() != nil)
+                }
+            },
+            didCollectHTTPCompletion: { completion in
+                if case .primary = completion { primaryCollected.yield() }
+            })
+        let runtime = try Self.runtime(engine, budget: "5", contextOptions: options) { request in
+            ProviderPluginConsoleCapabilitiesTests.response(request, body: "ready")
         }
         #expect(try await runtime.fetchUsage().identity?.loginMethod == "ready")
     }
@@ -107,13 +134,14 @@ struct ProviderPluginOptionalPOSTTests {
         optional: String = "{url:'https://console.example.com/optional',method:'POST',body:{}}",
         budget: String = "5",
         suffix: String = "return {identity:{loginMethod:response.optional?.bodyText || 'none'}};",
+        contextOptions: ProviderPluginContextOptions = .production,
         handler: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse)) throws -> ProviderPluginRuntime
     {
         try ProviderPluginConsoleCapabilitiesTests.runtime(engine, body: """
         const response = await ctx.http.getWithOptional('https://console.example.com/primary',
           \(optional), {optionalBudgetSeconds:\(budget)});
         \(suffix)
-        """, transport: ProviderHTTPTransportHandler(handler))
+        """, transport: ProviderHTTPTransportHandler(handler), contextOptions: contextOptions)
     }
 
     private final class Calls: @unchecked Sendable {

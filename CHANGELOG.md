@@ -5,6 +5,15 @@
 ### Fixed
 
 - Bedrock: reuse bounded, account-scoped Cost Explorer results for periodic app usage and cost history for up to six hours, preserving original timestamps and fresh CLI usage requests (#4874). Thanks @djbclark!
+- Synthetic: show current weekly credit quotas and regeneration details while ignoring the retired subscription counter alongside known quota lanes. (#4871, #4885) Thanks @serialx and @baanish!
+- Neuralwatt: expose prepaid credit balances in provider cost JSON so balance consumers receive the remaining amount (#4870). Thanks @Josephur!
+- Tests: make plugin timeout and optional-request fixtures deterministic under loaded CI runners.
+- iCloud Sync: stop treating the Codex login as a local account for other providers, so a synced account with the same email is no longer hidden from their menus (#4869). Thanks @audichuang!
+- Cursor: retain local CSV usage when exports include a trailing customer cost column. (#4897) Thanks @Chipagosfinest!
+- CLI: reject `hooks watch --interval` values that overflow the sleep timer instead of crashing. (#4896) Thanks @Chipagosfinest!
+- CLI: reject malformed `cost --days` values instead of silently reporting a different time window. (#4893) Thanks @Chipagosfinest!
+- Plugins: keep HTTP timeouts and caller cancellation responsive when a transport's cancellation handler blocks (#4891, #4867). Thanks @akshat-khare and @Yuxin-Qiao!
+- Plugins: reuse one isolated HTTP session for user plugins to avoid per-request session teardown, and release request state on completion or cancellation (#4926).
 - Claude: recover background Auto usage after temporary CLI failures when Keychain access is disabled, with bounded retry delays. (#4907, #4908) Thanks @hy-ong!
 - CLI: document noninteractive browser access and the Keychain opt-out for dashboard and service launchers. (#4912, #4920) Thanks @vincent-peng and @LeoLin990405!
 - Cursor: read encrypted app sessions from the current `Cursor Key` and legacy Safe Storage accounts. (#4880, #4913) Thanks @vincent-peng and @SaahiilM!
