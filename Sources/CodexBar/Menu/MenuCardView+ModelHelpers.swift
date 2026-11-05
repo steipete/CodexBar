@@ -555,6 +555,9 @@ extension UsageMenuCardView.Model {
         }
     }
 
+    /// Bar tint for cards whose latest refresh failed and therefore show the previous measurement.
+    static let staleProgressColor = Color(nsColor: .secondaryLabelColor)
+
     static func progressColor(for provider: UsageProvider) -> Color {
         let branding = ProviderDescriptorRegistry.descriptor(for: provider).branding
         if branding.progressColorStyle == .label {
@@ -1218,6 +1221,9 @@ extension UsageMenuCardView.Model {
         now: Date,
         showUsed: Bool) -> (resetText: String, pace: PaceDetail)?
     {
+        if let regen = syntheticRollingRegenDetail(window: weekly, now: now, showUsed: showUsed) {
+            return regen
+        }
         guard let cost,
               cost.limit > 0,
               let nextRegenAmount = cost.nextRegenAmount,
