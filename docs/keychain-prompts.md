@@ -119,6 +119,59 @@ Alternatives depend on the provider:
 - Use a supported file-backed or local provider source.
 - For Claude, leave direct foreign-item consent off and choose a CLI, Web, or usable credentials-file path.
 
+## CLI and external dashboards
+
+On macOS, set `CODEXBAR_DISABLE_KEYCHAIN_ACCESS=1` in the environment of a separately launched CLI:
+
+```sh
+CODEXBAR_DISABLE_KEYCHAIN_ACCESS=1 /absolute/path/to/codexbar usage --provider claude --json
+```
+
+Ordinary `usage` and `cards` fetches already use noninteractive browser-cookie access, including when run
+from a terminal: they do not authorize a Chrome Safe Storage prompt. A browser requiring a new grant is
+skipped; an existing grant can still be used without UI. The six-hour denial cooldown remains in force
+across CLI invocations. Only an explicit `cookie refresh --allow-keychain-prompt` can bypass that cooldown.
+
+The environment opt-out is stronger: it also blocks already-authorized CodexBar Keychain reads.
+This blocks CodexBar's Security.framework item operations and Keychain-dependent Chromium cookie decryption.
+An unavailable browser session can fall back to another configured source. If none succeeds, `usage --json`
+returns a provider error and a nonzero exit status; it does not retry with an interactive browser prompt.
+For web-only troubleshooting, use `--source web`, then configure a manual cookie or explicitly refresh cookies
+from a terminal if you want to grant access. A provider-owned CLI, such as Claude Code, can still
+use its own credential store and may prompt. Existing manual credentials, file-backed credentials, and other
+supported sources may still be used. See [Claude source setup](claude.md) and the [CLI guide](cli.md).
+
+Use the path to the CLI your dashboard or service actually runs. Configure the variable in that launcher's
+environment so it applies to future invocations. An export in a different terminal does not configure an
+already-running dashboard or service.
+
+For a `launchd` job, add this entry to the job plist's top-level dictionary. If it already has an
+`EnvironmentVariables` dictionary, add the variable to that dictionary instead:
+
+```xml
+<key>EnvironmentVariables</key>
+<dict>
+    <key>CODEXBAR_DISABLE_KEYCHAIN_ACCESS</key>
+    <string>1</string>
+</dict>
+```
+
+Reload the job's configuration and restart it using the service's normal setup procedure.
+
+The app's Advanced preference can also affect compatible CLI builds through shared preferences. The environment
+variable requests the control explicitly for the selected CLI invocation. Only the exact value `1` activates it;
+`0` leaves the saved preferences in force.
+
+For an unexpected prompt, first check how your terminal resolves `codexbar`:
+
+```sh
+command -v codexbar
+codexbar --version
+```
+
+A dashboard or service may use a different PATH or an absolute executable path. Check its configured path and
+record the output of that executable's `--version` command too.
+
 ## Safe troubleshooting
 
 If a prompt appears unexpectedly, first read the full item name and requesting app/path. Quit CodexBar, then check for

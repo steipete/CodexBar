@@ -26,8 +26,8 @@ Linux. Explicit `web` mode never reads local Cursor credentials; macOS uses its 
 1) **Cursor.app local auth** (first automatic source on macOS; Linux fallback)
    - Reads Cursor.app's VS Code-style global state DB for `ItemTable` key `cursorAuth/accessToken`.
    - On macOS, supports both plain JWTs and Cursor 3.27's `cursor-safe-storage:v1:` encrypted tokens. Encrypted
-     tokens use the `Cursor Safe Storage` Keychain item (account `Cursor`). Plain token decoding performs no
-     Keychain reads.
+     tokens use the `Cursor Safe Storage` Keychain item, trying account `Cursor Key` first and legacy account
+     `Cursor` if the first key cannot decrypt the token. Plain token decoding performs no Keychain reads.
      Background and settings refreshes never prompt. An explicit manual refresh may request access once, sharing
      that action's prompt allowance with browser imports. Choose **Always Allow** to permit future refreshes without
      another prompt; denying access keeps the six-hour cooldown, including subsequent manual refreshes.
@@ -184,6 +184,10 @@ API-list-price estimates are not estimates of actual Cursor charges: they do not
 Caching: automatic cost refreshes follow the app's token-cost cadence, with a minimum interval of 15 minutes (30 minutes in Low Power Mode). Snapshots are scoped to the history window, cookie source, and resolved account (manual-cookie hash or auto-mode account fingerprint), so switching accounts or pasting a new cookie invalidates them immediately.
 
 An HTTP 403 from the cost endpoint records a failed cost source with an in-memory retry time at least six hours later, even when no cost snapshot is available. It does not invalidate the working quota session or change local CSV fallback. Manual and menu-open refreshes bypass the cooldown, and a changed account, credential source, history window, timezone, or provider configuration permits a new attempt. Timed-out cost scans keep their normal cooldown without a snapshot; transient failures retain their normal retry behavior. Restarting the app clears this in-memory cooldown.
+
+The local Tokscale CSV fallback supports legacy, `Kind`, and cloud-agent layouts. A `Cloud Agent ID` header identifies
+the cloud-agent layout; trailing billing columns such as `Cost to you` leave the layout unchanged. The existing
+`Total Tokens` and `Cost` fields supply the exported token totals and API-rate cost.
 
 If Auto fetches usage with a cookie that the app still cannot confirm for the current account, the result stays unpublished. An unchanged account scope waits for the next normal or manual refresh instead of repeatedly forcing another request. Real account, history-window, provider, or cost-timezone changes still request a replacement; a successful fetch that confirms its own cookie can publish immediately.
 

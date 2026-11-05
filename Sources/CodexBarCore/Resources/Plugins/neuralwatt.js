@@ -144,7 +144,13 @@ defineProvider({
       cost:
         remaining === undefined
           ? undefined
-          : { used: remaining, limit: 0, currency: "USD", period: "Neuralwatt prepaid balance" },
+          : {
+              used: remaining,
+              limit: 0,
+              balance: remaining,
+              currency: "USD",
+              period: "Neuralwatt prepaid balance",
+            },
       identity: {
         loginMethod: plan
           ? `${title(plan.replace(/_/gu, " "))} plan`

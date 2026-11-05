@@ -96,7 +96,7 @@ sha256_value() {
 download_file() {
   local url="$1"
   local out="$2"
-  curl -fL --retry 3 --retry-connrefused --retry-delay 2 -o "$out" "$url"
+  curl -fL --retry 5 --retry-connrefused --retry-delay 15 -o "$out" "$url"
 }
 
 install_zip_binary() {
