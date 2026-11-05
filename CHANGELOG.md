@@ -2,6 +2,10 @@
 
 ## 0.83.1 — Unreleased
 
+### Changed
+
+- Settings: use native popup selectors while keeping imported custom choices visible (#4895). Thanks @elijahfriedman!
+
 ## 0.83.0 — 2026-10-31
 
 ### Highlights
