@@ -2798,3 +2798,7 @@
 "Leave blank to use the default name." = "برای استفاده از نام پیش‌فرض، این قسمت را خالی بگذارید.";
 "Rewards" = "پاداش‌ها";
 "Reward expiry" = "انقضای پاداش‌ها";
+"Claude Platform session validated and saved." = "نشست Claude Platform اعتبارسنجی و ذخیره شد.";
+"Use %@ or %@." = "از %@ یا %@ استفاده کنید.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "در %@ وارد شوید. سرآیند Cookie آن را که شامل sessionKey است، به‌صورت خصوصی به %@ بدهید. سپس %@ را اجرا کنید.";
+"Read cookie header from stdin" = "خواندن سرآیند کوکی از stdin";

@@ -2796,3 +2796,7 @@
 "Leave blank to use the default name." = "Deixa-ho en blanc per fer servir el nom per defecte.";
 "Rewards" = "Recompenses";
 "Reward expiry" = "Caducitat de les recompenses";
+"Claude Platform session validated and saved." = "La sessió de Claude Platform s’ha validat i desat.";
+"Use %@ or %@." = "Feu servir %@ o %@.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Inicieu sessió a %@. Proporcioneu de manera privada la seva capçalera Cookie amb sessionKey a %@. Després executeu %@.";
+"Read cookie header from stdin" = "Llegeix la capçalera de galetes de stdin";

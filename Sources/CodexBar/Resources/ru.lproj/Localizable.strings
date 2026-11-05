@@ -2795,3 +2795,7 @@
 "Leave blank to use the default name." = "Оставьте поле пустым, чтобы использовать имя по умолчанию.";
 "Rewards" = "Награды";
 "Reward expiry" = "Срок действия наград";
+"Claude Platform session validated and saved." = "Сеанс Claude Platform проверен и сохранён.";
+"Use %@ or %@." = "Используйте %@ или %@.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Войдите на %@. Конфиденциально передайте заголовок Cookie с sessionKey в %@. Затем выполните %@.";
+"Read cookie header from stdin" = "Читать заголовок Cookie из stdin";

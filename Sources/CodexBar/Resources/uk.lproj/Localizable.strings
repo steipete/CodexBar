@@ -2795,3 +2795,7 @@
 "Leave blank to use the default name." = "Залиште поле порожнім, щоб використовувати назву за замовчуванням.";
 "Rewards" = "Винагороди";
 "Reward expiry" = "Термін дії винагород";
+"Claude Platform session validated and saved." = "Сеанс Claude Platform перевірено та збережено.";
+"Use %@ or %@." = "Використовуйте %@ або %@.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Увійдіть на %@. Конфіденційно передайте заголовок Cookie із sessionKey до %@. Потім виконайте %@.";
+"Read cookie header from stdin" = "Читати заголовок Cookie зі stdin";

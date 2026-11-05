@@ -2795,3 +2795,7 @@
 "Leave blank to use the default name." = "Để trống để dùng tên mặc định.";
 "Rewards" = "Phần thưởng";
 "Reward expiry" = "Ngày hết hạn phần thưởng";
+"Claude Platform session validated and saved." = "Đã xác thực và lưu phiên Claude Platform.";
+"Use %@ or %@." = "Dùng %@ hoặc %@.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Đăng nhập tại %@. Cung cấp riêng tư tiêu đề Cookie chứa sessionKey cho %@. Sau đó chạy %@.";
+"Read cookie header from stdin" = "Đọc tiêu đề cookie từ stdin";

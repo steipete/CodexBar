@@ -2796,3 +2796,7 @@
 "Leave blank to use the default name." = "Biarkan kosong untuk menggunakan nama bawaan.";
 "Rewards" = "Hadiah";
 "Reward expiry" = "Kedaluwarsa hadiah";
+"Claude Platform session validated and saved." = "Sesi Claude Platform telah divalidasi dan disimpan.";
+"Use %@ or %@." = "Gunakan %@ atau %@.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Masuk di %@. Berikan header Cookie yang berisi sessionKey secara privat ke %@. Lalu jalankan %@.";
+"Read cookie header from stdin" = "Baca header cookie dari stdin";

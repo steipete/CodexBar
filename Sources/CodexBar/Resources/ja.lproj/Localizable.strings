@@ -2794,3 +2794,7 @@
 "Leave blank to use the default name." = "空欄にするとデフォルトの名前を使用します。";
 "Rewards" = "報酬";
 "Reward expiry" = "報酬の有効期限";
+"Claude Platform session validated and saved." = "Claude Platform のセッションを検証して保存しました。";
+"Use %@ or %@." = "%@ または %@ を使用してください。";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "%@ にサインインしてください。sessionKey を含む Cookie ヘッダーを %@ に非公開で渡してください。その後、%@ を実行してください。";
+"Read cookie header from stdin" = "stdin から Cookie ヘッダーを読み取る";

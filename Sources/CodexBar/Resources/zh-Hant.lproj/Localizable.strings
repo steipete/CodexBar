@@ -2772,3 +2772,7 @@
 "Leave blank to use the default name." = "留空以使用預設名稱。";
 "Rewards" = "獎勵";
 "Reward expiry" = "獎勵到期日期";
+"Claude Platform session validated and saved." = "已驗證並儲存 Claude Platform 工作階段。";
+"Use %@ or %@." = "請使用 %@ 或 %@。";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "請登入 %@。將包含 sessionKey 的 Cookie 請求標頭私密地傳給 %@，然後執行 %@。";
+"Read cookie header from stdin" = "從 stdin 讀取 Cookie 請求標頭";

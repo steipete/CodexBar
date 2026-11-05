@@ -2762,3 +2762,7 @@
 "Leave blank to use the default name." = "기본 이름을 사용하려면 비워 두세요.";
 "Rewards" = "보상";
 "Reward expiry" = "보상 만료일";
+"Claude Platform session validated and saved." = "Claude Platform 세션을 검증하고 저장했습니다.";
+"Use %@ or %@." = "%@ 또는 %@을(를) 사용하세요.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "%@에서 로그인하세요. sessionKey가 포함된 Cookie 헤더를 %@에 비공개로 전달하세요. 그런 다음 %@을(를) 실행하세요.";
+"Read cookie header from stdin" = "stdin에서 쿠키 헤더 읽기";

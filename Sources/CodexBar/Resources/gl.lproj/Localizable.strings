@@ -2793,3 +2793,7 @@
 "Leave blank to use the default name." = "Deixa este campo baleiro para usar o nome predeterminado.";
 "Rewards" = "Recompensas";
 "Reward expiry" = "Caducidade das recompensas";
+"Claude Platform session validated and saved." = "Validouse e gardouse a sesión de Claude Platform.";
+"Use %@ or %@." = "Usa %@ ou %@.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Inicia sesión en %@. Proporciona de forma privada a súa cabeceira Cookie con sessionKey a %@. Despois executa %@.";
+"Read cookie header from stdin" = "Ler a cabeceira de cookies de stdin";

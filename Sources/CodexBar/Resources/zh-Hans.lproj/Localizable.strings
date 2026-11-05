@@ -2786,3 +2786,7 @@
 "Leave blank to use the default name." = "留空以使用默认名称。";
 "Rewards" = "奖励";
 "Reward expiry" = "奖励到期日期";
+"Claude Platform session validated and saved." = "已验证并保存 Claude Platform 会话。";
+"Use %@ or %@." = "请使用 %@ 或 %@。";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "请登录 %@。将包含 sessionKey 的 Cookie 请求头私密地传给 %@，然后运行 %@。";
+"Read cookie header from stdin" = "从 stdin 读取 Cookie 请求头";

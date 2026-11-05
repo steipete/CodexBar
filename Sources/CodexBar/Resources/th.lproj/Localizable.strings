@@ -2796,3 +2796,7 @@
 "Leave blank to use the default name." = "เว้นว่างไว้เพื่อใช้ชื่อเริ่มต้น";
 "Rewards" = "รางวัล";
 "Reward expiry" = "วันหมดอายุของรางวัล";
+"Claude Platform session validated and saved." = "ตรวจสอบและบันทึกเซสชัน Claude Platform แล้ว";
+"Use %@ or %@." = "ใช้ %@ หรือ %@";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "ลงชื่อเข้าใช้ที่ %@ ส่งส่วนหัว Cookie ที่มี sessionKey ไปยัง %@ แบบเป็นส่วนตัว จากนั้นเรียกใช้ %@";
+"Read cookie header from stdin" = "อ่านส่วนหัวคุกกี้จาก stdin";

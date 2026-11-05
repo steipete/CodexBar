@@ -2797,3 +2797,7 @@
 "Leave blank to use the default name." = "Varsayılan adı kullanmak için boş bırakın.";
 "Rewards" = "Ödüller";
 "Reward expiry" = "Ödüllerin son kullanma tarihi";
+"Claude Platform session validated and saved." = "Claude Platform oturumu doğrulandı ve kaydedildi.";
+"Use %@ or %@." = "%@ veya %@ kullanın.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "%@ adresinde oturum açın. sessionKey içeren Cookie başlığını gizli olarak %@ komutuna iletin. Ardından %@ komutunu çalıştırın.";
+"Read cookie header from stdin" = "Çerez başlığını stdin üzerinden oku";

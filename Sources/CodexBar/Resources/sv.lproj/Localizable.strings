@@ -2793,3 +2793,7 @@
 "Leave blank to use the default name." = "Lämna tomt för att använda standardnamnet.";
 "Rewards" = "Belöningar";
 "Reward expiry" = "Belöningarnas utgångsdatum";
+"Claude Platform session validated and saved." = "Claude Platform-sessionen har validerats och sparats.";
+"Use %@ or %@." = "Använd %@ eller %@.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Logga in på %@. Skicka Cookie-headern med sessionKey privat till %@. Kör sedan %@.";
+"Read cookie header from stdin" = "Läs cookie-header från stdin";

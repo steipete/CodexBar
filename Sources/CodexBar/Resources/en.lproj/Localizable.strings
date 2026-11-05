@@ -2799,3 +2799,7 @@
 "Leave blank to use the default name." = "Leave blank to use the default name.";
 "Rewards" = "Rewards";
 "Reward expiry" = "Reward expiry";
+"Claude Platform session validated and saved." = "Claude Platform session validated and saved.";
+"Use %@ or %@." = "Use %@ or %@.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@.";
+"Read cookie header from stdin" = "Read cookie header from stdin";
