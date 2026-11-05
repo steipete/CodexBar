@@ -497,8 +497,9 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 
 ## Synthetic
 - API key from `~/.codexbar/config.json` (`providers[].apiKey`) or `SYNTHETIC_API_KEY`.
-- The menu card shows rolling five-hour, weekly token, and search-hourly quota lanes when present. The compact menu bar
-  metric uses the five-hour or weekly lane; weekly credit regeneration details appear when returned.
+- The menu card shows weekly credit and search-hourly quota lanes for current plans, including weekly regeneration
+  details when returned. Older plans can also supply a rolling five-hour quota. Known lanes suppress the legacy
+  subscription request counter; a subscription-only response remains supported.
 - External status page: `https://status.synthetic.new` (not linked or auto-polled by CodexBar).
 - Details: `docs/synthetic.md`.
 

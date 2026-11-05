@@ -189,6 +189,7 @@ a second identifier is an error. For an option value beginning with a dash, use 
 - `codexbar dashboard` prints one dashboard-v1 JSON snapshot and exits.
   - Honors enabled providers in stable order, carries configured display sort keys, and defaults to full account identity; `--identity redacted` hides email local parts.
   - Provider failures remain row-level errors alongside healthy rows; a valid partial snapshot exits `0`.
+  - Claude's unavailable per-model breakdown adds `providers[].warnings: ["model-breakdown-unavailable"]` while retaining session and all-model weekly quotas. This optional schema-v1 field carries fixed codes only, never provider notice text, in every identity mode. It is omitted after recovery and from shell rows; an account with no model-specific limit does not receive the warning.
   - Stdout contains only the snapshot document. Diagnostics and optional `--json-output` logs go to stderr.
   - `--pretty` formats the document. `--timeout <seconds>` accepts `0...86400`, defaults to `30`, and uses `0` to disable the command deadline.
   - `--output <path>` atomically writes the snapshot to a file (`0644`) instead of stdout — staged in the destination directory, fsync'd, then renamed over the target so readers never observe a partial document. The parent directory must already exist (it is not created), and stdout stays silent on success.
@@ -289,7 +290,8 @@ a second identifier is an error. For an option value beginning with a dash, use 
 - `codexbar hooks watch` polls enabled providers and fires matching hooks on real quota and status transitions.
   Without it, hook rules only ever fire from the macOS app, so a headless install can configure hooks that never run.
   - `--interval <seconds>`: poll period. Default `300`, minimum `60`; a smaller value is rejected rather than
-    clamped, because each tick fetches every selected provider.
+    clamped, because each tick fetches every selected provider. Nonfinite values and intervals that cannot fit the
+    rounded nanosecond sleep timer are also rejected before config reads or provider fetches.
   - `--provider <id|both|all>`: restrict polling; repeatable. Defaults to every enabled provider. `both` selects the primary providers; `all` selects every registered provider, including providers not enabled in the config.
   - `--format json`/`--json`/`--pretty`: emit each attempted event as JSON, excluding throttled candidates.
   - Events are edge-triggered against the previous poll, so a condition that merely persists (a saturated window,
