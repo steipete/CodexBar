@@ -610,9 +610,11 @@ mode. The additive field is omitted after recovery and from shell rows.
     "Current session" + "Current week" headers. Cursor jumps preserve unchanged cells from earlier frames, keeping
     scoped weekly percentages, reset spacing, and account identity intact. Erased content is not reused as history.
   - Plain reports, including color-only ANSI output and legacy CR-delimited text, retain their existing parsing behavior.
-  - Capture completion uses the current rendered frame and waits for session quota values; percentages in the
+  - Capture completion uses the current rendered frame and waits for session quota values and the CLI's
+    `Refreshing…` footer to clear; percentages in the
     "What's contributing to your limits usage?" insights section cannot finish a loading quota probe. Once quota is
-    complete, insight text cannot trigger another command-palette confirmation.
+    visible, further Enter retries stop while the scoped weekly breakdown finishes refreshing. The existing capture
+    timeout still bounds the wait; unmarked late redraws cannot be distinguished from a complete panel.
   - Extracts percent left/used and reset text near those headers.
   - When a reset date cannot be parsed, the menu preserves its description and normalizes leading `Reset` or `Resets` labels once, including scoped weekly limits.
   - Parses `Account:` and `Org:` lines when present.
