@@ -1576,7 +1576,7 @@
 "7-day usage" = "الاستخدام خلال 7 أيام";
 "Total usage" = "إجمالي الاستخدام";
 "claude_oauth_keychain_access_disabled" = "الوصول إلى Keychain معطّل، لذا لا يستطيع CodexBar قراءة معلومات تسجيل الدخول إلى Claude.";
-"claude_oauth_keychain_access_revoked" = "تم إلغاء وصول CodexBar إلى سلسلة مفاتيح Claude بسبب تدوير الرمز المميز في Claude Code. انقر على «تحديث» لمنح الوصول مجددًا، أو بدّل مصدر استخدام Claude إلى CLI/Web.";
+"claude_oauth_keychain_access_revoked" = "بيانات اعتماد Claude OAuth غير متاحة حاليًا لـ CodexBar. انقر على «تحديث» لإعادة محاولة الوصول، أو بدّل مصدر استخدام Claude إلى CLI/Web.";
 "claude_showing_last_known_usage" = "يتم عرض آخر بيانات استخدام معروفة، تم التقاطها %@.";
 "claude_limited_usage_detail" = "تفاصيل الاستخدام محدودة";
 /* Spend dashboard cost analysis */

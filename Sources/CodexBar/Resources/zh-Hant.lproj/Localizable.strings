@@ -1603,7 +1603,7 @@
 "7-day usage" = "7 天用量";
 "Total usage" = "總用量";
 "claude_oauth_keychain_access_disabled" = "Keychain 存取已停用，因此 CodexBar 無法讀取 Claude 的登入資訊。";
-"claude_oauth_keychain_access_revoked" = "Claude Code 輪替權杖後撤銷了 Claude 鑰匙圈的存取權。按一下「重新整理」以重新授權，或將 Claude 使用量來源切換為 CLI/Web。";
+"claude_oauth_keychain_access_revoked" = "CodexBar 目前無法存取 Claude OAuth 憑證。按一下「重新整理」以重新嘗試存取，或將 Claude 使用量來源切換為 CLI/Web。";
 "claude_showing_last_known_usage" = "正在顯示於 %@ 擷取的最後已知使用量。";
 "claude_limited_usage_detail" = "使用量詳細資訊有限";
 /* Spend dashboard cost analysis */

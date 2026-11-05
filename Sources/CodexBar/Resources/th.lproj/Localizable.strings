@@ -1576,7 +1576,7 @@
 "7-day usage" = "การใช้งาน 7 วัน";
 "Total usage" = "การใช้งานทั้งหมด";
 "claude_oauth_keychain_access_disabled" = "การเข้าถึง Keychain ถูกปิดใช้งาน จึงทำให้ CodexBar ไม่สามารถอ่านข้อมูลการลงชื่อเข้าใช้ Claude ได้";
-"claude_oauth_keychain_access_revoked" = "สิทธิ์เข้าถึงพวงกุญแจ Claude ถูกเพิกถอนจากการหมุนเวียนโทเค็นของ Claude Code คลิกรีเฟรชเพื่อให้สิทธิ์อีกครั้ง หรือเปลี่ยนแหล่งที่มาการใช้งาน Claude เป็น CLI/Web";
+"claude_oauth_keychain_access_revoked" = "ขณะนี้ CodexBar ไม่สามารถเข้าถึงข้อมูลรับรอง OAuth ของ Claude ได้ คลิกรีเฟรชเพื่อลองเข้าถึงอีกครั้ง หรือเปลี่ยนแหล่งที่มาการใช้งาน Claude เป็น CLI/Web";
 "claude_showing_last_known_usage" = "กำลังแสดงการใช้งานล่าสุดที่ทราบ ซึ่งบันทึกเมื่อ %@";
 "claude_limited_usage_detail" = "รายละเอียดการใช้งานมีจำกัด";
 /* Spend dashboard cost analysis */
