@@ -891,6 +891,9 @@ extension ClaudeStatusProbe {
         self.extractFirst(pattern: #"current\s*week\s*\(([^)]+)\)"#, text: line)
     }
 
+    /// Stable `usage.details` row ID carrying the CLI's unavailable per-model breakdown notice.
+    public static let modelBreakdownDetailRowID = "claude-model-breakdown"
+
     static func modelBreakdownNotice(in text: String) -> String? {
         let clean = self.cleanCapture(text)
         // Preserve the diagnostic, without advertising the CLI's interactive retry shortcut.
