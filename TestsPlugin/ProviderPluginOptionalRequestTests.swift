@@ -1,9 +1,9 @@
 import Foundation
+import Testing
+@testable import CodexBarCore
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import Testing
-@testable import CodexBarCore
 
 struct ProviderPluginOptionalRequestTests {
     @Test
