@@ -619,10 +619,20 @@ public struct CostUsageFetcher: Sendable {
             let home = environment["HOME"].map { URL(fileURLWithPath: $0, isDirectory: true) }
                 ?? FileManager.default.homeDirectoryForCurrentUser
             return try await CostUsageScanExecutor.run { _ in
-                let usage = try OpenCodeGoLocalUsageReader(homeDirectory: home).fetch(
-                    now: now, historyDays: clampedHistoryDays, calendar: fallbackCalendar)
-                return CostUsageTokenResult(snapshot: usage.toCostUsageTokenSnapshot(
-                    historyDays: clampedHistoryDays, calendar: fallbackCalendar))
+                do {
+                    let usage = try OpenCodeGoLocalUsageReader(homeDirectory: home).fetch(
+                        now: now, historyDays: clampedHistoryDays, calendar: fallbackCalendar)
+                    return CostUsageTokenResult(snapshot: usage.toCostUsageTokenSnapshot(
+                        historyDays: clampedHistoryDays, calendar: fallbackCalendar))
+                } catch OpenCodeGoLocalUsageError.notDetected {
+                    // Like Cursor and Antigravity: no local OpenCode install on this machine means
+                    // no local cost history, not a failure. Remote hosts (`codexbar serve`) often
+                    // track OpenCode Go quota without ever running OpenCode locally.
+                    return CostUsageTokenResult(snapshot: Self.unavailableLocalSnapshot(
+                        now: now,
+                        historyDays: clampedHistoryDays,
+                        calendar: fallbackCalendar))
+                }
             }
         }
         // Provider-specific by design: Muse local history has token evidence but no established dollar rates.

@@ -25,6 +25,37 @@ struct OpenCodeGoLocalUsageReaderTests {
     }
 
     @Test
+    func `cost fetcher returns empty history when OpenCode is not installed`() async throws {
+        // `codexbar serve` hosts often track OpenCode Go quota through the API without a local
+        // OpenCode install; their `/cost` row must be empty, not an error.
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("OpenCodeGoLocalUsageReaderTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let snapshot = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .opencodego,
+            environment: ["HOME": root.path],
+            now: Date(timeIntervalSince1970: 1_772_798_400),
+            allowPricingRefresh: false)
+        #expect(snapshot.daily.isEmpty)
+        #expect(snapshot.last30DaysCostUSD == nil)
+    }
+
+    @Test
+    func `cost fetcher still reports missing history when OpenCode Go is logged in`() async throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        try Self.writeAuth(to: env.authURL)
+        await #expect(throws: OpenCodeGoLocalUsageError.historyUnavailable("database not found")) {
+            _ = try await CostUsageFetcher.loadTokenSnapshot(
+                provider: .opencodego,
+                environment: ["HOME": env.root.path],
+                now: Date(timeIntervalSince1970: 1_772_798_400),
+                allowPricingRefresh: false)
+        }
+    }
+
+    @Test
     func `cost fetcher preserves all history beyond one year`() async throws {
         let env = try Self.makeEnvironment()
         defer { try? FileManager.default.removeItem(at: env.root) }
