@@ -52,6 +52,29 @@ struct CLIHooksWatchArgumentPrecedenceLinuxTests {
         #expect(error.message.contains("Invalid --interval"))
     }
 
+    @Test(arguments: ["1e100", "19000000000", String(Double(UInt64.max) / 1_000_000_000)])
+    func `interval that overflows nanoseconds is rejected`(raw: String) {
+        let result = CodexBarCLI.decodeHooksWatchInterval(from: Self.values(options: ["interval": [raw]]))
+        guard case let .failure(error) = result else {
+            Issue.record("expected an argument error for an unrepresentable sleep interval")
+            return
+        }
+        #expect(error.message.contains("--interval"))
+    }
+
+    @Test(arguments: [
+        "60.5", "300", "3600", "18000000000",
+        String((Double(UInt64.max) / 1_000_000_000).nextDown),
+    ])
+    func `representable intervals above the floor remain accepted`(raw: String) {
+        let result = CodexBarCLI.decodeHooksWatchInterval(from: Self.values(options: ["interval": [raw]]))
+        guard case let .success(interval) = result else {
+            Issue.record("expected a representable interval to be accepted")
+            return
+        }
+        #expect(interval == Double(raw))
+    }
+
     @Test
     func `interval defaults when absent`() {
         let result = CodexBarCLI.decodeHooksWatchInterval(from: Self.values())
