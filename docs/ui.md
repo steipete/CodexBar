@@ -9,15 +9,18 @@ read_when:
 
 ## Settings
 
+Settings selectors use native popup controls in official builds. Imported custom values, such as three work days, stay visible alongside the preset choices.
+
 On macOS 26 and later, Settings uses the system split-view sidebar, toolbar, search, and scroll-edge effects. The native sidebar toggle and divider can hide or restore the sidebar; its saved width is preserved. The detail scroll view and frosted toolbar backing fill the available column even in wide windows. Earlier macOS versions keep the existing sidebar, titlebar layout, and detail reading-width cap.
+On macOS 26 and later, Settings uses the system split-view sidebar, toolbar, search, and scroll-edge effects. The native sidebar toggle and divider can hide or restore the sidebar; its saved width is preserved. Provider sorting controls hide with the sidebar and return when it reopens. The detail scroll view and frosted toolbar backing fill the available column even in wide windows. Earlier macOS versions keep the existing sidebar, titlebar layout, and detail reading-width cap.
 
 - Back and Forward revisit the panes you opened, using Command-[ and Command-] as in System Settings. Selecting a new pane after going back clears forward history; reselecting the current pane preserves it. The last pane still restores at launch, while navigation history lasts only for the current app session. Hidden Debug panes are removed from history. On macOS 26 and later, the controls use the native toolbar; macOS 14/15 retain the native window title and show the controls above the pane content. The native window title stays set on every version for accessibility and the Window menu. About and Acknowledgements share this history. Opening About explicitly returns to its root; reopening Settings preserves the current destination during the session. Only the pane, not a subpage or history, restores after relaunch.
 - Dock presence follows startup and actual window transitions instead of rescanning windows on every app update. Scheduled Sparkle alerts still request temporary Dock presence, including alerts shown behind another app.
 - Menu → Highlight menu cards on hover is on by default. Turn it off to keep normal text and usage-bar colors on provider cards, Overview cards, and Refresh while hovering. Keyboard selection stays visible; clicks and submenus are unchanged. The choice persists locally across restarts.
 - The provider sidebar keeps saved order and the one-click alphabetical toggle (enabled first). The adjacent
   menu offers Only show enabled providers and Restore default order. Restore is disabled when the saved order
-  is already the default and alphabetical sorting is off. Search matches service names, provider IDs,
-  CLI names, and CLI aliases, ignoring case and accents.
+  is already the default and alphabetical sorting is off. Search matches Settings pane titles, service names, provider IDs,
+  CLI names, and CLI aliases, ignoring case and accents. Individual settings controls are not indexed.
 - Browsing filters do not rewrite provider configuration or menu bar order. Dragging is available only in the
   unfiltered saved-order view and retains hidden plugin positions. Restore default order resets built-in service
   positions to the catalog order, preserving provider configuration and plugins. Undo (also available through
@@ -47,6 +50,9 @@ On macOS 26 and later, Settings uses the system split-view sidebar, toolbar, sea
 - If a Homebrew check or update fails, About shows the error and, when the active receipt identifies the cask, a selectable monospaced upgrade command for that cask with a trailing copy control. The control confirms successful copies briefly; copying does not run an update.
 
 ## Menu bar
+
+After a quota refresh fails, retained usage bars use a neutral tint until recovery, even with an account subtitle override. Successful fallback diagnostics and account-switch failures with successfully refreshed quotas keep the provider color. Current exhausted quota measurements also keep their tint; a limit notice alone does not mark them stale. Code Review follows its own dashboard refresh outcome; separately refreshed monthly credit meters, supplemental costs, and charts keep their own color.
+Menu-card percentages, reset countdowns, and cost/credit values use tabular digits, keeping equal-length numeric updates steady. Titles, hints, and errors keep proportional typography.
 
 Stacked rows with leading window labels align their values and meters after the widest label. Rows that begin with names, explicit spaces, or inline icons retain their natural spacing; hiding percentage window labels is unchanged.
 - Provider cards with both live throughput and daily history use a fixed-height Live · Spend chart switch; Live is the default, and the choice is remembered locally per provider instance.

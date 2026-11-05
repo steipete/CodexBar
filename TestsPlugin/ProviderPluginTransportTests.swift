@@ -261,7 +261,7 @@ struct ProviderPluginTransportTests {
         #expect(await transport.count == 2)
     }
 
-    @Test(arguments: Self.engines)
+    @Test(.timeLimit(.minutes(1)), arguments: Self.engines)
     func `request deadline applies to each retry attempt`(engine: ProviderPluginEngineKind) async throws {
         let counter = PluginStatusTransport(status: 200)
         let runtime = try Self.runtime(
@@ -272,7 +272,10 @@ struct ProviderPluginTransportTests {
             """,
             transport: ProviderHTTPTransportHandler { request in
                 let response = try await counter.data(for: request)
-                try await Task.sleep(for: .seconds(5))
+                let (pending, release) = AsyncStream<Void>.makeStream()
+                defer { release.finish() }
+                for await _ in pending {}
+                try Task.checkCancellation()
                 return response
             })
         await #expect(throws: URLError(.timedOut)) { try await runtime.fetchUsage() }

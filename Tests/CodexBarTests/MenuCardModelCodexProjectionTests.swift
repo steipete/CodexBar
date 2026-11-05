@@ -486,8 +486,9 @@ struct MenuCardModelCodexProjectionTests {
         #expect(model.metrics.contains { $0.title == "Code review" && $0.percent == 27 })
     }
 
-    @Test
-    func `shows code review metric when dashboard present`() throws {
+    @Test(arguments: [false, true])
+    @MainActor
+    func `code review tint follows dashboard refresh outcome`(dashboardRefreshFailed: Bool) throws {
         let now = Date()
         let identity = ProviderIdentitySnapshot(
             providerID: .codex,
@@ -522,7 +523,7 @@ struct MenuCardModelCodexProjectionTests {
                 liveCredits: nil,
                 rawCreditsError: nil,
                 liveDashboard: dashboard,
-                rawDashboardError: nil,
+                rawDashboardError: dashboardRefreshFailed ? "Dashboard failed" : nil,
                 dashboardAttachmentAuthorized: true,
                 dashboardRequiresLogin: false,
                 now: now))
@@ -538,7 +539,9 @@ struct MenuCardModelCodexProjectionTests {
             tokenError: nil,
             account: AccountInfo(email: "codex@example.com", plan: nil),
             isRefreshing: false,
-            lastError: nil,
+            lastError: "Quota failed",
+            quotaRefreshFailed: true,
+            dashboardRefreshFailed: dashboardRefreshFailed,
             usageBarsShowUsed: false,
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
@@ -549,6 +552,16 @@ struct MenuCardModelCodexProjectionTests {
         #expect(model.metrics.contains { $0.title == "Code review" && $0.percent == 73 })
         let codeReviewMetric = model.metrics.first { $0.id == "code-review" }
         #expect(codeReviewMetric?.resetText?.contains("Resets") == true)
+        let metric = try #require(codeReviewMetric)
+        let row = MetricRow(
+            metric: metric,
+            layoutMetric: metric,
+            title: metric.title,
+            progressColor: model.progressColor,
+            isRetainedMeasurement: model.showsRetainedMeasurement)
+        let expectedTint = dashboardRefreshFailed
+            ? UsageMenuCardView.Model.staleProgressColor : model.progressColor
+        #expect(row.barTint == expectedTint)
     }
 
     @Test
