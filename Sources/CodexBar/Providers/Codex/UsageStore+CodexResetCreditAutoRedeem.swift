@@ -25,11 +25,11 @@ extension UsageStore {
         let authorized: @MainActor @Sendable () -> Bool = { [weak self] in
             guard let self else { return false }
             return self.settings.codexResetCreditAutoRedeemEnabled && self.isEnabled(.codex)
-                && self.freshCodexAccountScopedRefreshGuard() == expectedGuard
+                && Self.codexScopedRefreshGuardsMatchAccount(self.freshCodexAccountScopedRefreshGuard(), expectedGuard)
         }
         self.codexResetCreditAutoRedeemer.update(
             enabled: true,
-            owner: owner.rawValue + ":" + sourceKey + ":" + (expectedGuard.authFingerprint ?? ""),
+            owner: owner.rawValue + ":" + sourceKey,
             snapshot: snapshot.codexResetCredits,
             consume: { stableID, requestID in
                 guard authorized() else { throw CancellationError() }

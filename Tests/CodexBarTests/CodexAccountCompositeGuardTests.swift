@@ -64,6 +64,8 @@ extension CodexAccountScopedRefreshTests {
         let usage = self.codexSnapshot(email: "member@example.com", usedPercent: 25)
         #expect(store.shouldApplyCodexUsageResult(expectedGuard: expectedGuard, usage: usage))
         #expect(store.shouldApplyCodexScopedNonUsageResult(expectedGuard: expectedGuard))
+        #expect(UsageStore.codexScopedRefreshGuardsMatchAccount(
+            store.freshCodexAccountScopedRefreshGuard(), expectedGuard))
         #expect(store.shouldApplyOpenAIDashboardRefreshGuard(
             expectedGuard: expectedGuard,
             routingTargetEmail: "member@example.com"))
