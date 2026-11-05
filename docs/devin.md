@@ -29,9 +29,11 @@ only consulted after the browser sessions have been tried, so a working browser 
 Keychain item. Devin.app keeps the signed-in session in its VS Code-style secret
 storage (`User/globalStorage/state.vscdb`, `windsurf_auth.sessions`), encrypted with the app's Safe Storage
 key like Chromium `v10` values. Decrypting it needs the `Devin Safe Storage` Keychain item, so the first
-refresh can show one macOS Keychain prompt from the app or the bundled CLI; choosing **Always Allow** keeps
+explicit refresh in the app can show one macOS Keychain prompt; choosing **Always Allow** keeps
 later refreshes silent, and the same denial cooldowns as browser cookie imports apply. Background refreshes
 never prompt — they reuse an existing grant or skip the Devin app source until an explicit refresh.
+The bundled CLI only fetches in the background, so it never prompts for `Devin Safe Storage`; without a
+browser session it reports no session — use [manual auth](#manual-auth) if the CLI is your entry point.
 
 For accounts with multiple organizations, set **Organization** to select one explicitly. An internal `org-...` or
 `org_...` ID takes precedence over cached organization metadata from browsers or the Devin app. A slug uses only its matching cached ID;
