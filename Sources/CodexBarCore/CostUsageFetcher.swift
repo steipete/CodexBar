@@ -625,9 +625,7 @@ public struct CostUsageFetcher: Sendable {
                     return CostUsageTokenResult(snapshot: usage.toCostUsageTokenSnapshot(
                         historyDays: clampedHistoryDays, calendar: fallbackCalendar))
                 } catch OpenCodeGoLocalUsageError.notDetected {
-                    // Like Cursor and Antigravity: no local OpenCode install on this machine means
-                    // no local cost history, not a failure. Remote hosts (`codexbar serve`) often
-                    // track OpenCode Go quota without ever running OpenCode locally.
+                    // Remote quota tracking does not require a local OpenCode install.
                     return CostUsageTokenResult(snapshot: Self.unavailableLocalSnapshot(
                         now: now,
                         historyDays: clampedHistoryDays,

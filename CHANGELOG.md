@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- OpenCode Go: cost scans on machines without a local OpenCode install return empty history instead of a "not detected" error, so `codexbar serve` hosts tracking OpenCode Go quota no longer report a failing cost row.
+- OpenCode Go: return unavailable cost history instead of an error when OpenCode is not installed locally, including on `codexbar serve` hosts tracking remote quota. (#4931) Thanks @VACInc!
 
 ## 0.83.0 — 2026-10-31
 

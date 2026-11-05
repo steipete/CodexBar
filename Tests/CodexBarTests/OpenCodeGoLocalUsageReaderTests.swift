@@ -38,7 +38,11 @@ struct OpenCodeGoLocalUsageReaderTests {
             now: Date(timeIntervalSince1970: 1_772_798_400),
             allowPricingRefresh: false)
         #expect(snapshot.daily.isEmpty)
+        #expect(!snapshot.historyCoverageIsEstablished)
+        #expect(snapshot.sessionCostUSD == nil)
+        #expect(snapshot.sessionTokens == nil)
         #expect(snapshot.last30DaysCostUSD == nil)
+        #expect(snapshot.last30DaysTokens == nil)
     }
 
     @Test
