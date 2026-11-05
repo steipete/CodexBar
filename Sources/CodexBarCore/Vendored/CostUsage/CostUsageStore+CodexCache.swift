@@ -244,7 +244,6 @@ extension CostUsageStore {
         restored.lastScanUnixMs = cache.lastScanUnixMs
         restored.timeZoneIdentifier = calendar.timeZone.identifier
         restored.codexScanCatchUpPending = cache.codexScanCatchUpPending
-        restored.files = restored.files.mapValues(Self.normalizingScanComplete)
         var incoming = cache
         incoming.timeZoneIdentifier = calendar.timeZone.identifier
         incoming.files = incoming.files.mapValues(Self.normalizingScanComplete)
@@ -292,6 +291,9 @@ extension CostUsageStore {
     }
 
     private static func normalizingScanComplete(_ usage: CostUsageFileUsage) -> CostUsageFileUsage {
+        #if DEBUG
+        CostUsageStoreTestHooks.current.codexScanCompleteNormalizationVisit?()
+        #endif
         var usage = usage
         usage.codexScanComplete = usage.codexScanComplete ?? true
         return usage
