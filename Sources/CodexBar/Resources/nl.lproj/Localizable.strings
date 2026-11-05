@@ -2115,6 +2115,9 @@
 "Billing" = "Facturering";
 "Invoice billing" = "Betaling op factuur";
 "Prepaid" = "Vooruitbetaald";
+"Billed audio" = "Gefactureerde audio";
+"Pre-recorded" = "Vooraf opgenomen";
+"Transcriptions" = "Transcripties";
 "Rate limit" = "Verzoeksnelheidslimiet";
 "Billing and rate-limit data from the v0 Platform API" = "Factureringsgegevens en verzoeksnelheidslimieten van de v0 Platform API";
 "v0 cost history is not available via the Platform API." = "De kostengeschiedenis van v0 is niet beschikbaar via het platform API.";

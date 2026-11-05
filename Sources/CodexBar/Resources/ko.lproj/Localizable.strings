@@ -2084,6 +2084,9 @@
 "Billing" = "청구";
 "Invoice billing" = "청구서 결제";
 "Prepaid" = "선불";
+"Billed audio" = "청구된 오디오";
+"Pre-recorded" = "사전 녹음";
+"Transcriptions" = "전사";
 "Rate limit" = "비율 제한";
 "Billing and rate-limit data from the v0 Platform API" = "v0 플랫폼 API의 청구 및 요금 제한 데이터";
 "v0 cost history is not available via the Platform API." = "v0 비용 내역은 플랫폼 API를 통해 확인할 수 없습니다.";

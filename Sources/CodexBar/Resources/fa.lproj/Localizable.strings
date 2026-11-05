@@ -2120,6 +2120,9 @@
 "Billing" = "صورتحساب";
 "Invoice billing" = "پرداخت با صورتحساب";
 "Prepaid" = "پیش‌پرداخت";
+"Billed audio" = "صدای صورتحساب‌شده";
+"Pre-recorded" = "از پیش ضبط‌شده";
+"Transcriptions" = "رونویسی‌ها";
 "Rate limit" = "محدودیت نرخ";
 "Billing and rate-limit data from the v0 Platform API" = "داده‌های صورت‌حساب و محدودیت نرخ از پلتفرم v0 API";
 "v0 cost history is not available via the Platform API." = "تاریخچه هزینه v0 از طریق پلتفرم API در دسترس نیست.";

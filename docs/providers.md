@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 111 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 112 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -191,6 +191,7 @@ complete when the available scan window covers fewer days.
 | [Chatbox AI](chatbox.md) | API token |
 | [abliteration.ai](abliteration.md) | API key for prepaid USD credits and cumulative usage. |
 | [OpenDesign](opendesign.md) | Browser or manual session cookies for the active workspace's five-hour and weekly subscription allowance. |
+| [Gladia](gladia.md) | API key for month-to-date billed audio summed from pre-recorded and live transcription lists. |
 
 <!-- End generated provider additions -->
 

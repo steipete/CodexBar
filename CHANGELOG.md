@@ -2,6 +2,10 @@
 
 ## 0.83.1 — Unreleased
 
+### Added
+
+- Gladia: show this month's billed pre-recorded and live audio using an API key, summed from the read-only transcription lists.
+
 ### Fixed
 
 - Plugins: keep HTTP timeouts and caller cancellation responsive when a transport's cancellation handler blocks (#4891, #4867). Thanks @akshat-khare and @Yuxin-Qiao!

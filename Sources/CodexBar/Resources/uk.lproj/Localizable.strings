@@ -2117,6 +2117,9 @@
 "Billing" = "Оплата";
 "Invoice billing" = "Оплата за рахунком";
 "Prepaid" = "Передоплата";
+"Billed audio" = "Оплачуване аудіо";
+"Pre-recorded" = "Попередньо записане";
+"Transcriptions" = "Транскрипції";
 "Rate limit" = "Обмеження частоти запитів";
 "Billing and rate-limit data from the v0 Platform API" = "Дані про оплату та обмеження частоти запитів з API платформи v0";
 "v0 cost history is not available via the Platform API." = "API платформи не надає історії витрат v0.";

@@ -156,9 +156,9 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        // OpenDesign extends the audited palette without changing existing provider colors.
-        #expect(widgetFingerprint == 12_294_021_938_397_504_337)
-        #expect(burnDownFingerprint == 9_386_534_283_149_694_433)
+        // Gladia extends the audited palette without changing existing provider colors.
+        #expect(widgetFingerprint == 3_347_224_249_097_708_342)
+        #expect(burnDownFingerprint == 1_615_768_256_197_954_597)
     }
 
     @Test

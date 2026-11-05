@@ -2117,6 +2117,9 @@
 "Billing" = "Thanh toán";
 "Invoice billing" = "Thanh toán theo hóa đơn";
 "Prepaid" = "Trả trước";
+"Billed audio" = "Âm thanh đã tính phí";
+"Pre-recorded" = "Ghi sẵn";
+"Transcriptions" = "Bản chép lời";
 "Rate limit" = "Giới hạn tỷ lệ";
 "Billing and rate-limit data from the v0 Platform API" = "Dữ liệu thanh toán và giới hạn tỷ lệ từ Nền tảng v0 API";
 "v0 cost history is not available via the Platform API." = "Lịch sử chi phí v0 không có sẵn thông qua Nền tảng API.";

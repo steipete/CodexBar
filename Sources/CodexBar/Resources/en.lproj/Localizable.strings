@@ -2121,6 +2121,9 @@
 "Billing" = "Billing";
 "Invoice billing" = "Invoice billing";
 "Prepaid" = "Prepaid";
+"Billed audio" = "Billed audio";
+"Pre-recorded" = "Pre-recorded";
+"Transcriptions" = "Transcriptions";
 "Rate limit" = "Rate limit";
 "Billing and rate-limit data from the v0 Platform API" = "Billing and rate-limit data from the v0 Platform API";
 "v0 cost history is not available via the Platform API." = "v0 cost history is not available via the Platform API.";

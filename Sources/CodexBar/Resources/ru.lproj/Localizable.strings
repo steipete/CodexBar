@@ -2117,6 +2117,9 @@
 "Billing" = "Биллинг";
 "Invoice billing" = "Оплата по счёту";
 "Prepaid" = "Предоплата";
+"Billed audio" = "Оплачиваемое аудио";
+"Pre-recorded" = "Предзаписанное";
+"Transcriptions" = "Транскрипции";
 "Rate limit" = "Ограничение скорости";
 "Billing and rate-limit data from the v0 Platform API" = "Данные о выставлении счетов и ограничениях скорости с платформы v0 API";
 "v0 cost history is not available via the Platform API." = "История затрат v0 недоступна через платформу API.";

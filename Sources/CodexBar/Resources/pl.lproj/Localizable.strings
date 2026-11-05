@@ -2119,6 +2119,9 @@
 "Billing" = "Rozliczenia";
 "Invoice billing" = "Płatność na podstawie faktury";
 "Prepaid" = "Przedpłata";
+"Billed audio" = "Rozliczone audio";
+"Pre-recorded" = "Nagrane wcześniej";
+"Transcriptions" = "Transkrypcje";
 "Rate limit" = "Limit częstotliwości żądań";
 "Billing and rate-limit data from the v0 Platform API" = "Dane rozliczeniowe i limity częstotliwości żądań z API platformy v0";
 "v0 cost history is not available via the Platform API." = "Historia kosztów v0 nie jest dostępna poprzez Platformę API.";

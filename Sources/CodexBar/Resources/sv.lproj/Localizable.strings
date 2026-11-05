@@ -2115,6 +2115,9 @@
 "Billing" = "Fakturering";
 "Invoice billing" = "Fakturabetalning";
 "Prepaid" = "Förbetalt";
+"Billed audio" = "Fakturerat ljud";
+"Pre-recorded" = "Förinspelat";
+"Transcriptions" = "Transkriptioner";
 "Rate limit" = "Gräns för anropsfrekvens";
 "Billing and rate-limit data from the v0 Platform API" = "Faktureringsdata och gränser för anropsfrekvens från v0-plattformens API";
 "v0 cost history is not available via the Platform API." = "v0 kostnadshistorik är inte tillgänglig via plattformen API.";
