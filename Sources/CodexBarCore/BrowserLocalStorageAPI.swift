@@ -57,7 +57,9 @@ struct BrowserLocalStorageAPI: Sendable {
         labelPrefix: String,
         logger: @escaping @Sendable (String) -> Void) -> [Profile]
     {
-        let profileNames = Self.chromeProfileNames(root: root)
+        let profileNames = ProviderBrowserProfile.chromiumProfileNames(
+            root: root,
+            nameKeys: ["gaia_given_name", "name"])
         return ChromiumLocalStorageDiscovery.profileCandidates(root: root, labelPrefix: labelPrefix)
             .compactMap { candidate in
                 guard !Task.isCancelled else { return nil }
@@ -71,7 +73,7 @@ struct BrowserLocalStorageAPI: Sendable {
                     in: levelDB,
                     logger: logger)
                     .map { Entry(key: $0.key, value: $0.value) }
-                let displayName = profileNames[name]?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let displayName = profileNames[name]
                 let label = if let displayName, !displayName.isEmpty, displayName != name {
                     "\(labelPrefix) — \(displayName)"
                 } else {
@@ -80,22 +82,6 @@ struct BrowserLocalStorageAPI: Sendable {
                 return Profile(id: id, label: label, entries: entries)
             }
             .sorted { $0.label.localizedStandardCompare($1.label) == .orderedAscending }
-    }
-
-    private static func chromeProfileNames(root: URL) -> [String: String] {
-        let localStateURL = root.appendingPathComponent("Local State")
-        guard let data = try? Data(contentsOf: localStateURL),
-              let rootObject = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let profile = rootObject["profile"] as? [String: Any],
-              let infoCache = profile["info_cache"] as? [String: Any]
-        else { return [:] }
-
-        return infoCache.reduce(into: [:]) { result, entry in
-            guard let info = entry.value as? [String: Any] else { return }
-            let name = (info["gaia_given_name"] as? String) ?? (info["name"] as? String)
-            guard let name else { return }
-            result[entry.key] = name
-        }
     }
 }
 #endif

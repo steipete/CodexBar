@@ -37,7 +37,7 @@ public struct ProviderBrowserProfile: Sendable, Equatable {
         }
     }
 
-    private static func chromiumProfileNames(root: URL) -> [String: String] {
+    static func chromiumProfileNames(root: URL, nameKeys: [String] = ["name"]) -> [String: String] {
         guard let data = try? Data(contentsOf: root.appendingPathComponent("Local State")),
               let state = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let profile = state["profile"] as? [String: Any],
@@ -45,8 +45,9 @@ public struct ProviderBrowserProfile: Sendable, Equatable {
         else { return [:] }
         return cache.compactMapValues { value in
             guard let entry = value as? [String: Any],
-                  let name = (entry["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !name.isEmpty
+                  let name = nameKeys.lazy.compactMap({ entry[$0] as? String }).first?
+                      .trimmingCharacters(in: .whitespacesAndNewlines),
+                      !name.isEmpty
             else { return nil }
             return name
         }

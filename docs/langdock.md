@@ -23,6 +23,7 @@ provider is disabled by default and supports Microsoft Edge, Google Chrome, and 
 Edge and Chrome profile choices show the profile names saved by the browser. If a name cannot be read,
 CodexBar keeps the directory name, such as `Default` or `Profile 1`. Renaming a browser profile does not
 change the saved selection.
+User-defined profile names keep their spelling in every app language.
 
 `codexbar cookie refresh --provider langdock` uses the configured browser and profile. Edge and Chrome
 require `--allow-keychain-prompt` for an explicit interactive retry; Safari does not require that flag.
