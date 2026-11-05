@@ -1,8 +1,8 @@
 type TypeSafeRecord = Record<string, unknown>;
 
 const billingOverviewURL = "https://console.typesafe.ai/api/billing/overview";
-const billingPageURL = "https://console.typesafe.ai/billing";
-const billingOrigin = "https://console.typesafe.ai";
+const overviewFailure =
+  "TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure.";
 // Cloudflare blocks the Linux default UA (it contains "curl/"), so send a browser-style one.
 const userAgent =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
@@ -10,7 +10,7 @@ const userAgent =
 defineProvider({
   id: "typesafe",
   name: "TypeSafe",
-  endpoints: [billingOrigin],
+  endpoints: ["https://console.typesafe.ai"],
   settings: [],
   capabilities: ["browser-cookies", "http-status"],
   cookieDomains: ["console.typesafe.ai", "typesafe.ai"],
@@ -42,9 +42,7 @@ defineProvider({
       if (response.status === 401 || response.status === 403) expired();
       if (response.status >= 300 && response.status < 400) {
         if (loginRedirect(response.headers["location"])) expired();
-        throw ctx.fail.apiFailure(
-          `TypeSafe billing overview redirected unexpectedly (HTTP ${response.status}). Open ${billingPageURL} to check access; if the page opens, report the integration failure.`,
-        );
+        throw ctx.fail.apiFailure(overviewFailure);
       }
       if (response.status === 429)
         throw ctx.fail.rateLimited("TypeSafe rate limit reached.", { retryAfterSeconds: retryAfter(response) });
@@ -65,32 +63,22 @@ defineProvider({
     const body = response.bodyText.trim();
     if (body.startsWith("<")) {
       if (/(?:login|sign[-\s]?in|\(auth\))/i.test(body)) expired();
-      throw ctx.fail.apiFailure(
-        `TypeSafe billing overview returned HTML instead of JSON. Open ${billingPageURL} to check access.`,
-      );
+      throw ctx.fail.apiFailure(overviewFailure);
     }
     let payload: unknown;
     try {
       payload = JSON.parse(body);
     } catch (error) {
       void error;
-      throw ctx.fail.parseFailure(
-        `TypeSafe billing overview is not valid JSON. Open ${billingPageURL} to check access; if the page opens, report the integration failure.`,
-      );
+      throw ctx.fail.parseFailure(overviewFailure);
     }
     const billing = record(record(payload)?.billing);
-    if (!billing)
-      throw ctx.fail.parseFailure(
-        `TypeSafe billing overview format changed: missing billing. Open ${billingPageURL} to check access; if the page opens, report the integration failure.`,
-      );
+    if (!billing) throw ctx.fail.parseFailure(overviewFailure);
     const number = (value: unknown): number | undefined =>
       typeof value === "number" && Number.isFinite(value) ? value : undefined;
     const spent = number(billing.spent);
     const balance = number(billing.balance);
-    if (spent === undefined || balance === undefined)
-      throw ctx.fail.parseFailure(
-        `TypeSafe billing overview format changed: missing billing numbers. Open ${billingPageURL} to check access; if the page opens, report the integration failure.`,
-      );
+    if (spent === undefined || balance === undefined) throw ctx.fail.parseFailure(overviewFailure);
     const cycleLabel =
       typeof billing.cycleLabel === "string" && billing.cycleLabel.trim() ? billing.cycleLabel.trim() : undefined;
     const plan = typeof billing.plan === "string" && billing.plan.trim() ? billing.plan.trim() : undefined;

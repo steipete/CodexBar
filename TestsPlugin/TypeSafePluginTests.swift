@@ -117,6 +117,11 @@ struct TypeSafePluginTests {
             status: 307)
     }
 
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `non-login HTML remains an integration failure`(engine: ProviderPluginEngineKind) async {
+        await Self.expectFailure(.apiFailure, engine: engine, body: "<html>Billing moved</html>")
+    }
+
     @Test(arguments: [401, 403], BundledPluginTestSupport.engines)
     func `unauthorized responses are authentication expiry`(
         status: Int, engine: ProviderPluginEngineKind) async
@@ -267,6 +272,9 @@ struct TypeSafePluginTests {
             Issue.record("Expected \(kind.rawValue) failure")
         } catch let error as ProviderFetchClassifiedError {
             #expect(error.kind == kind)
+            if kind == .parseFailure {
+                #expect(error.message.contains("https://console.typesafe.ai/billing"))
+            }
             if let expectedRetryAfter {
                 #expect(error.retryAfterSeconds == TimeInterval(expectedRetryAfter))
             }

@@ -2795,3 +2795,7 @@
 "Leave blank to use the default name." = "Biarkan kosong untuk menggunakan nama bawaan.";
 "Rewards" = "Hadiah";
 "Reward expiry" = "Kedaluwarsa hadiah";
+
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "Ringkasan penagihan TypeSafe tidak dapat dibaca. Buka https://console.typesafe.ai/billing untuk memeriksa akses; jika halaman terbuka, laporkan kegagalan integrasi.";
+
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "Cookie sesi TypeSafe tidak ditemukan. Masuk di console.typesafe.ai/billing atau tempel header Cookie.";

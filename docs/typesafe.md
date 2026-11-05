@@ -15,7 +15,8 @@ reset date. It is disabled by default.
 
 Automatic mode imports `typesafe.ai` cookies from every supported browser in the shared catalog order, covering both
 host-only `console.typesafe.ai` cookies and cookies scoped to `.typesafe.ai`. The session cookie name is intentionally
-not assumed. Manual mode accepts the full `Cookie:` header captured from
+not assumed. Automatic traversal stops at the first validated session and only tries another browser after a missing
+or rejected session. Manual mode accepts the full `Cookie:` header from the `/api/billing/overview` request while viewing
 `https://console.typesafe.ai/billing`, which also covers Linux.
 Imported cookies must match the console host and `/api/billing/overview` path; longer matching paths take precedence.
 Cached cookie headers from older billing routes are never reused. Requests use an isolated session without ambient
