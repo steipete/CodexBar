@@ -1297,6 +1297,7 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\nor paste just the session_id value";
 "Clear" = "Clear";
 "No matching providers" = "No matching providers";
+"No matching settings or providers" = "No matching settings or providers";
 "Search settings" = "Search settings";
 
 "language_vietnamese" = "Vietnamese";

@@ -16,8 +16,8 @@ On macOS 26 and later, Settings uses the system split-view sidebar, toolbar, sea
 - Menu → Highlight menu cards on hover is on by default. Turn it off to keep normal text and usage-bar colors on provider cards, Overview cards, and Refresh while hovering. Keyboard selection stays visible; clicks and submenus are unchanged. The choice persists locally across restarts.
 - The provider sidebar keeps saved order and the one-click alphabetical toggle (enabled first). The adjacent
   menu offers Only show enabled providers and Restore default order. Restore is disabled when the saved order
-  is already the default and alphabetical sorting is off. Search matches service names, provider IDs,
-  CLI names, and CLI aliases, ignoring case and accents.
+  is already the default and alphabetical sorting is off. Search matches Settings pane titles, service names, provider IDs,
+  CLI names, and CLI aliases, ignoring case and accents. Individual settings controls are not indexed.
 - Browsing filters do not rewrite provider configuration or menu bar order. Dragging is available only in the
   unfiltered saved-order view and retains hidden plugin positions. Restore default order resets built-in service
   positions to the catalog order, preserving provider configuration and plugins. Undo (also available through

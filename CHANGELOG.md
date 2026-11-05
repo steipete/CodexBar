@@ -2,6 +2,10 @@
 
 ## 0.83.1 — Unreleased
 
+### Added
+
+- Settings: find panes by title alongside provider names in sidebar search, with an empty state covering both (#4875). Thanks @elijahfriedman!
+
 ## 0.83.0 — 2026-10-31
 
 ### Highlights

@@ -1295,6 +1295,7 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\nまたは session_id の値のみを貼り付けてください";
 "Clear" = "消去";
 "No matching providers" = "一致するプロバイダがありません";
+"No matching settings or providers" = "一致する設定またはプロバイダがありません";
 "Search settings" = "設定を検索";
 
 "language_vietnamese" = "ベトナム語";

@@ -113,7 +113,7 @@ struct SettingsSidebarView: View {
             }
 
             if visibleProviders.isEmpty, self.filteredAppPanes.isEmpty || !self.hasSearchQuery {
-                Text(L("No matching providers"))
+                Text(self.hasSearchQuery ? L("No matching settings or providers") : L("No matching providers"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Button(L("Clear filters")) {

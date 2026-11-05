@@ -1312,6 +1312,7 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=... \n\n أو لصق القيمة session_id فقط";
 "Clear" = "واضح";
 "No matching providers" = "لا يوجد مزودون مطابقون";
+"No matching settings or providers" = "لا توجد إعدادات أو مزودون مطابقون";
 "Search settings" = "البحث في الإعدادات";
 
 "language_vietnamese" = "الفيتناميون";

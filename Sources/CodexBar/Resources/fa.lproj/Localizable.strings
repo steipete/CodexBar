@@ -1312,6 +1312,7 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=... \n\n یا فقط مقدار session_id را بچسباند";
 "Clear" = "پاک است";
 "No matching providers" = "هیچ ارائه دهنده تطبیقی وجود ندارد";
+"No matching settings or providers" = "هیچ تنظیمات یا ارائه‌دهنده‌ای مطابق نیست";
 "Search settings" = "جستجوی تنظیمات";
 
 "language_vietnamese" = "ویتنامی ها";
