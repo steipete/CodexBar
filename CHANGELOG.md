@@ -4,7 +4,7 @@
 
 ### Changed
 
-- Menu: tint retained quota bars neutral after a failed refresh while preserving independently refreshed credit and cost colors (#4883). Thanks @Chipagosfinest!
+- Menu: dim retained quota and Code Review bars after their own refresh failures, while keeping successful fallback readings and separate credit/cost sections in their normal colors (#4883). Thanks @Chipagosfinest!
 ### Fixed
 
 - Claude: recover background Auto usage after temporary CLI failures when Keychain access is disabled, with bounded retry delays. (#4907, #4908) Thanks @hy-ong!

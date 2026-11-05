@@ -158,6 +158,7 @@ struct MenuCardModelCodexBusinessCreditsTests {
     @MainActor
     func `codex business override card shows monthly credit instead of limits unavailable`(error: String) throws {
         let now = Date()
+        let quotaRefreshFailed = error == "Synthetic quota refresh failure"
         let metadata = try #require(ProviderDefaults.metadata[.codex])
         let identity = ProviderIdentitySnapshot(
             providerID: .codex,
@@ -206,6 +207,7 @@ struct MenuCardModelCodexBusinessCreditsTests {
             account: AccountInfo(email: "biz@example.com", plan: "business"),
             isRefreshing: false,
             lastError: error,
+            quotaRefreshFailed: quotaRefreshFailed,
             usageBarsShowUsed: true,
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
@@ -220,7 +222,8 @@ struct MenuCardModelCodexBusinessCreditsTests {
         #expect(monthly.percent == 27)
         #expect(monthly.detailText == "27 / 1000")
         #expect(model.metrics.count == 1)
-        #expect((model.subtitleStyle == .error) == (error == "Synthetic quota refresh failure"))
+        #expect((model.subtitleStyle == .error) == quotaRefreshFailed)
+        #expect(model.showsRetainedMeasurement == quotaRefreshFailed)
         #expect(monthly.isSyntheticCreditLane)
         let row = MetricRow(
             metric: monthly,

@@ -1440,10 +1440,10 @@ extension UsageMenuCardView.Model {
         if input.provider == .kiro,
            let remainingText = input.snapshot?.detailRow(label: "Bonus credits left")?.value,
            let totalText = input.snapshot?.detailRow(label: "Bonus credits left")?.secondaryValue?
-            .split(separator: "·", maxSplits: 1)
-            .first?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: "of ", with: "")
+               .split(separator: "·", maxSplits: 1)
+               .first?
+               .trimmingCharacters(in: .whitespacesAndNewlines)
+               .replacingOccurrences(of: "of ", with: "")
         {
             paceDetail = PaceDetail(
                 leftLabel: String(format: L("%@ of %@ bonus credits left"), remainingText, totalText),

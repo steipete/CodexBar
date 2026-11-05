@@ -43,7 +43,7 @@ struct UsageStoreMenuCardModelTests {
     }
 
     @Test
-    func `non Claude errors retain their existing presentation`() {
+    func `non Claude errors and diagnostics keep separate refresh outcomes`() {
         let store = self.makeStore()
         store.snapshots[.mistral] = self.snapshot()
         store.errors[.mistral] = "Mistral request failed"
@@ -51,6 +51,13 @@ struct UsageStoreMenuCardModelTests {
         #expect(model.subtitleText == store.userFacingError(for: .mistral))
         #expect(model.subtitleText == "Mistral request failed")
         #expect(model.lastKnownUsageText == nil)
+        #expect(model.showsRetainedMeasurement)
+
+        store.errors[.mistral] = nil
+        store.diagnostics[.mistral] = "Fallback succeeded"
+        let recovered = store.menuCardModel(for: .mistral)
+        #expect(recovered.subtitleText == "Fallback succeeded")
+        #expect(!recovered.showsRetainedMeasurement)
     }
 
     @Test

@@ -486,8 +486,9 @@ struct MenuCardModelCodexProjectionTests {
         #expect(model.metrics.contains { $0.title == "Code review" && $0.percent == 27 })
     }
 
-    @Test @MainActor
-    func `shows code review metric when dashboard present`() throws {
+    @Test(arguments: [false, true])
+    @MainActor
+    func `code review tint follows dashboard refresh outcome`(dashboardRefreshFailed: Bool) throws {
         let now = Date()
         let identity = ProviderIdentitySnapshot(
             providerID: .codex,
@@ -522,7 +523,7 @@ struct MenuCardModelCodexProjectionTests {
                 liveCredits: nil,
                 rawCreditsError: nil,
                 liveDashboard: dashboard,
-                rawDashboardError: nil,
+                rawDashboardError: dashboardRefreshFailed ? "Dashboard failed" : nil,
                 dashboardAttachmentAuthorized: true,
                 dashboardRequiresLogin: false,
                 now: now))
@@ -540,6 +541,7 @@ struct MenuCardModelCodexProjectionTests {
             isRefreshing: false,
             lastError: "Quota failed",
             quotaRefreshFailed: true,
+            dashboardRefreshFailed: dashboardRefreshFailed,
             usageBarsShowUsed: false,
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
@@ -557,7 +559,9 @@ struct MenuCardModelCodexProjectionTests {
             title: metric.title,
             progressColor: model.progressColor,
             isRetainedMeasurement: model.showsRetainedMeasurement)
-        #expect(row.barTint == model.progressColor)
+        let expectedTint = dashboardRefreshFailed
+            ? UsageMenuCardView.Model.staleProgressColor : model.progressColor
+        #expect(row.barTint == expectedTint)
     }
 
     @Test
