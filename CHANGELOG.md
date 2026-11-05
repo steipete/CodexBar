@@ -4,7 +4,7 @@
 
 ### Changed
 
-- Menu: use tabular digits in usage and cost rows so live percentage and amount updates no longer shift neighboring text (#4884).
+- Menu: use tabular digits for usage and cost values to reduce movement when equal-length numbers change (#4884). Thanks @Chipagosfinest!
 
 ## 0.83.0 — 2026-10-31
 
