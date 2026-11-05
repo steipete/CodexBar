@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- Claude: with Keychain access disabled, a failed background CLI usage fetch now pauses background refreshes for 15 minutes, doubling up to 4 hours, instead of stopping them until a manual refresh, so usage no longer freezes after one failure during a brief wake from sleep. Authentication failures still wait for a manual refresh (#4908).
+- Claude: recover background Auto usage after temporary CLI failures when Keychain access is disabled, with bounded retry delays. (#4907, #4908) Thanks @hy-ong!
 
 ## 0.83.0 — 2026-10-31
 

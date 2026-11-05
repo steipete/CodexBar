@@ -384,6 +384,11 @@ struct ClaudeCLIBackgroundAvailabilityTests {
                 clock.advance(by: 1)
                 #expect(await strategy.isAvailable(context))
                 #expect(await self.fetchUsage(strategy, context: context))
+
+                clock.advance(by: ClaudeCLIUsageSpawnThrottle.minimumBackgroundSpawnInterval + 1)
+                #expect(await !self.fetchUsage(strategy, context: context, failure: Self.offlineFailure))
+                clock.advance(by: retryDelay)
+                #expect(await strategy.isAvailable(context))
             }
         }
     }
@@ -409,30 +414,6 @@ struct ClaudeCLIBackgroundAvailabilityTests {
                         expectedDelay * 2,
                         ClaudeCLIBackgroundAvailability.maximumBackgroundRetryDelay)
                 }
-            }
-        }
-    }
-
-    @Test
-    func `a successful disabled Keychain background retry resets the retry delay`() async throws {
-        let strategy = self.makeStrategy()
-        let profile = try self.makeProfile(accountID: "account-a")
-        defer { try? FileManager.default.removeItem(at: profile.root) }
-        let context = self.makeContext(environment: profile.environment)
-        let clock = TestClock(Date(timeIntervalSince1970: 1_000_000))
-        let retryDelay = ClaudeCLIBackgroundAvailability.initialBackgroundRetryDelay
-
-        await self.withBackgroundGates(keychainDisabled: true, promptMode: .never, oauthCredentialsMissing: false) {
-            await self.withClock(clock) {
-                #expect(await !self.fetchUsage(strategy, context: context, failure: Self.offlineFailure))
-                clock.advance(by: retryDelay)
-                #expect(await strategy.isAvailable(context))
-                #expect(await self.fetchUsage(strategy, context: context))
-
-                clock.advance(by: ClaudeCLIUsageSpawnThrottle.minimumBackgroundSpawnInterval + 1)
-                #expect(await !self.fetchUsage(strategy, context: context, failure: Self.offlineFailure))
-                clock.advance(by: retryDelay)
-                #expect(await strategy.isAvailable(context))
             }
         }
     }
