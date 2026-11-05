@@ -64,6 +64,10 @@ background secret reads remain non-interactive.
 Provider-owned child processes are a separate boundary. CodexBar may intentionally launch a provider CLI such as
 Claude for usage. That executable owns its credential behavior, which CodexBar cannot constrain or fully inspect.
 
+Legacy provider-token and saved-cookie reads require a successful noninteractive access preflight and use an
+explicit no-UI query. An unavailable or rejected read fails without an authorization alert. During migration to
+the current config, that failure leaves the legacy credentials intact and cleanup pending for a later launch.
+
 ## Why permission can be requested again
 
 Keychain access control evaluates the requesting executable's code signature and designated requirement, not just its

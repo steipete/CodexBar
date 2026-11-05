@@ -887,6 +887,102 @@ struct ManagedCodexAccountServiceTests {
     }
 }
 
+extension ManagedCodexAccountServiceTests {
+    @Test
+    func `fresh provider login preserves a legacy row with different saved workspace credentials`() async throws {
+        let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let legacyHome = root.appendingPathComponent("accounts/legacy", isDirectory: true)
+        try FileManager.default.createDirectory(at: legacyHome, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let legacyAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "shared@example.com",
+            managedHomePath: legacyHome.path,
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        let store = FileManagedCodexAccountStore(fileURL: root.appendingPathComponent("managed.json"))
+        try store.storeAccounts(ManagedCodexAccountSet(
+            version: FileManagedCodexAccountStore.currentVersion,
+            accounts: [legacyAccount]))
+        try CodexOAuthCredentialsStore.save(
+            CodexOAuthCredentials(
+                accessToken: "synthetic-legacy-access",
+                refreshToken: "synthetic-legacy-refresh",
+                idToken: nil,
+                accountId: "workspace-legacy",
+                lastRefresh: nil),
+            env: ["CODEX_HOME": legacyHome.path])
+        let originalAuth = try Data(contentsOf: legacyHome.appendingPathComponent("auth.json"))
+        let service = ManagedCodexAccountService(
+            store: store,
+            homeFactory: TestManagedCodexHomeFactory(root: root),
+            loginRunner: StubManagedCodexLoginRunner.success,
+            identityReader: StubManagedCodexIdentityReader.accounts([
+                .init(identity: .providerAccount(id: "workspace-new"), email: "shared@example.com", plan: "Pro"),
+                .init(identity: .providerAccount(id: "workspace-new"), email: "shared@example.com", plan: "Pro"),
+            ]),
+            workspaceResolver: StubManagedCodexWorkspaceResolver())
+
+        let added = try await service.authenticateManagedAccount()
+        let reauthenticated = try await service.authenticateManagedAccount(existingAccountID: added.id)
+        let snapshot = try store.loadAccounts()
+
+        #expect(snapshot.accounts.count == 2)
+        #expect(snapshot.account(id: legacyAccount.id)?.managedHomePath == legacyHome.path)
+        #expect(added.id != legacyAccount.id)
+        #expect(reauthenticated.id == added.id)
+        #expect((try? Data(contentsOf: legacyHome.appendingPathComponent("auth.json"))) == originalAuth)
+    }
+
+    @Test
+    func `email only login cannot replace legacy credentials with a known workspace`() async throws {
+        let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let legacyHome = root.appendingPathComponent("accounts/legacy", isDirectory: true)
+        try FileManager.default.createDirectory(at: legacyHome, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let legacyAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "shared@example.com",
+            managedHomePath: legacyHome.path,
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        let store = FileManagedCodexAccountStore(fileURL: root.appendingPathComponent("managed.json"))
+        try store.storeAccounts(ManagedCodexAccountSet(
+            version: FileManagedCodexAccountStore.currentVersion,
+            accounts: [legacyAccount]))
+        let payload = Data(#"{"email":"shared@example.com"}"#.utf8).base64EncodedString()
+        try CodexOAuthCredentialsStore.save(
+            CodexOAuthCredentials(
+                accessToken: "synthetic-legacy-access",
+                refreshToken: "synthetic-legacy-refresh",
+                idToken: "e30.\(payload).",
+                accountId: "workspace-legacy",
+                lastRefresh: nil),
+            env: ["CODEX_HOME": legacyHome.path])
+        let originalAuth = try Data(contentsOf: legacyHome.appendingPathComponent("auth.json"))
+        let service = ManagedCodexAccountService(
+            store: store,
+            homeFactory: TestManagedCodexHomeFactory(root: root),
+            loginRunner: StubManagedCodexLoginRunner.success,
+            identityReader: StubManagedCodexIdentityReader.emails(["shared@example.com"]),
+            workspaceResolver: StubManagedCodexWorkspaceResolver())
+
+        await #expect(throws: ManagedCodexAccountServiceError.savedAccountConflict) {
+            try await service.authenticateManagedAccount()
+        }
+        let snapshot = try store.loadAccounts()
+
+        #expect(snapshot.accounts.count == 1)
+        #expect(snapshot.account(id: legacyAccount.id)?.managedHomePath == legacyHome.path)
+        #expect((try? Data(contentsOf: legacyHome.appendingPathComponent("auth.json"))) == originalAuth)
+        #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("accounts/account-1").path))
+    }
+}
+
 private final class InMemoryManagedCodexAccountStore: ManagedCodexAccountStoring, @unchecked Sendable {
     var snapshot: ManagedCodexAccountSet
 

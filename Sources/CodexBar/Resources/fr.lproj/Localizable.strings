@@ -1572,7 +1572,7 @@
 "7-day usage" = "Utilisation sur 7 jours";
 "Total usage" = "Utilisation totale";
 "claude_oauth_keychain_access_disabled" = "L’accès au Keychain est désactivé, donc CodexBar ne peut pas lire les informations de connexion de Claude.";
-"claude_oauth_keychain_access_revoked" = "L’accès au trousseau Claude a été révoqué par la rotation du jeton de Claude Code. Cliquez sur Actualiser pour accorder à nouveau l’accès, ou définissez la source d’utilisation de Claude sur CLI/Web.";
+"claude_oauth_keychain_access_revoked" = "Les identifiants OAuth de Claude sont actuellement inaccessibles à CodexBar. Cliquez sur Actualiser pour réessayer d’y accéder, ou définissez la source d’utilisation de Claude sur CLI/Web.";
 "claude_showing_last_known_usage" = "Affichage de la dernière utilisation connue, capturée %@.";
 "claude_limited_usage_detail" = "Détails d’utilisation limités";
 /* Spend dashboard cost analysis */
@@ -2793,3 +2793,7 @@
 "Leave blank to use the default name." = "Laissez ce champ vide pour utiliser le nom par défaut.";
 "Rewards" = "Récompenses";
 "Reward expiry" = "Expiration des récompenses";
+"Claude Platform session validated and saved." = "La session Claude Platform a été validée et enregistrée.";
+"Use %@ or %@." = "Utilisez %@ ou %@.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Connectez-vous à %@. Transmettez de manière privée son en-tête Cookie contenant sessionKey à %@. Exécutez ensuite %@.";
+"Read cookie header from stdin" = "Lire l’en-tête de cookie depuis stdin";

@@ -1574,7 +1574,7 @@
 "7-day usage" = "7 günlük kullanım";
 "Total usage" = "Toplam kullanım";
 "claude_oauth_keychain_access_disabled" = "Keychain erişimi devre dışı olduğundan CodexBar, Claude oturum açma bilgilerini okuyamıyor.";
-"claude_oauth_keychain_access_revoked" = "Claude Anahtar Zinciri erişimi, Claude Code'un token yenilemesi nedeniyle iptal edildi. Erişimi yeniden vermek için Yenile'ye tıklayın veya Claude kullanım kaynağını CLI/Web olarak değiştirin.";
+"claude_oauth_keychain_access_revoked" = "CodexBar şu anda Claude OAuth kimlik bilgilerine erişemiyor. Erişimi yeniden denemek için Yenile'ye tıklayın veya Claude kullanım kaynağını CLI/Web olarak değiştirin.";
 "claude_showing_last_known_usage" = "Bilinen son kullanım gösteriliyor (yakalanma zamanı: %@).";
 "claude_limited_usage_detail" = "Kullanım ayrıntıları sınırlı";
 /* Spend dashboard cost analysis */
@@ -2797,3 +2797,7 @@
 "Leave blank to use the default name." = "Varsayılan adı kullanmak için boş bırakın.";
 "Rewards" = "Ödüller";
 "Reward expiry" = "Ödüllerin son kullanma tarihi";
+"Claude Platform session validated and saved." = "Claude Platform oturumu doğrulandı ve kaydedildi.";
+"Use %@ or %@." = "%@ veya %@ kullanın.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "%@ adresinde oturum açın. sessionKey içeren Cookie başlığını gizli olarak %@ komutuna iletin. Ardından %@ komutunu çalıştırın.";
+"Read cookie header from stdin" = "Çerez başlığını stdin üzerinden oku";

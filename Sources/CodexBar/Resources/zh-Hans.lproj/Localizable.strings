@@ -1578,7 +1578,7 @@
 "7-day usage" = "7 天用量";
 "Total usage" = "总用量";
 "claude_oauth_keychain_access_disabled" = "Keychain 访问已禁用，因此 CodexBar 无法读取 Claude 的登录信息。";
-"claude_oauth_keychain_access_revoked" = "Claude Code 轮换令牌后撤销了对 Claude 钥匙串的访问权限。点击“刷新”以重新授权，或将 Claude 用量来源切换为 CLI/Web。";
+"claude_oauth_keychain_access_revoked" = "CodexBar 目前无法访问 Claude OAuth 凭据。点击“刷新”以重试访问，或将 Claude 用量来源切换为 CLI/Web。";
 "claude_showing_last_known_usage" = "正在显示 %@ 采集的最后已知用量。";
 "claude_limited_usage_detail" = "用量详情有限";
 
@@ -2786,3 +2786,7 @@
 "Leave blank to use the default name." = "留空以使用默认名称。";
 "Rewards" = "奖励";
 "Reward expiry" = "奖励到期日期";
+"Claude Platform session validated and saved." = "已验证并保存 Claude Platform 会话。";
+"Use %@ or %@." = "请使用 %@ 或 %@。";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "请登录 %@。将包含 sessionKey 的 Cookie 请求头私密地传给 %@，然后运行 %@。";
+"Read cookie header from stdin" = "从 stdin 读取 Cookie 请求头";

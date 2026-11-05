@@ -1,4 +1,5 @@
 import Foundation
+import LocalAuthentication
 import Security
 import Testing
 @testable import CodexBarCore
@@ -29,6 +30,48 @@ struct KeychainStringStoreTests {
         #expect(backend.query?[kSecAttrAccount as String] as? String == "synthetic-test-account")
         #expect(backend.query?[kSecMatchLimit as String] as? String == kSecMatchLimitOne as String)
         #expect(backend.query?[kSecReturnData as String] as? Bool == true)
+    }
+
+    @Test
+    func `credential reads explicitly disallow Keychain interaction`() throws {
+        let backend = Backend(data: Data("synthetic-value".utf8))
+        let value = try KeychainAccessGate.withTaskOverrideForTesting(false) {
+            try self.store(backend).load()
+        }
+        #expect(value == "synthetic-value")
+        let query = try #require(backend.query)
+        #expect((query[kSecUseAuthenticationContext as String] as? LAContext)?.interactionNotAllowed == true)
+        #expect(query[kSecUseAuthenticationUI as String] as? String == KeychainNoUIQuery.uiFailPolicyForTesting())
+    }
+
+    @Test(arguments: [KeychainAccessPreflight.Outcome.interactionRequired, .temporarilyUnavailable])
+    func `unavailable preflight preserves credentials without reading them`(
+        outcome: KeychainAccessPreflight.Outcome)
+    {
+        let backend = Backend(data: Data("synthetic-value".utf8), preflightOutcome: outcome)
+        KeychainAccessGate.withTaskOverrideForTesting(false) {
+            #expect(throws: KeychainStringStoreError.keychainStatus(errSecInteractionNotAllowed)) {
+                try self.store(backend).load()
+            }
+        }
+        #expect(backend.calls == ["preflight"])
+    }
+
+    @Test
+    func `missing preflight returns absent and failed preflight propagates without reading`() throws {
+        let missing = Backend(preflightOutcome: .notFound)
+        let failed = Backend(preflightOutcome: .failure(Int(errSecAuthFailed)))
+        let value = try KeychainAccessGate.withTaskOverrideForTesting(false) {
+            try self.store(missing).load()
+        }
+        #expect(value == nil)
+        KeychainAccessGate.withTaskOverrideForTesting(false) {
+            #expect(throws: KeychainStringStoreError.keychainStatus(errSecAuthFailed)) {
+                try self.store(failed).load()
+            }
+        }
+        #expect(missing.calls == ["preflight"])
+        #expect(failed.calls == ["preflight"])
     }
 
     @Test(arguments: [Data(), Data(" \n".utf8), Data([0xFF])])
@@ -118,17 +161,20 @@ struct KeychainStringStoreTests {
         private let readStatus: OSStatus
         private let updateStatus: OSStatus
         private let mutationStatus: OSStatus
+        private let preflightOutcome: KeychainAccessPreflight.Outcome
 
         init(
             data: Data? = nil,
             readStatus: OSStatus = errSecSuccess,
             updateStatus: OSStatus = errSecSuccess,
-            mutationStatus: OSStatus = errSecSuccess)
+            mutationStatus: OSStatus = errSecSuccess,
+            preflightOutcome: KeychainAccessPreflight.Outcome = .allowed)
         {
             self.data = data
             self.readStatus = readStatus
             self.updateStatus = updateStatus
             self.mutationStatus = mutationStatus
+            self.preflightOutcome = preflightOutcome
         }
 
         var calls: [String] {
@@ -170,6 +216,7 @@ struct KeychainStringStoreTests {
                         self.recordedCalls.append("preflight")
                         self.recordedContext = context
                     }
+                    return self.preflightOutcome
                 })
         }
 
