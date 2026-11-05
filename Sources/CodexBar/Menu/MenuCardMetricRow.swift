@@ -6,8 +6,15 @@ struct MetricRow: View {
     let layoutMetric: UsageMenuCardView.Model.Metric
     let title: String
     let progressColor: Color
+    var isRetainedMeasurement = false
     var compact = false
     @Environment(\.menuItemHighlighted) private var isHighlighted
+
+    /// Synthetic credit lanes refresh independently of quota measurements.
+    var barTint: Color {
+        (self.metric.retainedMeasurementOverride ?? (self.isRetainedMeasurement && !self.metric.isSyntheticCreditLane))
+            ? UsageMenuCardView.Model.staleProgressColor : self.progressColor
+    }
 
     var body: some View {
         let presentation = self.metric.linePresentation(title: self.title)
@@ -32,7 +39,7 @@ struct MetricRow: View {
                     layoutPercentText: self.layoutMetric.percentLabel)
                 UsageProgressBar(
                     percent: self.metric.percent,
-                    tint: self.progressColor,
+                    tint: self.barTint,
                     accessibilityLabel: self.metric.percentStyle.accessibilityLabel,
                     pacePercent: self.metric.pacePercent,
                     paceOnTop: self.metric.paceOnTop,
