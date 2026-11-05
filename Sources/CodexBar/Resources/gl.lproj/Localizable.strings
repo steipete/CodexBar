@@ -2793,6 +2793,13 @@
 "Leave blank to use the default name." = "Deixa este campo baleiro para usar o nome predeterminado.";
 "Rewards" = "Recompensas";
 "Reward expiry" = "Caducidade das recompensas";
-"SiliconFlow cost history is not available." = "O historial de custos de SiliconFlow non está dispoñible.";
 "China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "China (CNY) é o predeterminado. As contas internacionais usan https://api.siliconflow.com (USD).";
 "https://api.siliconflow.cn" = "https://api.siliconflow.cn";
+"SiliconFlow API origin must be https://api.siliconflow.cn or https://api.siliconflow.com." = "A orixe da API de SiliconFlow debe ser https://api.siliconflow.cn ou https://api.siliconflow.com.";
+"SiliconFlow refused the balance query. Check the balance in the SiliconFlow console." = "SiliconFlow rexeitou a consulta do saldo. Comproba o saldo na consola de SiliconFlow.";
+
+"SiliconFlow" = "SiliconFlow";
+"Show SiliconFlow usage" = "Mostrar o uso de SiliconFlow";
+"SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow está a limitar as solicitudes. Téntao de novo máis tarde.";
+"SiliconFlow request failed. Try refreshing later." = "Fallou a solicitude a SiliconFlow. Tenta actualizar máis tarde.";
+"SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow devolveu unha resposta descoñecida. Actualiza CodexBar e téntao de novo.";

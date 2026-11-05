@@ -157,7 +157,7 @@ struct ProviderArchitectureGatekeeperTests {
         }
 
         // SiliconFlow extends the audited palette without changing existing provider colors.
-        #expect(widgetFingerprint == 4_431_545_105_121_365_491)
+        #expect(widgetFingerprint == 12_768_804_034_567_855_471)
         #expect(burnDownFingerprint == 4_490_339_647_619_223_034)
     }
 
@@ -2291,9 +2291,9 @@ struct ProviderArchitectureGatekeeperTests {
         AllowedProviderConstruct(
             path: "Sources/CodexBar/StatusItem/StatusItemController+Actions.swift",
             anchor: "if provider == .qoder {",
-            expectedProviderIDs: ["claude", "helmcode", "qoder"],
-            expectedReferenceCount: 4,
-            expectedReferenceFingerprint: ["qoder@0", "qoder@3", "helmcode@7", "claude@12"],
+            expectedProviderIDs: ["claude", "helmcode", "qoder", "siliconflow"],
+            expectedReferenceCount: 5,
+            expectedReferenceFingerprint: ["qoder@0", "qoder@3", "siliconflow@6", "helmcode@13", "claude@18"],
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/StatusItem/StatusItemController+Actions.swift",
@@ -2505,16 +2505,23 @@ struct ProviderArchitectureGatekeeperTests {
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore/UsageStore+LimitResetCelebration.swift",
             anchor: "let isClaudeWeekly = input.provider == .claude && input.seriesName == .weekly",
-            expectedProviderIDs: ["claude", "codex"],
-            expectedReferenceCount: 2,
-            expectedReferenceFingerprint: ["claude@0", "codex@1"],
-            reason: "Claude and Codex weekly resets use distinct confirmation evidence in the shared detector."),
+            expectedProviderIDs: ["claude", "codex", "grok"],
+            expectedReferenceCount: 3,
+            expectedReferenceFingerprint: ["claude@0", "codex@1", "grok@2"],
+            reason: "Claude, Codex, and Grok weekly resets use distinct confirmation evidence in the shared detector."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore/UsageStore+LimitResetCelebration.swift",
             anchor: "if input.provider == .codex, input.seriesName == .weekly {",
-            expectedProviderIDs: ["codex"],
+            expectedProviderIDs: ["codex", "grok"],
             expectedReferenceCount: 2,
-            expectedReferenceFingerprint: ["codex@0", "codex@11"],
+            expectedReferenceFingerprint: ["codex@0", "grok@6"],
+            reason: "Codex and Grok weekly confirmation require provider-specific boundary evidence."),
+        AllowedProviderConstruct(
+            path: "Sources/CodexBar/UsageStore/UsageStore+LimitResetCelebration.swift",
+            anchor: "snapshot.loginMethod(for: .codex)?",
+            expectedProviderIDs: ["codex"],
+            expectedReferenceCount: 1,
+            expectedReferenceFingerprint: ["codex@0"],
             reason: "Codex weekly confirmation compares its provider boundary and subscription tier."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore/UsageStore+LimitResetIdentity.swift",
@@ -3200,9 +3207,9 @@ struct ProviderArchitectureGatekeeperTests {
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/CostUsageFetcher.swift",
             anchor: "if provider == .opencodego {",
-            expectedProviderIDs: ["muse", "opencodego", "pi"],
-            expectedReferenceCount: 3,
-            expectedReferenceFingerprint: ["opencodego@0", "muse@11", "pi@23"],
+            expectedProviderIDs: ["opencodego"],
+            expectedReferenceCount: 1,
+            expectedReferenceFingerprint: ["opencodego@0"],
             reason: "The CLI cost adapter reuses OpenCode Go's existing device-local recorded history reader."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/CostUsageFetcher.swift",

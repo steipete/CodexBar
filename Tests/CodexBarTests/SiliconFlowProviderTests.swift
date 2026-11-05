@@ -65,3 +65,33 @@ struct SiliconFlowProviderTests {
         }
     }
 }
+
+extension SiliconFlowProviderTests {
+    @Test
+    func `console links follow validated regional config before environment`() throws {
+        let fixture = try ProviderSettingsDescriptorTests().makeSettingsFixture(suite: "SiliconFlowRegionalLinks")
+        let env = ["SILICONFLOW_BASE_URL": "https://api.siliconflow.com/v1/"]
+        #expect(SiliconFlowProviderImplementation.dashboardURL(
+            settings: fixture.settings, environment: [:])?.absoluteString == "https://cloud.siliconflow.cn")
+        #expect(SiliconFlowProviderImplementation.dashboardURL(
+            settings: fixture.settings, environment: env)?.absoluteString == "https://cloud.siliconflow.com")
+        fixture.settings[providerConfig: .siliconflow, field: .endpoint] = "https://api.siliconflow.cn/v1"
+        #expect(SiliconFlowProviderImplementation.dashboardURL(
+            settings: fixture.settings, environment: env)?.absoluteString == "https://cloud.siliconflow.cn")
+        fixture.settings[providerConfig: .siliconflow, field: .endpoint] = "https://untrusted.example"
+        #expect(SiliconFlowProviderImplementation.dashboardURL(settings: fixture.settings, environment: env) == nil)
+        let implementation = try #require(ProviderCatalog.implementation(for: .siliconflow))
+        let fields = implementation.settingsFields(context: fixture.settingsContext(provider: .siliconflow))
+        #expect(fields[0].actions.isEmpty)
+    }
+}
+
+extension SiliconFlowProviderTests {
+    @Test
+    func `diagnostic messages have app translations`() {
+        for message in SiliconFlowProviderDescriptor.diagnosticMessages {
+            #expect(L(message, language: "it") != message)
+        }
+        #expect(L("Show SiliconFlow usage", language: "de") == "Nutzung von SiliconFlow anzeigen")
+    }
+}

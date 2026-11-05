@@ -2786,6 +2786,13 @@
 "Leave blank to use the default name." = "留空以使用默认名称。";
 "Rewards" = "奖励";
 "Reward expiry" = "奖励到期日期";
-"SiliconFlow cost history is not available." = "无法获取 SiliconFlow 费用历史。";
 "China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "默认是中国区（人民币）。国际账号使用 https://api.siliconflow.com（美元）。";
 "https://api.siliconflow.cn" = "https://api.siliconflow.cn";
+"SiliconFlow API origin must be https://api.siliconflow.cn or https://api.siliconflow.com." = "SiliconFlow API 源必须是 https://api.siliconflow.cn 或 https://api.siliconflow.com。";
+"SiliconFlow refused the balance query. Check the balance in the SiliconFlow console." = "SiliconFlow 拒绝了余额查询。请在 SiliconFlow 控制台中查看余额。";
+
+"SiliconFlow" = "SiliconFlow";
+"Show SiliconFlow usage" = "显示 SiliconFlow 用量";
+"SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow 正在限制请求频率。请稍后重试。";
+"SiliconFlow request failed. Try refreshing later." = "SiliconFlow 请求失败。请稍后尝试刷新。";
+"SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow 返回了无法识别的响应。请更新 CodexBar 后重试。";

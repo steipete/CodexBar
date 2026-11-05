@@ -1,9 +1,9 @@
 import Foundation
+import Testing
+@testable import CodexBarCore
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import Testing
-@testable import CodexBarCore
 
 struct SiliconFlowPluginTests {
     private static let contract = """
@@ -21,10 +21,10 @@ struct SiliconFlowPluginTests {
         #expect(usage.secondary == nil)
         #expect(usage.identity == nil)
         #expect(usage.providerCost == nil)
-        #expect(usage.detailRow(label: "Total balance")?.value == "CN¥88.88")
-        #expect(usage.detailRow(label: "Charged balance")?.value == "CN¥88.00")
-        #expect(usage.detailRow(label: "Bonus balance")?.value == "CN¥0.88")
-        #expect(usage.detailRow(label: "Account status") == nil)
+        #expect(usage.detailRow(label: "Balance")?.value == "CN¥88.88")
+        #expect(usage.detailRow(label: "Purchased")?.value == "CN¥88.00")
+        #expect(usage.detailRow(label: "Bonus")?.value == "CN¥0.88")
+        #expect(usage.detailRow(label: "Status") == nil)
         #expect(!Self.text(usage).contains("hidden@example.com"))
     }
 
@@ -37,8 +37,8 @@ struct SiliconFlowPluginTests {
         "totalBalance":"-1.50","status":"overdue"}}
         """
         let usage = try await Self.fetch(engine, body: body, origin: "https://api.siliconflow.com")
-        #expect(usage.detailRow(label: "Total balance")?.value == "-$1.50")
-        #expect(usage.detailRow(label: "Account status")?.value == "overdue")
+        #expect(usage.detailRow(label: "Balance")?.value == "-$1.50")
+        #expect(usage.detailRow(label: "Status")?.value == "overdue")
         #expect(usage.primary == nil)
     }
 
@@ -96,11 +96,24 @@ struct SiliconFlowPluginTests {
         }
     }
 
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `diagnostics use the host supplied translation`(engine: ProviderPluginEngineKind) async {
+        await #expect {
+            try await Self.fetch(engine, status: 500, messages: [
+                "SiliconFlow request failed. Try refreshing later.": "Localized fixture failure.",
+            ])
+        } throws: { error in
+            (error as? ProviderFetchClassifiedError)?.kind == .providerUnavailable &&
+                error.localizedDescription == "Localized fixture failure."
+        }
+    }
+
     private static func fetch(
         _ engine: ProviderPluginEngineKind,
         body: String = Self.contract,
         status: Int = 200,
-        origin: String = "https://api.siliconflow.cn") async throws -> UsageSnapshot
+        origin: String = "https://api.siliconflow.cn",
+        messages: [String: String] = [:]) async throws -> UsageSnapshot
     {
         let calls = RequestCount()
         let runtime = try BundledPluginTestSupport.runtime(
@@ -121,7 +134,10 @@ struct SiliconFlowPluginTests {
         ])
         do {
             let usage = try await runtime.fetchUsage(
-                settings: ["SILICONFLOW_BASE_URL": origin],
+                settings: [
+                    "SILICONFLOW_BASE_URL": origin,
+                    "MESSAGES": String(decoding: JSONEncoder().encode(messages), as: UTF8.self),
+                ],
                 secrets: ["SILICONFLOW_API_KEY": "sk-fixture"])
             #expect(await calls.value == 1)
             return usage

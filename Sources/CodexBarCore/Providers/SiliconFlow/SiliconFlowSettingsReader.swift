@@ -5,8 +5,10 @@ public enum SiliconFlowSettingsReader {
     public static let baseURLEnvironmentKey = "SILICONFLOW_BASE_URL"
     public static let chinaOrigin = URL(string: "https://api.siliconflow.cn")!
     public static let internationalOrigin = URL(string: "https://api.siliconflow.com")!
-    public static let invalidOriginMessage =
-        "SiliconFlow API origin must be https://api.siliconflow.cn or https://api.siliconflow.com."
+    public static var invalidOriginMessage: String {
+        UsageFormatter.localized(
+            "SiliconFlow API origin must be https://api.siliconflow.cn or https://api.siliconflow.com.")
+    }
 
     public static func baseURL(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> URL?
