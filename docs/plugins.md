@@ -259,6 +259,8 @@ so portable third-party plugins must use the host helpers below instead of ECMA-
   only collects an already completed secondary; a fast primary can wait for the remainder of that budget.
   Failed optional work is discarded. Unfinished optional work is cancelled on collection, primary failure, or caller
   cancellation. This works on both engines without JavaScript promise concurrency. HTTP responses expose their final `url`.
+  Timeout and cancellation results return without waiting for a transport's cancellation handler. Cancellation of
+  already-started network work is best effort; this does not guarantee recovery from a stuck networking session.
 - `await ctx.http.postJSON(url, {body, headers?})` performs JSON POST. `body` must be JSON-serializable.
 - `await ctx.http.post(url, {body, headers?})` sends the same JSON POST and returns `{status, headers, bodyText}` so a
   plugin can classify non-JSON error pages before parsing a successful response.

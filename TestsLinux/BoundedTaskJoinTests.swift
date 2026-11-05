@@ -60,9 +60,10 @@ struct BoundedTaskJoinTests {
     @Test func `pre-cancelled caller observes cancellation while source cancellation is blocked`() async {
         let state = JoinTestState()
         let release = DispatchSemaphore(value: 0)
-        let begin = DispatchSemaphore(value: 0)
+        let (starts, start) = AsyncStream<Void>.makeStream()
+        let begin = Task { for await _ in starts {} }
         defer {
-            begin.signal()
+            start.finish()
             release.signal()
         }
         let source = Task<Int, Error> {
@@ -84,12 +85,12 @@ struct BoundedTaskJoinTests {
             return
         }
         let caller = Task {
-            begin.wait()
+            await begin.value
             let outcome = await BoundedTaskJoin(sourceTask: source).value(joinGrace: nil)
             if case let .failure(error) = outcome, error is CancellationError { state.mark("cancelled") }
         }
         caller.cancel()
-        begin.signal()
+        start.finish()
         #expect(await waitForFlag("cancelling", in: state))
         #expect(await waitForFlag("cancelled", in: state))
         release.signal()
