@@ -58,6 +58,10 @@ Completed requests for models without a known price keep their token usage and r
 - A lower-level direct Claude fetcher still contains a separate `.auto` order. That inconsistency is tracked in
   [docs/refactor/claude-current-baseline.md](refactor/claude-current-baseline.md).
 
+With **Disable Keychain access** on, a failed background Auto CLI fetch retries after 15 minutes.
+Consecutive failures double the delay up to four hours; a successful fetch resets it. Explicit authentication
+failures still wait for a successful manual refresh. Keychain-enabled background access keeps its existing policy.
+
 Usage source picker:
 - Preferences → Providers → Claude → Usage source (Auto/OAuth/Web/CLI).
 
@@ -572,7 +576,9 @@ When Claude Code reports `Per-model breakdown unavailable`, CodexBar keeps the c
 weekly quotas and carries the CLI's notice in a `usage.details` row with ID `claude-model-breakdown`.
 This distinguishes an unavailable model breakdown from an account with no model-specific limit in
 `codexbar usage --json` and `codexbar serve`'s `/usage` response. The notice is upstream CLI text; it disappears
-with the next successful breakdown. The compact `/dashboard/v1/snapshot` schema does not expose usage details.
+with the next successful breakdown. `/dashboard/v1/snapshot` exposes only the fixed code
+`providers[].warnings: ["model-breakdown-unavailable"]`; it never forwards the CLI notice text, regardless of identity
+mode. The additive field is omitted after recovery and from shell rows.
 
 - Runs `claude` in a PTY session (`ClaudeCLISession`).
 - The PTY and replay screen share a 160-column, 200-row viewport so tall inline `/usage` panels retain their session,

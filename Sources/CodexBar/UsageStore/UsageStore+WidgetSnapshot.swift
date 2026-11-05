@@ -180,7 +180,7 @@ extension UsageStore {
             }
             hasDefaultCodexSnapshot = snapshotKeys.contains(AccountSnapshotSyncPayload.accountKey(for: nil))
         }
-        if identities.isEmpty || hasDefaultCodexSnapshot {
+        if (identities.isEmpty && self.metadata(for: provider).usesAccountFallback) || hasDefaultCodexSnapshot {
             let fallback = self.accountInfo(for: provider)
             insert(fallback.email)
         }

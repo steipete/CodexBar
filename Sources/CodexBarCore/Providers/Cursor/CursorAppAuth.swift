@@ -258,15 +258,19 @@ struct CursorAppAuthStore: CursorAppAuthSessionProviding {
         if accessToken.hasPrefix(prefix),
            let encrypted = Data(base64Encoded: String(accessToken.dropFirst(prefix.count))),
            encrypted.starts(with: Data("v10".utf8)), encrypted.count > 3,
-           (encrypted.count - 3).isMultiple(of: 16),
-           let password = ChromiumSafeStorage.password(
-               service: "Cursor Safe Storage",
-               account: "Cursor",
-               allowPrompt: true),
-           let plaintext = ChromiumSafeStorage.decrypt(encrypted, key: ChromiumSafeStorage.deriveKey(from: password)),
-           let decoded = String(data: plaintext, encoding: .utf8)
+           (encrypted.count - 3).isMultiple(of: 16)
         {
-            return CursorAppAuthSession(accessToken: decoded)
+            for account in ["Cursor Key", "Cursor"] {
+                guard let password = ChromiumSafeStorage.password(
+                    service: "Cursor Safe Storage",
+                    account: account,
+                    allowPrompt: true),
+                    let plaintext = ChromiumSafeStorage.decrypt(
+                        encrypted, key: ChromiumSafeStorage.deriveKey(from: password)),
+                    let decoded = String(data: plaintext, encoding: .utf8)
+                else { continue }
+                return CursorAppAuthSession(accessToken: decoded)
+            }
         }
         #endif
         // Preserve an unusable session on decryption failure so stale persisted app auth cannot replace it.

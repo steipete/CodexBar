@@ -157,6 +157,7 @@ struct ProviderPluginConsoleCapabilitiesTests {
             Issue.record("Unexpected network request")
             throw URLError(.unsupportedURL)
         },
+        contextOptions: ProviderPluginContextOptions = .production,
         userPolicy: Bool = false,
         responseLimit: Int = 1024) throws -> ProviderPluginRuntime
     {
@@ -166,9 +167,11 @@ struct ProviderPluginConsoleCapabilitiesTests {
               async fetchUsage(ctx) { \(body) }
             });
             """,
+            resourceBundle: CodexBarCoreResources.bundle,
             transport: transport,
             responseSizeLimit: responseLimit,
             enforcesUserResponsePolicy: userPolicy,
+            contextOptions: contextOptions,
             engine: engine)
     }
 
