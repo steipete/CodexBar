@@ -86,16 +86,19 @@ struct GrokLocalSessionScannerTests {
         try self.writeSignals(
             at: session.appendingPathComponent("signals.json"),
             tokens: 100,
-            model: "grok-4.7",
+            model: "grok-fixture-primary",
             date: now)
-        try self.writeUsage(in: session, turns: [(now, 4000, "grok-4.7"), (now, 1000, "grok-4.6")], modified: now)
+        try self.writeUsage(
+            in: session,
+            turns: [(now, 4000, "grok-fixture-primary"), (now, 1000, "grok-fixture-secondary")],
+            modified: now)
 
         let summary = GrokLocalSessionScanner.summarize(env: ["GROK_HOME": home.path], lookbackDays: 7, now: now)
 
         #expect(summary.sessionCount == 1)
         #expect(summary.totalTokens == 5000)
         #expect(summary.daily.map(\.sessionCount) == [1])
-        #expect(Set(summary.models) == ["grok-4.7", "grok-4.6"])
+        #expect(Set(summary.models) == ["grok-fixture-primary", "grok-fixture-secondary"])
     }
 
     @Test
@@ -110,7 +113,11 @@ struct GrokLocalSessionScannerTests {
         let outside = try #require(calendar.date(byAdding: .day, value: -7, to: now))
         try self.writeUsage(
             in: session,
-            turns: [(outside, 9000, "grok-4.6"), (yesterday, 300, "grok-4.7"), (now, 200, "grok-4.7")],
+            turns: [
+                (outside, 9000, "grok-fixture-secondary"),
+                (yesterday, 300, "grok-fixture-primary"),
+                (now, 200, "grok-fixture-primary"),
+            ],
             modified: now)
 
         let summary = GrokLocalSessionScanner.summarize(env: ["GROK_HOME": home.path], lookbackDays: 7, now: now)
@@ -120,7 +127,26 @@ struct GrokLocalSessionScannerTests {
         #expect(summary.daily.map(\.sessionCount) == [1, 1])
         #expect(summary.sessionCount == 1)
         #expect(summary.lastSessionAt.map { abs($0.timeIntervalSince(now)) < 1 } == true)
-        #expect(!summary.models.contains("grok-4.6"))
+        #expect(!summary.models.contains("grok-fixture-secondary"))
+    }
+
+    @Test
+    func `completed turns outside the window do not count a fresh signals snapshot again`() throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent("grok-window-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let session = home.appendingPathComponent("sessions/project/session-a")
+        try FileManager.default.createDirectory(at: session, withIntermediateDirectories: true)
+        let now = Date(timeIntervalSince1970: 1_787_079_600)
+        let outside = try #require(Calendar.current.date(byAdding: .day, value: -7, to: now))
+        try self.writeSignals(
+            at: session.appendingPathComponent("signals.json"), tokens: 100, model: "grok-test", date: now)
+        try self.writeUsage(in: session, turns: [(outside, 5000, "grok-test")], modified: now)
+
+        let summary = GrokLocalSessionScanner.summarize(env: ["GROK_HOME": home.path], lookbackDays: 7, now: now)
+
+        #expect(summary.totalTokens == 0)
+        #expect(summary.sessionCount == 0)
+        #expect(summary.daily.isEmpty)
     }
 
     @Test
@@ -130,7 +156,7 @@ struct GrokLocalSessionScannerTests {
         let session = home.appendingPathComponent("sessions/project/session-a")
         try FileManager.default.createDirectory(at: session, withIntermediateDirectories: true)
         let now = Date(timeIntervalSince1970: 1_787_079_600)
-        try self.writeUsage(in: session, turns: [(now, 200, "grok-4.7")], modified: now)
+        try self.writeUsage(in: session, turns: [(now, 200, "grok-fixture-primary")], modified: now)
 
         let summary = GrokLocalSessionScanner.summarize(env: ["GROK_HOME": home.path], lookbackDays: 7, now: now)
         let snapshot = try #require(summary.toCostUsageTokenSnapshot(historyDays: 7))
@@ -150,7 +176,7 @@ struct GrokLocalSessionScannerTests {
         try self.writeSignals(
             at: session.appendingPathComponent("signals.json"),
             tokens: 100,
-            model: "grok-4.7",
+            model: "grok-fixture-primary",
             date: now)
         try contents.write(to: session.appendingPathComponent("usage.json"), atomically: true, encoding: .utf8)
 
