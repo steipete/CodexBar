@@ -10,6 +10,7 @@
 - Kiro: preserve the `+` in CLI-reported plan names so Pro+ subscriptions are shown as Kiro Pro+. (#4928) Thanks @jeanroloff!
 ### Changed
 
+- Claude/Vertex: reduce midnight cost-scan CPU by reusing unchanged local history while preserving date-window and duplicate-response accounting.
 - Menu: dim retained quota and Code Review bars after their own refresh failures, while keeping successful fallback readings and separate credit/cost sections in their normal colors (#4883). Thanks @Chipagosfinest!
 - Menu: use tabular digits for usage and cost values to reduce movement when equal-length numbers change (#4884). Thanks @Chipagosfinest!
 
