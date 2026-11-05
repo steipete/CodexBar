@@ -317,9 +317,7 @@ defineProvider({
       planWeekly
         ? null
         : namedQuota(root.rollingFiveHourLimit, "Rolling five-hour limit") ||
-          namedQuota(data && data.rollingFiveHourLimit, "Rolling five-hour limit") ||
-          namedQuota(root.subscription, "Subscription") ||
-          namedQuota(data && data.subscription, "Subscription"),
+          namedQuota(data && data.rollingFiveHourLimit, "Rolling five-hour limit"),
       planWeekly ||
         namedQuota(root.weeklyTokenLimit, "Weekly token limit") ||
         namedQuota(data && data.weeklyTokenLimit, "Weekly token limit"),

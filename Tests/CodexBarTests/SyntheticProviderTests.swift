@@ -17,6 +17,29 @@ struct SyntheticSettingsReaderTests {
 }
 
 struct SyntheticPluginGoldenTests {
+    @Test
+    func `search does not revive the legacy subscription counter`() async throws {
+        let snapshot = try await Self.fetch("""
+        {
+          "subscription": { "limit": 500, "requests": 0 },
+          "search": { "hourly": { "limit": 250, "requests": 5 } }
+        }
+        """)
+        #expect(snapshot.primary == nil)
+        #expect(snapshot.secondary == nil)
+        #expect(snapshot.tertiary?.usedPercent == 2)
+    }
+
+    @Test
+    func `subscription only responses retain the legacy counter`() async throws {
+        let snapshot = try await Self.fetch("""
+        { "subscription": { "limit": 500, "requests": 10 } }
+        """)
+        #expect(snapshot.primary?.usedPercent == 2)
+        #expect(snapshot.secondary == nil)
+        #expect(snapshot.tertiary == nil)
+    }
+
     @Test(arguments: [false, true])
     func `plan weekly quota ignores retired subscription and preserves search`(wrapped: Bool) async throws {
         let body = """

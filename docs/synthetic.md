@@ -45,7 +45,7 @@ of the response or under `data`:
 Current [Synthetic plans use weekly credit limits](https://synthetic.new/rate-limits), with no additional
 five-hour limit. When `planWeeklyLimit` is present, CodexBar ignores the retired `subscription` counter
 even if the API still returns it. Older responses can still supply a five-hour quota through
-`rollingFiveHourLimit` or `subscription`.
+`rollingFiveHourLimit`. The legacy `subscription` counter remains a fallback when no known quota lane is present.
 
 If those keys are absent, CodexBar falls back to generic quota payloads such as
 `quotas`, `quota`, `limits`, `usage`, `entries`, or `subscription`.
