@@ -185,6 +185,10 @@ Caching: automatic cost refreshes follow the app's token-cost cadence, with a mi
 
 An HTTP 403 from the cost endpoint records a failed cost source with an in-memory retry time at least six hours later, even when no cost snapshot is available. It does not invalidate the working quota session or change local CSV fallback. Manual and menu-open refreshes bypass the cooldown, and a changed account, credential source, history window, timezone, or provider configuration permits a new attempt. Timed-out cost scans keep their normal cooldown without a snapshot; transient failures retain their normal retry behavior. Restarting the app clears this in-memory cooldown.
 
+The local Tokscale CSV fallback supports legacy, `Kind`, and cloud-agent layouts. A `Cloud Agent ID` header identifies
+the cloud-agent layout; trailing billing columns such as `Cost to you` leave the layout unchanged. The existing
+`Total Tokens` and `Cost` fields supply the exported token totals and API-rate cost.
+
 If Auto fetches usage with a cookie that the app still cannot confirm for the current account, the result stays unpublished. An unchanged account scope waits for the next normal or manual refresh instead of repeatedly forcing another request. Real account, history-window, provider, or cost-timezone changes still request a replacement; a successful fetch that confirms its own cookie can publish immediately.
 
 ## Snapshot mapping
