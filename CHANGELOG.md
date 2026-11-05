@@ -21,6 +21,7 @@
 
 - Settings: find panes by title alongside provider names in sidebar search, with an empty state covering both (#4875). Thanks @elijahfriedman!
 
+- Codex: reduce CPU and SQLite reads during cost refreshes by reusing warm history through unchanged retention passes, including above the cache budget (#4620).
 - Claude: wait for the CLI's visible usage refresh to finish before settling quota capture, preserving later model-specific redraws (#4809). Thanks @DreamyTalesPAN!
 - AWS Bedrock: retain measured zero-cost days in daily billing history (#4846). Thanks @djbclark!
 - Menu bar: use the provider’s current window name for layout elements, so monthly Cursor Auto allowances no longer read as Weekly, while preserving default labels before usage is available (#4873, #4935). Thanks @roblight!
