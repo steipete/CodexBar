@@ -31,7 +31,13 @@ struct AdvancedPane: View {
                 Text(L("section_command_line"))
             } footer: {
                 if let status = self.cliStatus {
-                    SettingsSectionFooter(status)
+                    SettingsSectionFooter {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(status)
+                            Link(L("CodexBar Help"), destination: URL(
+                                string: "https://github.com/steipete/CodexBar/blob/main/docs/cli.md#install")!)
+                        }
+                    }
                 }
             }
 
@@ -138,15 +144,7 @@ extension AdvancedPane {
     }
 
     static func cliInstallStatus(installed: [String], conflicts: [String], failures: [String]) -> String {
-        if installed.isEmpty == false {
-            return (installed + conflicts).joined(separator: " · ")
-        }
-        if conflicts.isEmpty == false {
-            return (conflicts + failures).joined(separator: " · ")
-        }
-        if failures.isEmpty == false {
-            return failures.joined(separator: " · ")
-        }
-        return L("no_writable_bin_dirs")
+        let results = installed + conflicts + failures
+        return results.isEmpty ? L("no_writable_bin_dirs") : results.joined(separator: " · ")
     }
 }

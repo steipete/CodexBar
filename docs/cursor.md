@@ -208,6 +208,11 @@ menus and VoiceOver keep the full names. Auto % ranks usable allowances, includi
 forecast and then used percentage; an exhausted total or exhaustion of every subquota still takes priority.
 Balance tokens remain independent, and the dropdown keeps its existing reset countdown and paid-weekly pace display.
 
+The layout editor uses the account's window names: **Cursor** for the legacy monthly Auto allowance and
+**Weekly** for the unified weekly pool. Selecting **Grok Bot %** leaves adjacent reset elements on their
+original windows. An explicit Grok Bot reset element is not available yet; use the provider card to see
+Grok Bot's own reset when the provider reports one.
+
 Named-extra selections are stored in V4 layout keys. A V3 projection omits them while preserving explicit
 reset-window selections for 0.60.x; V2/V1 projections remain available for older releases. An unchanged
 downgrade preserves the full layout on return, while edits made in an older release take precedence.
