@@ -4,7 +4,12 @@
 
 ### Fixed
 
-- CLI: omit stale supplemental OpenAI dashboard caches from Codex usage JSON instead of attaching historical balances and limits to fresh OAuth usage (#4882).
+- CLI: omit supplemental OpenAI dashboard caches older than one hour from Codex usage JSON, while tolerating sixty seconds of clock skew and preserving the shared cache (#4882). Thanks @Chipagosfinest!
+- Plugins: keep HTTP timeouts and caller cancellation responsive when a transport's cancellation handler blocks (#4891, #4867). Thanks @akshat-khare and @Yuxin-Qiao!
+- Plugins: reuse one isolated HTTP session for user plugins to avoid per-request session teardown, and release request state on completion or cancellation (#4926).
+- Claude: recover background Auto usage after temporary CLI failures when Keychain access is disabled, with bounded retry delays. (#4907, #4908) Thanks @hy-ong!
+- CLI: document noninteractive browser access and the Keychain opt-out for dashboard and service launchers. (#4912, #4920) Thanks @vincent-peng and @LeoLin990405!
+- Cursor: read encrypted app sessions from the current `Cursor Key` and legacy Safe Storage accounts. (#4880, #4913) Thanks @vincent-peng and @SaahiilM!
 
 ## 0.83.0 — 2026-10-31
 

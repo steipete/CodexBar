@@ -305,7 +305,7 @@ extension CodexBarCLI {
     }
 
     /// Oldest supplemental OpenAI dashboard cache the CLI attaches to freshly fetched Codex usage.
-    static let openAIDashboardCacheMaxAge: TimeInterval = 15 * 60
+    static let openAIDashboardCacheMaxAge: TimeInterval = 60 * 60
     /// Accepts caches stamped slightly ahead of `now`, e.g. after a small clock correction.
     static let openAIDashboardCacheFutureTolerance: TimeInterval = 60
 

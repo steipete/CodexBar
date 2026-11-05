@@ -74,7 +74,7 @@ a second identifier is an error. For an option value beginning with a dash, use 
   - `--format text|json|toon` (default: text).
   - Text output and full terminal cards include history already supplied by the selected provider, such as OpenRouter Activity spend or Grok local token totals. They preserve the source period, currency, known zero values, and reported/estimated cost labels. This live history remains separate from the ordinary usage JSON schema and the `cost` command.
   - Codex usage JSON can supplement a fresh measurement with an ownership-compatible cached `openaiDashboard`.
-    Cached dashboards are attached only when their `updatedAt` is no more than 15 minutes old at attachment time,
+    Cached dashboards are attached only when their `updatedAt` is no more than one hour old at attachment time,
     with a 60-second allowance for future timestamps due to clock skew. Older caches and caches more than 60 seconds
     in the future are omitted without deleting the shared cache. Live web dashboard results are unaffected.
   - Usage JSON includes optional `resetCredits` with `available` and `nextExpiresAt`, derived from the shared unexpired, available reset-credit inventory. This compact summary contains no credit identifiers; an absent inventory omits the summary.
@@ -521,6 +521,12 @@ non-zero only when it cannot produce a valid snapshot document.
 
 ## Notes
 - CLI uses the config file for enabled providers, ordering, and secrets.
+- Ordinary `usage` fetches use noninteractive browser-cookie access, with or without a TTY. Browser Safe Storage
+  access requiring a new grant is skipped; missing sessions fall back or return a provider error.
+- On macOS, set `CODEXBAR_DISABLE_KEYCHAIN_ACCESS=1` in the CLI launcher's environment to block CodexBar-owned
+  Keychain operations and Chromium Safe Storage decryption. Provider-owned CLIs may still use their own credentials
+  and prompt. See [CLI and external dashboards](keychain-prompts.md#cli-and-external-dashboards) for setup and the
+  relationship to the app preference.
 - CLI binary discovery checks explicit overrides, captured login PATH, inherited PATH, and known install paths before falling back to an interactive shell probe.
 - Automatic executable discovery and child PATHs use absolute directories only; empty, `.` and relative entries are ignored. Install CLIs in an absolute PATH directory. Explicit executable overrides and shell startup files remain trusted user configuration.
 - Bundled helpers and plugin resources are located relative to the resolved running executable, including symlinked CLI installations, rather than the invocation directory.
