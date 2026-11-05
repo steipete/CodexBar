@@ -530,11 +530,12 @@ public struct CostUsageFetcher: Sendable {
                 let daily = try await Self.loadBedrockDailyReport(
                     environment: environment,
                     since: since,
-                    until: now)
+                    until: now,
+                    forceRefresh: forceRefresh)
                 remoteSnapshot = Self.tokenSnapshot(
                     from: CostUsageDailyReport(
                         data: CostReportingPeriod.rolling(days: clampedHistoryDays)
-                            .entries(daily.data, now: now, calendar: calendar),
+                            .entries(daily.report.data, now: now, calendar: calendar),
                         summary: nil),
                     now: now,
                     historyDays: clampedHistoryDays,
@@ -543,7 +544,8 @@ public struct CostUsageFetcher: Sendable {
                     historyCoverageIsEstablished: CostUsageLocalDay.key(from: now, calendar: calendar)
                         <= CostUsageLocalDay.key(
                             from: now, calendar: CostUsageBucketTimeZone.calendar(identifier: "UTC")),
-                    costProvenance: .vendorMetered)
+                    costProvenance: .vendorMetered,
+                    updatedAt: daily.updatedAt)
             }
 
             #if os(macOS)
@@ -1671,14 +1673,18 @@ public struct CostUsageFetcher: Sendable {
     private static func loadBedrockDailyReport(
         environment: [String: String],
         since: Date,
-        until: Date) async throws -> CostUsageDailyReport
+        until: Date,
+        forceRefresh: Bool) async throws -> (report: CostUsageDailyReport, updatedAt: Date)
     {
         let resolved = try await BedrockCredentialResolver.resolve(environment: environment)
         return try await BedrockUsageFetcher.fetchDailyReport(
             credentials: resolved.credentials,
+            region: resolved.region,
             since: since,
             until: until,
-            environment: environment)
+            environment: environment,
+            forceRefresh: forceRefresh,
+            cache: environment[BedrockSettingsReader.apiURLKey] == nil ? .shared : nil)
     }
 
     #if os(macOS)
