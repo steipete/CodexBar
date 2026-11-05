@@ -853,6 +853,50 @@ struct DashboardSnapshotBuilderTests {
     }
 }
 
+extension DashboardSnapshotBuilderTests {
+    @Test(arguments: [DashboardIdentityMode.full, .redacted, .none])
+    func `partial model warning never exports provider notice text`(identityMode: DashboardIdentityMode) throws {
+        let privateNotice = "rate limited for private@example.test in /Users/private/workspace"
+        let usage = try UsageSnapshot(
+            primary: RateWindow(usedPercent: 25, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 40, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            tertiary: nil,
+            details: [ProviderDetailSection(rows: [
+                ProviderDetailSection.Row(
+                    id: ClaudeStatusProbe.modelBreakdownDetailRowID, label: "Status", value: privateNotice),
+            ])],
+            updatedAt: Date(timeIntervalSince1970: 0))
+        let payload = ProviderPayload(
+            provider: .claude,
+            account: nil,
+            version: nil,
+            source: "cli",
+            status: nil,
+            usage: usage,
+            credits: nil,
+            antigravityPlanInfo: nil,
+            openaiDashboard: nil,
+            error: nil)
+        let snapshot = DashboardSnapshotBuilder.makeSnapshot(
+            usagePayloads: [payload],
+            costPayloads: [],
+            config: CodexBarConfig(providers: []),
+            identityMode: identityMode,
+            generatedAt: Date(timeIntervalSince1970: 0),
+            refreshInterval: 60,
+            codexBarVersion: nil)
+        let row = try #require(snapshot.providers.first)
+        #expect(row.warnings == [.modelBreakdownUnavailable])
+        #expect(row.windows.map(\.usedPercent) == [25, 40])
+        #expect(row.error == nil)
+        let json = try #require(String(data: JSONEncoder().encode(snapshot), encoding: .utf8))
+        #expect(json.contains("model-breakdown-unavailable"))
+        #expect(!json.contains(privateNotice))
+        #expect(!json.contains("private@example.test"))
+        #expect(!json.contains("/Users/private"))
+    }
+}
+
 private actor DashboardCostFetchRecorder {
     struct Call: Sendable {
         let provider: UsageProvider

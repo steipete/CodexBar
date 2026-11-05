@@ -77,11 +77,14 @@ package final class BoundedTaskJoin<Value: Sendable>: @unchecked Sendable {
         self.timeoutTask = nil
         self.lock.unlock()
 
+        // Cancellation handlers can block. Publish the result and request source
+        // cancellation off the caller's thread, including before registration.
+        continuation?.resume(returning: outcome)
         if cancelSource {
-            self.sourceTask.cancel()
+            let sourceTask = self.sourceTask
+            DispatchQueue.global().async { sourceTask.cancel() }
         }
         observerTask?.cancel()
         timeoutTask?.cancel()
-        continuation?.resume(returning: outcome)
     }
 }
