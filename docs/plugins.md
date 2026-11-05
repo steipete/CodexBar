@@ -598,8 +598,9 @@ error and can also be deleted.
 
 ## Security and limitations
 
-User-plugin HTTP sessions are scoped to a single request and released after success or failure.
-Reloading or removing plugins does not leave inactive sessions retained by their delegates. Redirect and credential-isolation rules remain unchanged.
+User plugins share one process-lifetime HTTP session with a stateless delegate. Each request has its own response
+buffer and byte limit; completion or cancellation removes its state. The session retains no plugin runtime or client.
+Cookies, caches, and credential storage remain disabled, redirects are refused, and both session timeouts remain 15 seconds.
 
 Treat a plugin like code you run locally, even though its host capabilities are narrow. Read the manifest and source,
 verify every origin, and avoid installing files from untrusted repositories. Approval grants the listed origin network
