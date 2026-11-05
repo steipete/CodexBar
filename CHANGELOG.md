@@ -2,6 +2,9 @@
 
 ## 0.83.1 — Unreleased
 
+### Fixed
+
+- Kiro: preserve the `+` in CLI-reported plan names so Pro+ subscriptions are shown as Kiro Pro+. (#4928) Thanks @jeanroloff!
 ### Changed
 
 - Menu: dim retained quota and Code Review bars after their own refresh failures, while keeping successful fallback readings and separate credit/cost sections in their normal colors (#4883). Thanks @Chipagosfinest!
@@ -11,7 +14,6 @@
 ### Added
 
 - Settings: find panes by title alongside provider names in sidebar search, with an empty state covering both (#4875). Thanks @elijahfriedman!
-### Fixed
 
 - Settings: hide provider sorting controls while the sidebar is collapsed and restore them when it reopens (#4872). Thanks @elijahfriedman!
 - Dashboard API: expose a fixed warning code when Claude's model breakdown is unavailable, preserving session and weekly quotas without forwarding provider notice text (#4809, #4877). Thanks @Chipagosfinest!
