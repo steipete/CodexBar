@@ -30,12 +30,12 @@ struct CursorAntigravityLocalReaderTests {
         #expect(row.cost == 0.012)
     }
 
-    @Test
-    func `cursor v2 csv parses kind rows`() throws {
+    @Test(arguments: [false, true])
+    func `cursor v2 csv parses kind rows with trailing billing columns`(trailingBilling: Bool) throws {
         let csv = [
             "Date,Kind,Model,Max Mode,Input (w/ Cache Write),Input (w/o Cache Write),"
-                + "Cache Read,Output Tokens,Total Tokens,Cost",
-            "2026-08-20T11:00:00Z,chat,gpt-5.4,on,500,500,0,50,550,0.001",
+                + "Cache Read,Output Tokens,Total Tokens,Cost" + (trailingBilling ? ",Cost to you" : ""),
+            "2026-08-20T11:00:00Z,chat,gpt-5.4,on,500,500,0,50,550,0.001" + (trailingBilling ? ",0" : ""),
         ].joined(separator: "\n") + "\n"
         let url = try Self.writeTemporary(csv, extension: "csv")
         defer { try? FileManager.default.removeItem(at: url) }
@@ -46,6 +46,8 @@ struct CursorAntigravityLocalReaderTests {
         #expect(row.cacheRead == 0)
         #expect(row.cacheWrite == 0)
         #expect(row.output == 50)
+        #expect(row.totalTokens == 550)
+        #expect(row.cost == 0.001)
     }
 
     @Test

@@ -130,6 +130,15 @@ struct PreferencesPaneSmokeTests {
     }
 
     @Test
+    func `settings menu picker keeps off list selections visible`() {
+        let workDays = MenuSettingsMenuOptions.weeklyProgressWorkDays
+        #expect(SettingsMenuPickerOptions.displayed(workDays, selection: 5) == workDays)
+        #expect(SettingsMenuPickerOptions.displayed(workDays, selection: nil) == workDays)
+        #expect(SettingsMenuPickerOptions.displayed(workDays, selection: 3) == [nil, 4, 5, 6, 7, 3])
+        #expect(MenuSettingsMenuOptions.weeklyProgressWorkDaysLabel(3) == L("%d days", 3))
+    }
+
+    @Test
     func `overview provider limit text shows the configured maximum`() {
         let text = MenuBarPane.overviewProviderLimitText()
 

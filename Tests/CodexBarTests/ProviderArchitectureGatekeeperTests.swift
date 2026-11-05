@@ -3207,9 +3207,9 @@ struct ProviderArchitectureGatekeeperTests {
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/CostUsageFetcher.swift",
             anchor: "if provider == .opencodego {",
-            expectedProviderIDs: ["muse", "opencodego", "pi"],
-            expectedReferenceCount: 3,
-            expectedReferenceFingerprint: ["opencodego@0", "muse@11", "pi@23"],
+            expectedProviderIDs: ["opencodego"],
+            expectedReferenceCount: 1,
+            expectedReferenceFingerprint: ["opencodego@0"],
             reason: "The CLI cost adapter reuses OpenCode Go's existing device-local recorded history reader."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/CostUsageFetcher.swift",

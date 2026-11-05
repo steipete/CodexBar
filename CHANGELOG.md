@@ -5,6 +5,34 @@
 ### Fixed
 
 - Grok: celebrate weekly resets only after the prior boundary has elapsed, preserve genuine resets, and suppress repeated or stale-sample celebrations across restarts (#4917, #4923). Thanks @LeoLin990405!
+- OpenCode Go: return unavailable cost history instead of an error when OpenCode is not installed locally, including on `codexbar serve` hosts tracking remote quota. (#4931) Thanks @VACInc!
+- Kiro: recover API usage with a valid CLI token and no stored profile, avoiding chat probes when the API supplies usable plan limits. (#4915) Thanks @Yuxin-Qiao!
+- Kiro: preserve the `+` in CLI-reported plan names so Pro+ subscriptions are shown as Kiro Pro+. (#4928) Thanks @jeanroloff!
+### Changed
+
+- Menu: dim retained quota and Code Review bars after their own refresh failures, while keeping successful fallback readings and separate credit/cost sections in their normal colors (#4883). Thanks @Chipagosfinest!
+- Menu: use tabular digits for usage and cost values to reduce movement when equal-length numbers change (#4884). Thanks @Chipagosfinest!
+
+- Settings: use native popup selectors while keeping imported custom choices visible (#4895). Thanks @elijahfriedman!
+### Added
+
+- Settings: find panes by title alongside provider names in sidebar search, with an empty state covering both (#4875). Thanks @elijahfriedman!
+
+- Settings: hide provider sorting controls while the sidebar is collapsed and restore them when it reopens (#4872). Thanks @elijahfriedman!
+- Dashboard API: expose a fixed warning code when Claude's model breakdown is unavailable, preserving session and weekly quotas without forwarding provider notice text (#4809, #4877). Thanks @Chipagosfinest!
+- Bedrock: reuse bounded, account-scoped Cost Explorer results for periodic app usage and cost history for up to six hours, preserving original timestamps and fresh CLI usage requests (#4874). Thanks @djbclark!
+- Synthetic: show current weekly credit quotas and regeneration details while ignoring the retired subscription counter alongside known quota lanes. (#4871, #4885) Thanks @serialx and @baanish!
+- Neuralwatt: expose prepaid credit balances in provider cost JSON so balance consumers receive the remaining amount (#4870). Thanks @Josephur!
+- Tests: make plugin timeout and optional-request fixtures deterministic under loaded CI runners.
+- iCloud Sync: stop treating the Codex login as a local account for other providers, so a synced account with the same email is no longer hidden from their menus (#4869). Thanks @audichuang!
+- Cursor: retain local CSV usage when exports include a trailing customer cost column. (#4897) Thanks @Chipagosfinest!
+- CLI: reject `hooks watch --interval` values that overflow the sleep timer instead of crashing. (#4896) Thanks @Chipagosfinest!
+- CLI: reject malformed `cost --days` values instead of silently reporting a different time window. (#4893) Thanks @Chipagosfinest!
+- Plugins: keep HTTP timeouts and caller cancellation responsive when a transport's cancellation handler blocks (#4891, #4867). Thanks @akshat-khare and @Yuxin-Qiao!
+- Plugins: reuse one isolated HTTP session for user plugins to avoid per-request session teardown, and release request state on completion or cancellation (#4926).
+- Claude: recover background Auto usage after temporary CLI failures when Keychain access is disabled, with bounded retry delays. (#4907, #4908) Thanks @hy-ong!
+- CLI: document noninteractive browser access and the Keychain opt-out for dashboard and service launchers. (#4912, #4920) Thanks @vincent-peng and @LeoLin990405!
+- Cursor: read encrypted app sessions from the current `Cursor Key` and legacy Safe Storage accounts. (#4880, #4913) Thanks @vincent-peng and @SaahiilM!
 
 ## 0.83.0 — 2026-10-31
 
