@@ -21,6 +21,7 @@
 
 - Settings: find panes by title alongside provider names in sidebar search, with an empty state covering both (#4875). Thanks @elijahfriedman!
 
+- Menu bar: include macOS 27's MenuBarAgent and startup recovery decisions in opt-in missing-icon diagnostics (#3377, #4506).
 - CLI: omit supplemental OpenAI dashboard caches older than one hour from Codex usage JSON, while tolerating sixty seconds of clock skew and preserving the shared cache (#4882). Thanks @Chipagosfinest!
 - Settings: hide provider sorting controls while the sidebar is collapsed and restore them when it reopens (#4872). Thanks @elijahfriedman!
 - Dashboard API: expose a fixed warning code when Claude's model breakdown is unavailable, preserving session and weekly quotas without forwarding provider notice text (#4809, #4877). Thanks @Chipagosfinest!
