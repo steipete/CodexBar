@@ -5,6 +5,13 @@
 ### Fixed
 
 - Cursor: retain local CSV usage when exports include a trailing customer cost column. (#4897) Thanks @Chipagosfinest!
+- CLI: reject `hooks watch --interval` values that overflow the sleep timer instead of crashing. (#4896) Thanks @Chipagosfinest!
+- CLI: reject malformed `cost --days` values instead of silently reporting a different time window. (#4893) Thanks @Chipagosfinest!
+- Plugins: keep HTTP timeouts and caller cancellation responsive when a transport's cancellation handler blocks (#4891, #4867). Thanks @akshat-khare and @Yuxin-Qiao!
+- Plugins: reuse one isolated HTTP session for user plugins to avoid per-request session teardown, and release request state on completion or cancellation (#4926).
+- Claude: recover background Auto usage after temporary CLI failures when Keychain access is disabled, with bounded retry delays. (#4907, #4908) Thanks @hy-ong!
+- CLI: document noninteractive browser access and the Keychain opt-out for dashboard and service launchers. (#4912, #4920) Thanks @vincent-peng and @LeoLin990405!
+- Cursor: read encrypted app sessions from the current `Cursor Key` and legacy Safe Storage accounts. (#4880, #4913) Thanks @vincent-peng and @SaahiilM!
 
 ## 0.83.0 — 2026-10-31
 
