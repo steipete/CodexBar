@@ -27,11 +27,12 @@ enum ProviderCookieRefreshAction {
     static func trailingText(
         provider: UsageProvider,
         cookieSource: ProviderCookieSource,
+        scope: CookieHeaderCache.Scope? = nil,
         context: ProviderSettingsContext) -> String?
     {
         guard cookieSource != .manual else { return nil }
         return context.statusText(self.statusID(provider)) ?? ProviderCookieSourceUI
-            .cachedTrailingText(provider: provider)
+            .cachedTrailingText(provider: provider, scope: scope)
     }
 
     static func refresh(
