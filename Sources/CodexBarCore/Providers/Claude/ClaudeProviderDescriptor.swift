@@ -818,7 +818,7 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
         var details = usage.resetCredits?.detailSections(now: usage.updatedAt) ?? []
         if let notice = usage.rawText.flatMap({ ClaudeStatusProbe.modelBreakdownNotice(in: $0) }) {
             details.append(.makeSection(rows: [
-                .makeRow(id: "claude-model-breakdown", label: "Status", value: notice),
+                .makeRow(id: ClaudeStatusProbe.modelBreakdownDetailRowID, label: "Status", value: notice),
             ]))
         }
         if includeOptionalUsage {

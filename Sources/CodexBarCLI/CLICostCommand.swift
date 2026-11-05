@@ -848,7 +848,14 @@ extension CodexBarCLI {
                 output: CLIOutputPreferences.from(values: values),
                 kind: .args)
         }
-        if let raw = values.options["days"]?.last, let days = Int(raw) {
+        if let raw = values.options["days"]?.last {
+            guard let days = Int(raw) else {
+                Self.exit(
+                    code: .failure,
+                    message: "Error: --days must be an integer.",
+                    output: CLIOutputPreferences.from(values: values),
+                    kind: .args)
+            }
             return .rolling(days: max(1, min(365, days)))
         }
         let period = values.options["period"]?.last.flatMap(CostReportingPeriod.init(rawValue:)) ?? saved

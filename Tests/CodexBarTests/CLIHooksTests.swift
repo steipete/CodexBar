@@ -6,6 +6,23 @@ import Testing
 
 struct CLIHooksTests {
     @Test
+    func `watch rejects intervals that overflow rounded nanoseconds`() throws {
+        for raw in ["1e100", "19000000000", "18446744073.709553"] {
+            let result = CodexBarCLI.decodeHooksWatchInterval(
+                from: ParsedValues(positional: [], options: ["interval": [raw]], flags: []))
+            guard case .failure = result else {
+                Issue.record("An unrepresentable interval was accepted: \(raw)")
+                continue
+            }
+        }
+        for raw in ["60.5", "18000000000"] {
+            let result = CodexBarCLI.decodeHooksWatchInterval(
+                from: ParsedValues(positional: [], options: ["interval": [raw]], flags: []))
+            #expect(try result.get() == Double(raw))
+        }
+    }
+
+    @Test
     func `watch provider option accepts all both and deduplicates concrete names`() throws {
         let allResult = CodexBarCLI.decodeHooksWatchProviderNames(
             from: ParsedValues(positional: [], options: ["provider": ["all"]], flags: []))
