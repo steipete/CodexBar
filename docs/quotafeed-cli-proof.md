@@ -83,6 +83,83 @@ baseline-preservation assertion (15 tests total).
 It adds Quota Feed plus two already-present resources previously omitted from the
 upstream table (Abliteration and OpenDesign); no existing embedded icon changes.
 
+## Reset publication regression
+
+The app's existing `preparePublishedSnapshot` call still uses
+`backfillingResetTimesForProvider`. That pure helper now lives in CodexBarCore so
+its real implementation can be exercised without AppKit or a mocked UsageStore.
+Quota Feed returns the incoming snapshot unchanged: an absent reset is authoritative.
+Session-bound providers still skip cached dates, and other providers keep the same
+shared backfill behavior. An optional clock argument makes the test deterministic;
+production callers retain the current-time default.
+
+`QuotaFeedPublicationTests` writes a synthetic file with a future reset, reads it
+with the real bounded reader, then atomically replaces it with fresh data that omits
+`resetsAt` (and separately with explicit `null`). The new snapshot is passed through
+the same helper used by app publication, with the previous snapshot supplied as
+cache. Assertions cover removal of the old date, current usage and observation time,
+a subsequently supplied replacement date, zero allocation, and unchanged Codex and
+Langdock publication policies. No app process, preferences, account, or keychain is used.
+
+The new test was first run with the helper's previous policy (before the Quota Feed
+exemption). Both omission and null cases failed as expected:
+
+```text
+Expectation failed: published.primary?.resetsAt == nil
+published.primary?.resetsAt -> 2026-01-01 13:00:00 +0000
+Test "publication clears a removed reset after atomic feed replacement" with 2 test cases failed with 2 issues.
+```
+
+After the fix, the same committed test file passed without changing its assertions:
+
+```text
+Test "publication clears a removed reset after atomic feed replacement" with 2 test cases passed.
+Test "other providers retain their existing reset publication policies" passed.
+Test "zero allocation does not restore a cached quota window or reset" passed.
+Test run with 18 tests in 4 suites passed.
+```
+
+The 18-test run includes the 13 original QuotaFeedTests, these 3 publication tests
+(one parameterized over two cases), and the 2 palette checks described above. This
+is publication-helper coverage, not a rendered app or full UsageStore lifecycle test.
+
+On a full Xcode machine, run:
+
+```sh
+make test-fast FILTER='QuotaFeedTests|QuotaFeedPublicationTests|LangdockUsageTests'
+```
+
+For a core-only run on this CLT machine, a temporary SwiftPM package under `.build`
+imports the local `CodexBarCore` product and symlinks the committed test files. Its
+manifest (package directory two levels below the repository root) is:
+
+```swift
+// swift-tools-version: 6.2
+import PackageDescription
+let package = Package(
+    name: "QuotaFeedValidation",
+    platforms: [.macOS(.v14)],
+    dependencies: [.package(name: "CodexBar", path: "../..")],
+    targets: [.testTarget(
+        name: "QuotaFeedValidationTests",
+        dependencies: [.product(name: "CodexBarCore", package: "CodexBar")],
+        path: "Tests")])
+```
+
+With `QuotaFeedTests.swift` and `QuotaFeedPublicationTests.swift` linked into that
+package's `Tests` directory, run the following in Bash for the 16 committed
+feed/publication tests:
+
+```sh
+source Scripts/test_environment.sh
+swift test --package-path .build/quota-feed-validation --build-system native \
+  -Xswiftc -F/Library/Developer/CommandLineTools/Library/Developer/Frameworks \
+  -Xlinker -F/Library/Developer/CommandLineTools/Library/Developer/Frameworks \
+  -Xlinker -rpath \
+  -Xlinker /Library/Developer/CommandLineTools/Library/Developer/Frameworks \
+  --filter 'QuotaFeedTests|QuotaFeedPublicationTests'
+```
+
 ## Remaining validation
 
 Full app/widget/architecture suites and menu-card screenshots require an Xcode-equipped

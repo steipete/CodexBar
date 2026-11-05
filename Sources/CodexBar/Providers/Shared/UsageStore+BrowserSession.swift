@@ -41,13 +41,6 @@ extension UsageStore {
     }
 }
 
-extension UsageSnapshot {
-    func backfillingResetTimesForProvider(_ provider: UsageProvider, from cached: UsageSnapshot?) -> UsageSnapshot {
-        // Session-bound snapshots report unknown resets explicitly and cannot inherit another login's dates.
-        UsageStore.requiresBrowserSession(provider) ? self : self.backfillingResetTimes(from: cached)
-    }
-}
-
 enum BrowserSessionFailurePolicy {
     static func hasMatchingOwner(after error: Error, priorSnapshot: UsageSnapshot?) -> Bool {
         if let failure = error as? ProviderBrowserSessionFailure {
