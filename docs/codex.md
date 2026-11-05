@@ -173,6 +173,11 @@ again immediately before the live replacement. External writers can still race a
 Saved-account removal and import repair retain an old managed home while another saved record references
 the same path. Cleanup still requires the managed-home safety checks and releases the home after its last reference.
 
+Adding or reauthenticating a known workspace preserves same-email legacy rows when their saved credentials identify
+another workspace or owner, or cannot be read safely. Missing credential files retain the existing legacy
+reconciliation behavior. If the incoming login also lacks a workspace identity, an ambiguous replacement fails
+without changing the saved row or credentials.
+
 Registry write attempts under the account lock emit one bounded `codex-accounts` log entry with the operation,
 before/requested/written row counts, and success or failure. Successful managed-home deletions emit the operation
 only. These diagnostics contain no account identifiers, fingerprints, email addresses, home paths, tokens, or
