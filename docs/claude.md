@@ -576,7 +576,9 @@ When Claude Code reports `Per-model breakdown unavailable`, CodexBar keeps the c
 weekly quotas and carries the CLI's notice in a `usage.details` row with ID `claude-model-breakdown`.
 This distinguishes an unavailable model breakdown from an account with no model-specific limit in
 `codexbar usage --json` and `codexbar serve`'s `/usage` response. The notice is upstream CLI text; it disappears
-with the next successful breakdown. The compact `/dashboard/v1/snapshot` schema does not expose usage details.
+with the next successful breakdown. `/dashboard/v1/snapshot` exposes only the fixed code
+`providers[].warnings: ["model-breakdown-unavailable"]`; it never forwards the CLI notice text, regardless of identity
+mode. The additive field is omitted after recovery and from shell rows.
 
 - Runs `claude` in a PTY session (`ClaudeCLISession`).
 - The PTY and replay screen share a 160-column, 200-row viewport so tall inline `/usage` panels retain their session,

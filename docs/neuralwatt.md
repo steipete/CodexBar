@@ -69,6 +69,7 @@ For tests or self-hosted/proxy setups, override the API base URL with `NEURALWAT
   `key.allowance.limit_usd`, `key.allowance.spent_usd`, `key.allowance.period`
 - `credits_used_usd` is derived as `total_credits_usd − credits_remaining_usd` when the API omits it.
 - `subscription` may be `null`; prepaid balance remains visible without a subscription window.
+- Usage JSON exports remaining prepaid USD in `usage.providerCost.balance`, including zero; existing `used` and currency fields remain unchanged.
 - Transient quota failures are retried once, including `Retry-After` handling for rate limits.
 
 The bundled [`neuralwatt.js`](../Sources/CodexBarCore/Resources/Plugins/neuralwatt.js) is authoritative on QuickJS and

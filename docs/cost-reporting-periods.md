@@ -61,6 +61,8 @@ codexbar cost --days 7 --json
 
 `--days N` always selects a rolling window, even alongside `--period`. Rolling windows accept 1–365 days and default to 30 on installations without a saved selection. JSON includes `reportingPeriod`, `historyLabel`, and period totals under `totals`; the existing `last30DaysTokens` and `last30DaysCostUSD` compatibility fields retain their documented meaning.
 
+An explicit `--days` value must be an integer; malformed, fractional, or overflowing values fail with an argument error. Valid integers are clamped to 1–365 days.
+
 The existing host-summary protocol (`--remote` and `--summary-only`) remains limited to 1–365 days. When All is selected, use an explicit `--days N` for those modes.
 
 All reads the available source history, including local logs older than a year. Missing or deleted logs cannot be recovered, provider APIs can impose their own history limits, and incomplete scans remain marked as incomplete. Local priority metadata is reconciled only for recorded days, without a fixed earliest-year cutoff or empty-day cache entries. This is not a permanent ledger or a lifetime bill since installation. The separate token-activity heatmap still covers one year.
