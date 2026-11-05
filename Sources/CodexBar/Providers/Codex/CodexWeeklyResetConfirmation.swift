@@ -26,13 +26,16 @@ struct CodexWeeklyResetPublicationCandidate: Codable, Sendable {
 }
 
 struct CodexWeeklyResetConfirmation: Sendable {
+    @TaskLocal static var followUpAccount: CodexVisibleAccount?
     #if DEBUG
     @TaskLocal static var observationDateOverride: Date?
+    @TaskLocal static var observationDateProviderOverride: (@Sendable () -> Date)?
+    @TaskLocal static var followUpSleepOverride: (@Sendable (Duration) async throws -> Void)?
     #endif
 
     static var observationDate: Date {
         #if DEBUG
-        self.observationDateOverride ?? Date()
+        self.observationDateProviderOverride?() ?? self.observationDateOverride ?? Date()
         #else
         Date()
         #endif
@@ -80,7 +83,7 @@ struct CodexWeeklyResetConfirmation: Sendable {
 
     private static let resetEquivalenceToleranceSeconds: TimeInterval = 2 * 60
     private static let stableUnchangedBoundaryToleranceSeconds: TimeInterval = 1
-    private static let delayedCandidateMinimumAge: TimeInterval = 60
+    static let delayedCandidateMinimumAge: TimeInterval = 60
     private static let delayedCandidateMaximumAge: TimeInterval = 30 * 60
     private static let resetThreshold = 1.0
 

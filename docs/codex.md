@@ -92,6 +92,10 @@ Usage source picker:
   ahead. The later reset must not move backward. Exact OAuth, account, plan, unchanged positive reset-credit
   inventory across fresh observations (and historical inventory when present), minimum confirmation age, and
   candidate expiry checks still apply.
+- Eligible delayed candidates receive one noninteractive, account-scoped refresh at the existing 60-second minimum.
+  Repeated refreshes keep that pending work, and switching away updates only the candidate's account row.
+  Credential or source changes, provider disablement, and the 30-minute expiry stop stale follow-ups. Failed
+  confirmation waits for an ordinary refresh instead of starting an automatic retry loop.
 - Debug logs in `codex-weekly-reset-publication` include fixed reason codes for delayed-candidate
   creation, pruning, revalidation, and account-scoped storage requests. They distinguish source/confidence,
   timing, boundary, identity/plan compatibility, and credit-inventory failures without logging account or credit
