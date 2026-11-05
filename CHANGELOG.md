@@ -5,6 +5,10 @@
 ### Fixed
 
 - Tests: make plugin timeout and optional-request fixtures deterministic under loaded CI runners.
+- iCloud Sync: stop treating the Codex login as a local account for other providers, so a synced account with the same email is no longer hidden from their menus (#4869). Thanks @audichuang!
+- Cursor: retain local CSV usage when exports include a trailing customer cost column. (#4897) Thanks @Chipagosfinest!
+- CLI: reject `hooks watch --interval` values that overflow the sleep timer instead of crashing. (#4896) Thanks @Chipagosfinest!
+- CLI: reject malformed `cost --days` values instead of silently reporting a different time window. (#4893) Thanks @Chipagosfinest!
 - Plugins: keep HTTP timeouts and caller cancellation responsive when a transport's cancellation handler blocks (#4891, #4867). Thanks @akshat-khare and @Yuxin-Qiao!
 - Plugins: reuse one isolated HTTP session for user plugins to avoid per-request session teardown, and release request state on completion or cancellation (#4926).
 - Claude: recover background Auto usage after temporary CLI failures when Keychain access is disabled, with bounded retry delays. (#4907, #4908) Thanks @hy-ong!
