@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- CLI: reject `hooks watch --interval` values that overflow the sleep timer instead of crashing. (#4896) Thanks @Chipagosfinest!
 - CLI: reject malformed `cost --days` values instead of silently reporting a different time window. (#4893) Thanks @Chipagosfinest!
 - Plugins: keep HTTP timeouts and caller cancellation responsive when a transport's cancellation handler blocks (#4891, #4867). Thanks @akshat-khare and @Yuxin-Qiao!
 - Plugins: reuse one isolated HTTP session for user plugins to avoid per-request session teardown, and release request state on completion or cancellation (#4926).
