@@ -2774,3 +2774,4 @@
 "Leave blank to use the default name." = "留空以使用預設名稱。";
 "Rewards" = "獎勵";
 "Reward expiry" = "獎勵到期日期";
+"Paste the WorkBuddy User-Agent as a single request header value." = "將 WorkBuddy 的 User-Agent 貼上為單一請求標頭值。";

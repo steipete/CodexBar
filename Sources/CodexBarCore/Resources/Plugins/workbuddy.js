@@ -13,7 +13,8 @@ defineProvider({
     { key: "webTimeoutSeconds", title: "Web timeout", type: "plain" },
     { key: "resetDeadlineMillis", title: "Reset lookup deadline", type: "plain" },
     { key: "chromeMajorVersion", title: "Chrome major version", type: "plain" },
-    { key: "manualUserAgent", title: "Manual User-Agent", type: "plain" },
+    { key: "manualUserAgent", title: "User-Agent", type: "plain" },
+    { key: "manualUserAgentError", title: "Invalid User-Agent message", type: "plain" },
   ],
   capabilities: ["browser-cookies", "http-status"],
   cookieDomains: ["workbuddy.cn", "www.workbuddy.cn"],
@@ -29,7 +30,12 @@ defineProvider({
     if (policy === "off") throw ctx.fail.missingCredential("WorkBuddy cookies are disabled.");
     const manualUserAgent = policy === "manual" ? _nullishCoalesce(ctx.settings.get("manualUserAgent"), () => "") : "";
     if (/[^\x20-\x7e]/.test(manualUserAgent)) {
-      throw ctx.fail.missingCredential("Paste the WorkBuddy User-Agent as a single request header value.");
+      throw ctx.fail.missingCredential(
+        _nullishCoalesce(
+          ctx.settings.get("manualUserAgentError"),
+          () => "Paste the WorkBuddy User-Agent as a single request header value.",
+        ),
+      );
     }
     const override = manualUserAgent.trim();
     const timeoutRaw = Number(_nullishCoalesce(ctx.settings.get("webTimeoutSeconds"), () => "15"));

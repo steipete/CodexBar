@@ -2799,3 +2799,4 @@
 "Leave blank to use the default name." = "Pozostaw puste, aby użyć domyślnej nazwy.";
 "Rewards" = "Nagrody";
 "Reward expiry" = "Wygaśnięcie nagród";
+"Paste the WorkBuddy User-Agent as a single request header value." = "Wklej User-Agent WorkBuddy jako pojedynczą wartość nagłówka żądania.";

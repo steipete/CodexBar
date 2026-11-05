@@ -2764,3 +2764,4 @@
 "Leave blank to use the default name." = "기본 이름을 사용하려면 비워 두세요.";
 "Rewards" = "보상";
 "Reward expiry" = "보상 만료일";
+"Paste the WorkBuddy User-Agent as a single request header value." = "WorkBuddy User-Agent를 단일 요청 헤더 값으로 붙여넣으세요.";

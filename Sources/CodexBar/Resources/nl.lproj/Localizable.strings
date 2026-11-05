@@ -2793,3 +2793,4 @@
 "Leave blank to use the default name." = "Laat dit veld leeg om de standaardnaam te gebruiken.";
 "Rewards" = "Beloningen";
 "Reward expiry" = "Vervaldatum beloningen";
+"Paste the WorkBuddy User-Agent as a single request header value." = "Plak de User-Agent van WorkBuddy als één waarde voor de aanvraagheader.";

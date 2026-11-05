@@ -2798,3 +2798,4 @@
 "Leave blank to use the default name." = "Deixa-ho en blanc per fer servir el nom per defecte.";
 "Rewards" = "Recompenses";
 "Reward expiry" = "Caducitat de les recompenses";
+"Paste the WorkBuddy User-Agent as a single request header value." = "Enganxa el User-Agent del WorkBuddy com un únic valor de capçalera de sol·licitud.";

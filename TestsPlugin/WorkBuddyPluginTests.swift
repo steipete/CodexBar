@@ -645,9 +645,11 @@ struct WorkBuddyPluginTests {
         #expect(Set(paths.values) == [Self.summaryPath, Self.paidPath, Self.freePath])
     }
 
-    @Test(arguments: BundledPluginTestSupport.engines)
-    func `manual user agent with a line break fails before accessing cookies`(
-        engine: ProviderPluginEngineKind) async throws
+    @Test(
+        arguments: ["fixture\nInjected: yes", "fixture\r\nInjected: yes", "fixture\u{7F}", "fixture\tUA"],
+        BundledPluginTestSupport.engines)
+    func `manual user agent with invalid header characters fails before accessing cookies`(
+        configured: String, engine: ProviderPluginEngineKind) async throws
     {
         let sessions = SessionTrace(headers: [Self.fixtureCookie])
         let runtime = try BundledPluginTestSupport.runtime(
@@ -655,7 +657,7 @@ struct WorkBuddyPluginTests {
             transport: ProviderHTTPTransportHandler { _ in throw URLError(.badURL) })
         await Self.expectFailure(.missingCredential) {
             _ = try await runtime.fetchUsage(
-                settings: ["manualUserAgent": "Mozilla/5.0\nUnexpected: fixture"],
+                settings: ["manualUserAgent": configured],
                 now: Self.now, cookieSource: .manual,
                 cookieSessionResolver: { _, _ in sessions.next() })
         }

@@ -2797,3 +2797,4 @@
 "Leave blank to use the default name." = "Để trống để dùng tên mặc định.";
 "Rewards" = "Phần thưởng";
 "Reward expiry" = "Ngày hết hạn phần thưởng";
+"Paste the WorkBuddy User-Agent as a single request header value." = "Dán User-Agent của WorkBuddy dưới dạng một giá trị tiêu đề yêu cầu duy nhất.";

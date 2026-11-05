@@ -2798,3 +2798,4 @@
 "Leave blank to use the default name." = "เว้นว่างไว้เพื่อใช้ชื่อเริ่มต้น";
 "Rewards" = "รางวัล";
 "Reward expiry" = "วันหมดอายุของรางวัล";
+"Paste the WorkBuddy User-Agent as a single request header value." = "วาง User-Agent ของ WorkBuddy เป็นค่าฮีเดอร์คำขอเพียงค่าเดียว";

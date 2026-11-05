@@ -2796,3 +2796,4 @@
 "Leave blank to use the default name." = "空欄にするとデフォルトの名前を使用します。";
 "Rewards" = "報酬";
 "Reward expiry" = "報酬の有効期限";
+"Paste the WorkBuddy User-Agent as a single request header value." = "WorkBuddy の User-Agent を単一のリクエストヘッダー値として貼り付けてください。";

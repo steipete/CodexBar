@@ -3,7 +3,7 @@ summary: "WorkBuddy provider: website session cookies and the monthly credits al
 provider_id: workbuddy
 provider_name: WorkBuddy
 provider_source: Chrome or manual www.workbuddy.cn cookies for the monthly credits allowance, plan name, cycle reset, and the platform reward credits.
-plugin_scope: Host-owned website session cookies with the matching Chrome User-Agent; billing summary plus optional package listings for the cycle reset and the reward expiry on both engines.
+plugin_scope: Host-owned website session cookies with a matching detected Chrome or manual User-Agent; billing summary plus optional package listings for the cycle reset and the reward expiry on both engines.
 read_when:
   - Configuring WorkBuddy credit tracking
   - Debugging WorkBuddy session-cookie or billing parsing
@@ -49,7 +49,9 @@ If that is rejected, it retries once with the previous major version, which cove
 has not been relaunched yet. WorkBuddy uses this Chrome behavior in Automatic mode or when the manual User-Agent
 field is blank. A supplied manual User-Agent is used for both the billing summary and package requests, including
 on systems without Chrome. For the CLI, the provider's configuration entry accepts the optional
-`workBuddyUserAgent` string with `cookieSource` set to `manual`.
+`workBuddyUserAgent` string with `cookieSource` set to `manual`. The override applies only to WorkBuddy
+billing requests. It must be a single printable ASCII header value; line breaks and control characters are
+rejected before cookie access or HTTP requests.
 
 Automatic mode tries the next session when every User-Agent attempt returns HTTP 401. Permission
 failures, rate limits, service errors, non-zero API codes, and malformed payloads stop retries without rejecting the

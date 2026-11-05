@@ -2799,3 +2799,4 @@
 "Leave blank to use the default name." = "Varsayılan adı kullanmak için boş bırakın.";
 "Rewards" = "Ödüller";
 "Reward expiry" = "Ödüllerin son kullanma tarihi";
+"Paste the WorkBuddy User-Agent as a single request header value." = "WorkBuddy User-Agent değerini tek bir istek üst bilgisi değeri olarak yapıştırın.";

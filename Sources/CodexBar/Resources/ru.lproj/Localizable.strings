@@ -2797,3 +2797,4 @@
 "Leave blank to use the default name." = "Оставьте поле пустым, чтобы использовать имя по умолчанию.";
 "Rewards" = "Награды";
 "Reward expiry" = "Срок действия наград";
+"Paste the WorkBuddy User-Agent as a single request header value." = "Вставьте User-Agent WorkBuddy как одно значение заголовка запроса.";

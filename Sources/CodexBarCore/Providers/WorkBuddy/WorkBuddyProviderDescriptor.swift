@@ -60,6 +60,8 @@ public enum WorkBuddyProviderDescriptor {
                 ]
                 if workbuddy?.cookies.cookieSource == .manual {
                     settings["manualUserAgent"] = workbuddy?.manualUserAgent
+                    settings["manualUserAgentError"] = UsageFormatter.localized(
+                        "Paste the WorkBuddy User-Agent as a single request header value.")
                 }
                 if let major = WorkBuddyChromeVersion.majorVersion() {
                     settings["chromeMajorVersion"] = String(major)

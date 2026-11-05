@@ -2795,3 +2795,4 @@
 "Leave blank to use the default name." = "Deixa este campo baleiro para usar o nome predeterminado.";
 "Rewards" = "Recompensas";
 "Reward expiry" = "Caducidade das recompensas";
+"Paste the WorkBuddy User-Agent as a single request header value." = "Pega o User-Agent de WorkBuddy como un único valor de cabeceira da solicitude.";

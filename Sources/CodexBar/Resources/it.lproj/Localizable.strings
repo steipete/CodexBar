@@ -2800,3 +2800,4 @@
 "Leave blank to use the default name." = "Lascia vuoto per usare il nome predefinito.";
 "Rewards" = "Premi";
 "Reward expiry" = "Scadenza dei premi";
+"Paste the WorkBuddy User-Agent as a single request header value." = "Incolla lo User-Agent di WorkBuddy come singolo valore dell’intestazione della richiesta.";

@@ -2798,3 +2798,4 @@
 "Leave blank to use the default name." = "Biarkan kosong untuk menggunakan nama bawaan.";
 "Rewards" = "Hadiah";
 "Reward expiry" = "Kedaluwarsa hadiah";
+"Paste the WorkBuddy User-Agent as a single request header value." = "Tempel User-Agent WorkBuddy sebagai satu nilai header permintaan.";

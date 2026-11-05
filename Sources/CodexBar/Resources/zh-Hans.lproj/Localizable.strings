@@ -2788,3 +2788,4 @@
 "Leave blank to use the default name." = "留空以使用默认名称。";
 "Rewards" = "奖励";
 "Reward expiry" = "奖励到期日期";
+"Paste the WorkBuddy User-Agent as a single request header value." = "将 WorkBuddy 的 User-Agent 粘贴为单个请求标头值。";

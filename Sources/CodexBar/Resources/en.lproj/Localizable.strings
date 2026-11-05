@@ -2801,3 +2801,4 @@
 "Leave blank to use the default name." = "Leave blank to use the default name.";
 "Rewards" = "Rewards";
 "Reward expiry" = "Reward expiry";
+"Paste the WorkBuddy User-Agent as a single request header value." = "Paste the WorkBuddy User-Agent as a single request header value.";
