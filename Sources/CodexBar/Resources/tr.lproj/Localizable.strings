@@ -2796,3 +2796,10 @@
 "Leave blank to use the default name." = "Varsayılan adı kullanmak için boş bırakın.";
 "Rewards" = "Ödüller";
 "Reward expiry" = "Ödüllerin son kullanma tarihi";
+
+"Auto-use expiring reset credits" = "Süresi dolan sıfırlamaları otomatik kullan";
+"Use the current Codex account's available reset credits 5 minutes before expiry. Off by default and local to this Mac. Requires native Codex sign-in, CodexBar running, and the Mac awake. This spends the credit and changes usage limits." = "Geçerli Codex hesabındaki kullanılabilir sıfırlamaları süreleri dolmadan 5 dakika önce kullanır. Varsayılan olarak kapalıdır ve yalnızca bu Mac için geçerlidir. Yerel Codex oturumu, çalışan CodexBar ve uyanık bir Mac gerekir. Sıfırlamayı tüketir ve kullanım sınırlarını değiştirir.";
+"Codex reset credit used" = "Codex sıfırlaması kullanıldı";
+"An expiring reset credit was used automatically. Usage limits are being refreshed." = "Süresi dolmak üzere olan bir sıfırlama otomatik kullanıldı. Kullanım sınırları yenileniyor.";
+"Codex reset credit could not be used" = "Codex sıfırlaması kullanılamadı";
+"Automatic redemption did not complete. Check Codex before the credit expires." = "Otomatik kullanım tamamlanamadı. Sıfırlamanın süresi dolmadan Codex’i kontrol edin.";

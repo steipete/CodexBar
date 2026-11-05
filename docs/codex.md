@@ -68,7 +68,19 @@ Usage source picker:
   A late first refresh sends one notice and consumes earlier reminder stages; it does not replay missed alerts.
   Repeated refreshes, restarts, and account changes do not repeat a recorded reminder. Credit display visibility
   does not gate the opt-in countdowns. Used, redeeming, expired, unknown-status, and no-expiry credits stay silent.
-  CodexBar does not redeem or modify reset credits.
+  Reset credits remain read-only unless **Auto-use expiring reset credits** is explicitly enabled.
+- Settings → Providers → Codex → **Auto-use expiring reset credits** is off by default and local to this Mac
+  (not synced or exported). While CodexBar is running and the Mac is awake, it schedules the current account's
+  earliest expiring available credit for five minutes before expiry, independently of the normal refresh interval.
+  It requires fresh native Codex OAuth credentials and the official `https://chatgpt.com` endpoint. Other visible
+  accounts, external OAuth files, and PAT-only sign-ins are not used for automatic redemption.
+  Before each POST, it re-reads inventory with the same account, resolves the opaque provider ID in memory,
+  and rechecks the opt-in, active account, availability, and expiry. It never submits a different credit as a fallback.
+  Used, redeeming, expired, unknown-status, and no-expiry credits are skipped. A transport retry keeps the same
+  idempotency key and waits at least a minute; retries stop at expiry. A successful redemption refreshes usage and
+  inventory instead of inferring the new quota. `nothing_to_reset` is a non-redemption, not success. Turning the
+  option off cancels pending work; a request already accepted by the server cannot be undone. Sleep, offline periods,
+  expired credentials, or server eligibility can prevent redemption; this is best-effort, not an expiry guarantee.
 - `rate_limit.primary_window` / `secondary_window` map to the session/weekly lanes.
 - When a response explicitly reports a fixed 30-day window (`limit_window_seconds: 2592000`),
   pace uses those 43,200 minutes rather than inferring a calendar month from the reset date.

@@ -2791,3 +2791,10 @@
 "Leave blank to use the default name." = "Leer lassen, um den Standardnamen zu verwenden.";
 "Rewards" = "Prämien";
 "Reward expiry" = "Ablauf der Prämien";
+
+"Auto-use expiring reset credits" = "Bald ablaufende Zurücksetzungen automatisch nutzen";
+"Use the current Codex account's available reset credits 5 minutes before expiry. Off by default and local to this Mac. Requires native Codex sign-in, CodexBar running, and the Mac awake. This spends the credit and changes usage limits." = "Nutzt verfügbare Zurücksetzungen des aktuellen Codex-Kontos 5 Minuten vor Ablauf. Standardmäßig aus und nur auf diesem Mac. Erfordert eine lokale Codex-Anmeldung, laufendes CodexBar und einen wachen Mac. Die Zurücksetzung wird verbraucht und die Nutzungslimits werden geändert.";
+"Codex reset credit used" = "Codex-Zurücksetzung verwendet";
+"An expiring reset credit was used automatically. Usage limits are being refreshed." = "Eine bald ablaufende Zurücksetzung wurde automatisch verwendet. Die Nutzungslimits werden aktualisiert.";
+"Codex reset credit could not be used" = "Codex-Zurücksetzung konnte nicht verwendet werden";
+"Automatic redemption did not complete. Check Codex before the credit expires." = "Die automatische Verwendung wurde nicht abgeschlossen. Prüfe Codex vor Ablauf der Zurücksetzung.";

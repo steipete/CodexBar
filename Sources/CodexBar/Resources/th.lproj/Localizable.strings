@@ -2795,3 +2795,10 @@
 "Leave blank to use the default name." = "เว้นว่างไว้เพื่อใช้ชื่อเริ่มต้น";
 "Rewards" = "รางวัล";
 "Reward expiry" = "วันหมดอายุของรางวัล";
+
+"Auto-use expiring reset credits" = "ใช้บัตรรีเซ็ตที่ใกล้หมดอายุโดยอัตโนมัติ";
+"Use the current Codex account's available reset credits 5 minutes before expiry. Off by default and local to this Mac. Requires native Codex sign-in, CodexBar running, and the Mac awake. This spends the credit and changes usage limits." = "ใช้บัตรรีเซ็ตที่มีอยู่ของบัญชี Codex ปัจจุบันก่อนหมดอายุ 5 นาที ปิดไว้โดยค่าเริ่มต้นและมีผลเฉพาะ Mac เครื่องนี้ ต้องลงชื่อเข้าใช้ Codex ในเครื่อง เปิด CodexBar และให้ Mac ตื่นอยู่ การดำเนินการนี้จะใช้บัตรและรีเซ็ตขีดจำกัดการใช้งาน";
+"Codex reset credit used" = "ใช้บัตรรีเซ็ต Codex แล้ว";
+"An expiring reset credit was used automatically. Usage limits are being refreshed." = "ใช้บัตรรีเซ็ตที่ใกล้หมดอายุโดยอัตโนมัติแล้ว กำลังรีเฟรชขีดจำกัดการใช้งาน";
+"Codex reset credit could not be used" = "ไม่สามารถใช้บัตรรีเซ็ต Codex ได้";
+"Automatic redemption did not complete. Check Codex before the credit expires." = "การใช้โดยอัตโนมัติไม่เสร็จสมบูรณ์ โปรดตรวจสอบ Codex ก่อนบัตรหมดอายุ";

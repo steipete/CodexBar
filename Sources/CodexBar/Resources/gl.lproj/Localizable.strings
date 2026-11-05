@@ -2792,3 +2792,10 @@
 "Leave blank to use the default name." = "Deixa este campo baleiro para usar o nome predeterminado.";
 "Rewards" = "Recompensas";
 "Reward expiry" = "Caducidade das recompensas";
+
+"Auto-use expiring reset credits" = "Usar automaticamente os reinicios próximos a caducar";
+"Use the current Codex account's available reset credits 5 minutes before expiry. Off by default and local to this Mac. Requires native Codex sign-in, CodexBar running, and the Mac awake. This spends the credit and changes usage limits." = "Usa os reinicios dispoñibles da conta Codex actual 5 minutos antes de caducar. Desactivado de forma predeterminada e só neste Mac. Require unha sesión nativa de Codex, CodexBar en execución e o Mac esperto. Consome o reinicio e cambia os límites de uso.";
+"Codex reset credit used" = "Usouse un reinicio de Codex";
+"An expiring reset credit was used automatically. Usage limits are being refreshed." = "Usouse automaticamente un reinicio próximo a caducar. Estanse actualizando os límites de uso.";
+"Codex reset credit could not be used" = "Non se puido usar o reinicio de Codex";
+"Automatic redemption did not complete. Check Codex before the credit expires." = "O uso automático non se completou. Comproba Codex antes de que caduque o reinicio.";

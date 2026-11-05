@@ -2785,3 +2785,10 @@
 "Leave blank to use the default name." = "留空以使用默认名称。";
 "Rewards" = "奖励";
 "Reward expiry" = "奖励到期日期";
+
+"Auto-use expiring reset credits" = "自动使用即将到期的重置卡";
+"Use the current Codex account's available reset credits 5 minutes before expiry. Off by default and local to this Mac. Requires native Codex sign-in, CodexBar running, and the Mac awake. This spends the credit and changes usage limits." = "在到期前 5 分钟使用当前 Codex 账号的可用重置卡。默认关闭，仅在本机生效。需要本机 Codex 登录态、CodexBar 运行且 Mac 处于唤醒状态；使用后会消耗卡片并重置额度。";
+"Codex reset credit used" = "已使用 Codex 重置卡";
+"An expiring reset credit was used automatically. Usage limits are being refreshed." = "已自动使用一张即将到期的重置卡，正在刷新用量额度。";
+"Codex reset credit could not be used" = "Codex 重置卡未能使用";
+"Automatic redemption did not complete. Check Codex before the credit expires." = "自动使用未完成，请在重置卡到期前到 Codex 检查。";

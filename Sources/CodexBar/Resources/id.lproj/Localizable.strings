@@ -2795,3 +2795,10 @@
 "Leave blank to use the default name." = "Biarkan kosong untuk menggunakan nama bawaan.";
 "Rewards" = "Hadiah";
 "Reward expiry" = "Kedaluwarsa hadiah";
+
+"Auto-use expiring reset credits" = "Gunakan otomatis reset yang segera kedaluwarsa";
+"Use the current Codex account's available reset credits 5 minutes before expiry. Off by default and local to this Mac. Requires native Codex sign-in, CodexBar running, and the Mac awake. This spends the credit and changes usage limits." = "Menggunakan reset tersedia dari akun Codex saat ini 5 menit sebelum kedaluwarsa. Nonaktif secara bawaan dan hanya di Mac ini. Memerlukan login Codex lokal, CodexBar berjalan, dan Mac tetap aktif. Reset akan terpakai dan batas penggunaan berubah.";
+"Codex reset credit used" = "Reset Codex telah digunakan";
+"An expiring reset credit was used automatically. Usage limits are being refreshed." = "Reset yang segera kedaluwarsa telah digunakan otomatis. Batas penggunaan sedang diperbarui.";
+"Codex reset credit could not be used" = "Reset Codex tidak dapat digunakan";
+"Automatic redemption did not complete. Check Codex before the credit expires." = "Penggunaan otomatis tidak selesai. Periksa Codex sebelum reset kedaluwarsa.";

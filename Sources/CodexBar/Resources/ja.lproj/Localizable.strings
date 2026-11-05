@@ -2793,3 +2793,10 @@
 "Leave blank to use the default name." = "空欄にするとデフォルトの名前を使用します。";
 "Rewards" = "報酬";
 "Reward expiry" = "報酬の有効期限";
+
+"Auto-use expiring reset credits" = "期限間近のリセットカードを自動使用";
+"Use the current Codex account's available reset credits 5 minutes before expiry. Off by default and local to this Mac. Requires native Codex sign-in, CodexBar running, and the Mac awake. This spends the credit and changes usage limits." = "現在の Codex アカウントで利用可能なリセットカードを、有効期限の5分前に使用します。既定ではオフで、この Mac のみで有効です。ローカルの Codex ログイン、CodexBar の起動、Mac のスリープ解除が必要です。カードを消費し、使用量の上限をリセットします。";
+"Codex reset credit used" = "Codex リセットカードを使用しました";
+"An expiring reset credit was used automatically. Usage limits are being refreshed." = "期限間近のリセットカードを自動使用しました。使用量の上限を更新しています。";
+"Codex reset credit could not be used" = "Codex リセットカードを使用できませんでした";
+"Automatic redemption did not complete. Check Codex before the credit expires." = "自動使用が完了しませんでした。カードの有効期限が切れる前に Codex を確認してください。";

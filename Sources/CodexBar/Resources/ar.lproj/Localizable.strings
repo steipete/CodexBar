@@ -2797,3 +2797,10 @@
 "Leave blank to use the default name." = "اتركه فارغًا لاستخدام الاسم الافتراضي.";
 "Rewards" = "المكافآت";
 "Reward expiry" = "انتهاء صلاحية المكافآت";
+
+"Auto-use expiring reset credits" = "استخدام بطاقات إعادة الضبط التي توشك على الانتهاء تلقائيًا";
+"Use the current Codex account's available reset credits 5 minutes before expiry. Off by default and local to this Mac. Requires native Codex sign-in, CodexBar running, and the Mac awake. This spends the credit and changes usage limits." = "استخدام بطاقات إعادة الضبط المتاحة لحساب Codex الحالي قبل انتهاء صلاحيتها بخمس دقائق. معطّل افتراضيًا ومحصور بجهاز Mac هذا. يتطلب تسجيل دخول Codex محليًا وتشغيل CodexBar وبقاء Mac مستيقظًا. تُستهلك البطاقة وتُعاد حدود الاستخدام.";
+"Codex reset credit used" = "تم استخدام بطاقة إعادة ضبط Codex";
+"An expiring reset credit was used automatically. Usage limits are being refreshed." = "استُخدمت بطاقة توشك على الانتهاء تلقائيًا. جارٍ تحديث حدود الاستخدام.";
+"Codex reset credit could not be used" = "تعذّر استخدام بطاقة إعادة ضبط Codex";
+"Automatic redemption did not complete. Check Codex before the credit expires." = "لم يكتمل الاستخدام التلقائي. تحقّق من Codex قبل انتهاء صلاحية البطاقة.";

@@ -75,6 +75,7 @@ extension UsageStore {
                     self.providerAvailabilityCache.removeAll(keepingCapacity: true)
                     self.probeLogs = [:]
                     guard self.startupBehavior.automaticallyStartsBackgroundWork else { return }
+                    self.codexResetCreditAutoRedeemer.cancel()
                     self.retireDisabledCredentialNotifications()
                     self.startTimer()
                     self.updateProviderRuntimes()
@@ -261,6 +262,7 @@ final class UsageStore {
         TimeInterval) async throws -> OpenAIDashboardSnapshot)?
     @ObservationIgnored var _test_codexCreditsLoaderOverride: (@MainActor () async throws -> CreditsSnapshot)?
     @ObservationIgnored var _test_codexResetCreditsFetcherOverride: CodexResetCreditsFetcher?
+    @ObservationIgnored let codexResetCreditAutoRedeemer = CodexResetCreditAutoRedeemer()
     @ObservationIgnored var _test_widgetSnapshotSaveOverride: (@MainActor (WidgetSnapshot) async -> Void)?
     @ObservationIgnored var _test_providerRefreshOverride: (@MainActor (UsageProvider) async -> Void)?
     @ObservationIgnored var _test_providerFetchOutcomeOverride: (@MainActor (

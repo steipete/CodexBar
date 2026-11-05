@@ -95,6 +95,7 @@ extension UsageStore {
             requiresKnownAccount: warningAccounts.requiresKnownAccount)
         if provider == .codex {
             self.handleCodexResetCreditNotifications(snapshot: snapshot)
+            self.scheduleCodexResetCreditAutoRedeem(snapshot: snapshot, expectedGuard: context.codexExpectedGuard)
         }
         return (warningAccounts.source, sessionRestored)
     }

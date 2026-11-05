@@ -2798,3 +2798,10 @@
 "Leave blank to use the default name." = "Leave blank to use the default name.";
 "Rewards" = "Rewards";
 "Reward expiry" = "Reward expiry";
+
+"Auto-use expiring reset credits" = "Auto-use expiring reset credits";
+"Use the current Codex account's available reset credits 5 minutes before expiry. Off by default and local to this Mac. Requires native Codex sign-in, CodexBar running, and the Mac awake. This spends the credit and changes usage limits." = "Use the current Codex account's available reset credits 5 minutes before expiry. Off by default and local to this Mac. Requires native Codex sign-in, CodexBar running, and the Mac awake. This spends the credit and changes usage limits.";
+"Codex reset credit used" = "Codex reset credit used";
+"An expiring reset credit was used automatically. Usage limits are being refreshed." = "An expiring reset credit was used automatically. Usage limits are being refreshed.";
+"Codex reset credit could not be used" = "Codex reset credit could not be used";
+"Automatic redemption did not complete. Check Codex before the credit expires." = "Automatic redemption did not complete. Check Codex before the credit expires.";

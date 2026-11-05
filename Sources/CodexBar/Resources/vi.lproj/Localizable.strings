@@ -2794,3 +2794,10 @@
 "Leave blank to use the default name." = "Để trống để dùng tên mặc định.";
 "Rewards" = "Phần thưởng";
 "Reward expiry" = "Ngày hết hạn phần thưởng";
+
+"Auto-use expiring reset credits" = "Tự động dùng thẻ đặt lại sắp hết hạn";
+"Use the current Codex account's available reset credits 5 minutes before expiry. Off by default and local to this Mac. Requires native Codex sign-in, CodexBar running, and the Mac awake. This spends the credit and changes usage limits." = "Dùng các thẻ đặt lại khả dụng của tài khoản Codex hiện tại trước khi hết hạn 5 phút. Mặc định tắt và chỉ áp dụng trên máy Mac này. Yêu cầu đăng nhập Codex cục bộ, CodexBar đang chạy và máy Mac đang thức. Thẻ sẽ được dùng và hạn mức sử dụng sẽ được đặt lại.";
+"Codex reset credit used" = "Đã dùng thẻ đặt lại Codex";
+"An expiring reset credit was used automatically. Usage limits are being refreshed." = "Một thẻ đặt lại sắp hết hạn đã được dùng tự động. Đang làm mới hạn mức sử dụng.";
+"Codex reset credit could not be used" = "Không thể dùng thẻ đặt lại Codex";
+"Automatic redemption did not complete. Check Codex before the credit expires." = "Chưa hoàn tất việc dùng tự động. Hãy kiểm tra Codex trước khi thẻ hết hạn.";

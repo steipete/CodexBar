@@ -6,6 +6,22 @@ import Testing
 @MainActor
 struct SettingsPersistenceContractTests {
     @Test
+    func `automatic reset credit spending defaults off persists locally and does not travel with preferences`() throws {
+        let defaults = InMemoryUserDefaults()
+        let settings = testSettingsStore(suiteName: #function, userDefaults: defaults)
+        #expect(!settings.codexResetCreditAutoRedeemEnabled)
+        settings.codexResetCreditExpiryNotificationsEnabled = true
+        #expect(!settings.codexResetCreditAutoRedeemEnabled)
+        settings.codexResetCreditAutoRedeemEnabled = true
+        #expect(testSettingsStore(suiteName: #function, userDefaults: defaults).codexResetCreditAutoRedeemEnabled)
+        let otherMac = testSettingsStore(suiteName: #function, userDefaults: InMemoryUserDefaults())
+        try otherMac.importPreferences(settings.exportPreferences())
+        #expect(!otherMac.codexResetCreditAutoRedeemEnabled)
+        settings.codexResetCreditAutoRedeemEnabled = false
+        #expect(!testSettingsStore(suiteName: #function, userDefaults: defaults).codexResetCreditAutoRedeemEnabled)
+    }
+
+    @Test
     func `Codex reset credit reminders default off persist and round trip through portable preferences`() throws {
         let defaults = InMemoryUserDefaults()
         let settings = testSettingsStore(suiteName: #function, userDefaults: defaults)

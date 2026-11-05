@@ -198,6 +198,15 @@ extension SettingsStore {
             key: "codexResetCreditExpiryNotificationsEnabled") }
     }
 
+    /// Local only: an opt-in to spend credits must not be enabled by preferences sync or import.
+    var codexResetCreditAutoRedeemEnabled: Bool {
+        get { self.defaultsState.codexResetCreditAutoRedeemEnabled }
+        set {
+            self.setDefault(\.codexResetCreditAutoRedeemEnabled, newValue, key: "codexResetCreditAutoRedeemEnabled")
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
     var upcomingResetNotificationsEnabled: Bool {
         get { self.defaultsState.upcomingResetNotificationsEnabled }
         set { self.setDefault(\.upcomingResetNotificationsEnabled, newValue, key: "upcomingResetNotificationsEnabled") }

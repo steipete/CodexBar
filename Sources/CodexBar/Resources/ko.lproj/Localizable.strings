@@ -2761,3 +2761,10 @@
 "Leave blank to use the default name." = "기본 이름을 사용하려면 비워 두세요.";
 "Rewards" = "보상";
 "Reward expiry" = "보상 만료일";
+
+"Auto-use expiring reset credits" = "만료 예정 초기화 카드 자동 사용";
+"Use the current Codex account's available reset credits 5 minutes before expiry. Off by default and local to this Mac. Requires native Codex sign-in, CodexBar running, and the Mac awake. This spends the credit and changes usage limits." = "현재 Codex 계정에서 사용 가능한 초기화 카드를 만료 5분 전에 사용합니다. 기본값은 꺼짐이며 이 Mac에서만 적용됩니다. 로컬 Codex 로그인, CodexBar 실행 및 Mac의 깨어 있는 상태가 필요합니다. 카드를 소모하고 사용 한도를 초기화합니다.";
+"Codex reset credit used" = "Codex 초기화 카드를 사용했습니다";
+"An expiring reset credit was used automatically. Usage limits are being refreshed." = "만료 예정 초기화 카드를 자동으로 사용했습니다. 사용 한도를 새로 고치는 중입니다.";
+"Codex reset credit could not be used" = "Codex 초기화 카드를 사용할 수 없습니다";
+"Automatic redemption did not complete. Check Codex before the credit expires." = "자동 사용이 완료되지 않았습니다. 카드가 만료되기 전에 Codex를 확인하세요.";

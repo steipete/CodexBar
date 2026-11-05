@@ -590,6 +590,7 @@ extension SettingsStore {
             limitResetNotificationsEnabled: notificationDefaults.limitResetNotificationsEnabled,
             codexResetCreditExpiryNotificationsEnabled: userDefaults.bool(
                 forKey: "codexResetCreditExpiryNotificationsEnabled"),
+            codexResetCreditAutoRedeemEnabled: userDefaults.bool(forKey: "codexResetCreditAutoRedeemEnabled"),
             upcomingResetNotificationsEnabled: notificationDefaults.upcomingResetNotificationsEnabled,
             quotaWarningThresholdsRaw: quotaWarnings.thresholdsRaw,
             quotaWarningSessionThresholdsRaw: quotaWarnings.sessionThresholdsRaw,

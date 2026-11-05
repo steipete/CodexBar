@@ -19,6 +19,7 @@ struct CodexProviderImplementation: ProviderImplementation {
         _ = settings.codexCookieSource
         _ = settings.codexCookieHeader
         _ = settings.codexExternalOAuthSourcesAllowed
+        _ = settings.codexResetCreditAutoRedeemEnabled
     }
 
     @MainActor
@@ -78,6 +79,19 @@ struct CodexProviderImplementation: ProviderImplementation {
         ].joined(separator: " ")
 
         return [
+            ProviderSettingsToggleDescriptor(
+                id: "codex-reset-credit-auto-redeem",
+                title: "Auto-use expiring reset credits",
+                subtitle: "Use the current Codex account's available reset credits 5 minutes before expiry. "
+                    + "Off by default and local to this Mac. Requires native Codex sign-in, CodexBar running, "
+                    + "and the Mac awake. This spends the credit and changes usage limits.",
+                binding: context.binding(\.codexResetCreditAutoRedeemEnabled),
+                statusText: nil,
+                actions: [],
+                isVisible: nil,
+                onChange: nil,
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
             ProviderSettingsToggleDescriptor(
                 id: "codex-local-session-cost-ledger",
                 title: "Local session cost estimates",

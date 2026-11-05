@@ -2797,3 +2797,10 @@
 "Leave blank to use the default name." = "برای استفاده از نام پیش‌فرض، این قسمت را خالی بگذارید.";
 "Rewards" = "پاداش‌ها";
 "Reward expiry" = "انقضای پاداش‌ها";
+
+"Auto-use expiring reset credits" = "استفادهٔ خودکار از بازنشانی‌های نزدیک به انقضا";
+"Use the current Codex account's available reset credits 5 minutes before expiry. Off by default and local to this Mac. Requires native Codex sign-in, CodexBar running, and the Mac awake. This spends the credit and changes usage limits." = "از بازنشانی‌های موجود حساب فعلی Codex پنج دقیقه پیش از انقضا استفاده می‌کند. به‌طور پیش‌فرض خاموش و فقط مخصوص این Mac است. نیازمند ورود محلی Codex، اجرای CodexBar و بیدار بودن Mac است. بازنشانی مصرف و محدودیت‌های استفاده تغییر می‌کنند.";
+"Codex reset credit used" = "بازنشانی Codex استفاده شد";
+"An expiring reset credit was used automatically. Usage limits are being refreshed." = "یک بازنشانی نزدیک به انقضا به‌طور خودکار استفاده شد. محدودیت‌های استفاده در حال تازه‌سازی هستند.";
+"Codex reset credit could not be used" = "بازنشانی Codex قابل استفاده نبود";
+"Automatic redemption did not complete. Check Codex before the credit expires." = "استفادهٔ خودکار کامل نشد. پیش از انقضای بازنشانی، Codex را بررسی کنید.";

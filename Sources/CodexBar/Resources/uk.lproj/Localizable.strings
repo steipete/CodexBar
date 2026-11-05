@@ -2794,3 +2794,10 @@
 "Leave blank to use the default name." = "Залиште поле порожнім, щоб використовувати назву за замовчуванням.";
 "Rewards" = "Винагороди";
 "Reward expiry" = "Термін дії винагород";
+
+"Auto-use expiring reset credits" = "Автоматично використовувати скидання перед завершенням строку";
+"Use the current Codex account's available reset credits 5 minutes before expiry. Off by default and local to this Mac. Requires native Codex sign-in, CodexBar running, and the Mac awake. This spends the credit and changes usage limits." = "Використовує доступні скидання поточного облікового запису Codex за 5 хвилин до завершення строку дії. Типово вимкнено; лише на цьому Mac. Потрібен локальний вхід у Codex, запущений CodexBar і активний Mac. Скидання витрачається та змінює ліміти використання.";
+"Codex reset credit used" = "Скидання Codex використано";
+"An expiring reset credit was used automatically. Usage limits are being refreshed." = "Автоматично використано скидання, строк дії якого завершується. Ліміти використання оновлюються.";
+"Codex reset credit could not be used" = "Не вдалося використати скидання Codex";
+"Automatic redemption did not complete. Check Codex before the credit expires." = "Автоматичне використання не завершено. Перевірте Codex до завершення строку дії скидання.";

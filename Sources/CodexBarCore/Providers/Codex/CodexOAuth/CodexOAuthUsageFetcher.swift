@@ -529,6 +529,75 @@ public enum CodexOAuthUsageFetcher {
         session transport: any ProviderHTTPTransport) async throws
         -> CodexRateLimitResetCreditsSnapshot
     {
+        let payload = try await Self.fetchResetCreditInventory(
+            accessToken: accessToken, accountId: accountId, env: env, timeout: timeout, transport: transport)
+        return CodexRateLimitResetCreditsSnapshot(
+            credits: payload.credits.map(\.model), availableCount: payload.availableCount, updatedAt: Date())
+    }
+
+    /// Re-read the inventory before spending a specific expiring credit. Raw provider IDs stay request-local.
+    public static func consumeExpiringRateLimitResetCredit(
+        stableCreditID: String,
+        redeemRequestID: UUID,
+        accessToken: String,
+        accountId: String,
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        expiresWithin: TimeInterval = 300,
+        now: @Sendable () -> Date = Date.init,
+        isAuthorized: @Sendable () async -> Bool,
+        session transport: (any ProviderHTTPTransport)? = nil) async throws -> CodexResetCreditRedemptionOutcome
+    {
+        let inventoryURL = Self.resolveRateLimitResetCreditsURL(env: env)
+        guard inventoryURL.scheme == "https", inventoryURL.host == "chatgpt.com" else {
+            throw CodexOAuthFetchError.invalidResponse
+        }
+        guard await isAuthorized() else { throw CancellationError() }
+        try Task.checkCancellation()
+        let client = transport ?? CodexAuthenticatedHTTPTransport.current
+        let inventory = try await Self.fetchResetCreditInventory(
+            accessToken: accessToken, accountId: accountId, env: env, timeout: 10, transport: client)
+        let date = now()
+        guard inventory.availableCount > 0,
+              let credit = inventory.credits.first(where: { $0.model.id == stableCreditID }),
+              !credit.id.isEmpty, credit.resetType == "codex_rate_limits", credit.status == .available,
+              credit.grantedAt <= date, let expiry = credit.expiresAt,
+              expiry > date, expiry.timeIntervalSince(date) <= expiresWithin
+        else { return .unavailable }
+        guard await isAuthorized() else { throw CancellationError() }
+        try Task.checkCancellation()
+        guard expiry > now() else { return .unavailable }
+
+        var request = URLRequest(
+            url: inventoryURL.appendingPathComponent("consume"),
+            cachePolicy: .reloadIgnoringLocalCacheData,
+            timeoutInterval: 10)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue(accountId, forHTTPHeaderField: "ChatGPT-Account-ID")
+        request.setValue("CodexBar", forHTTPHeaderField: "User-Agent")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("codex-1", forHTTPHeaderField: "OpenAI-Beta")
+        request.setValue("Codex Desktop", forHTTPHeaderField: "originator")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "credit_id": credit.id,
+            "redeem_request_id": redeemRequestID.uuidString.lowercased(),
+        ])
+        let data = try await CodexAuthenticatedHTTPTransport.perform(request: request, transport: client)
+        struct Response: Decodable { let code: CodexResetCreditRedemptionOutcome }
+        guard let response = try? JSONDecoder().decode(Response.self, from: data) else {
+            throw CodexOAuthFetchError.invalidResponse
+        }
+        return response.code
+    }
+
+    private static func fetchResetCreditInventory(
+        accessToken: String,
+        accountId: String?,
+        env: [String: String],
+        timeout: TimeInterval,
+        transport: any ProviderHTTPTransport) async throws -> RateLimitResetCreditsResponse
+    {
         var request = URLRequest(
             url: Self.resolveRateLimitResetCreditsURL(env: env),
             cachePolicy: .reloadIgnoringLocalCacheData,
@@ -552,10 +621,7 @@ public enum CodexOAuthUsageFetcher {
             guard payload.availableCount >= 0 else {
                 throw CodexOAuthFetchError.invalidResponse
             }
-            return CodexRateLimitResetCreditsSnapshot(
-                credits: payload.credits.map(\.model),
-                availableCount: payload.availableCount,
-                updatedAt: Date())
+            return payload
         } catch {
             throw CodexOAuthFetchError.invalidResponse
         }

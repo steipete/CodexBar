@@ -2794,3 +2794,10 @@
 "Leave blank to use the default name." = "Оставьте поле пустым, чтобы использовать имя по умолчанию.";
 "Rewards" = "Награды";
 "Reward expiry" = "Срок действия наград";
+
+"Auto-use expiring reset credits" = "Автоматически использовать сбросы перед истечением срока";
+"Use the current Codex account's available reset credits 5 minutes before expiry. Off by default and local to this Mac. Requires native Codex sign-in, CodexBar running, and the Mac awake. This spends the credit and changes usage limits." = "Использует доступные сбросы текущего аккаунта Codex за 5 минут до истечения срока. По умолчанию выключено; действует только на этом Mac. Требуется локальный вход в Codex, запущенный CodexBar и бодрствующий Mac. Сброс расходуется и изменяет лимиты использования.";
+"Codex reset credit used" = "Сброс Codex использован";
+"An expiring reset credit was used automatically. Usage limits are being refreshed." = "Автоматически использован сброс, срок которого истекает. Лимиты использования обновляются.";
+"Codex reset credit could not be used" = "Не удалось использовать сброс Codex";
+"Automatic redemption did not complete. Check Codex before the credit expires." = "Автоматическое использование не завершено. Проверьте Codex до истечения срока сброса.";
