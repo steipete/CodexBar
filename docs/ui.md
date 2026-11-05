@@ -100,6 +100,8 @@ Stacked rows with leading window labels align their values and meters after the 
   Pro/Flash quotas, not these Antigravity family allowances; it does not synthesize a weekly quota.
 - Layout palette chips use their natural label widths and wrap into rows instead of squeezing longer token names into equal-width columns.
 - Time tokens offer Session and Weekly variants of Resets in and Reset at, including in conditional branches.
+  Hidden conditional reset tokens do not schedule display refreshes. Clock-based conditions still schedule their
+  own updates so the reset appears when its condition changes.
   The original unqualified reset tokens continue to follow the automatic window. A selected window that is
   unavailable displays a dash rather than substituting another window. Cursor also exposes **Grok Bot %**
   while its named allowance is available; a saved token shows its label and a dash when unavailable. Saved layouts use V4 keys
