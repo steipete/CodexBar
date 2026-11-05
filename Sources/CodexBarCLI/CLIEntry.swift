@@ -35,11 +35,11 @@ enum CodexBarCLI {
         let errorOutputPreferences: CLIOutputPreferences? = argv.first == "dashboard" ? nil : outputPreferences
 
         // Fast path: global help/version before building descriptors.
-        if let helpIndex = argv.firstIndex(where: { $0 == "-h" || $0 == "--help" }) {
+        let flags = argv.prefix { $0 != "--" }
+        if let helpIndex = flags.firstIndex(where: { $0 == "-h" || $0 == "--help" }) {
             let command = helpIndex == 0 ? argv.dropFirst().first : argv.first
             Self.printHelp(for: command)
-        }
-        if argv.contains("-V") || argv.contains("--version") {
+        } else if flags.contains("-V") || flags.contains("--version") {
             Self.printVersion()
         }
 
@@ -283,6 +283,7 @@ enum CodexBarCLI {
                         discussion: nil,
                         signature: configSetSourceSignature),
                     Self.preferencesCommandDescriptor(),
+                    Self.hostsCommandDescriptor(),
                 ],
                 defaultSubcommandName: "validate"),
             Self.hooksCommandDescriptor(),

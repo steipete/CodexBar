@@ -27,9 +27,10 @@ struct ManagedCodexAccountLockTests {
         defer { if child.isRunning { child.terminate() }; child.waitUntilExit() }
         let signal = ready.fileHandleForReading.availableData
         #expect(try #require(String(bytes: signal, encoding: .utf8)).contains("ready"))
-        #expect(throws: ManagedCodexAccountLockError.busy) {
+        let error = #expect(throws: ManagedCodexAccountLockError.busy) {
             try store.storeAccounts(ManagedCodexAccountSet(version: 3, accounts: []))
         }
+        #expect(error?.localizedDescription.contains("managed accounts") == true)
         #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("accounts.json").path))
         if crash {
             child.terminate()

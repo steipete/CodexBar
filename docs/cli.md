@@ -273,6 +273,36 @@ a second identifier is an error. For an option value beginning with a dash, use 
   - Warnings keep exit code 0; errors exit non-zero.
 - `codexbar config dump` prints normalized config JSON with secrets redacted by default. `--show-secrets` explicitly includes raw credentials; `--pretty` formats the output.
 - `codexbar hooks list` shows the local hook configuration; `--format json` and `--pretty` are supported.
+- `codexbar config hosts` configures the SSH hosts the app tracks, so an agent can set up
+  cross-machine tracking without opening Settings (macOS only; fails clearly elsewhere).
+  - `list` prints every manual host with `valid` (it can count toward spend) and `costUsage`
+    (it does); `--format json` returns `{"hosts":[{"host","valid","costUsage","check"?}]}`.
+  - `add <host>` appends to the app's manual hosts, and with `--cost` also counts it toward
+    spend; `remove <host>` drops it, or with `--cost` only its spend tracking. Both are
+    idempotent and report `changed`; JSON is `{"host","changed","costUsage","check"?}`.
+  - Hosts use the app's validation: one alias or `user@host`, no options, spaces, or control
+    characters; invalid add input fails with a nonzero exit and writes nothing. `list` also
+    exposes invalid stored tokens. Remove one nonempty comma-free token exactly, including
+    internal control characters, using `remove --format json -- -bad` for a token beginning with a dash.
+    Validation errors use the standard JSON array: `[{"provider":"cli","source":"cli","error":{"code":1,"kind":"config","message":"…"}}]`.
+  - `--check` verifies each host (list) or the changed host (add) with the same one-shot,
+    noninteractive SSH boundary as `cost --remote`: trusted host key only, no forwarding,
+    bounded output, 60-second timeout, and Ctrl-C cleanup. Each result carries
+    `{"ok": bool, "error": string|null}`; a failed check exits nonzero but leaves the host
+    configured. Invalid reports identify an unsupported remote CLI; other failures share
+    guidance to check the trusted host key, noninteractive SSH auth, and remote CLI support
+    for `--identified-only`.
+  - Writes persist the same machine-local values as Settings under a shared per-user lock.
+    The accompanying app picks them up on notification, next launch, and before a manual
+    machine refresh; older apps read their supported host settings at next launch. Host
+    changes never enter the portable preferences queue or exports. `--defaults-domain`
+    selects an alternate domain for testing; it does not notify the app. Add/remove retries
+    notify even when unchanged. SSH checks run one host at a time after releasing the lock.
+    Usage & Spend uses these hosts on demand; the Agent Sessions menu list additionally
+    needs its existing remote-sessions toggle, which stays off until enabled in Settings.
+  - Set up hosts from an agent:
+    `codexbar config hosts add devbox --cost --check --format json`, then
+    `codexbar config hosts list --check --format json --pretty` to confirm every machine.
 - `codexbar hooks enable|disable` changes the explicit top-level opt-in switch in the local config file.
 - `codexbar hooks test <event> --provider <id>` invokes matching enabled rules with a representative event. Hook
   commands run directly without a shell and receive `CODEXBAR_*` variables plus JSON on stdin. `--format json` and

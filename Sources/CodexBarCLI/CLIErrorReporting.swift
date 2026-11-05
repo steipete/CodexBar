@@ -74,14 +74,7 @@ extension CodexBarCLI {
     }
 
     static func encodeJSON(_ payload: some Encodable, pretty: Bool) -> String? {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        encoder.outputFormatting = pretty ? [.prettyPrinted, .sortedKeys] : []
-        guard let data = try? encoder.encode(payload),
-              let output = String(data: data, encoding: .utf8) else { return nil }
-        // `print` adds one trailing newline; keep identified-ledger stdout within the SSH reader's cap.
-        if payload is CodexRequestLedger, output.utf8.count >= CodexRequestLedger.maximumOutputBytes { return nil }
-        return output
+        CodexIdentifiedCollection.encodeJSON(payload, pretty: pretty)
     }
 
     static func printJSON(_ payload: some Encodable, pretty: Bool) {

@@ -11,6 +11,12 @@ extension CodexBarCLI {
             self.runConfigPreferences(values, importing: false)
         case ["config", "preferences", "import"]:
             self.runConfigPreferences(values, importing: true)
+        case ["config", "hosts", "list"]:
+            await self.runConfigHosts(values, action: .list)
+        case ["config", "hosts", "add"]:
+            await self.runConfigHosts(values, action: .add)
+        case ["config", "hosts", "remove"]:
+            await self.runConfigHosts(values, action: .remove)
         case ["config", "validate"]:
             self.runConfigValidate(values)
         case ["config", "dump"]:

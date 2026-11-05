@@ -254,6 +254,7 @@ final class SettingsStore {
     #endif
 
     @ObservationIgnored let userDefaults: UserDefaults
+    @ObservationIgnored let hostPreferencesLockURL: URL?
     @ObservationIgnored lazy var httpServer = HTTPServerController(
         configURL: self.configStore.fileURL.deletingLastPathComponent().appendingPathComponent("http-server.json"))
     @ObservationIgnored let configStore: CodexBarConfigStore
@@ -338,6 +339,7 @@ final class SettingsStore {
         tokenAccountStore: any ProviderTokenAccountStoring = FileTokenAccountStore(),
         antigravityOAuthCredentialsStore: AntigravityOAuthCredentialsStore = AntigravityOAuthCredentialsStore(),
         keychainAccessPolicy: SettingsStoreKeychainAccessPolicy = .defaultPolicy,
+        hostPreferencesLockURL: URL? = SettingsStore.isRunningTests ? nil : HostPreferences.lockURL,
         performInitialProviderDetection: Bool = !SettingsStore.isRunningTests)
     {
         // Legacy credential migration must see the saved policy, including shared-defaults fallback.
@@ -402,6 +404,7 @@ final class SettingsStore {
         _ = Self.initializeOpenAIWebAccessPreference(
             userDefaults: userDefaults, config: config, hadExistingConfig: hadExistingConfig)
         self.userDefaults = userDefaults
+        self.hostPreferencesLockURL = hostPreferencesLockURL
         self.configStore = configStore
         self.antigravityOAuthCredentialsStore = antigravityOAuthCredentialsStore
         self.keychainAccessPolicy = keychainAccessPolicy
@@ -416,6 +419,7 @@ final class SettingsStore {
             ?? ProviderSwitcherShortcuts.defaults
         self.mergedMenuLastSelectedWasOverviewStorage = defaultsState.mergedMenuLastSelectedWasOverview
         self.selectedMenuProviderRawStorage = defaultsState.selectedMenuProviderRaw
+        self.refreshHostPreferences()
         self.updateProviderState(config: config)
         self.configLoading = false
         CodexBarLog.setFileLoggingEnabled(self.debugFileLoggingEnabled)
@@ -721,6 +725,7 @@ extension SettingsStore {
             agentSessionsRemoteEnabled: userDefaults.bool(forKey: "agentSessionsRemoteEnabled"),
             agentSessionLabelStyleRaw: userDefaults.string(forKey: "agentSessionLabelStyle")
                 ?? AgentSessionLabelStyle.project.rawValue,
+            costUsageHosts: [], // init's refreshHostPreferences() projects the canonical selection
             agentSessionsManualHosts: userDefaults.string(forKey: "agentSessionsManualHosts") ?? "",
             agentSessionsHideUnreachableHosts: userDefaults.object(
                 forKey: "agentSessionsHideUnreachableHosts") as? Bool ?? false,

@@ -431,6 +431,16 @@ Last recorded tiers are estimates: live `/fast` changes may not be materialized 
 `step_model_switching` can exceed the available turn-level model/tier evidence.
 Every participating CLI must support schema 2. This opt-in mode does not change ordinary reports or account quota.
 
+Settings → Usage & Spend → **By machine** runs this collector only when opened, refreshed there, or its period
+changes while open. Select SSH aliases from the shared Agent Sessions host list, then press its Refresh; changing
+the selected cost hosts, including removing a selected alias from the shared list, cancels and clears the result.
+Removing and re-adding an alias requires fresh selection.
+This Mac always uses ambient `$CODEX_HOME` (or `~/.codex`); other configured homes are not scanned and mark local
+coverage partial. The detail uses UTC days, caps All at 365 days, and includes only identified requests.
+The existing collector limits remain 50,000 records and 32 MiB per source, with room for the export newline.
+Unavailable machines and partial or unpriced subtotals are labelled; machine rows overlap,
+while Total counts shared identities once. Nothing in this detail starts automatic SSH collection.
+
 - Menu source selection:
   - By default, a selected managed account keeps its own `CODEX_HOME` session history.
   - **Local session cost estimates** is a Codex-only opt-in that instead scans this Mac's ambient `$CODEX_HOME`

@@ -45,9 +45,13 @@
 
 ### Added
 
+- CLI: `codexbar config hosts list|add|remove` configures the SSH hosts the app tracks and
+  which count toward spend, with idempotent writes a running app picks up without restart and
+  an optional per-host one-shot SSH `--check`.
 - CLI: expose descriptor-based authentication inputs and existing setup hints in provider inventory JSON. (#4705)
 - Plugins: support an explicitly approved Usage Dashboard link from a fixed URL or a plain setting. (#4725)
 - Codex: optionally add reset-credit expiry reminders at 1 day and 1 hour, preserving the existing three-day summary and saved receipts (#4838). Thanks @PumpkinsLemon!
+- Usage & Spend: add manual By machine Codex detail with selected SSH hosts and deduplicated identified requests (#4841). Thanks @salmonumbrella!
 - CLI: combine identified Codex requests from multiple SSH hosts, counting copies once and keeping successful sources when a host fails (#4834). Thanks @salmonumbrella!
 - CLI: estimate deduplicated Codex request spend across SSH hosts with explicit unknown prices, conflict exclusions, and a coordinated schema 2 upgrade (#4833, #4836). Thanks @salmonumbrella!
 - Plugins: render global menu-bar layouts with plugin-owned windows, reset countdowns and conditionals, preserving saved plugin overrides (#4789).

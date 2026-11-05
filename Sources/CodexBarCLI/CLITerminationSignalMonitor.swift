@@ -51,6 +51,23 @@ final class CLITerminationSignalMonitor: @unchecked Sendable {
         self.cancel()
     }
 
+    /// One-shot async work with Ctrl-C cleanup: signals request cancellation, active SSH
+    /// helpers are reaped, and the terminating signal is re-raised before any result is read.
+    static func withTerminationCleanup<Value: Sendable>(
+        _ operation: @escaping @Sendable () async throws -> Value) async throws -> Value
+    {
+        let cancellation = CodexHostCostCancellation()
+        let monitor = Self { cancellation.request(signal: $0) }
+        let task = Task { try await operation() }
+        cancellation.bind { task.cancel() }
+        let result = await task.result
+        monitor.cancel()
+        if let signal = cancellation.signal {
+            self.terminateActiveHelpersAndReraise(signal)
+        }
+        return try result.get()
+    }
+
     static func terminateActiveHelpersAndReraise(_ signalNumber: Int32) {
         TTYCommandRunner.terminateActiveProcessesForAppShutdown()
         self.restoreDefaultHandler(for: signalNumber)

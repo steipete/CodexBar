@@ -104,6 +104,22 @@ struct CLIDocumentedInvocationTests {
             options: ["provider": ["openai"]],
             flags: ["stdin"]),
         .init(
+            "config hosts add devbox --cost --check --format json",
+            path: "config hosts add",
+            options: ["format": ["json"]],
+            flags: ["cost", "check"],
+            positional: ["devbox"]),
+        .init(
+            "config hosts list --check --format json --pretty",
+            path: "config hosts list",
+            options: ["format": ["json"]],
+            flags: ["check", "pretty"]),
+        .init(
+            "config hosts remove --format json -- -bad",
+            path: "config hosts remove",
+            options: ["format": ["json"]],
+            positional: ["-bad"]),
+        .init(
             "config set-cookie --provider claude --stdin",
             path: "config set-cookie",
             options: ["provider": ["claude"]],
@@ -152,9 +168,9 @@ struct CLIDocumentedInvocationTests {
             path: "cost",
             options: ["provider": ["codex"], "groupBy": ["session"]]),
         .init(
-            "cost --provider codex --identified-only --format json --days 30",
+            "cost --provider codex --identified-only --format json --days 30 --remote first --remote second",
             path: "cost",
-            options: ["provider": ["codex"], "format": ["json"], "days": ["30"]],
+            options: ["provider": ["codex"], "format": ["json"], "days": ["30"], "remote": ["first", "second"]],
             flags: ["identifiedOnly"]),
         .init("cost --provider cursor", path: "cost", options: ["provider": ["cursor"]]),
         .init("dashboard", path: "dashboard"),

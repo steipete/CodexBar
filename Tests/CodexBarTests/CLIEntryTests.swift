@@ -996,4 +996,49 @@ extension CLIEntryTests {
             XCTAssertTrue(stderr.contains("Missing value for option"))
         }
     }
+
+    func test_globalFlagsRemainLiteralAfterOptionTerminator() throws {
+        for flag in ["-h", "--help", "-V", "--version"] {
+            let global = try Self.runCLI(arguments: [flag])
+            XCTAssertEqual(global.status, 0)
+            XCTAssertFalse(global.stdout.isEmpty)
+            let literal = try Self.runCLI(arguments: [
+                "config", "hosts", "remove", "--defaults-domain", "CLIEntryTests-\(UUID().uuidString)",
+                "--format", "json", "--", flag,
+            ])
+            XCTAssertEqual(literal.status, 0)
+            let mutation = try XCTUnwrap(JSONSerialization.jsonObject(with: literal.stdout) as? [String: Any])
+            XCTAssertEqual(mutation["host"] as? String, flag)
+            XCTAssertEqual(mutation["changed"] as? Bool, false)
+        }
+    }
+
+    func test_hostAddListPersistsAndInvalidAddLeavesStateUnchanged() throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+        let domain = "CLIEntryTests-\(UUID().uuidString)"
+        let environment = ["HOME": home.path, "CFFIXED_USER_HOME": home.path]
+        let options = ["--defaults-domain", domain, "--format", "json"]
+        let added = try Self.runCLI(
+            arguments: ["config", "hosts", "add", "DevBox", "--cost"] + options, environment: environment)
+        XCTAssertEqual(added.status, 0)
+        let mutation = try XCTUnwrap(JSONSerialization.jsonObject(with: added.stdout) as? [String: Any])
+        XCTAssertEqual(mutation["host"] as? String, "DevBox")
+        XCTAssertEqual(mutation["changed"] as? Bool, true)
+        XCTAssertEqual(mutation["costUsage"] as? Bool, true)
+        let listed = try Self.runCLI(arguments: ["config", "hosts", "list"] + options, environment: environment)
+        XCTAssertEqual(listed.status, 0)
+        let before = try XCTUnwrap(JSONSerialization.jsonObject(with: listed.stdout) as? NSDictionary)
+        let hosts = try XCTUnwrap(before["hosts"] as? [[String: Any]])
+        XCTAssertEqual(hosts.count, 1)
+        XCTAssertEqual(hosts.first?["host"] as? String, "DevBox")
+        XCTAssertEqual(hosts.first?["costUsage"] as? Bool, true)
+        let invalid = try Self.runCLI(
+            arguments: ["config", "hosts", "add", "bad/path"] + options, environment: environment)
+        XCTAssertNotEqual(invalid.status, 0)
+        let unchanged = try Self.runCLI(arguments: ["config", "hosts", "list"] + options, environment: environment)
+        XCTAssertEqual(unchanged.status, 0)
+        XCTAssertEqual(try XCTUnwrap(JSONSerialization.jsonObject(with: unchanged.stdout) as? NSDictionary), before)
+    }
 }

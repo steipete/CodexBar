@@ -176,20 +176,58 @@ struct AgentSessionHostsEditor: View {
     static let inputFormatHint = "user@host, user@host"
 
     @Bindable var settings: SettingsStore
+    @State private var draft: String
+    /// The stored value the draft was seeded from; a save happens only for real edits,
+    /// so a queue or sync applied while the field is idle is never clobbered.
+    @State private var loadedDraft: String
+    @FocusState private var isHostsFieldFocused: Bool
+
+    init(settings: SettingsStore) {
+        self.settings = settings
+        self._draft = State(initialValue: settings.agentSessionsManualHosts)
+        self._loadedDraft = State(initialValue: settings.agentSessionsManualHosts)
+    }
 
     var body: some View {
         LabeledContent(L("agent_sessions_hosts_title")) {
-            TextField(
-                L("agent_sessions_hosts_title"),
-                text: self.$settings.agentSessionsManualHosts,
-                prompt: Text(verbatim: Self.inputFormatHint))
+            TextField(L("agent_sessions_hosts_title"), text: self.$draft, prompt: Text(verbatim: Self.inputFormatHint))
                 .labelsHidden()
+                .focused(self.$isHostsFieldFocused)
+                .onSubmit { self.saveDraft() }
                 .textFieldStyle(.roundedBorder)
                 .frame(minWidth: 220, idealWidth: 280)
                 .accessibilityLabel(L("agent_sessions_hosts_title"))
+            if self.settings.agentSessionsManualHosts.split(separator: ",").contains(where: {
+                let host = $0.trimmingCharacters(in: .whitespacesAndNewlines)
+                return !host.isEmpty && (try? RemoteCodexCostFetcher.validateHost(host)) == nil
+            }) { Text(RemoteCodexCostError.invalidHost.localizedDescription).foregroundStyle(.red) }
         }
-        .disabled(!self.settings.agentSessionsEnabled || !self.settings.agentSessionsRemoteEnabled)
         .help(L("agent_sessions_remote_subtitle"))
+        .onDisappear { self.saveDraft() }
+        .onChange(of: self.isHostsFieldFocused) { _, focused in
+            if focused { return }
+            // An unedited field adopts whatever landed while it held focus.
+            if self.draft == self.loadedDraft {
+                self.draft = self.settings.agentSessionsManualHosts
+                self.loadedDraft = self.draft
+            } else {
+                self.saveDraft()
+            }
+        }
+        .onChange(of: self.settings.agentSessionsManualHosts) { _, stored in
+            if !self.isHostsFieldFocused {
+                self.draft = stored
+                self.loadedDraft = stored
+            }
+        }
+    }
+
+    private func saveDraft() {
+        guard self.draft != self.loadedDraft, let committed = self.settings.editManualHosts(
+            baseline: self.loadedDraft,
+            draft: self.draft) else { return }
+        self.draft = committed
+        self.loadedDraft = committed
     }
 }
 

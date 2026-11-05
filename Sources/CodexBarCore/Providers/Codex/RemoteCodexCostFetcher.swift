@@ -113,21 +113,21 @@ public struct RemoteCodexCostFetcher: Sendable {
     private let runner: @Sendable ([String], [String: String], Int) async throws -> String
     package static let maximumOutputBytes = 16 * 1024
 
-    public init() {
+    public init(launch: @escaping SubprocessRunner.Launch = { try $0() }) {
         self.runner = { arguments, environment, maximumOutputBytes in
             let binary = ["/usr/bin/ssh", "/bin/ssh"].first {
                 FileManager.default.isExecutableFile(atPath: $0)
             }
             guard let binary else { throw RemoteCodexCostError.unavailable }
-            let result = try await SubprocessRunner.run(
+            return try await SubprocessRunner.run(
                 binary: binary,
                 arguments: arguments,
                 environment: environment,
                 timeout: 60,
                 maxOutputBytes: maximumOutputBytes,
                 standardInput: FileHandle.nullDevice,
-                label: "fetch remote Codex costs")
-            return result.stdout
+                launch: launch,
+                label: "fetch remote Codex costs").stdout
         }
     }
 
@@ -141,6 +141,20 @@ public struct RemoteCodexCostFetcher: Sendable {
         guard !host.isEmpty, !host.hasPrefix("-"), host.utf8.count <= 255,
               host.unicodeScalars.allSatisfy(allowed.contains)
         else { throw RemoteCodexCostError.invalidHost }
+    }
+
+    /// Manual hosts that may count toward spend: sanitized and strict-charset valid, in input order.
+    public static func costUsageCandidates(in manualHosts: [String]) -> [String] {
+        RemoteSessionFetcher.sanitizedHosts(manualHosts)
+            .filter { (try? self.validateHost($0)) != nil }
+    }
+
+    /// The persisted spend selection as the app loads and saves it: valid manual hosts,
+    /// exactly spelled, that the stored selection names.
+    public static func selectedCostUsageHosts(
+        manualHosts: [String], storedSelection: [String]) -> [String]
+    {
+        self.costUsageCandidates(in: manualHosts).filter(storedSelection.contains)
     }
 
     package static func arguments(host: String, historyDays: Int, force: Bool) throws -> [String] {

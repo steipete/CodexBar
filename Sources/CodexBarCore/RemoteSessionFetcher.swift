@@ -270,17 +270,21 @@ public struct RemoteSessionFetcher: Sendable {
                 CharacterSet.controlCharacters.contains(scalar) ||
                     CharacterSet.whitespacesAndNewlines.contains(scalar)
             }
-            let key: String = if let separator = host.lastIndex(of: "@") {
-                String(host[...separator]) + host[host.index(after: separator)...].lowercased()
-            } else {
-                host.lowercased()
-            }
             guard !host.isEmpty,
                   !host.hasPrefix("-"),
                   !hasUnsafeScalar,
-                  seen.insert(key).inserted
+                  seen.insert(Self.hostIdentityKey(host)).inserted
             else { return nil }
             return host
+        }
+    }
+
+    /// The identity hosts deduplicate on: case-insensitive host part, case-sensitive SSH username.
+    public static func hostIdentityKey(_ host: String) -> String {
+        if let separator = host.lastIndex(of: "@") {
+            String(host[...separator]) + host[host.index(after: separator)...].lowercased()
+        } else {
+            host.lowercased()
         }
     }
 

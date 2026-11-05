@@ -68,6 +68,7 @@ extension SettingsStore {
     }
 
     func consumePendingPreferencesImport() {
+        self.refreshHostPreferences()
         self.userDefaults.synchronize()
         guard let data = self.userDefaults.data(forKey: PreferencesDocument.pendingImportKey) else { return }
         do {
