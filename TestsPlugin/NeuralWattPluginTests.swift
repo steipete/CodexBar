@@ -269,6 +269,7 @@ struct NeuralWattPluginTests {
         for (index, fixture) in Self.fixtures.enumerated() {
             let usage = try await Self.fetch(fixture, engine: engine)
             #expect(usage.providerCost?.used == balances[index])
+            #expect(usage.providerCost?.balance == balances[index])
             #expect(usage.providerCost?.limit == 0)
             #expect(usage.providerCost?.currencyCode == "USD")
             #expect(usage.providerCost?.period == "Neuralwatt prepaid balance")
