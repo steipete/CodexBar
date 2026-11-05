@@ -188,6 +188,9 @@ An HTTP 403 from the cost endpoint records a failed cost source with an in-memor
 The local Tokscale CSV fallback supports legacy, `Kind`, and cloud-agent layouts. A `Cloud Agent ID` header identifies
 the cloud-agent layout; trailing billing columns such as `Cost to you` leave the layout unchanged. The existing
 `Total Tokens` and `Cost` fields supply the exported token totals and API-rate cost.
+The reader processes physical lines without retaining a second array of split lines, reducing peak memory for
+large exports. UTF-8 validation, supported newline separators, quoting, and accounting remain unchanged; the
+decoded input and parsed usage rows still stay in memory during the read.
 
 If Auto fetches usage with a cookie that the app still cannot confirm for the current account, the result stays unpublished. An unchanged account scope waits for the next normal or manual refresh instead of repeatedly forcing another request. Real account, history-window, provider, or cost-timezone changes still request a replacement; a successful fetch that confirms its own cookie can publish immediately.
 
