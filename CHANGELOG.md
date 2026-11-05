@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- iCloud Sync: stop treating the Codex login as a local account for other providers, so a synced account with the same email is no longer hidden from their menus.
+- iCloud Sync: stop treating the Codex login as a local account for other providers, so a synced account with the same email is no longer hidden from their menus (#4869). Thanks @audichuang!
 
 ## 0.83.0 — 2026-10-31
 

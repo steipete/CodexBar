@@ -2,6 +2,74 @@
 <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
   <channel>
     <item>
+      <title>0.83.0</title>
+      <pubDate>Sat, 31 Oct 2026 10:10:25 +0000</pubDate>
+      <sparkle:version>176</sparkle:version>
+      <sparkle:shortVersionString>0.83.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description sparkle:format="markdown">## CodexBar 0.83.0
+
+### Highlights
+
+- Plugins: plugin providers now use the full menu-bar layout (inheriting your global layout, with countdowns and conditionals), can show compact multi-quota summaries and a built-in provider logo, declare an approved Usage Dashboard link, and import cookies from every supported browser including Aside.
+- Codex: cost history survives Codex archiving old sessions as `.jsonl.zst` and switching between Codex homes, GPT-6.1 Sol Fast requests are priced at Fast rates, accounts can have custom names, and opt-in reminders warn before an unused weekly quota resets or reset credits expire.
+- Providers: new OpenDesign subscription quotas; Kiro works with Kiro CLI 3; Perplexity organization credits, WorkBuddy reward credits, LiteLLM team budgets, MiniMax China, Copilot monthly pace and ended subscriptions, and Brave Origin sign-in are supported.
+- Menu bar and CLI: pace defaults to neutral percentages with green/red state bars, layouts gain separator glyphs, `codexbar serve` clients can request fresh measurements, and identified Codex requests can be priced across several SSH hosts.
+
+### Added
+
+- CLI: expose descriptor-based authentication inputs and existing setup hints in provider inventory JSON. ([#4705](https://github.com/steipete/CodexBar/issues/4705))
+- Plugins: support an explicitly approved Usage Dashboard link from a fixed URL or a plain setting. ([#4725](https://github.com/steipete/CodexBar/issues/4725))
+- Codex: optionally add reset-credit expiry reminders at 1 day and 1 hour, preserving the existing three-day summary and saved receipts ([#4838](https://github.com/steipete/CodexBar/issues/4838)). Thanks [@PumpkinsLemon](https://github.com/PumpkinsLemon)!
+- CLI: combine identified Codex requests from multiple SSH hosts, counting copies once and keeping successful sources when a host fails ([#4834](https://github.com/steipete/CodexBar/issues/4834)). Thanks [@salmonumbrella](https://github.com/salmonumbrella)!
+- CLI: estimate deduplicated Codex request spend across SSH hosts with explicit unknown prices, conflict exclusions, and a coordinated schema 2 upgrade ([#4833](https://github.com/steipete/CodexBar/issues/4833), [#4836](https://github.com/steipete/CodexBar/issues/4836)). Thanks [@salmonumbrella](https://github.com/salmonumbrella)!
+- Plugins: render global menu-bar layouts with plugin-owned windows, reset countdowns and conditionals, preserving saved plugin overrides ([#4789](https://github.com/steipete/CodexBar/issues/4789)).
+- OpenDesign: track the active workspace's five-hour and weekly subscription allowance through its browser session ([#4601](https://github.com/steipete/CodexBar/issues/4601)). Thanks [@vimcaw](https://github.com/vimcaw) and [@irfndi](https://github.com/irfndi)!
+- Plugins: let each snapshot choose a built-in provider logo for its menu bar and switcher, independently of plugin identity and quota ownership ([#4801](https://github.com/steipete/CodexBar/issues/4801)). Thanks [@KLIEBHAN](https://github.com/KLIEBHAN)!
+- Plugins: show compact multi-quota summaries with ordered logos and quota percentages in the merged menu bar ([#4802](https://github.com/steipete/CodexBar/issues/4802)). Thanks [@KLIEBHAN](https://github.com/KLIEBHAN)!
+- Codex: optionally warn 24 hours and 1 hour before a weekly reset when quota remains, with account-scoped reminders that survive restarts ([#4849](https://github.com/steipete/CodexBar/issues/4849)). Thanks [@hugo-alves](https://github.com/hugo-alves)!
+- Menu bar: add eight separator glyphs to layouts and conditional branches, with spoken accessibility names and safe downgrade projections ([#4795](https://github.com/steipete/CodexBar/issues/4795)). Thanks [@urda](https://github.com/urda)!
+- Codex: name saved accounts in Settings and account menus without changing authentication or cached usage; privacy mode hides aliases. ([#4782](https://github.com/steipete/CodexBar/issues/4782)) Thanks [@shirishpothi](https://github.com/shirishpothi)!
+- Hooks: `usage_updated` events can carry the sampled raw Codex plan identifier, the provider surface that reported it, and the observation time, without inferring allowances from display labels. ([#4775](https://github.com/steipete/CodexBar/issues/4775), [#4800](https://github.com/steipete/CodexBar/issues/4800)) Thanks [@LeoLin990405](https://github.com/LeoLin990405)!
+- WorkBuddy: show platform reward credits separately within the total allowance, with the earliest unspent grant’s expiry and no false allowance reset when rewards expire. ([#4799](https://github.com/steipete/CodexBar/issues/4799)) Thanks [@codertesla](https://github.com/codertesla)!
+
+### Fixed
+
+- Codex: apply GPT-6.1 Sol Fast pricing, including long-context requests, and refresh request tiers when a turn resumes. ([#4814](https://github.com/steipete/CodexBar/issues/4814)) Thanks [@cassiarota](https://github.com/cassiarota)!
+- LiteLLM: show member overrides or the team's default budget with matching team-scoped spend, ignoring mismatched memberships ([#4842](https://github.com/steipete/CodexBar/issues/4842), [#4843](https://github.com/steipete/CodexBar/issues/4843)). Thanks [@cnietoc](https://github.com/cnietoc)!
+- Claude: isolate watchdog children at spawn, preserve their exit status, and clean up only session-owned processes and sleep inhibitors ([#4829](https://github.com/steipete/CodexBar/issues/4829), [#4830](https://github.com/steipete/CodexBar/issues/4830)). Thanks [@Quinnod345](https://github.com/Quinnod345)!
+- Plugins: import declared-domain cookies from the shared supported-browser catalog, including Aside, and continue through rejected sessions ([#4792](https://github.com/steipete/CodexBar/issues/4792)).
+- z.ai: show prepaid CNY balances for BigModel CN personal accounts without a Coding Plan, including the shared menu-bar Balance element ([#4796](https://github.com/steipete/CodexBar/issues/4796)). Thanks [@AaronJiTuo](https://github.com/AaronJiTuo)!
+- Cursor: support Brave Origin for browser login and shared cookie imports with SweetCookieKit 0.5.11 ([#4837](https://github.com/steipete/CodexBar/issues/4837)). Thanks [@retX0](https://github.com/retX0)!
+- AWS Bedrock: report unavailable Cost Explorer data instead of zero spend ([#4846](https://github.com/steipete/CodexBar/issues/4846)). Thanks [@djbclark](https://github.com/djbclark)!
+- Claude: report the CLI's unavailable per-model breakdown in usage details while retaining current session and weekly quotas ([#4809](https://github.com/steipete/CodexBar/issues/4809)). Thanks [@DreamyTalesPAN](https://github.com/DreamyTalesPAN)!
+- iCloud Sync: retry account snapshots after a dropped upload without allowing delayed results to confirm newer data ([#4798](https://github.com/steipete/CodexBar/issues/4798)). Thanks [@audichuang](https://github.com/audichuang)!
+- DeepSeek: import Platform sessions from supported Chromium browsers using the shared browser catalog, preserving saved Chrome profile selections ([#4821](https://github.com/steipete/CodexBar/issues/4821)). Thanks [@343max](https://github.com/343max)!
+- Trae CN: align Used, Total, and Remaining credits to two decimal places when any amount is fractional ([#4819](https://github.com/steipete/CodexBar/issues/4819)). Thanks [@liuyuplus](https://github.com/liuyuplus)!
+- MiniMax: discover China web sessions and read the current console's quota percentages, boosted limits, and unlimited windows. ([#4831](https://github.com/steipete/CodexBar/issues/4831), [#4832](https://github.com/steipete/CodexBar/issues/4832)) Thanks [@tangwz](https://github.com/tangwz)!
+- Localization: correctly validate reordered plural arguments after ordinary placeholders. ([#4817](https://github.com/steipete/CodexBar/issues/4817)) Thanks [@xuancao1953-1](https://github.com/xuancao1953-1)!
+- Codex: preserve established local cost coverage and catch-up progress when switching Codex homes ([#4770](https://github.com/steipete/CodexBar/issues/4770), [#4773](https://github.com/steipete/CodexBar/issues/4773)). Thanks [@harjothkhara](https://github.com/harjothkhara)!
+- Menu bar: name the Auto window once per row, so Auto % with Auto pace shows `5h 0% –` instead of `5h 0% 5h –`; separate rows, other windows, and VoiceOver keep their labels ([#4820](https://github.com/steipete/CodexBar/issues/4820), [#4822](https://github.com/steipete/CodexBar/issues/4822)). Thanks [@egigoka](https://github.com/egigoka)!
+- OpenCodex: reduce temporary memory use when importing large usage logs ([#4803](https://github.com/steipete/CodexBar/issues/4803)).
+- Copilot: show calendar-month pace for Premium and chat quotas in the menu bar when a reset date is available ([#4847](https://github.com/steipete/CodexBar/issues/4847), [#4848](https://github.com/steipete/CodexBar/issues/4848)). Thanks [@chriscorbell](https://github.com/chriscorbell)!
+- Cursor: explain when the Cursor app session has expired and no browser session works, with steps to sign in again ([#4804](https://github.com/steipete/CodexBar/issues/4804)). Thanks [@julianpinedayyz](https://github.com/julianpinedayyz)!
+- Perplexity: show organization pool credits separately and use them for automatic usage after personal credits run out ([#4826](https://github.com/steipete/CodexBar/issues/4826), [#4828](https://github.com/steipete/CodexBar/issues/4828)). Thanks [@Abelo9996](https://github.com/Abelo9996)!
+- Plugins: refresh the selected menu-bar percentage when its usage changes while the automatic window stays unchanged ([#4787](https://github.com/steipete/CodexBar/issues/4787)). Thanks [@vincent-peng](https://github.com/vincent-peng)!
+- Codex: retain cached cost history when previously scanned rollouts become `.jsonl.zst` archives, without duplicate counting ([#4523](https://github.com/steipete/CodexBar/issues/4523), [#4534](https://github.com/steipete/CodexBar/issues/4534), [#4818](https://github.com/steipete/CodexBar/issues/4818)). Thanks [@BananaIIya](https://github.com/BananaIIya), [@kali113](https://github.com/kali113), [@kcharlan](https://github.com/kcharlan), and [@cassiarota](https://github.com/cassiarota)!
+- OpenCode Go: use the active OpenCode CLI API key stored under `opencode` for server quotas instead of falling back to local estimates. ([#4815](https://github.com/steipete/CodexBar/issues/4815)) Thanks [@sreejithraman](https://github.com/sreejithraman)!
+- Copilot: explain ended subscriptions instead of showing a raw decoding error. ([#4851](https://github.com/steipete/CodexBar/issues/4851)) Thanks [@djbclark](https://github.com/djbclark)!
+- Kiro: prefer stateless usage reads to avoid probe chats when available, and use the V2 harness with older-CLI fallback when a CLI report is needed. ([#4853](https://github.com/steipete/CodexBar/issues/4853), [#4854](https://github.com/steipete/CodexBar/issues/4854), [#4746](https://github.com/steipete/CodexBar/issues/4746)) Thanks [@jeanroloff](https://github.com/jeanroloff)!
+
+### Changed
+
+- CLI: let HTTP clients request fresh usage and full dashboard measurements with `refresh=1`, coalescing concurrent requests and limiting forced measurements to one per provider every five seconds ([#4785](https://github.com/steipete/CodexBar/issues/4785)).
+- CLI: malformed or ambiguous arguments now fail with an error instead of being guessed (Commander 0.3.0).
+- Menu bar: make neutral pace percentages with font-scaled green/red state bars the default, preserving saved color choices ([#4714](https://github.com/steipete/CodexBar/issues/4714), [#4791](https://github.com/steipete/CodexBar/issues/4791)). Thanks [@arnodirlam](https://github.com/arnodirlam)!
+- Updates: refresh Sparkle to improve update installation, download progress, and release-note handling.
+</description>
+      <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.83.0/CodexBar-macos-universal-0.83.0.zip" length="87135821" type="application/octet-stream" sparkle:edSignature="Vj/0vOsGXUal+O5bZd9G2rQclGCkpeH0vgpvRNkyrHKd3cHEfimK/My3fXUu484lK44lFIKVFJeyUYVqASz4AQ==" />
+    </item>
+    <item>
       <title>0.82.0</title>
       <pubDate>Mon, 26 Oct 2026 23:39:35 +0000</pubDate>
       <sparkle:version>175</sparkle:version>
