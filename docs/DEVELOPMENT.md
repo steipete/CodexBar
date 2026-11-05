@@ -49,6 +49,12 @@ toolchains (the former Xcode 26.3 / macOS 15 compatibility build) are no longer
 verified; the package manifest still declares Swift tools 6.2, but builds with
 older Xcode releases are best effort.
 
+`SettingsMenuPicker` uses the native picker for the official Swift 6.4 / macOS 27 SDK pairing. Older Xcode
+builds retain the menu-backed workaround for disabled picker items when SDK 26 builds run on macOS 27
+(#1904, #1936). The compiler check is a proxy for that paired toolchain, not an SDK-linkage check. Custom
+compiler/SDK combinations need separate validation. Keep the workaround until both SDK 26-linked and
+SDK 27-linked builds have verified interactive, persisted selection.
+
 Keep large initializer and `#expect` expressions simple: bind intermediate values
 to explicitly typed locals when the type checker struggles. Use
 `ProviderColor(hex:)` for provider colors instead of arithmetic inside spec initializers.

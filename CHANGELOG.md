@@ -2,6 +2,9 @@
 
 ## 0.83.1 — Unreleased
 
+### Changed
+
+- Settings: use native popup selectors while keeping imported custom choices visible (#4895). Thanks @elijahfriedman!
 ### Added
 
 - Settings: find panes by title alongside provider names in sidebar search, with an empty state covering both (#4875). Thanks @elijahfriedman!
