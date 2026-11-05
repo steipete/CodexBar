@@ -101,6 +101,36 @@ struct UsageStoreMenuCardModelTests {
         #expect(model.showsRetainedMeasurement == (usageFailed || adapterFailed))
     }
 
+    @Test(arguments: ClaudeSwapAccountSource.allCases)
+    func `current exhausted account quotas keep their tint despite a limit notice`(
+        source: ClaudeSwapAccountSource) throws
+    {
+        let store = self.makeStore()
+        store.settings.usageBarsShowUsed = true
+        let now = self.snapshot().updatedAt
+        let list = ClaudeSwapAccountList(
+            activeAccountNumber: 2,
+            accounts: [ClaudeSwapAccountRow(
+                number: 2,
+                email: "account@example.com",
+                isActive: true,
+                usageStatus: .unavailable,
+                fiveHour: ClaudeSwapUsageWindow(usedPercent: 100, resetsAt: now.addingTimeInterval(3600)),
+                sevenDay: nil)])
+        let account = try #require(ClaudeSwapAccountProjection.accountSnapshots(
+            from: list, source: source, now: now).first)
+        #expect(!account.usesLastKnownUsage)
+        #expect(account.error != nil)
+        let context = ClaudeSwapAccountMenuDisplay.cardContext(
+            for: account, planLabel: nil, adapterError: nil, switchError: nil)
+
+        let model = store.menuCardModel(for: .claude, context: context, now: now)
+
+        #expect(model.subtitleText.contains("Session limit reached."))
+        #expect(model.metrics.first?.percent == 100)
+        #expect(!model.showsRetainedMeasurement)
+    }
+
     @Test(arguments: [UsageProvider.claude, .grok])
     func `empty account context cannot borrow live usage identity or cost`(provider: UsageProvider) {
         let store = self.makeStore()

@@ -51,7 +51,7 @@ On macOS 26 and later, Settings uses the system split-view sidebar, toolbar, sea
 
 ## Menu bar
 
-After a quota refresh fails, retained usage bars use a neutral tint until recovery, even with an account subtitle override. Successful fallback diagnostics and account-switch failures with successfully refreshed quotas keep the provider color. Code Review follows its own dashboard refresh outcome; separately refreshed monthly credit meters, supplemental costs, and charts keep their own color.
+After a quota refresh fails, retained usage bars use a neutral tint until recovery, even with an account subtitle override. Successful fallback diagnostics and account-switch failures with successfully refreshed quotas keep the provider color. Current exhausted quota measurements also keep their tint; a limit notice alone does not mark them stale. Code Review follows its own dashboard refresh outcome; separately refreshed monthly credit meters, supplemental costs, and charts keep their own color.
 Menu-card percentages, reset countdowns, and cost/credit values use tabular digits, keeping equal-length numeric updates steady. Titles, hints, and errors keep proportional typography.
 
 Stacked rows with leading window labels align their values and meters after the widest label. Rows that begin with names, explicit spaces, or inline icons retain their natural spacing; hiding percentage window labels is unchanged.
