@@ -1315,7 +1315,8 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\natau tempel hanya nilai session_id";
 "Clear" = "Hapus";
 "No matching providers" = "Tidak ada penyedia cocok";
-"Search providers" = "Cari penyedia";
+"No matching settings or providers" = "Tidak ada pengaturan atau penyedia yang cocok";
+"Search settings" = "Cari pengaturan";
 
 "Request quota: %@ / %@" = "Kuota permintaan: %@ / %@";
 "language_arabic" = "العربية";
@@ -2795,3 +2796,7 @@
 "Leave blank to use the default name." = "Biarkan kosong untuk menggunakan nama bawaan.";
 "Rewards" = "Hadiah";
 "Reward expiry" = "Kedaluwarsa hadiah";
+
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "Ringkasan penagihan TypeSafe tidak dapat dibaca. Buka https://console.typesafe.ai/billing untuk memeriksa akses; jika halaman terbuka, laporkan kegagalan integrasi.";
+
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "Cookie sesi TypeSafe tidak ditemukan. Masuk di console.typesafe.ai/billing atau tempel header Cookie.";

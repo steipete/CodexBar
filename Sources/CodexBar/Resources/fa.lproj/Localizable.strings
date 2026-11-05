@@ -1312,7 +1312,8 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=... \n\n یا فقط مقدار session_id را بچسباند";
 "Clear" = "پاک است";
 "No matching providers" = "هیچ ارائه دهنده تطبیقی وجود ندارد";
-"Search providers" = "ارائه دهندگان جستجو";
+"No matching settings or providers" = "هیچ تنظیمات یا ارائه‌دهنده‌ای مطابق نیست";
+"Search settings" = "جستجوی تنظیمات";
 
 "language_vietnamese" = "ویتنامی ها";
 "language_indonesian" = "زبان اندونزی";
@@ -2797,3 +2798,7 @@
 "Leave blank to use the default name." = "برای استفاده از نام پیش‌فرض، این قسمت را خالی بگذارید.";
 "Rewards" = "پاداش‌ها";
 "Reward expiry" = "انقضای پاداش‌ها";
+
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "خواندن نمای کلی صورتحساب TypeSafe ممکن نشد. برای بررسی دسترسی، https://console.typesafe.ai/billing را باز کنید؛ اگر صفحه باز شد، خطای یکپارچه‌سازی را گزارش کنید.";
+
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "هیچ کوکی نشست TypeSafe پیدا نشد. در console.typesafe.ai/billing وارد شوید یا یک سرآیند Cookie جای‌گذاری کنید.";

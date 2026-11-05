@@ -1165,7 +1165,8 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\n或只貼上 session_id 值";
 "Clear" = "清除";
 "No matching providers" = "沒有相符的提供者";
-"Search providers" = "搜尋提供者";
+"No matching settings or providers" = "沒有相符的設定或提供者";
+"Search settings" = "搜尋設定";
 
 "language_vietnamese" = "越南語";
 "reset_tomorrow_format" = "明天 %@";
@@ -2771,3 +2772,7 @@
 "Leave blank to use the default name." = "留空以使用預設名稱。";
 "Rewards" = "獎勵";
 "Reward expiry" = "獎勵到期日期";
+
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "無法讀取 TypeSafe 帳單總覽。請開啟 https://console.typesafe.ai/billing 檢查存取權限；如果頁面可以開啟，請回報整合錯誤。";
+
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "找不到 TypeSafe 工作階段 Cookie。請在 console.typesafe.ai/billing 登入或貼上 Cookie 標頭。";

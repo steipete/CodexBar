@@ -1303,7 +1303,8 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\nили вставьте только значение session_id";
 "Clear" = "Очистить";
 "No matching providers" = "Нет подходящих провайдеров";
-"Search providers" = "Поиск провайдеров";
+"No matching settings or providers" = "Нет подходящих настроек или провайдеров";
+"Search settings" = "Поиск в настройках";
 
 "language_vietnamese" = "Tiếng Việt";
 "language_indonesian" = "Bahasa Indonesia";
@@ -2794,3 +2795,7 @@
 "Leave blank to use the default name." = "Оставьте поле пустым, чтобы использовать имя по умолчанию.";
 "Rewards" = "Награды";
 "Reward expiry" = "Срок действия наград";
+
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "Не удалось прочитать сводку платежей TypeSafe. Откройте https://console.typesafe.ai/billing, чтобы проверить доступ. Если страница открывается, сообщите об ошибке интеграции.";
+
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "Файлы cookie сеанса TypeSafe не найдены. Войдите на console.typesafe.ai/billing или вставьте заголовок Cookie.";

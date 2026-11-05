@@ -1276,7 +1276,8 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\n或只粘贴 session_id 值";
 "Clear" = "清除";
 "No matching providers" = "没有匹配的提供商";
-"Search providers" = "搜索提供商";
+"No matching settings or providers" = "没有匹配的设置或提供商";
+"Search settings" = "搜索设置";
 
 "language_vietnamese" = "越南语";
 
@@ -2785,3 +2786,7 @@
 "Leave blank to use the default name." = "留空以使用默认名称。";
 "Rewards" = "奖励";
 "Reward expiry" = "奖励到期日期";
+
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "无法读取 TypeSafe 账单概览。请打开 https://console.typesafe.ai/billing 检查访问权限；如果页面可以打开，请报告集成故障。";
+
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "未找到 TypeSafe 会话 Cookie。请在 console.typesafe.ai/billing 登录或粘贴 Cookie 请求头。";

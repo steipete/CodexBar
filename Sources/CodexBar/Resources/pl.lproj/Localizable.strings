@@ -1314,7 +1314,8 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\nalbo wklej samą wartość session_id";
 "Clear" = "Wyczyść";
 "No matching providers" = "Brak pasujących dostawców";
-"Search providers" = "Szukaj dostawców";
+"No matching settings or providers" = "Brak pasujących ustawień lub dostawców";
+"Search settings" = "Szukaj w ustawieniach";
 
 "Request quota: %@ / %@" = "Limit żądań: %@ / %@";
 "language_arabic" = "العربية";
@@ -2796,3 +2797,7 @@
 "Leave blank to use the default name." = "Pozostaw puste, aby użyć domyślnej nazwy.";
 "Rewards" = "Nagrody";
 "Reward expiry" = "Wygaśnięcie nagród";
+
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "Nie udało się odczytać podsumowania rozliczeń TypeSafe. Otwórz https://console.typesafe.ai/billing, aby sprawdzić dostęp. Jeśli strona się otwiera, zgłoś błąd integracji.";
+
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "Nie znaleziono plików cookie sesji TypeSafe. Zaloguj się na console.typesafe.ai/billing lub wklej nagłówek Cookie.";
