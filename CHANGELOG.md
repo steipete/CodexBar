@@ -5,6 +5,11 @@
 ### Changed
 
 - Menu: tint retained quota bars neutral after a failed refresh while preserving independently refreshed credit and cost colors (#4883). Thanks @Chipagosfinest!
+### Fixed
+
+- Claude: recover background Auto usage after temporary CLI failures when Keychain access is disabled, with bounded retry delays. (#4907, #4908) Thanks @hy-ong!
+- CLI: document noninteractive browser access and the Keychain opt-out for dashboard and service launchers. (#4912, #4920) Thanks @vincent-peng and @LeoLin990405!
+- Cursor: read encrypted app sessions from the current `Cursor Key` and legacy Safe Storage accounts. (#4880, #4913) Thanks @vincent-peng and @SaahiilM!
 
 ## 0.83.0 — 2026-10-31
 

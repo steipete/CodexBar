@@ -779,6 +779,12 @@ extension ClaudeUsageFetcher {
         return message.contains("timed out") || message.contains("timeout")
     }
 
+    /// The CLI reported a signed-out or unauthorized account, which only the user can fix.
+    static func isCLIAuthenticationError(_ error: Error) -> Bool {
+        if case ClaudeStatusProbeError.authenticationFailed = error { return true }
+        return false
+    }
+
     public static func isCLIRateLimitError(_ error: Error) -> Bool {
         ClaudeCLIRateLimitGate.isRateLimitError(error)
     }
