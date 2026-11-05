@@ -47,6 +47,31 @@ struct MenuBarIdleCountdownTests {
         #expect(controller.menuBarLayoutResetDates(for: .claude, now: now.addingTimeInterval(1801)).count == 1)
     }
 
+    @Test
+    func `hidden countdown keeps its predicate expiration wakeup`() {
+        let (settings, store, controller) = Self.makeController()
+        defer { controller.releaseStatusItemsForTesting() }
+        let now = Date()
+        let reset = now.addingTimeInterval(900)
+        Self.setSnapshot(store, reset: reset, now: now)
+        let conditional = MenuBarLayoutConditional(
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(
+                    metric: .sessionResetsIn, comparison: .lessThan, threshold: 0.5))],
+            thenToken: .percent(window: .session),
+            elseToken: .resetCountdown)
+        settings.menuBarLayoutConditionals = [conditional]
+        settings.menuBarLayout = MenuBarLayout(lines: [[.icon, .conditional(id: conditional.id)]])
+        controller.scheduleMenuBarCountdownRefreshIfNeeded(now: now)
+
+        #expect(controller.menuBarLayoutResetDates(for: .claude, now: now).isEmpty)
+        #expect(controller._test_isMenuBarCountdownRefreshScheduled())
+        #expect(controller.menuBarLayoutResetDates(for: .claude, now: reset.addingTimeInterval(1)) == [reset])
+        controller.scheduleMenuBarCountdownRefreshIfNeeded(now: reset.addingTimeInterval(1))
+        #expect(!controller._test_isMenuBarCountdownRefreshScheduled())
+    }
+
     static func conditional(
         token: MenuBarLayoutToken,
         metric: MenuBarConditionalMetric = .session,
