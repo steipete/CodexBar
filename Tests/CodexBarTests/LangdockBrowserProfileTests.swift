@@ -8,6 +8,27 @@ import Testing
 
 struct LangdockBrowserProfileTests {
     @MainActor
+    @Test(arguments: ["de", "zh-Hans"])
+    func `profile names remain verbatim while picker controls are localized`(language: String) throws {
+        try CodexBarLocalizationOverride.$appLanguage.withValue(language) {
+            let fixture = try ProviderSettingsDescriptorTests().makeSettingsFixture(suite: #function)
+            defer {
+                try? FileManager.default
+                    .removeItem(at: fixture.settings.configStore.fileURL.deletingLastPathComponent())
+            }
+            let implementation = PluginCookieProviderImplementation(spec: LangdockProviderDescriptor.spec)
+            let profile = BrowserProfile(id: "/synthetic/Edge/Profile 1", name: "Default")
+            let picker = implementation.browserProfilePicker(
+                browser: "edge", context: fixture.settingsContext(provider: .langdock), profiles: [profile])
+            #expect(L("Default") != "Default")
+            #expect(picker.options.first?.displayTitle == L("Select profile…"))
+            let option = try #require(picker.options.first { $0.id == profile.id })
+            #expect(option.displayTitle == profile.name)
+            #expect(ProviderSettingsPickerOption(id: "default", title: "Default").displayTitle == L("Default"))
+        }
+    }
+
+    @MainActor
     @Test(arguments: LangdockPluginTests.profiles)
     func `browser selection survives config serialization and app and CLI settings`(
         profile: ProviderBrowserProfile) throws

@@ -4,6 +4,26 @@ import Testing
 
 struct StatusItemHostingDiagnosticsTests {
     @Test
+    func `hosting trace includes MenuBarAgent without exposing unrelated window titles`() throws {
+        let records = [
+            self.window(number: 8, owner: "MenuBarAgent"),
+            self.window(number: 9, owner: "MenuBarAgent", name: "unrelated private title"),
+            self.window(number: 10, owner: "MenuBarAgent", layer: 0),
+            self.window(number: 11),
+        ]
+        let diagnostic = MenuBarStatusItemWindowProbe.hostingDiagnostics(name: "codexbar-merged", windowInfo: records)
+        #expect(diagnostic["layer25Count"] as? Int == 3)
+        #expect(diagnostic["layer25Numbers"] as? [Int] == [8, 9, 11])
+        #expect(diagnostic["ownerCounts"] as? [String: Int] == ["MenuBarAgent": 2, "Control Center": 1])
+        let matches = try #require(diagnostic["namedMatches"] as? [[String: Any]])
+        #expect(matches.compactMap { $0["number"] as? Int } == [8, 11])
+        #expect(matches.compactMap { $0["owner"] as? String } == ["MenuBarAgent", "Control Center"])
+        let data = try JSONSerialization.data(withJSONObject: diagnostic)
+        let json = try #require(String(data: data, encoding: .utf8))
+        #expect(!json.contains("unrelated private title"))
+    }
+
+    @Test
     func `hosting trace excludes other apps and layers while retaining duplicate candidates`() throws {
         let records = [
             self.window(number: 1),
