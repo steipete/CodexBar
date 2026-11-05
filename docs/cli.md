@@ -518,6 +518,12 @@ non-zero only when it cannot produce a valid snapshot document.
 
 ## Notes
 - CLI uses the config file for enabled providers, ordering, and secrets.
+- Ordinary `usage` fetches use noninteractive browser-cookie access, with or without a TTY. Browser Safe Storage
+  access requiring a new grant is skipped; missing sessions fall back or return a provider error.
+- On macOS, set `CODEXBAR_DISABLE_KEYCHAIN_ACCESS=1` in the CLI launcher's environment to block CodexBar-owned
+  Keychain operations and Chromium Safe Storage decryption. Provider-owned CLIs may still use their own credentials
+  and prompt. See [CLI and external dashboards](keychain-prompts.md#cli-and-external-dashboards) for setup and the
+  relationship to the app preference.
 - CLI binary discovery checks explicit overrides, captured login PATH, inherited PATH, and known install paths before falling back to an interactive shell probe.
 - Automatic executable discovery and child PATHs use absolute directories only; empty, `.` and relative entries are ignored. Install CLIs in an absolute PATH directory. Explicit executable overrides and shell startup files remain trusted user configuration.
 - Bundled helpers and plugin resources are located relative to the resolved running executable, including symlinked CLI installations, rather than the invocation directory.
