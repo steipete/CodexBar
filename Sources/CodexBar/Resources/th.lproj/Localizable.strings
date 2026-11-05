@@ -1312,7 +1312,8 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=... \n\n หรือวางเฉพาะค่า session_id";
 "Clear" = "ล้างค่าการค้นหา";
 "No matching providers" = "ไม่มีผู้ให้บริการที่ตรงกัน";
-"Search providers" = "ผู้ให้บริการการค้นหา";
+"No matching settings or providers" = "ไม่มีการตั้งค่าหรือผู้ให้บริการที่ตรงกัน";
+"Search settings" = "ค้นหาการตั้งค่า";
 
 "language_vietnamese" = "เวียดนาม";
 "language_indonesian" = "บาฮาซาอินโดนีเซีย";
@@ -2795,3 +2796,7 @@
 "Leave blank to use the default name." = "เว้นว่างไว้เพื่อใช้ชื่อเริ่มต้น";
 "Rewards" = "รางวัล";
 "Reward expiry" = "วันหมดอายุของรางวัล";
+
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "ไม่สามารถอ่านภาพรวมการเรียกเก็บเงินของ TypeSafe ได้ เปิด https://console.typesafe.ai/billing เพื่อตรวจสอบการเข้าถึง หากเปิดหน้าได้ ให้รายงานข้อผิดพลาดในการเชื่อมต่อระบบ";
+
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "ไม่พบคุกกี้เซสชันของ TypeSafe ลงชื่อเข้าใช้ที่ console.typesafe.ai/billing หรือวางส่วนหัว Cookie";

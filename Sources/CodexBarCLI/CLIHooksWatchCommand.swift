@@ -319,6 +319,11 @@ extension CodexBarCLI {
             return .failure(CLIArgumentError(
                 "--interval must be at least \(Int(Self.hooksWatchMinimumInterval)) seconds."))
         }
+        // Use the same rounded nanosecond representation as sleepInterruptibly. A finite
+        // Double can still overflow UInt64 (or the startup banner's Int conversion).
+        guard UInt64(exactly: (parsed * 1_000_000_000).rounded()) != nil else {
+            return .failure(CLIArgumentError("--interval exceeds the supported sleep range."))
+        }
         return .success(parsed)
     }
 
