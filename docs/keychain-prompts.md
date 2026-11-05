@@ -127,8 +127,17 @@ On macOS, set `CODEXBAR_DISABLE_KEYCHAIN_ACCESS=1` in the environment of a separ
 CODEXBAR_DISABLE_KEYCHAIN_ACCESS=1 /absolute/path/to/codexbar usage --provider claude --json
 ```
 
+Ordinary `usage` and `cards` fetches already use noninteractive browser-cookie access, including when run
+from a terminal: they do not authorize a Chrome Safe Storage prompt. A browser requiring a new grant is
+skipped; an existing grant can still be used without UI. The six-hour denial cooldown remains in force
+across CLI invocations. Only an explicit `cookie refresh --allow-keychain-prompt` can bypass that cooldown.
+
+The environment opt-out is stronger: it also blocks already-authorized CodexBar Keychain reads.
 This blocks CodexBar's Security.framework item operations and Keychain-dependent Chromium cookie decryption.
-Fetching may fail when no other configured source is usable. A provider-owned CLI, such as Claude Code, can still
+An unavailable browser session can fall back to another configured source. If none succeeds, `usage --json`
+returns a provider error and a nonzero exit status; it does not retry with an interactive browser prompt.
+For web-only troubleshooting, use `--source web`, then configure a manual cookie or explicitly refresh cookies
+from a terminal if you want to grant access. A provider-owned CLI, such as Claude Code, can still
 use its own credential store and may prompt. Existing manual credentials, file-backed credentials, and other
 supported sources may still be used. See [Claude source setup](claude.md) and the [CLI guide](cli.md).
 
