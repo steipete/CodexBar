@@ -260,21 +260,15 @@ struct CursorAppAuthStore: CursorAppAuthSessionProviding {
            encrypted.starts(with: Data("v10".utf8)), encrypted.count > 3,
            (encrypted.count - 3).isMultiple(of: 16)
         {
-            let logger = CodexBarLog.logger(LogCategories.provider(.cursor))
-            logger.verbose("Cursor.app encrypted auth token detected")
             for account in ["Cursor Key", "Cursor"] {
-                logger.verbose("Cursor.app Safe Storage lookup: \(account)")
                 guard let password = ChromiumSafeStorage.password(
                     service: "Cursor Safe Storage",
                     account: account,
-                    allowPrompt: true)
-                else { continue }
-                guard let plaintext = ChromiumSafeStorage.decrypt(
-                    encrypted, key: ChromiumSafeStorage.deriveKey(from: password)),
+                    allowPrompt: true),
+                    let plaintext = ChromiumSafeStorage.decrypt(
+                        encrypted, key: ChromiumSafeStorage.deriveKey(from: password)),
                     let decoded = String(data: plaintext, encoding: .utf8)
                 else { continue }
-                CodexBarLog.logger(LogCategories.provider(.cursor))
-                    .verbose("Cursor.app auth decrypted with Safe Storage account \(account)")
                 return CursorAppAuthSession(accessToken: decoded)
             }
         }

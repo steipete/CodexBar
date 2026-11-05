@@ -270,7 +270,6 @@ extension CursorStatusProbe {
         let cookieHeader = try appSession.cookieHeader()
         do {
             let value = try await context.perform(cookieHeader, appIdentity)
-            context.log("Cursor.app local auth usage request succeeded")
             await self.persistAppAuthSession(appSession)
             let reconciliation = ResolvedSessionReconciliationContext(
                 cookieHeader: cookieHeader,
