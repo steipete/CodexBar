@@ -55,6 +55,8 @@ Kiro reuses `kiro-cli` authentication for API usage reads and CLI fallback. The 
    - Requires `kiro-cli` installed and logged in. Output is ANSI-decorated; CodexBar strips escape sequences.
    - Kiro CLI 2.20 summaries such as `Plan: KIRO PRO MAX | 1 usage breakdowns` are accepted as plan-only
      reports. A breakdown count does not imply zero usage or an available allowance.
+   - CLI plan names preserve the `+` suffix: `KIRO PRO+` displays as `Kiro Pro+` in both legacy and
+     `Estimated Usage` reports.
 
 Background refreshes first make an unauthenticated, four-second `HEAD` request to the CLI profile's usage
 host. Missing or unsupported private region state uses the default US East host. A transport failure stops

@@ -2,6 +2,11 @@
 
 ## 0.83.1 — Unreleased
 
+### Fixed
+
+- Kiro: recover API usage with a valid CLI token and no stored profile, avoiding chat probes when the API supplies usable plan limits. (#4915) Thanks @Yuxin-Qiao!
+- Kiro: preserve the `+` in CLI-reported plan names so Pro+ subscriptions are shown as Kiro Pro+. (#4928) Thanks @jeanroloff!
+
 ## 0.83.0 — 2026-10-31
 
 ### Highlights

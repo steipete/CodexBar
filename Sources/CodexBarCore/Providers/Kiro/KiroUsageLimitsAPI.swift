@@ -407,7 +407,7 @@ public enum KiroUsageLimitsAPI: Sendable {
         let result = sqlite3_step(statement)
         if result == SQLITE_DONE { return nil }
         guard result == SQLITE_ROW, let text = sqlite3_column_text(statement, 0) else {
-            throw KiroUsageLimitsError.credentialsUnavailable("read \(what): invalid or unreadable value")
+            throw KiroUsageLimitsError.credentialsUnavailable("\(what) not found in Kiro CLI state")
         }
         return String(cString: text)
     }
