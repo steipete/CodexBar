@@ -67,35 +67,103 @@ struct TypeSafeCookieStrategyTests {
     }
 
     @Test
-    func `cookie paths match billing and preserve longest path precedence`() {
+    func `cookie paths match billing overview and preserve longest path precedence`() {
         let records = [
-            Self.record("console.typesafe.ai", scope: .hostOnly, name: "session", value: "root"),
-            Self.record("console.typesafe.ai", scope: .hostOnly, name: "session", value: "settings", path: "/settings"),
+            Self.record("console.typesafe.ai", scope: .hostOnly, name: "root", value: "root"),
             Self.record(
                 "console.typesafe.ai",
                 scope: .hostOnly,
                 name: "session",
-                value: "exact",
-                path: "/settings/billing"),
-            Self.record("console.typesafe.ai", scope: .hostOnly, name: "api", path: "/api"),
+                value: "overview",
+                path: "/api/billing/overview"),
+            Self.record(
+                "console.typesafe.ai",
+                scope: .hostOnly,
+                name: "billing-api",
+                value: "value",
+                path: "/api/billing"),
+            Self.record(
+                "console.typesafe.ai",
+                scope: .hostOnly,
+                name: "trailing",
+                path: "/api/billing/overview/"),
+            Self.record(
+                "console.typesafe.ai",
+                scope: .hostOnly,
+                name: "sibling",
+                path: "/api/billing/overview-extra"),
+            Self.record("console.typesafe.ai", scope: .hostOnly, name: "legacy", path: "/billing"),
             Self.record("console.typesafe.ai", scope: .hostOnly, name: "auth", path: "/auth"),
-            Self.record("console.typesafe.ai", scope: .hostOnly, name: "sibling", path: "/settings/billing-extra"),
-            Self.record("console.typesafe.ai", scope: .hostOnly, name: "prefix", path: "/setting"),
-            Self.record("console.typesafe.ai", scope: .hostOnly, name: "trailing", path: "/settings/"),
         ]
+        let filtered = TypeSafeCookieImporter.recordsForDestination(records)
+        #expect(filtered.map(\.name) == ["session", "billing-api", "root"])
         #expect(TypeSafeCookieImporter.cookieHeader(from: records) ==
-            "session=exact; trailing=value; session=settings; session=root")
+            "session=overview; billing-api=value; root=root")
     }
 
     @Test
-    func `real plugin sends filtered cookies only to billing requests`() async throws {
+    func `billing overview cache uses a destination-scoped key`() {
+        // Cached headers are flattened, so a header cached for an older billing route must
+        // not be observed for `/api/billing/overview`. The variant scope keeps legacy unscoped entries unused.
+        guard case let .providerVariant(variant) = TypeSafeWebFetchStrategy.cacheScope else {
+            Issue.record("expected a provider-variant cache scope")
+            return
+        }
+        #expect(variant.contains("/api/billing/overview"))
+    }
+
+    @Test
+    func `legacy unscoped cache is excluded from the billing request`() async throws {
+        let storage = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: storage) }
+        try await KeychainCacheStore.withImplicitTestStoreForTesting {
+            try await CookieHeaderCache.withLegacyBaseURLOverrideForTesting(storage) {
+                CookieHeaderCache.store(
+                    provider: .typesafe,
+                    cookieHeader: "session=legacy-settings",
+                    sourceLabel: "legacy")
+                defer { CookieHeaderCache.clearAllScopes(provider: .typesafe) }
+
+                let requests = RequestLog()
+                let strategy = TypeSafeWebFetchStrategy(
+                    transport: ProviderHTTPTransportHandler { request in
+                        await requests.append(request)
+                        return try TypeSafeTestFixture.pluginResponse(for: request)
+                    },
+                    sessionLoader: { _ in
+                        [.init(cookieHeader: "session=fresh-billing", sourceLabel: "Chrome")]
+                    })
+
+                _ = try await strategy.fetch(Self.context(.auto))
+
+                let recorded = await requests.all
+                let billingRequests = recorded.filter { $0.url?.path == "/api/billing/overview" }
+                #expect(!billingRequests.isEmpty)
+                #expect(billingRequests.allSatisfy {
+                    $0.value(forHTTPHeaderField: "Cookie") == "session=fresh-billing"
+                })
+                #expect(CookieHeaderCache.load(provider: .typesafe)?.cookieHeader == "session=legacy-settings")
+                #expect(CookieHeaderCache.load(
+                    provider: .typesafe,
+                    scope: TypeSafeWebFetchStrategy.cacheScope)?.cookieHeader == "session=fresh-billing")
+            }
+        }
+    }
+
+    @Test
+    func `real plugin sends filtered cookies only to the billing overview request`() async throws {
         let requests = RequestLog()
         let records = [
             Self.record("console.typesafe.ai", scope: .hostOnly, name: "session", value: "allowed"),
             Self.record(".typesafe.ai", scope: .domain, name: "shared", value: "allowed"),
             Self.record(".console.typesafe.ai", scope: .domain, name: "console", value: "allowed"),
-            Self.record("console.typesafe.ai", scope: .hostOnly, name: "scoped", value: "allowed", path: "/settings"),
-            Self.record("console.typesafe.ai", scope: .hostOnly, name: "api", value: "blocked", path: "/api"),
+            Self.record(
+                "console.typesafe.ai",
+                scope: .hostOnly,
+                name: "scoped",
+                value: "allowed",
+                path: "/api/billing/overview"),
+            Self.record("console.typesafe.ai", scope: .hostOnly, name: "legacy", value: "blocked", path: "/billing"),
             Self.record(".www.typesafe.ai", scope: .domain, name: "private", value: "blocked"),
             Self.record("nottypesafe.ai", scope: .domain, name: "lookalike", value: "blocked"),
             Self.record("typesafe.ai.example.org", scope: .domain, name: "suffix", value: "blocked"),
@@ -118,14 +186,11 @@ struct TypeSafeCookieStrategyTests {
         #expect(result.sourceLabel == "web")
         #expect(result.strategyID == "typesafe.web")
         let recorded = await requests.all
-        let billing = try #require(recorded.first { $0.httpMethod == "GET" && $0.url?.path == "/settings/billing" })
-        let chunk = try #require(recorded.first { $0.url?.path == "/_next/static/chunks/app.js" })
-        let post = try #require(recorded.first { $0.httpMethod == "POST" })
-        #expect(billing.value(forHTTPHeaderField: "Cookie") ==
+        #expect(recorded.count == 1)
+        let overview = try #require(recorded
+            .first { $0.httpMethod == "GET" && $0.url?.path == "/api/billing/overview" })
+        #expect(overview.value(forHTTPHeaderField: "Cookie") ==
             "scoped=allowed; session=allowed; shared=allowed; console=allowed")
-        #expect(post.value(forHTTPHeaderField: "Cookie") ==
-            "scoped=allowed; session=allowed; shared=allowed; console=allowed")
-        #expect(chunk.value(forHTTPHeaderField: "Cookie") == nil)
     }
 
     @Test
@@ -185,7 +250,12 @@ struct TypeSafeCookieStrategyTests {
             transport: ProviderHTTPTransportHandler { request in
                 await requests.append(request)
                 if request.value(forHTTPHeaderField: "Cookie") == "session=stale" {
-                    return try TypeSafeTestFixture.response(request, status: 307, body: "", contentType: "text/html")
+                    return try TypeSafeTestFixture.response(
+                        request,
+                        status: 307,
+                        body: "",
+                        contentType: "text/html",
+                        headers: ["Location": "https://console.typesafe.ai/login?next=%2Fbilling"])
                 }
                 return try TypeSafeTestFixture.pluginResponse(for: request)
             },
@@ -201,9 +271,38 @@ struct TypeSafeCookieStrategyTests {
 
         #expect(result.usage.providerCost?.balance == 4.98)
         #expect(log.values == ["cleared", "stored session=fresh"])
-        let cookies = await requests.all.filter { $0.httpMethod != nil && $0.url?.path == "/settings/billing" }
+        let cookies = await requests.all.filter { $0.httpMethod != nil && $0.url?.path == "/api/billing/overview" }
             .map { $0.value(forHTTPHeaderField: "Cookie") }
-        #expect(cookies == ["session=stale", "session=fresh", "session=fresh"])
+        #expect(cookies == ["session=stale", "session=fresh"])
+    }
+
+    @Test
+    func `non-login redirect is not treated as an expired session`() async {
+        let strategy = TypeSafeWebFetchStrategy(
+            transport: ProviderHTTPTransportHandler { request in
+                if request.url?.path == "/api/billing/overview" {
+                    return try TypeSafeTestFixture.response(
+                        request,
+                        status: 307,
+                        body: "",
+                        contentType: "text/html",
+                        headers: ["Location": "https://console.typesafe.ai/billing/"])
+                }
+                return try TypeSafeTestFixture.pluginResponse(for: request)
+            },
+            sessionLoader: { _ in [.init(cookieHeader: "session=fresh", sourceLabel: "Chrome")] },
+            cacheLoader: { .authoritative(nil) },
+            cacheClearer: { _ in Issue.record("unexpected cache clear"); return false },
+            cacheWriter: { _, _ in Issue.record("unexpected cache write") })
+
+        do {
+            _ = try await strategy.fetch(Self.context(.auto))
+            Issue.record("expected an api failure")
+        } catch let error as ProviderFetchClassifiedError {
+            #expect(error.kind == .apiFailure)
+        } catch {
+            Issue.record("unexpected error: \(error)")
+        }
     }
 
     @Test(arguments: [ProviderFetchClassifiedError.Kind.networkFailure, .parseFailure, .rateLimited])

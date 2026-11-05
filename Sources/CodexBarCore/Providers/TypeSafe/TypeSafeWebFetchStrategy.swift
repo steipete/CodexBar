@@ -16,6 +16,12 @@ final class TypeSafeWebFetchStrategy: ProviderFetchStrategy, @unchecked Sendable
     typealias CacheClearer = @Sendable (CookieHeaderCache.Entry?) -> Bool
     typealias CacheWriter = @Sendable (CacheObservation, TypeSafeResolvedSession) -> Void
 
+    /// Cached headers are flattened and keep no cookie-path provenance. Billing data now comes from
+    /// `/api/billing/overview`; cached headers selected for older routes would send path-ineligible cookies.
+    /// Keep the new destination on its own cache key so legacy unscoped entries are never observed, while
+    /// managed-account, profile-home, and other variant scopes stay untouched.
+    static let cacheScope = CookieHeaderCache.Scope.typesafeBilling
+
     let id = "typesafe.web"
     let kind: ProviderFetchKind = .web
     private let transport: any ProviderHTTPTransport
@@ -31,11 +37,21 @@ final class TypeSafeWebFetchStrategy: ProviderFetchStrategy, @unchecked Sendable
         transport: any ProviderHTTPTransport = TypeSafeWebFetchStrategy.isolatedTransport,
         usageLoader: UsageLoader? = nil,
         sessionLoader: @escaping SessionLoader = TypeSafeWebFetchStrategy.loadSessions,
-        cacheLoader: @escaping CacheLoader = { CookieHeaderCache.observeForConditionalMutation(provider: .typesafe) },
-        cacheClearer: @escaping CacheClearer = { CookieHeaderCache.clearIfCurrent(provider: .typesafe, expected: $0) },
+        cacheLoader: @escaping CacheLoader = {
+            CookieHeaderCache.observeForConditionalMutation(
+                provider: .typesafe,
+                scope: TypeSafeWebFetchStrategy.cacheScope)
+        },
+        cacheClearer: @escaping CacheClearer = {
+            CookieHeaderCache.clearIfCurrent(
+                provider: .typesafe,
+                scope: TypeSafeWebFetchStrategy.cacheScope,
+                expected: $0)
+        },
         cacheWriter: @escaping CacheWriter = { expected, session in
             CookieHeaderCache.storeIfObservationCurrent(
                 provider: .typesafe,
+                scope: TypeSafeWebFetchStrategy.cacheScope,
                 expected: expected,
                 cookieHeader: session.cookieHeader,
                 sourceLabel: session.sourceLabel)
@@ -149,7 +165,7 @@ final class TypeSafeWebFetchStrategy: ProviderFetchStrategy, @unchecked Sendable
     }
 }
 
-/// Flattened imported cookies are scoped to the original billing path, including on the same host.
+/// Flattened imported cookies are scoped to the `/api/billing/overview` route, including on the same host.
 final class TypeSafeRedirectGuard: NSObject, URLSessionTaskDelegate, Sendable {
     func urlSession(
         _: URLSession,
@@ -171,14 +187,21 @@ enum TypeSafeCredentialError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .missingCookie:
-            "No TypeSafe session cookies found. Sign in at console.typesafe.ai/settings/billing "
+            "No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing "
                 + "or paste a Cookie header."
         case .invalidCookie:
-            "TypeSafe needs a nonempty Cookie header from the billing page."
+            "TypeSafe needs a nonempty Cookie header from the billing overview page."
         case .disabled:
             "TypeSafe cookies are disabled."
         case .cacheUnavailable:
             "TypeSafe's saved session is temporarily unavailable. Unlock the Keychain and retry."
         }
     }
+}
+
+extension CookieHeaderCache.Scope {
+    /// TypeSafe cached headers are flattened and keep no cookie-path provenance. The `/api/billing/overview`
+    /// destination owns this dedicated key so headers cached for older billing routes stay unused.
+    public static let typesafeBilling = CookieHeaderCache.Scope
+        .providerVariant("typesafe.billing./api/billing/overview")
 }

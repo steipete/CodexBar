@@ -5,7 +5,7 @@ import SweetCookieKit
 
 enum TypeSafeCookieImporter {
     static func recordsForDestination(_ records: [BrowserCookieRecord]) -> [BrowserCookieRecord] {
-        let destinationPath = "/settings/billing"
+        let destinationPath = "/api/billing/overview"
         return records.enumerated().filter { _, record in
             let path = record.path
             guard destinationPath == path ||

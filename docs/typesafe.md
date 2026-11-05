@@ -16,22 +16,28 @@ reset date. It is disabled by default.
 Automatic mode imports `typesafe.ai` cookies from every supported browser in the shared catalog order, covering both
 host-only `console.typesafe.ai` cookies and cookies scoped to `.typesafe.ai`. The session cookie name is intentionally
 not assumed. Manual mode accepts the full `Cookie:` header captured from
-`https://console.typesafe.ai/settings/billing`, which also covers Linux.
-Imported cookies must match the console host and `/settings/billing` path; longer matching paths take precedence. Requests use an isolated session without ambient cookies and reject redirects, including redirects on the same host. An inference API key does not replace a console session.
+`https://console.typesafe.ai/billing`, which also covers Linux.
+Imported cookies must match the console host and `/api/billing/overview` path; longer matching paths take precedence.
+Cached cookie headers from older billing routes are never reused. Requests use an isolated session without ambient
+cookies and do not follow redirects: a redirect to a login/SSO route is treated as an expired session, while any other
+redirect is reported as an API failure with a next-action hint. An inference API key does not replace a console
+session.
 
 ## Implementation
 
-The bundled `typesafe.ts` plugin owns the billing requests and parsing. It discovers the current Next.js server-action
-ID from the billing page's static chunks, caches it for 12 hours, and rediscovers it once when the server reports a
-stale action ID. The read-only action sends `Origin`, `Next-Action`, `Cookie`, and a JSON `[]` body, then parses the
-`text/x-component` result.
-Billing-page discovery, script fetches, and the billing action all send a browser-style User-Agent so Cloudflare does not reject Linux URLSession requests that otherwise identify as curl.
-Discovery stops at the first matching chunk and preserves transient request errors when no action is found. Large credit lists show a bounded set of rows plus an additional-credit count; the reported balance and spending totals stay unchanged.
+The bundled `typesafe.ts` plugin owns the billing request and parsing. It sends one read-only `GET` to
+`https://console.typesafe.ai/api/billing/overview` with the selected `Cookie:` header and reads `json.billing`.
+The request sends a browser-style User-Agent and `Accept: application/json` so Cloudflare does not reject Linux
+URLSession requests that otherwise identify as curl. A 200 HTML login page is treated as an expired session; JSON parse
+failures and a missing `billing` object are parsing failures.
+Large credit lists show a bounded set of rows plus an additional-credit count; the reported balance and spending totals
+stay unchanged.
 
 Like other balance-only providers, the header and menu bar show the balance (`Balance $x` and `$x`). The menu bar's
 automatic percentage and explicit Balance tokens use the same balance, including in the layout preview.
 The Billing rows show cycle spend, the plan label, and non-zero credits with their expiration month/day.
 With the inline cost summary enabled, spend and balance move into
 the pay-as-you-go card. Credit expiration and the API's `resetsInDays` are not quota resets. Malformed required billing
-numbers are parsing failures, while 401/403, redirects/login landings, rate limits, and transient server errors keep
-their distinct authentication or availability classifications.
+numbers, invalid JSON, or a missing `billing` object are parsing failures, while 401/403, login redirects or login
+landing pages, rate limits, and transient server errors keep their distinct authentication or availability
+classifications.

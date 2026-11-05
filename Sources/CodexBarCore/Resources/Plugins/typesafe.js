@@ -20,14 +20,12 @@ function _optionalChain(ops) {
   return value;
 }
 
-const billingURL = "https://console.typesafe.ai/settings/billing";
+const billingOverviewURL = "https://console.typesafe.ai/api/billing/overview";
+const billingPageURL = "https://console.typesafe.ai/billing";
 const billingOrigin = "https://console.typesafe.ai";
 // Cloudflare blocks the Linux default UA (it contains "curl/"), so send a browser-style one.
 const userAgent =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
-const actionCacheKey = "typesafe.billing.next-action";
-const actionCacheTTL = 12 * 60 * 60;
-const maximumChunkCount = 60;
 
 defineProvider({
   id: "typesafe",
@@ -47,9 +45,27 @@ defineProvider({
       const value = raw && /^\d+(?:\.\d+)?$/.test(raw.trim()) ? Number(raw) : 1;
       return Number.isFinite(value) ? Math.min(10, value) : 1;
     };
+    // A redirect only means the session is gone when it targets a login/SSO route. The billing overview
+    // itself may redirect for benign route moves (for example /settings/billing -> /billing).
+    const loginRedirect = (location) => {
+      if (typeof location !== "string" || !location.trim()) return false;
+      const target = location.trim();
+      const loginPath = /(?:^|[/?#])(?:login|sign-?in|signin|auth|oauth|sso)(?:[/?#]|$)/i;
+      if (!/^(?:https?:)?\/\//i.test(target)) return loginPath.test(target);
+      const hostMatch = /^(?:https?:)?\/\/([^/?#]+)/i.exec(target);
+      const hostname = hostMatch ? hostMatch[1].toLowerCase().replace(/:\d+$/, "") : "";
+      const knownHost =
+        hostname === "typesafe.ai" || hostname === "console.typesafe.ai" || hostname.endsWith(".typesafe.ai");
+      return !knownHost || loginPath.test(target);
+    };
     const validate = (response) => {
-      if (response.status === 401 || response.status === 403 || (response.status >= 300 && response.status < 400))
-        expired();
+      if (response.status === 401 || response.status === 403) expired();
+      if (response.status >= 300 && response.status < 400) {
+        if (loginRedirect(response.headers["location"])) expired();
+        throw ctx.fail.apiFailure(
+          `TypeSafe billing overview redirected unexpectedly (HTTP ${response.status}). Open ${billingPageURL} to check access; if the page opens, report the integration failure.`,
+        );
+      }
       if (response.status === 429)
         throw ctx.fail.rateLimited("TypeSafe rate limit reached.", { retryAfterSeconds: retryAfter(response) });
       if (response.status === 408 || response.status >= 500)
@@ -59,105 +75,41 @@ defineProvider({
       if (response.status < 200 || response.status >= 300)
         throw ctx.fail.apiFailure(`TypeSafe returned HTTP ${response.status}.`);
     };
-    // Login pages can also arrive directly with HTTP 200, without an HTTP redirect.
-    const validateBody = (response) => {
-      validate(response);
-      if (/\\?"\(auth\)\\?",\{\\?"children\\?":\[\\?"login\\?"/.test(response.bodyText)) expired();
-    };
-    const discoverActionID = async (cookie) => {
-      const page = await ctx.http.get(billingURL, {
-        headers: { Cookie: cookie, Accept: "text/html", "User-Agent": userAgent },
-        timeoutSeconds: 6,
-      });
-      validateBody(page);
-      const scriptPattern = /<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi;
-      const chunkURLs = [];
-      let match;
-      while ((match = scriptPattern.exec(page.bodyText)) && chunkURLs.length < maximumChunkCount) {
-        const source = match[1];
-        const normalized = source.startsWith("/") ? `${billingOrigin}${source}` : source;
-        if (!normalized.startsWith(`${billingOrigin}/`) || !/\.js(?:$|\?)/i.test(normalized)) continue;
-        if (!chunkURLs.includes(normalized)) chunkURLs.push(normalized);
-      }
-      let discoveryFailure;
-      for (const url of chunkURLs) {
-        try {
-          const chunk = await ctx.http.get(url, { headers: { "User-Agent": userAgent }, timeoutSeconds: 2 });
-          if (chunk.status === 429 || chunk.status === 408 || chunk.status >= 500) validate(chunk);
-          if (chunk.status < 200 || chunk.status >= 300) continue;
-          const action = _optionalChain([
-            /"([0-9a-f]{40,})"[^)]{0,150}"getBillingOverviewResult"/i,
-            "access",
-            (_) => _.exec,
-            "call",
-            (_2) => _2(chunk.bodyText),
-            "optionalAccess",
-            (_3) => _3[1],
-          ]);
-          if (action) return action;
-        } catch (error) {
-          discoveryFailure ??= error;
-        }
-      }
-      if (discoveryFailure !== undefined) throw discoveryFailure;
-      throw ctx.fail.parseFailure("TypeSafe billing page format changed: action id not found.");
-    };
     const cookie = await ctx.browser.cookieHeader("typesafe.ai");
-    let actionID = ctx.cache.get(actionCacheKey);
-    if (!actionID || !/^[0-9a-f]{40,}$/i.test(actionID)) {
-      actionID = await discoverActionID(cookie);
-      ctx.cache.set(actionCacheKey, actionID, actionCacheTTL);
+    const response = await ctx.http.get(billingOverviewURL, {
+      headers: { Cookie: cookie, Accept: "application/json", "User-Agent": userAgent },
+      timeoutSeconds: 10,
+    });
+    validate(response);
+    // A signed-out console can answer with an HTML login page instead of JSON.
+    const body = response.bodyText.trim();
+    if (body.startsWith("<")) {
+      if (/(?:login|sign[-\s]?in|\(auth\))/i.test(body)) expired();
+      throw ctx.fail.apiFailure(
+        `TypeSafe billing overview returned HTML instead of JSON. Open ${billingPageURL} to check access.`,
+      );
     }
-    const post = async (id) =>
-      ctx.http.post(billingURL, {
-        headers: {
-          Cookie: cookie,
-          Origin: billingOrigin,
-          "Next-Action": id,
-          Accept: "text/x-component",
-          "Content-Type": "application/json",
-          "User-Agent": userAgent,
-        },
-        body: [],
-        timeoutSeconds: 6,
-      });
-    let response = await post(actionID);
-    if (response.status === 404 && response.headers["x-nextjs-action-not-found"] === "1") {
-      ctx.cache.set(actionCacheKey, "", 1);
-      actionID = await discoverActionID(cookie);
-      ctx.cache.set(actionCacheKey, actionID, actionCacheTTL);
-      response = await post(actionID);
+    let payload;
+    try {
+      payload = JSON.parse(body);
+    } catch (error) {
+      void error;
+      throw ctx.fail.parseFailure(
+        `TypeSafe billing overview is not valid JSON. Open ${billingPageURL} to check access; if the page opens, report the integration failure.`,
+      );
     }
-    validateBody(response);
-
-    let result;
-    for (const line of response.bodyText.split(/\r?\n/)) {
-      const separator = line.indexOf(":");
-      if (separator < 1) continue;
-      let candidate;
-      try {
-        candidate = JSON.parse(line.slice(separator + 1));
-      } catch (error) {
-        void error;
-        continue;
-      }
-      const object = record(candidate);
-      if (object && Object.prototype.hasOwnProperty.call(object, "ok")) {
-        result = object;
-        break;
-      }
-    }
-    if (!result) throw ctx.fail.parseFailure("TypeSafe billing response format changed: missing result.");
-    if (result.ok !== true) throw ctx.fail.apiFailure("TypeSafe billing request failed.");
-    const billing = record(
-      _optionalChain([record, "call", (_4) => _4(result.data), "optionalAccess", (_5) => _5.billing]),
-    );
-    if (!billing) throw ctx.fail.parseFailure("TypeSafe billing response format changed: missing billing.");
+    const billing = record(_optionalChain([record, "call", (_) => _(payload), "optionalAccess", (_2) => _2.billing]));
+    if (!billing)
+      throw ctx.fail.parseFailure(
+        `TypeSafe billing overview format changed: missing billing. Open ${billingPageURL} to check access; if the page opens, report the integration failure.`,
+      );
     const number = (value) => (typeof value === "number" && Number.isFinite(value) ? value : undefined);
     const spent = number(billing.spent);
     const balance = number(billing.balance);
     if (spent === undefined || balance === undefined)
-      throw ctx.fail.parseFailure("TypeSafe billing response format changed: missing billing numbers.");
+      throw ctx.fail.parseFailure(
+        `TypeSafe billing overview format changed: missing billing numbers. Open ${billingPageURL} to check access; if the page opens, report the integration failure.`,
+      );
     const cycleLabel =
       typeof billing.cycleLabel === "string" && billing.cycleLabel.trim() ? billing.cycleLabel.trim() : undefined;
     const plan = typeof billing.plan === "string" && billing.plan.trim() ? billing.plan.trim() : undefined;
@@ -167,21 +119,21 @@ defineProvider({
         : _optionalChain([
             plan,
             "optionalAccess",
-            (_6) => _6.split,
+            (_3) => _3.split,
             "call",
-            (_7) => _7(/[_-]+/),
+            (_4) => _4(/[_-]+/),
             "access",
-            (_8) => _8.filter,
+            (_5) => _5.filter,
             "call",
-            (_9) => _9(Boolean),
+            (_6) => _6(Boolean),
             "access",
-            (_10) => _10.map,
+            (_7) => _7.map,
             "call",
-            (_11) => _11((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()),
+            (_8) => _8((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()),
             "access",
-            (_12) => _12.join,
+            (_9) => _9.join,
             "call",
-            (_13) => _13(" "),
+            (_10) => _10(" "),
           ]);
     const rows = [{ label: cycleLabel ? `Spent (${cycleLabel})` : "Spent", value: ctx.format.usd(spent) }];
     if (planLabel) rows.push({ label: "Plan", value: planLabel });
@@ -190,10 +142,10 @@ defineProvider({
     let creditCount = 0;
     for (const item of Array.isArray(billing.credits) ? billing.credits : []) {
       const credit = record(item);
-      const amount = number(_optionalChain([credit, "optionalAccess", (_14) => _14.amount]));
-      const remaining = number(_optionalChain([credit, "optionalAccess", (_15) => _15.remaining]));
+      const amount = number(_optionalChain([credit, "optionalAccess", (_11) => _11.amount]));
+      const remaining = number(_optionalChain([credit, "optionalAccess", (_12) => _12.remaining]));
       const expiresAt =
-        typeof _optionalChain([credit, "optionalAccess", (_16) => _16.expiresAt]) === "string"
+        typeof _optionalChain([credit, "optionalAccess", (_13) => _13.expiresAt]) === "string"
           ? credit.expiresAt
           : undefined;
       if (amount === undefined || remaining === undefined || remaining <= 0 || !expiresAt) continue;
