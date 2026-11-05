@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- CLI: reject malformed `cost --days` values instead of silently reporting a different time window.
+- CLI: reject malformed `cost --days` values instead of silently reporting a different time window. (#4893) Thanks @Chipagosfinest!
 
 ## 0.83.0 — 2026-10-31
 
