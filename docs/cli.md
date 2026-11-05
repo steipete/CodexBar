@@ -12,9 +12,12 @@ A lightweight Commander-based CLI that mirrors the menu bar app’s provider fet
 Use it when you need usage numbers in scripts, CI, or dashboards without UI.
 
 ## Install
-- In the app: **Preferences → Advanced → Install CLI**. This symlinks `CodexBarCLI` to `/usr/local/bin/codexbar` and `/opt/homebrew/bin/codexbar`.
-- From the repo, after installing `CodexBar.app` in `/Applications`: `./bin/install-codexbar-cli.sh` (same symlink targets; requires macOS administrator approval).
-- Manual: `ln -sf "/Applications/CodexBar.app/Contents/Helpers/CodexBarCLI" /usr/local/bin/codexbar`.
+- In the app: **Settings → Advanced → Install CLI** creates links in existing, writable `/usr/local/bin` and `/opt/homebrew/bin` directories. It preserves existing entries and reports each destination, including protected directories it cannot write. **CodexBar Help** below the result opens this guide.
+- From the repo, after installing `CodexBar.app` in `/Applications`: `./bin/install-codexbar-cli.sh`. This separate installer requests macOS administrator approval and replaces both target entries.
+- Manual, for a missing link in an existing directory: `ln -s "/Applications/CodexBar.app/Contents/Helpers/CodexBarCLI" /usr/local/bin/codexbar`. Use `sudo` in Terminal if that directory requires administrator access; preserve any unrelated existing entry.
+
+One successfully installed link on your shell's `PATH` is enough to use `codexbar`. The in-app installer
+uses your current account's write permissions and reports protected destinations alongside working links.
 
 The bundled macOS CLI identifies its running executable and containing app through the operating system, even
 when launched through these symlinks. Mutable external aliases are not added to new credential-cache trust lists.
