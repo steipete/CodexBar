@@ -181,7 +181,8 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
           AND json_extract(data, '$.role') = 'assistant'
     """
 
-    private static let messageAndPartUsageSQL = """
+    /// A literal first root type rules these parts out; every other JSON shape keeps the full predicate.
+    static let messageAndPartUsageSQL = """
         WITH provider_messages AS (\(Self.providerMessagesSQL)), provider_parts AS NOT MATERIALIZED (
         SELECT
           CAST(COALESCE(json_extract(p.data, '$.time.created'), p.time_created, m.createdMs) AS INTEGER)
@@ -193,9 +194,10 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
           m.messageID AS messageID
         FROM part p
         JOIN provider_messages m ON m.messageID = p.message_id
-        WHERE json_valid(p.data)
-          AND json_extract(p.data, '$.type') = 'step-finish'
-          AND json_type(p.data, '$.cost') IN ('integer', 'real')
+        WHERE CASE WHEN substr(p.data, 1, 15) IN ('{"type":"tool",', '{"type":"text",')
+          THEN 0 WHEN json_valid(p.data) THEN
+            json_extract(p.data, '$.type') = 'step-finish'
+            AND json_type(p.data, '$.cost') IN ('integer', 'real') ELSE 0 END
         )
         SELECT * FROM provider_parts
         UNION ALL
