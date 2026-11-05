@@ -4,7 +4,7 @@
 
 ### Changed
 
-- Menu: tint retained usage bars neutral after a failed refresh so the previous measurement does not read as current (#4883).
+- Menu: tint retained quota bars neutral after a failed refresh while preserving independently refreshed credit and cost colors (#4883). Thanks @Chipagosfinest!
 
 ## 0.83.0 — 2026-10-31
 

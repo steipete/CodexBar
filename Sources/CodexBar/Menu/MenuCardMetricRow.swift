@@ -10,9 +10,10 @@ struct MetricRow: View {
     var compact = false
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
-    /// Precedence: a retained (stale) measurement stays neutral, so no per-metric cue may tint it as current.
+    /// Synthetic credit lanes refresh independently of quota measurements.
     var barTint: Color {
-        self.isRetainedMeasurement ? UsageMenuCardView.Model.staleProgressColor : self.progressColor
+        self.isRetainedMeasurement && !self.metric.isSyntheticCreditLane
+            ? UsageMenuCardView.Model.staleProgressColor : self.progressColor
     }
 
     var body: some View {

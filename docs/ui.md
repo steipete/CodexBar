@@ -48,6 +48,8 @@ On macOS 26 and later, Settings uses the system split-view sidebar, toolbar, sea
 
 ## Menu bar
 
+When a quota refresh reports an error, retained usage bars use a neutral tint until recovery. Account subtitle overrides do not hide this state; separately refreshed monthly credit meters, supplemental costs, and charts keep their own color.
+
 Stacked rows with leading window labels align their values and meters after the widest label. Rows that begin with names, explicit spaces, or inline icons retain their natural spacing; hiding percentage window labels is unchanged.
 - Provider cards with both live throughput and daily history use a fixed-height Live · Spend chart switch; Live is the default, and the choice is remembered locally per provider instance.
 - About CodexBar includes the running version. When the updater is available, the menu offers Check for Updates… or the existing staged-update action.

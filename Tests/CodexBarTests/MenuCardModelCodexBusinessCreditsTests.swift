@@ -154,8 +154,9 @@ struct MenuCardModelCodexBusinessCreditsTests {
         #expect(UsageMenuCardView.Model.codexCreditLimitDetail(credits: credits, now: now) == nil)
     }
 
-    @Test
-    func `codex business override card shows monthly credit instead of limits unavailable`() throws {
+    @Test(arguments: [UsageError.noRateLimitsFound.errorDescription!, "Synthetic quota refresh failure"])
+    @MainActor
+    func `codex business override card shows monthly credit instead of limits unavailable`(error: String) throws {
         let now = Date()
         let metadata = try #require(ProviderDefaults.metadata[.codex])
         let identity = ProviderIdentitySnapshot(
@@ -183,7 +184,7 @@ struct MenuCardModelCodexBusinessCreditsTests {
             surface: .overrideCard,
             context: CodexConsumerProjection.Context(
                 snapshot: snapshot,
-                rawUsageError: nil,
+                rawUsageError: error,
                 liveCredits: credits,
                 rawCreditsError: nil,
                 liveDashboard: nil,
@@ -204,7 +205,7 @@ struct MenuCardModelCodexBusinessCreditsTests {
             tokenError: nil,
             account: AccountInfo(email: "biz@example.com", plan: "business"),
             isRefreshing: false,
-            lastError: UsageError.noRateLimitsFound.errorDescription,
+            lastError: error,
             usageBarsShowUsed: true,
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
@@ -219,7 +220,15 @@ struct MenuCardModelCodexBusinessCreditsTests {
         #expect(monthly.percent == 27)
         #expect(monthly.detailText == "27 / 1000")
         #expect(model.metrics.count == 1)
-        #expect(model.subtitleStyle != .error)
+        #expect((model.subtitleStyle == .error) == (error == "Synthetic quota refresh failure"))
+        #expect(monthly.isSyntheticCreditLane)
+        let row = MetricRow(
+            metric: monthly,
+            layoutMetric: monthly,
+            title: monthly.title,
+            progressColor: model.progressColor,
+            isRetainedMeasurement: model.showsRetainedMeasurement)
+        #expect(row.barTint == model.progressColor)
         #expect(extraUsage.title == "Extra usage")
         #expect(extraUsage.spendLine == "Monthly credit limit: 27 / 1000")
         #expect(extraUsage.percentLine == "3% used")
