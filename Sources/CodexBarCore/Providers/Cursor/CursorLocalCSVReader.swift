@@ -83,8 +83,7 @@ enum CursorLocalCSVReader {
 
     static func makeDailyReport(
         from rows: [Row],
-        calendar: Calendar = .current,
-        now: Date = Date()) -> CostUsageDailyReport
+        calendar: Calendar = .current) -> CostUsageDailyReport
     {
         var byDay: [String: CostUsageDailyReport.Entry] = [:]
         var totalCost: Double = 0
@@ -92,7 +91,7 @@ enum CursorLocalCSVReader {
         for row in rows {
             let key = CostUsageLocalDay.key(from: row.date, calendar: calendar)
             let existing = byDay[key]
-            var e = existing ?? CostUsageDailyReport.Entry(
+            let e = existing ?? CostUsageDailyReport.Entry(
                 date: key,
                 inputTokens: 0,
                 outputTokens: 0,
