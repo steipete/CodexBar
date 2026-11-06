@@ -388,7 +388,7 @@ enum BedrockUsageFetcher {
                        let unblended = metrics["UnblendedCost"] as? [String: Any],
                        let amountStr = unblended["Amount"] as? String,
                        let amount = Double(amountStr),
-                       amount > 0
+                       amount >= 0
                     {
                         dayCost += amount
                         breakdowns.append(CostUsageDailyReport.ModelBreakdown(
@@ -398,7 +398,7 @@ enum BedrockUsageFetcher {
                 }
             }
 
-            guard dayCost > 0 else { continue }
+            guard !breakdowns.isEmpty else { continue }
 
             entries.append(CostUsageDailyReport.Entry(
                 date: dateStr,
@@ -407,7 +407,7 @@ enum BedrockUsageFetcher {
                 totalTokens: nil,
                 costUSD: dayCost,
                 modelsUsed: breakdowns.map(\.modelName),
-                modelBreakdowns: breakdowns.isEmpty ? nil : breakdowns))
+                modelBreakdowns: breakdowns))
         }
 
         return entries

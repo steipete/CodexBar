@@ -2798,7 +2798,12 @@
 "Leave blank to use the default name." = "برای استفاده از نام پیش‌فرض، این قسمت را خالی بگذارید.";
 "Rewards" = "پاداش‌ها";
 "Reward expiry" = "انقضای پاداش‌ها";
-
+"Claude Platform session validated and saved." = "نشست Claude Platform اعتبارسنجی و ذخیره شد.";
+"Use %@ or %@." = "از %@ یا %@ استفاده کنید.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "در %@ وارد شوید. سرآیند Cookie آن را که شامل sessionKey است، به‌صورت خصوصی به %@ بدهید. سپس %@ را اجرا کنید.";
+"Read cookie header from stdin" = "خواندن سرآیند کوکی از stdin";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "اختیاری. مقدار User-Agent را از همان درخواستی که سربرگ Cookie را دارد جای‌گذاری کنید.";
+"Paste the WorkBuddy User-Agent as a single request header value." = "User-Agent مربوط به WorkBuddy را به‌صورت یک مقدار واحد برای سرآیند درخواست جای‌گذاری کنید.";
 "TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "خواندن نمای کلی صورتحساب TypeSafe ممکن نشد. برای بررسی دسترسی، https://console.typesafe.ai/billing را باز کنید؛ اگر صفحه باز شد، خطای یکپارچه‌سازی را گزارش کنید.";
-
 "No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "هیچ کوکی نشست TypeSafe پیدا نشد. در console.typesafe.ai/billing وارد شوید یا یک سرآیند Cookie جای‌گذاری کنید.";
