@@ -88,6 +88,8 @@ fallback; cancellation stops the pipeline. Linux keeps its existing OAuth fallba
 
 Scoped runs share the ambient runner's three-second version check, 90-second command limit, 1 MiB output
 limit, and descendant cleanup. Identity verification has a 15-second request and resource deadline.
+Checks with the full 15-second budget reuse a connection pool without cookie, credential, or response storage;
+checks with less time remaining use a private session with that shorter resource deadline.
 The existing menu account model caps a refresh at six accounts; CLI `--all-accounts` refreshes sequentially.
 Grouped weekly-only Starter quotas use the same parser as the other sources.
 
