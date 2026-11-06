@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Performance: load CLI path diagnostics when Debug settings open, reducing app startup work.
 - OpenCode Go: reduce local-history memory spikes by skipping JSON parsing of ordinary nonbillable tool and text parts.
 - Claude: release decoded local-history rows after publishing cost reports while keeping unchanged refreshes fast (#4803, #3323).
 - Codex: preserve legacy saved accounts whose credentials identify another workspace and reject ambiguous same-email replacements (#4499).
