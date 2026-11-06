@@ -1,5 +1,6 @@
 import CodexBarCore
 import Foundation
+import Observation
 import os.lock
 import Testing
 @testable import CodexBar
@@ -386,5 +387,142 @@ private actor SpendDashboardCachedLoaderGate {
 
     func resume(at index: Int, result: SpendDashboardLoadResult) {
         self.continuations.remove(at: index).resume(returning: result)
+    }
+}
+
+@MainActor
+struct SpendDashboardLazyModelTests {
+    @Test
+    func `background publications defer dashboard projection and keep overview current`() async throws {
+        let publications = AsyncStream<SpendDashboardPublication>.makeStream(
+            bufferingPolicy: .bufferingNewest(1))
+        let fixture = Fixture()
+        let now = Fixture.now
+        let controller = SpendDashboardController(
+            userDefaults: InMemoryUserDefaults(),
+            requestBuilder: { mode in fixture.request(mode: mode) },
+            loader: { request in
+                SpendDashboardLoadResult(inputs: request.capturedInputs, failedSourceIDs: [])
+            },
+            nowProvider: { now },
+            publicationHandler: { _ = publications.continuation.yield($0) })
+        defer {
+            controller.stop()
+            publications.continuation.finish()
+        }
+        var iterator = publications.stream.makeAsyncIterator()
+
+        controller.update(configuration: fixture.configuration)
+        let initialGeneration = controller.generation
+        while true {
+            let next = await iterator.next()
+            let publication = try #require(next)
+            if publication.generation == initialGeneration, !publication.isRefreshing { break }
+        }
+        #expect(controller._test_modelBuildCount == 0)
+        #expect(Self.overviewCost(controller.publication) == 2)
+        #expect(controller._test_modelBuildCount == 0)
+
+        let firstReadChanged = LockIsolated(false)
+        withObservationTracking {
+            #expect(controller.model.groups.first?.totalCost == 2)
+        } onChange: {
+            firstReadChanged.setValue(true)
+        }
+        #expect(controller.model.groups.first?.sessions.count == 3)
+        #expect(controller._test_modelBuildCount == 1)
+        let changed = LockIsolated(false)
+        withObservationTracking {
+            _ = controller.model
+        } onChange: {
+            changed.setValue(true)
+        }
+        #expect(controller._test_modelBuildCount == 1)
+
+        fixture.cost = 3
+        controller.update(configuration: fixture.configuration)
+        let nextGeneration = controller.generation
+        while true {
+            let next = await iterator.next()
+            let publication = try #require(next)
+            if publication.generation == nextGeneration, !publication.isRefreshing { break }
+        }
+        #expect(changed.value)
+        #expect(firstReadChanged.value)
+        #expect(controller._test_modelBuildCount == 1)
+        #expect(Self.overviewCost(controller.publication) == 3)
+        #expect(controller.model.groups.first?.totalCost == 3)
+        #expect(controller._test_modelBuildCount == 2)
+
+        controller.selectPeriod(.rolling(days: 7))
+        #expect(controller._test_modelBuildCount == 2)
+        #expect(controller.model.requestedDays == 7)
+        #expect(controller._test_modelBuildCount == 3)
+        controller.stop()
+        #expect(controller._test_modelBuildCount == 3)
+        #expect(controller.publication.inputs.isEmpty)
+        #expect(controller.model.groups.isEmpty)
+    }
+
+    private static func overviewCost(_ publication: SpendDashboardPublication) -> Double? {
+        publication.model(
+            requestedDays: 30,
+            now: Fixture.now,
+            calendar: CostUsageBucketTimeZone.calendar(identifier: "UTC"),
+            preferredCurrencyCode: "USD",
+            providerScope: [.claude]).groups.first?.totalCost
+    }
+
+    @MainActor
+    private final class Fixture {
+        static let now = Date(timeIntervalSince1970: 1_784_179_200)
+        var cost = 2
+
+        var configuration: SpendDashboardConfiguration {
+            SpendDashboardConfiguration(
+                costUsageEnabled: true,
+                providerIDs: [UsageProvider.claude.rawValue],
+                codexAccountIdentities: [],
+                sourceRevisions: ["claude:\(self.cost)"],
+                bucketTimeZoneIdentifier: "UTC")
+        }
+
+        func request(mode: SpendDashboardRequestBuildMode) -> SpendDashboardLoadRequest {
+            let snapshot = CostUsageTokenSnapshot(
+                sessionTokens: nil,
+                sessionCostUSD: nil,
+                last30DaysTokens: 12,
+                last30DaysCostUSD: Double(self.cost),
+                daily: [CostUsageDailyReport.Entry(
+                    date: "2026-07-15",
+                    inputTokens: 9,
+                    outputTokens: 3,
+                    totalTokens: 12,
+                    costUSD: Double(self.cost),
+                    modelsUsed: nil,
+                    modelBreakdowns: nil)],
+                sessions: (0..<3).map { index in
+                    CostUsageSessionBreakdown(
+                        sessionID: "synthetic-session-\(index)",
+                        lastActivity: Self.now,
+                        inputTokens: 3,
+                        cachedInputTokens: nil,
+                        outputTokens: 1,
+                        reasoningTokens: nil,
+                        totalTokens: 4,
+                        requestCount: 1,
+                        costUSD: Double(self.cost) / 3,
+                        modelBreakdowns: [])
+                },
+                updatedAt: Self.now)
+            return SpendDashboardLoadRequest(
+                configuration: self.configuration,
+                capturedInputs: [SpendDashboardModel.ProviderInput(
+                    provider: .claude, displayName: "Claude", snapshot: snapshot)],
+                unavailableSourceIDs: [],
+                codexRequests: [],
+                now: Self.now,
+                force: mode.forcesLoader)
+        }
     }
 }
