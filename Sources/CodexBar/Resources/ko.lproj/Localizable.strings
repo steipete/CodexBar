@@ -2762,3 +2762,12 @@
 "Leave blank to use the default name." = "기본 이름을 사용하려면 비워 두세요.";
 "Rewards" = "보상";
 "Reward expiry" = "보상 만료일";
+"Claude Platform session validated and saved." = "Claude Platform 세션을 검증하고 저장했습니다.";
+"Use %@ or %@." = "%@ 또는 %@을(를) 사용하세요.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "%@에서 로그인하세요. sessionKey가 포함된 Cookie 헤더를 %@에 비공개로 전달하세요. 그런 다음 %@을(를) 실행하세요.";
+"Read cookie header from stdin" = "stdin에서 쿠키 헤더 읽기";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "선택 사항입니다. Cookie 헤더와 동일한 요청의 User-Agent 값을 붙여넣으세요.";
+"Paste the WorkBuddy User-Agent as a single request header value." = "WorkBuddy User-Agent를 단일 요청 헤더 값으로 붙여넣으세요.";
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "TypeSafe 청구 개요를 읽을 수 없습니다. https://console.typesafe.ai/billing 을 열어 접근할 수 있는지 확인하세요. 페이지가 열리면 연동 오류를 신고하세요.";
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "TypeSafe 세션 쿠키를 찾을 수 없습니다. console.typesafe.ai/billing 에 로그인하거나 Cookie 헤더를 붙여 넣으세요.";
