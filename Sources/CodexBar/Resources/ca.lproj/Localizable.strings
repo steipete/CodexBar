@@ -2800,3 +2800,8 @@
 "Use %@ or %@." = "Feu servir %@ o %@.";
 "Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Inicieu sessió a %@. Proporcioneu de manera privada la seva capçalera Cookie amb sessionKey a %@. Després executeu %@.";
 "Read cookie header from stdin" = "Llegeix la capçalera de galetes de stdin";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "Opcional. Enganxeu el valor de User-Agent de la mateixa sol·licitud que la capçalera Cookie.";
+"Paste the WorkBuddy User-Agent as a single request header value." = "Enganxa el User-Agent del WorkBuddy com un únic valor de capçalera de sol·licitud.";
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "No s'ha pogut llegir el resum de facturació de TypeSafe. Obre https://console.typesafe.ai/billing per comprovar-hi l'accés; si la pàgina s'obre, informa de l'error d'integració.";
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "No s'han trobat galetes de sessió de TypeSafe. Inicia sessió a console.typesafe.ai/billing o enganxa una capçalera Cookie.";

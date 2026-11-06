@@ -6,6 +6,24 @@ import Testing
 @MainActor
 @Suite(.serialized)
 struct StatusItemBlinkGatingTests {
+    @Test
+    func `idle loading state does not repeat a split icon update`() throws {
+        let harness = Harness(merged: false)
+        let controller = harness.controller
+        defer { controller.releaseStatusItemsForTesting() }
+        harness.settings.randomBlinkEnabled = false
+        harness.settings.debugLogLevel = .verbose
+        harness.store.isRefreshing = true
+        controller.iconPerfRefreshCycleMetrics = IconPerfRefreshCycleMetrics()
+
+        controller.updateIcons()
+
+        let metrics = try #require(controller.iconPerfRefreshCycleMetrics)
+        #expect(controller.animationDriver == nil)
+        #expect(metrics.updateIconsCalls == 1)
+        #expect(metrics.renderedCalls + metrics.skippedCalls == 1)
+    }
+
     @Test(arguments: [false, true])
     func `brand icons stop blinking and icon updates do not restart it`(merged: Bool) async throws {
         let harness = Harness(merged: merged)

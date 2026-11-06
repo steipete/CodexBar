@@ -2620,11 +2620,11 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "Warning windows retain provider-owned family, balance, label, and extra-window policies."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore/UsageStore+QuotaWarnings.swift",
-            anchor: "guard provider != .claude || window != .session || Self.isSessionWindow(rateWindow) else { return }",
+            anchor: "let isClaudeSessionLane = provider == .claude && window == .session",
             expectedProviderIDs: ["claude"],
             expectedReferenceCount: 2,
-            expectedReferenceFingerprint: ["claude@0", "claude@5"],
-            reason: "Claude preserves session history across weekly promotion and reconciles unresolved warning owners."),
+            expectedReferenceFingerprint: ["claude@0", "claude@12"],
+            reason: "Claude keeps session history across weekly-only payloads and reconciles unresolved warning owners."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore/UsageStore+Refresh.swift",
             anchor: "let codexExplicitPAT = provider == .codex && self.settings.codexUsageDataSource == .pat",
