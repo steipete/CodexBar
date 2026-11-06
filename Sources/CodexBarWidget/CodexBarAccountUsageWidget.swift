@@ -85,7 +85,8 @@ struct CodexBarAccountTimelineProvider: AppIntentTimelineProvider {
             return self.placeholder(in: context)
         }
         return Self.makeEntry(
-            snapshot: WidgetSnapshotStore.load() ?? WidgetPreviewData.emptySnapshot(),
+            snapshot: WidgetSnapshotStore.load(provider: configuration.provider.provider) ?? WidgetPreviewData
+                .emptySnapshot(),
             provider: configuration.provider.provider,
             accountID: configuration.account?.id,
             now: Date())
@@ -96,7 +97,8 @@ struct CodexBarAccountTimelineProvider: AppIntentTimelineProvider {
         in context: Context) async -> Timeline<CodexBarAccountWidgetEntry>
     {
         let entry = Self.makeEntry(
-            snapshot: WidgetSnapshotStore.load() ?? WidgetPreviewData.emptySnapshot(),
+            snapshot: WidgetSnapshotStore.load(provider: configuration.provider.provider) ?? WidgetPreviewData
+                .emptySnapshot(),
             provider: configuration.provider.provider,
             accountID: configuration.account?.id,
             now: Date())

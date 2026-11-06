@@ -169,16 +169,19 @@ public struct CodexStatusProbe {
             updatedAt: now)
     }
 
-    private static func parseResetDate(from text: String?, now: Date) -> Date? {
+    static func parseResetDate(
+        from text: String?,
+        now: Date,
+        calendar: Calendar = Calendar(identifier: .gregorian)) -> Date?
+    {
         guard var raw = text?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
         raw = raw.trimmingCharacters(in: CharacterSet(charactersIn: "()"))
         raw = raw.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        let calendar = Calendar(identifier: .gregorian)
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone.current
+        formatter.timeZone = calendar.timeZone
         formatter.defaultDate = now
 
         if let match = raw.firstMatch(of: /^([0-9]{1,2}:[0-9]{2}) on ([0-9]{1,2} [A-Za-z]{3})$/) {
@@ -197,22 +200,21 @@ public struct CodexStatusProbe {
             }
         }
 
+        // Parse the clock independently of any daylight-saving gap on today's date.
+        formatter.defaultDate = calendar.date(from: DateComponents(year: 2000, month: 1, day: 1))
         for format in ["HH:mm", "H:mm"] {
             formatter.dateFormat = format
             if let time = formatter.date(from: raw) {
-                let components = calendar.dateComponents([.hour, .minute], from: time)
-                guard let anchored = calendar.date(
-                    bySettingHour: components.hour ?? 0,
-                    minute: components.minute ?? 0,
-                    second: 0,
-                    of: now)
-                else {
-                    return nil
-                }
+                let clock = calendar.dateComponents([.hour, .minute], from: time)
+                var components = calendar.dateComponents([.year, .month, .day], from: now)
+                components.hour = clock.hour
+                components.minute = clock.minute
+                guard let anchored = calendar.date(from: components) else { return nil }
                 if anchored >= now {
                     return anchored
                 }
-                return calendar.date(byAdding: .day, value: 1, to: anchored)
+                components.day = calendar.component(.day, from: now) + 1
+                return calendar.date(from: components)
             }
         }
 

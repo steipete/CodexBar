@@ -179,3 +179,70 @@ struct CostUsageClaudeFragmentTests {
             == self.encoder.encode(cache))
     }
 }
+
+extension CostUsageClaudeFragmentTests {
+    @Test
+    func `saved snapshots release encoded header storage while reusing decoded values`() throws {
+        try FileManager.default.createDirectory(at: self.directory.url, withIntermediateDirectories: true)
+        let url = self.directory.url.appendingPathComponent("header-storage.json")
+            .standardizedFileURL.resolvingSymlinksInPath()
+        let fragments = CostUsageClaudeFragments()
+        let storage = HeaderStorage()
+        let trackHeader: @Sendable (Data) -> Data = { storage.track($0) }
+        let header = String(repeating: "fixture-🦞", count: 4096)
+        let values = ["/synthetic/project/session": 1]
+        let headerBytes = try self.encoder.encode(header)
+        let stamp = try autoreleasepool {
+            try CostUsageClaudeFragments.$encodedHeaderStorageForTesting.withValue(trackHeader) {
+                try fragments.save(header: header, values: values, at: url)
+            }
+        }
+        #expect(stamp != nil)
+        #expect(storage.snapshot().allocated == headerBytes.count)
+        #expect(storage.snapshot().retained == 0)
+        let before = try Data(contentsOf: url)
+
+        let work = CostUsageScanner.ClaudeScanWorkRecorder()
+        let cached: (String, [String: Int]) = try CostUsageScanner.withClaudeScanWorkRecorderForTesting(work) {
+            try fragments.load(at: url) { _ in throw CocoaError(.fileReadCorruptFile) }
+        }
+        #expect(cached.0.utf8.elementsEqual(header.utf8))
+        #expect(cached.1 == values)
+        #expect(work.persistenceSnapshot().reads == 0)
+
+        try autoreleasepool {
+            try CostUsageClaudeFragments.$encodedHeaderStorageForTesting.withValue(trackHeader) {
+                _ = try CostUsageScanner.withClaudeScanWorkRecorderForTesting(work) {
+                    try fragments.save(header: cached.0, values: cached.1, at: url)
+                }
+            }
+        }
+        #expect(storage.snapshot().allocated == 2 * headerBytes.count)
+        #expect(storage.snapshot().retained == 0)
+        #expect(work.persistenceSnapshot().reads == 0)
+        #expect(work.persistenceSnapshot().writes == 0)
+        #expect(work.snapshot().fragmentEncodes == 0)
+        #expect(CostUsageClaudeFileStamp.read(at: url) == stamp)
+        #expect(try Data(contentsOf: url) == before)
+    }
+
+    private final class HeaderStorage: @unchecked Sendable {
+        private let lock = NSLock()
+        private var allocated = 0
+        private var released = 0
+
+        func track(_ data: Data) -> Data {
+            let pointer = UnsafeMutableRawPointer.allocate(byteCount: data.count, alignment: 1)
+            data.copyBytes(to: UnsafeMutableRawBufferPointer(start: pointer, count: data.count))
+            self.lock.withLock { self.allocated += data.count }
+            return Data(bytesNoCopy: pointer, count: data.count, deallocator: .custom { pointer, count in
+                pointer.deallocate()
+                self.lock.withLock { self.released += count }
+            })
+        }
+
+        func snapshot() -> (allocated: Int, retained: Int) {
+            self.lock.withLock { (self.allocated, self.allocated - self.released) }
+        }
+    }
+}

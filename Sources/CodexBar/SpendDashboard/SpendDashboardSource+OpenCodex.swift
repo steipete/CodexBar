@@ -146,8 +146,7 @@ extension SpendDashboardSource {
                 historyDays: self.scanDays,
                 calendar: request.configuration.bucketCalendar),
             tokenActivityCache: input.tokenActivityCache,
-            sourceKind: input.sourceKind,
-            accounting: input.accounting)
+            sourceKind: input.sourceKind)
     }
 
     static func shouldPublishOpenCodexSnapshot(_ snapshot: CostUsageTokenSnapshot) -> Bool {
