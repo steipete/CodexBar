@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Claude: restore local cost history and source detection through symlinked project roots without counting shared roots twice.
 - Langdock: show saved Edge and Chrome profile names without translating custom names, and preserve the selected profile after renaming (#4911). Thanks @dYn36!
 - Claude: hide the session row when five-hour usage is absent, preserve weekly and model-specific quotas, and retain session warning history (#4914). Thanks @BobbyWang0120!
 - TypeSafe: restore billing spend and balance from the overview API, retain expired-session recovery, and stop browser imports after the first valid session (#4918, #4922). Thanks @LeoLin990405!
@@ -22,6 +23,11 @@
 - Settings: find panes by title alongside provider names in sidebar search, with an empty state covering both (#4875). Thanks @elijahfriedman!
 
 - Grok: count local tokens once per completed turn in `usage.json`, preserving daily attribution after compaction without adding the legacy session totals again (#4944). Thanks @Chipagosfinest!
+- Share: release the usage preview when its window closes and avoid building it twice on first open.
+- Cursor: reduce peak memory while reading large local usage CSV exports by processing lines without retaining a second split-line array.
+- Usage & Spend: prepare the detailed dashboard model on demand instead of retaining unused projections after background cost updates, while keeping Overview current.
+- OpenCode Go: reduce local-history refresh memory by aggregating requests incrementally and selecting billed parts and message fallbacks in one pass.
+- Plugins: reduce transient memory use by releasing retired runtimes when their fetches finish (#4486, #4512).
 - CLI: prune expired `serve` response variants during forced refreshes so configuration changes cannot retain obsolete snapshots indefinitely.
 - Codex: reduce CPU and SQLite reads during cost refreshes by reusing warm history through unchanged retention passes, including above the cache budget (#4620).
 - Claude: wait for the CLI's visible usage refresh to finish before settling quota capture, preserving later model-specific redraws (#4809). Thanks @DreamyTalesPAN!
