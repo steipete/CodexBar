@@ -13,12 +13,14 @@
 - Langdock: show saved Edge and Chrome profile names without translating custom names, and preserve the selected profile after renaming (#4911). Thanks @dYn36!
 - Claude: hide the session row when five-hour usage is absent, preserve weekly and model-specific quotas, and retain session warning history (#4914). Thanks @BobbyWang0120!
 - TypeSafe: restore billing spend and balance from the overview API, retain expired-session recovery, and stop browser imports after the first valid session (#4918, #4922). Thanks @LeoLin990405!
+- Claude: release decoded local-history rows after publishing cost reports while keeping unchanged refreshes fast (#4803, #3323).
 - Grok: celebrate weekly resets only after the prior boundary has elapsed, preserve genuine resets, and suppress repeated or stale-sample celebrations across restarts (#4917, #4923). Thanks @LeoLin990405!
 - OpenCode Go: return unavailable cost history instead of an error when OpenCode is not installed locally, including on `codexbar serve` hosts tracking remote quota. (#4931) Thanks @VACInc!
 - Kiro: recover API usage with a valid CLI token and no stored profile, avoiding chat probes when the API supplies usable plan limits. (#4915) Thanks @Yuxin-Qiao!
 - Kiro: preserve the `+` in CLI-reported plan names so Pro+ subscriptions are shown as Kiro Pro+. (#4928) Thanks @jeanroloff!
 ### Changed
 
+- Claude/Vertex: reduce midnight cost-scan CPU by reusing unchanged local history while preserving date-window and duplicate-response accounting.
 - Antigravity: reuse HTTP connections for account verification while preserving shorter refresh deadlines.
 
 - Replicate: reuse HTTP connections for billing refreshes without retaining cookies, credentials, or cached responses in the connection pool.
