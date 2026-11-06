@@ -15,6 +15,8 @@
 - Kiro: preserve the `+` in CLI-reported plan names so Pro+ subscriptions are shown as Kiro Pro+. (#4928) Thanks @jeanroloff!
 ### Changed
 
+- Widgets: reload only Switcher widgets when paging providers, avoiding reload requests for unrelated widget kinds.
+
 - Antigravity: reuse HTTP connections for account verification while preserving shorter refresh deadlines.
 
 - Replicate: reuse HTTP connections for billing refreshes without retaining cookies, credentials, or cached responses in the connection pool.

@@ -47,6 +47,8 @@ Persistence must finish before requesting a timeline reload. Tests opt in with a
 
 Switcher widgets share one remembered provider selection, so switching one updates all Switcher widgets. To keep Claude and Codex visible side by side, add two **CodexBar Usage** widgets and configure each widget's **Provider** separately. Usage widgets read their own configured provider instead of the shared Switcher selection.
 
+Switching providers saves the selection before requesting a reload of the Switcher kind. Other widget kinds keep their own provider selections and timelines; paging the Switcher does not request a reload for them.
+
 ## Account selection
 
 Enable **Settings → Menu → Widgets → Keep accounts updated for widgets**, add **CodexBar Account Usage**, and choose **Provider** and **Account**. Each widget pins its own account with the usual Usage sizes, bars, and reset countdowns. Without an account it shows setup instructions, never the current account implicitly. Regular **CodexBar Usage** follows its configured provider.
