@@ -304,10 +304,16 @@ extension CodexBarCLI {
         }
     }
 
+    /// Oldest supplemental OpenAI dashboard cache the CLI attaches to freshly fetched Codex usage.
+    static let openAIDashboardCacheMaxAge: TimeInterval = 60 * 60
+    /// Accepts caches stamped slightly ahead of `now`, e.g. after a small clock correction.
+    static let openAIDashboardCacheFutureTolerance: TimeInterval = 60
+
     static func loadOpenAIDashboardIfAvailable(
         usage: UsageSnapshot,
         sourceLabel: String,
-        context: ProviderFetchContext) -> OpenAIDashboardSnapshot?
+        context: ProviderFetchContext,
+        now: Date = Date()) -> OpenAIDashboardSnapshot?
     {
         guard let cache = OpenAIDashboardCacheStore.load() else { return nil }
         let snapshot: OpenAIDashboardSnapshot = if cache.snapshot.dailyBreakdown.isEmpty,
@@ -347,6 +353,11 @@ extension CodexBarCLI {
             context: context)
         let decision = CodexDashboardAuthority.evaluate(input)
         if decision.allowedEffects.contains(.cachedDashboardReuse) {
+            // Supplemental balances and limits must not look current beside freshly fetched usage.
+            let age = now.timeIntervalSince(snapshot.updatedAt)
+            guard age >= -Self.openAIDashboardCacheFutureTolerance,
+                  age <= Self.openAIDashboardCacheMaxAge
+            else { return nil }
             return snapshot
         }
         if decision.cleanup.contains(.dashboardCache) {

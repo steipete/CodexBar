@@ -10,7 +10,7 @@ struct TypeSafeResolvedSession: Sendable {
 
 final class TypeSafeWebFetchStrategy: ProviderFetchStrategy, @unchecked Sendable {
     typealias UsageLoader = @Sendable (String) async throws -> UsageSnapshot
-    typealias SessionLoader = @Sendable (BrowserDetection) throws -> [TypeSafeResolvedSession]
+    typealias SessionLoader = @Sendable (BrowserDetection) throws -> AnySequence<TypeSafeResolvedSession>
     typealias CacheObservation = CookieHeaderCache.ConditionalMutationObservation
     typealias CacheLoader = @Sendable () -> CacheObservation
     typealias CacheClearer = @Sendable (CookieHeaderCache.Entry?) -> Bool
@@ -31,11 +31,21 @@ final class TypeSafeWebFetchStrategy: ProviderFetchStrategy, @unchecked Sendable
         transport: any ProviderHTTPTransport = TypeSafeWebFetchStrategy.isolatedTransport,
         usageLoader: UsageLoader? = nil,
         sessionLoader: @escaping SessionLoader = TypeSafeWebFetchStrategy.loadSessions,
-        cacheLoader: @escaping CacheLoader = { CookieHeaderCache.observeForConditionalMutation(provider: .typesafe) },
-        cacheClearer: @escaping CacheClearer = { CookieHeaderCache.clearIfCurrent(provider: .typesafe, expected: $0) },
+        cacheLoader: @escaping CacheLoader = {
+            CookieHeaderCache.observeForConditionalMutation(
+                provider: .typesafe,
+                scope: .typesafeBilling)
+        },
+        cacheClearer: @escaping CacheClearer = {
+            CookieHeaderCache.clearIfCurrent(
+                provider: .typesafe,
+                scope: .typesafeBilling,
+                expected: $0)
+        },
         cacheWriter: @escaping CacheWriter = { expected, session in
             CookieHeaderCache.storeIfObservationCurrent(
                 provider: .typesafe,
+                scope: .typesafeBilling,
                 expected: expected,
                 cookieHeader: session.cookieHeader,
                 sourceLabel: session.sourceLabel)
@@ -98,17 +108,20 @@ final class TypeSafeWebFetchStrategy: ProviderFetchStrategy, @unchecked Sendable
         }
         try Task.checkCancellation()
         let sessions = try self.sessionLoader(context.browserDetection)
-        guard !sessions.isEmpty else { throw TypeSafeCredentialError.missingCookie }
-        return try await ProviderCandidateRetryRunner.run(
-            sessions,
-            shouldRetry: Self.isAuthenticationFailure,
-            attempt: { session in
-                try Task.checkCancellation()
-                let usage = try await self.fetchUsage(cookieHeader: session.cookieHeader)
-                try Task.checkCancellation()
-                self.cacheWriter(observation, session)
-                return self.makeResult(usage: usage, sourceLabel: "web")
-            })
+        do {
+            return try await ProviderCandidateRetryRunner.run(
+                sessions,
+                shouldRetry: Self.isAuthenticationFailure,
+                attempt: { session in
+                    try Task.checkCancellation()
+                    let usage = try await self.fetchUsage(cookieHeader: session.cookieHeader)
+                    try Task.checkCancellation()
+                    self.cacheWriter(observation, session)
+                    return self.makeResult(usage: usage, sourceLabel: "web")
+                })
+        } catch ProviderCandidateRetryRunnerError.noCandidates {
+            throw TypeSafeCredentialError.missingCookie
+        }
     }
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool { false }
@@ -140,16 +153,17 @@ final class TypeSafeWebFetchStrategy: ProviderFetchStrategy, @unchecked Sendable
         return runtime
     }
 
-    private static func loadSessions(browserDetection: BrowserDetection) throws -> [TypeSafeResolvedSession] {
+    private static func loadSessions(browserDetection: BrowserDetection) throws
+    -> AnySequence<TypeSafeResolvedSession> {
         #if os(macOS)
-        try TypeSafeCookieImporter.importSessions(browserDetection: browserDetection)
+        try TypeSafeCookieImporter.sessionCandidates(browserDetection: browserDetection)
         #else
         throw TypeSafeCredentialError.missingCookie
         #endif
     }
 }
 
-/// Flattened imported cookies are scoped to the original billing path, including on the same host.
+/// Flattened imported cookies are scoped to the `/api/billing/overview` route, including on the same host.
 final class TypeSafeRedirectGuard: NSObject, URLSessionTaskDelegate, Sendable {
     func urlSession(
         _: URLSession,
@@ -171,7 +185,7 @@ enum TypeSafeCredentialError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .missingCookie:
-            "No TypeSafe session cookies found. Sign in at console.typesafe.ai/settings/billing "
+            "No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing "
                 + "or paste a Cookie header."
         case .invalidCookie:
             "TypeSafe needs a nonempty Cookie header from the billing page."
@@ -181,4 +195,11 @@ enum TypeSafeCredentialError: LocalizedError, Equatable {
             "TypeSafe's saved session is temporarily unavailable. Unlock the Keychain and retry."
         }
     }
+}
+
+extension CookieHeaderCache.Scope {
+    /// TypeSafe cached headers are flattened and keep no cookie-path provenance. The `/api/billing/overview`
+    /// destination owns this dedicated key so headers cached for older billing routes stay unused.
+    public static let typesafeBilling = CookieHeaderCache.Scope
+        .providerVariant("typesafe.billing./api/billing/overview")
 }

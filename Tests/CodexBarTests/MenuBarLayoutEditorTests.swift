@@ -8,6 +8,35 @@ import UniformTypeIdentifiers
 
 struct MenuBarLayoutEditorTests {
     @Test
+    func `Cursor reset chips name the account window without borrowing Grok Bot resets`() {
+        CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            let now = Date(timeIntervalSince1970: 1_793_000_000)
+            let monthly = UsageSnapshot(
+                primary: RateWindow(usedPercent: 20, windowMinutes: 43200, resetsAt: now, resetDescription: nil),
+                secondary: RateWindow(usedPercent: 30, windowMinutes: 43200, resetsAt: now, resetDescription: nil),
+                extraRateWindows: [NamedRateWindow(
+                    id: "cursor-grok-bot",
+                    title: "Grok Bot",
+                    window: RateWindow(
+                        usedPercent: 14,
+                        windowMinutes: 10080,
+                        resetsAt: now.addingTimeInterval(86400 * 3),
+                        resetDescription: nil))],
+                updatedAt: now)
+            let weekly = UsageSnapshot(
+                primary: RateWindow(usedPercent: 40, windowMinutes: 10080, resetsAt: now, resetDescription: nil),
+                secondary: nil,
+                updatedAt: now)
+            let countdown = MenuBarLayoutToken.windowResetCountdown(window: .weekly)
+            let absolute = MenuBarLayoutToken.windowResetAbsolute(window: .weekly)
+            #expect(countdown.editorLabel(provider: .cursor, snapshot: monthly) == "Cursor: Resets in")
+            #expect(absolute.editorAccessibilityLabel(provider: .cursor, snapshot: monthly) == "Cursor: Reset at")
+            #expect(countdown.editorLabel(provider: .cursor, snapshot: weekly) == "Weekly: Resets in")
+            #expect(absolute.editorAccessibilityLabel(provider: .cursor, snapshot: weekly) == "Weekly: Reset at")
+        }
+    }
+
+    @Test
     func `separator accessibility speaks names instead of punctuation`() {
         CodexBarLocalizationOverride.$appLanguage.withValue("en") {
             #expect(MenuBarLayoutToken.separator(.pipe).editorAccessibilityLabel(provider: nil)
