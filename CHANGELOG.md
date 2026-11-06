@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Codex: stop repeated cost-history catch-up passes when fully read rollouts grow but pending dependencies make no progress (#3316).
 - Performance: load CLI path diagnostics when Debug settings open, reducing app startup work.
 - OpenCode Go: reduce local-history memory spikes by skipping JSON parsing of ordinary nonbillable tool and text parts.
 - Claude: release decoded local-history rows after publishing cost reports while keeping unchanged refreshes fast (#4803, #3323).
