@@ -21,6 +21,7 @@
 
 - Settings: find panes by title alongside provider names in sidebar search, with an empty state covering both (#4875). Thanks @elijahfriedman!
 
+- CLI: prune expired `serve` response variants during forced refreshes so configuration changes cannot retain obsolete snapshots indefinitely.
 - Codex: reduce CPU and SQLite reads during cost refreshes by reusing warm history through unchanged retention passes, including above the cache budget (#4620).
 - Claude: wait for the CLI's visible usage refresh to finish before settling quota capture, preserving later model-specific redraws (#4809). Thanks @DreamyTalesPAN!
 - AWS Bedrock: retain measured zero-cost days in daily billing history (#4846). Thanks @djbclark!
