@@ -18,7 +18,7 @@ The Ollama provider reads included usage and purchased credits through an API ke
 - **Monthly usage**: Converts the reported included dollar credits (for example, `$7.50 of $60 used`) to utilization
   (`12.5%`). Free plans label the same included-credit meter **Free usage**; both labels map to the primary
   **Monthly** quota bar. This is not a token-cost or spend estimate.
-- **Legacy usage**: Retains session/hourly and weekly percentage parsing for older settings pages.
+- **Legacy usage**: Reads API `session` / `weekly` remaining percentages as used percentages, and retains older settings-page meters.
 - **Reset timestamps**: Uses the `data-time` attribute on the “Resets in …” elements.
 - **API key auth**: Reads `https://ollama.com/api/balance` with `OLLAMA_API_KEY` or a configured key. Included usage is the primary **Monthly** bar; purchased credits appear as **Credit balance** in the same **Credits** section used by browser cookies.
 - **Browser cookie auth**: Reads the settings page without an API key, including older session/hourly and weekly meters.

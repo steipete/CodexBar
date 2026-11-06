@@ -30,6 +30,50 @@ struct OllamaAPIBalanceTests {
     }
 
     @Test(arguments: BundledPluginTestSupport.engines)
+    func `legacy remaining percentages become session and weekly windows`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let usage = try await Self.fetch(
+            """
+            {"included":{
+              "session":{"remaining_percent":100,"resets_at":"2026-11-06T18:00:00Z"},
+              "weekly":{"remaining_percent":84.96,"resets_at":"2026-11-09T00:00:00Z"}},
+             "purchased":{"balance_usd":0}}
+            """,
+            engine: engine)
+        #expect(usage.primary?.usedPercent == 0)
+        #expect(usage.primary?.windowMinutes == 300)
+        #expect(usage.primary?.resetsAt == ISO8601DateFormatter().date(from: "2026-11-06T18:00:00Z"))
+        #expect(abs((usage.secondary?.usedPercent ?? -1) - 15.04) < 0.001)
+        #expect(usage.secondary?.windowMinutes == 10080)
+        #expect(usage.secondary?.resetsAt == ISO8601DateFormatter().date(from: "2026-11-09T00:00:00Z"))
+        #expect(usage.detailRow(label: "Credit balance")?.value == "$0.00")
+        #expect(usage.detailRow(label: "Monthly credits used") == nil)
+        #expect(usage.details.first?.title == "Credits")
+        #expect(usage.identity?.providerID == .ollama)
+        #expect(usage.identity?.loginMethod == "API key")
+    }
+
+    @Test(arguments: [
+        #"{"included":{"session":{"remaining_percent":-1,"resets_at":"2026-11-06T18:00:00Z"}}}"#,
+        #"{"included":{"session":{"remaining_percent":101,"resets_at":"2026-11-06T18:00:00Z"}}}"#,
+        #"{"included":{"session":{"remaining_percent":"NaN","resets_at":"2026-11-06T18:00:00Z"}}}"#,
+        #"{"included":{"session":{"remaining_percent":null,"resets_at":"2026-11-06T18:00:00Z"}}}"#,
+        #"{"included":{"session":{"remaining_percent":true,"resets_at":"2026-11-06T18:00:00Z"}}}"#,
+        #"{"included":{"session":{"remaining_percent":50,"resets_at":"2026-02-31T00:00:00Z"}}}"#,
+        #"{"included":{"session":[]}}"#,
+    ], BundledPluginTestSupport.engines)
+    func `malformed legacy percentages fail safely`(body: String, engine: ProviderPluginEngineKind) async throws {
+        do {
+            _ = try await Self.fetch(body, engine: engine)
+            Issue.record("Expected parse failure")
+        } catch let error as ProviderFetchClassifiedError {
+            #expect(error.kind == .parseFailure)
+            #expect(error.message == "Ollama returned an unrecognized credit balance response.")
+        }
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
     @MainActor
     func `API and cookie snapshots share monthly and credit presentation`(
         engine: ProviderPluginEngineKind) async throws
