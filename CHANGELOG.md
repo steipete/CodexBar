@@ -15,6 +15,8 @@
 - Kiro: preserve the `+` in CLI-reported plan names so Pro+ subscriptions are shown as Kiro Pro+. (#4928) Thanks @jeanroloff!
 ### Changed
 
+- Alibaba Token Plan: reuse HTTP connections between refreshes while preserving separate dashboard and quota cookie routing.
+
 - Antigravity: reuse the known `agy` version across refreshes while its executable is unchanged, avoiding repeated version subprocesses.
 
 - Plugins: reduce API refresh CPU work by reusing initialized script runtimes while preserving concurrent account fetches.
