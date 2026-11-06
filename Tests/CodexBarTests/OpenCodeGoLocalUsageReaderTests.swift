@@ -7,6 +7,76 @@ import Testing
 
 struct OpenCodeGoLocalUsageReaderTests {
     @Test
+    func `message fallback visits ignored parts only once`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        try Self.createDatabase(at: env.databaseURL)
+        let messageID = try Self.insertMessage(
+            databaseURL: env.databaseURL, createdMs: 1_772_798_399_000, cost: 1)
+        var db: OpaquePointer?
+        guard sqlite3_open(env.databaseURL.path, &db) == SQLITE_OK else { throw SQLiteTestError.open }
+        defer { sqlite3_close(db) }
+        try Self.exec(db: db, sql: """
+        WITH RECURSIVE fixtures(n) AS (VALUES(0) UNION ALL SELECT n + 1 FROM fixtures WHERE n < 999)
+        INSERT INTO part (id, message_id, session_id, data, time_created)
+        SELECT 'part-' || n, '\(messageID)', 'synthetic',
+          CASE WHEN n = 0 THEN '{' ELSE '{"type":"tool","cost":100}' END, 1772798399000
+        FROM fixtures
+        """)
+        var statement: OpaquePointer?
+        let prepared = sqlite3_prepare_v2(
+            db, OpenCodeGoLocalUsageReader.messageAndPartUsageSQL, -1, &statement, nil)
+        defer { sqlite3_finalize(statement) }
+        try #require(prepared == SQLITE_OK)
+        #expect(sqlite3_step(statement) == SQLITE_ROW)
+        #expect(sqlite3_column_double(statement, 1) == 1)
+        #expect(sqlite3_step(statement) == SQLITE_DONE)
+        let visits = sqlite3_stmt_status(statement, SQLITE_STMTSTATUS_FULLSCAN_STEP, 0)
+            + sqlite3_stmt_status(statement, SQLITE_STMTSTATUS_AUTOINDEX, 0)
+        #expect(visits <= 1000)
+    }
+
+    @Test
+    func `daily history accumulates each request only once`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        try Self.createDatabase(at: env.databaseURL)
+        let now = Date(timeIntervalSince1970: 1_772_798_400)
+        for _ in 0..<32 {
+            try Self.insertMessage(
+                databaseURL: env.databaseURL,
+                createdMs: Self.ms(now) - 1000,
+                cost: 0.25,
+                model: "synthetic-model",
+                tokens: ["total": 100, "input": 80, "output": 20])
+        }
+        let work = LockIsolated((created: 0, consumed: 0, peak: 0))
+        let created: @Sendable () -> Void = {
+            var value = work.value
+            value.created += 1
+            value.peak = max(value.peak, value.created - value.consumed)
+            work.setValue(value)
+        }
+        let consumed: @Sendable () -> Void = {
+            var value = work.value
+            value.consumed += 1
+            work.setValue(value)
+        }
+        let snapshot = try OpenCodeGoLocalUsageReader.$dailyEntryObserverForTesting.withValue(created) {
+            try CostUsageDailyReport.$entryAccumulationObserverForTesting.withValue(consumed) {
+                try OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL).fetch(now: now)
+            }
+        }
+        #expect(snapshot.daily.count == 1)
+        #expect(snapshot.daily.first?.costUSD == 8)
+        #expect(snapshot.daily.first?.totalTokens == 3200)
+        #expect(snapshot.daily.first?.requestCount == 32)
+        #expect(work.value.created == 32)
+        #expect(work.value.consumed == 32)
+        #expect(work.value.peak == 1)
+    }
+
+    @Test
     func `cost fetcher exposes existing local daily history`() async throws {
         let env = try Self.makeEnvironment()
         defer { try? FileManager.default.removeItem(at: env.root) }
@@ -1144,6 +1214,371 @@ extension OpenCodeGoLocalUsageReaderTests {
         case prepare
         case step
         case exec
+    }
+}
+
+extension OpenCodeGoLocalUsageReaderTests {
+    @Test
+    func `oversized history reuses totals while rolling requests expire`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        let now = Date(timeIntervalSince1970: 1_772_798_400)
+        try Self.createOversizedAggregateFixture(at: env.databaseURL, now: now)
+        let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let scans = LockIsolated(0)
+        for offset in [0.0, 0.0005, 0.001, 1200, 18001] {
+            let date = now.addingTimeInterval(offset)
+            let actual = try Self.countLocalScans(scans) {
+                try reader.fetch(now: date, historyDays: 30, calendar: calendar)
+            }
+            let expected = try OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+                .fetch(now: date, historyDays: 30, calendar: calendar)
+            Self.expectSameLocalSnapshot(actual, expected)
+        }
+        #expect(scans.value == 1)
+        let emptyRolling = try reader.fetch(now: now.addingTimeInterval(18001), calendar: calendar)
+        #expect(emptyRolling.rollingUsagePercent == 0)
+        #expect(emptyRolling.rollingResetInSec == 18000)
+    }
+
+    @Test
+    func `oversized totals reuse narrower history and invalidate at semantic boundaries`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        let now = Date(timeIntervalSince1970: 1_772_798_400)
+        try Self.createOversizedAggregateFixture(at: env.databaseURL, now: now)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+        let scans = LockIsolated(0)
+        for days in [1, 30, 1, 60, 30] {
+            let actual = try Self.countLocalScans(scans) {
+                try reader.fetch(now: now, historyDays: days, calendar: calendar)
+            }
+            let expected = try OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+                .fetch(now: now, historyDays: days, calendar: calendar)
+            Self.expectSameLocalSnapshot(actual, expected)
+        }
+        #expect(scans.value == 3)
+
+        let boundaries: [(before: String, at: String, zone: String)] = [
+            // An initially future row joins the daily report exactly at noon.
+            ("2026-03-06T11:59:59.000Z", "2026-03-06T12:00:00.000Z", "UTC"),
+            // Local midnight; the following day contains the spring daylight transition.
+            ("2026-03-08T04:59:59.000Z", "2026-03-08T05:00:00.000Z", "America/New_York"),
+            // UTC week changes inside the local calendar day.
+            ("2026-03-08T23:59:59.000Z", "2026-03-09T00:00:00.000Z", "Pacific/Kiritimati"),
+            // The earliest fixture row anchors the month at 12:00 UTC on the twentieth.
+            ("2026-03-20T11:59:59.000Z", "2026-03-20T12:00:00.000Z", "Pacific/Kiritimati"),
+        ]
+        for boundary in boundaries {
+            var selected = calendar
+            selected.timeZone = try #require(TimeZone(identifier: boundary.zone))
+            let before = Date(timeIntervalSince1970: Double(Self.ms(boundary.before)) / 1000)
+            let at = Date(timeIntervalSince1970: Double(Self.ms(boundary.at)) / 1000)
+            let scopedReader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+            let scopedScans = LockIsolated(0)
+            for date in [before, before.addingTimeInterval(0.5), at] {
+                let actual = try Self.countLocalScans(scopedScans) {
+                    try scopedReader.fetch(now: date, historyDays: 90, calendar: selected)
+                }
+                let expected = try OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+                    .fetch(now: date, historyDays: 90, calendar: selected)
+                Self.expectSameLocalSnapshot(actual, expected)
+            }
+            #expect(scopedScans.value == 2)
+        }
+    }
+
+    @Test
+    func `oversized totals invalidate for calendar clock and WAL changes`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        let now = Date(timeIntervalSince1970: 1_772_798_400)
+        try Self.createOversizedAggregateFixture(at: env.databaseURL, now: now)
+        let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let scans = LockIsolated(0)
+        _ = try Self.countLocalScans(scans) { try reader.fetch(now: now, calendar: calendar) }
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 7200))
+        _ = try Self.countLocalScans(scans) { try reader.fetch(now: now, calendar: calendar) }
+        let backwards = now.addingTimeInterval(-1)
+        let backwardsActual = try Self.countLocalScans(scans) {
+            try reader.fetch(now: backwards, calendar: calendar)
+        }
+        let backwardsExpected = try OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+            .fetch(now: backwards, calendar: calendar)
+        Self.expectSameLocalSnapshot(backwardsActual, backwardsExpected)
+        #expect(scans.value == 3)
+
+        var db: OpaquePointer?
+        try #require(sqlite3_open(env.databaseURL.path, &db) == SQLITE_OK)
+        defer { sqlite3_close(db) }
+        try Self.exec(db: db, sql: "PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0;")
+        _ = try Self.countLocalScans(scans) { try reader.fetch(now: now, calendar: calendar) }
+        let beforeWrite = scans.value
+        try Self.exec(db: db, sql: "UPDATE message SET data = json_set(data, '$.cost', 0.2)")
+        let changed = try Self.countLocalScans(scans) { try reader.fetch(now: now, calendar: calendar) }
+        let expected = try OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+            .fetch(now: now, calendar: calendar)
+        Self.expectSameLocalSnapshot(changed, expected)
+        #expect(scans.value == beforeWrite + 1)
+        _ = try Self.countLocalScans(scans) { try reader.fetch(now: now, calendar: calendar) }
+        #expect(scans.value == beforeWrite + 1)
+    }
+
+    @Test
+    func `oversized totals invalidate when a rounded millisecond row joins daily history`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        let initial = Date(timeIntervalSince1970: 1_772_798_400)
+        try Self.createOversizedAggregateFixture(at: env.databaseURL, now: initial)
+        let createdMs = Self.ms(initial) + 28
+        let boundary = Date(timeIntervalSince1970: TimeInterval(createdMs) / 1000)
+        let before = Date(timeIntervalSince1970: boundary.timeIntervalSince1970.nextDown)
+        try #require(before < boundary)
+        try #require(Self.ms(before) == createdMs)
+        try Self.insertMessage(databaseURL: env.databaseURL, createdMs: createdMs, cost: 0.1, model: "future-model")
+        let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+        let scans = LockIsolated(0)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        for date in [before, before, boundary] {
+            let actual = try Self.countLocalScans(scans) { try reader.fetch(now: date, calendar: calendar) }
+            let expected = try OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+                .fetch(now: date, calendar: calendar)
+            Self.expectSameLocalSnapshot(actual, expected)
+        }
+        #expect(scans.value == 2)
+    }
+
+    @Test
+    func `oversized totals rescan a replaced database with unchanged size and timestamp`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        let now = Date(timeIntervalSince1970: 1_772_798_400)
+        try Self.createOversizedAggregateFixture(at: env.databaseURL, now: now)
+        do {
+            var db: OpaquePointer?
+            defer { sqlite3_close(db) }
+            try #require(sqlite3_open(env.databaseURL.path, &db) == SQLITE_OK)
+            try Self.exec(db: db, sql: "VACUUM")
+        }
+        try FileManager.default.setAttributes([.modificationDate: now], ofItemAtPath: env.databaseURL.path)
+        let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+        let scans = LockIsolated(0)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let original = try Self.countLocalScans(scans) { try reader.fetch(now: now, calendar: calendar) }
+        let originalAttributes = try FileManager.default.attributesOfItem(atPath: env.databaseURL.path)
+        let originalSize = try #require(originalAttributes[.size] as? UInt64)
+        let originalDate = try #require(originalAttributes[.modificationDate] as? Date)
+        let originalNumber = try #require(originalAttributes[.systemFileNumber] as? UInt64)
+        let replacement = env.root.appendingPathComponent("replacement.db")
+        try FileManager.default.copyItem(at: env.databaseURL, to: replacement)
+        do {
+            var db: OpaquePointer?
+            defer { sqlite3_close(db) }
+            try #require(sqlite3_open(replacement.path, &db) == SQLITE_OK)
+            try Self.exec(db: db, sql: """
+            UPDATE message SET data = json_set(data, '$.cost', 0.2)
+            WHERE id = (SELECT id FROM message WHERE json_extract(data, '$.cost') = 0.1
+              AND time_created >= \(Self.ms(now) - 18_000_000) LIMIT 1)
+            """)
+            #expect(sqlite3_changes(db) == 1)
+            try Self.exec(db: db, sql: "VACUUM")
+        }
+        try FileManager.default.setAttributes([.modificationDate: originalDate], ofItemAtPath: replacement.path)
+        try FileManager.default.removeItem(at: env.databaseURL)
+        try FileManager.default.moveItem(at: replacement, to: env.databaseURL)
+        let replacedAttributes = try FileManager.default.attributesOfItem(atPath: env.databaseURL.path)
+        try #require(replacedAttributes[.size] as? UInt64 == originalSize)
+        try #require(replacedAttributes[.modificationDate] as? Date == originalDate)
+        let replacedNumber = try #require(replacedAttributes[.systemFileNumber] as? UInt64)
+        try #require(replacedNumber != originalNumber)
+        let actual = try Self.countLocalScans(scans) { try reader.fetch(now: now, calendar: calendar) }
+        let expected = try OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+            .fetch(now: now, calendar: calendar)
+        Self.expectSameLocalSnapshot(actual, expected)
+        let originalCost = original.daily.reduce(0) { $0 + ($1.costUSD ?? 0) }
+        let changedCost = actual.daily.reduce(0) { $0 + ($1.costUSD ?? 0) }
+        #expect(changedCost != originalCost)
+        #expect(scans.value == 2)
+        _ = try Self.countLocalScans(scans) { try reader.fetch(now: now, calendar: calendar) }
+        #expect(scans.value == 2)
+    }
+
+    private static func createOversizedAggregateFixture(at url: URL, now: Date) throws {
+        try self.createDatabase(at: url)
+        let model = String(repeating: "synthetic-", count: 15000)
+        let nowMs = Self.ms(now)
+        let fiveHoursMs: Int64 = 18_000_000
+        for index in 0..<33 {
+            try Self.insertMessage(
+                databaseURL: url,
+                createdMs: nowMs - fiveHoursMs + Int64(index) * fiveHoursMs / 32,
+                cost: index == 0 ? 0 : 0.1,
+                model: model,
+                tokens: ["total": 100, "input": 80, "output": 20])
+        }
+        for date in ["2026-01-20T12:00:00.000Z", "2026-03-04T12:00:00.000Z"] {
+            try Self.insertMessage(databaseURL: url, createdMs: Self.ms(date), cost: 0.1, model: model)
+        }
+    }
+
+    private static func countLocalScans<T>(_ scans: LockIsolated<Int>, _ body: () throws -> T) rethrows -> T {
+        let observer: @Sendable () -> Void = { scans.setValue(scans.value + 1) }
+        return try OpenCodeGoLocalUsageReader.$scanObserverForTesting.withValue(observer) { try body() }
+    }
+
+    private static func expectSameLocalSnapshot(
+        _ actual: OpenCodeGoUsageSnapshot,
+        _ expected: OpenCodeGoUsageSnapshot)
+    {
+        #expect(actual.rollingUsagePercent == expected.rollingUsagePercent)
+        #expect(actual.weeklyUsagePercent == expected.weeklyUsagePercent)
+        #expect(actual.monthlyUsagePercent == expected.monthlyUsagePercent)
+        #expect(actual.rollingResetInSec == expected.rollingResetInSec)
+        #expect(actual.weeklyResetInSec == expected.weeklyResetInSec)
+        #expect(actual.monthlyResetInSec == expected.monthlyResetInSec)
+        #expect(actual.updatedAt == expected.updatedAt)
+        let sameDailyEntries = actual.daily == expected.daily
+        #expect(sameDailyEntries)
+    }
+}
+
+extension OpenCodeGoLocalUsageReaderTests {
+    @Test
+    func `literal nonbillable root types skip JSON parsing and other shapes retain accounting`() throws {
+        var db: OpaquePointer?
+        try #require(sqlite3_open(":memory:", &db) == SQLITE_OK)
+        defer { sqlite3_close(db) }
+        try Self.exec(db: db, sql: """
+        CREATE TABLE message(id TEXT PRIMARY KEY, data TEXT, time_created INTEGER);
+        CREATE TABLE part(id TEXT PRIMARY KEY, message_id TEXT, data TEXT, time_created INTEGER);
+        """)
+        let fixtures: [(json: String, expected: Double, skipsJSON: Bool)] = [
+            (#"{"type":"tool","state":{"output":"synthetic"}}"#, 1, true),
+            (#"{"type":"text","text":"synthetic","cost":9}"#, 1, true),
+            (#"{"type":"tool","type":"step-finish","cost":9}"#, 1, true),
+            (#"{"type":"tool","\u0074ype":"step-finish","cost":9}"#, 1, true),
+            (#"{"type":"tool","state":{"type":"step-finish","cost":9}}"#, 1, true),
+            (#"{"type":"tool","state":"#, 1, true),
+            (#"{"type":"step-finish","type":"tool","cost":4}"#, 4, false),
+            (#"{"\u0074ype":"step-finish","cost":5}"#, 5, false),
+            (#"{"cost":6,"type":"step-finish"}"#, 6, false),
+            (#"{ "type" : "step-finish", "cost" : 7 }"#, 7, false),
+            (#"{"type":"step-\u0066inish","cost":8}"#, 8, false),
+            (#"{"type":"step-finish","cost":0}"#, 0, false),
+            (#"{"type":"step-finish","cost":"#, 1, false),
+        ]
+        var insertion: OpaquePointer?
+        try #require(sqlite3_prepare_v2(
+            db,
+            "INSERT INTO part VALUES(?, ?, ?, 1772798399000)",
+            -1,
+            &insertion,
+            nil) == SQLITE_OK)
+        defer { sqlite3_finalize(insertion) }
+        let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+        for (index, fixture) in fixtures.enumerated() {
+            try Self.exec(db: db, sql: """
+            INSERT INTO message VALUES('\(index)',
+            '{"role":"assistant","providerID":"opencode-go","cost":1}',1772798399000)
+            """)
+            sqlite3_reset(insertion)
+            sqlite3_bind_text(insertion, 1, String(index), -1, transient)
+            sqlite3_bind_text(insertion, 2, String(index), -1, transient)
+            sqlite3_bind_text(insertion, 3, fixture.json, -1, transient)
+            try #require(sqlite3_step(insertion) == SQLITE_DONE)
+        }
+        let probe = try JSONValidityProbe()
+        try #require(sqlite3_create_function_v2(
+            db,
+            "json_valid",
+            1,
+            SQLITE_UTF8 | SQLITE_DETERMINISTIC,
+            Unmanaged.passUnretained(probe).toOpaque(),
+            { context, _, arguments in
+                guard let context, let pointer = sqlite3_user_data(context), let value = arguments?[0] else { return }
+                let probe = Unmanaged<JSONValidityProbe>.fromOpaque(pointer).takeUnretainedValue()
+                if let text = sqlite3_value_text(value) {
+                    probe.calls[String(cString: text), default: 0] += 1
+                }
+                sqlite3_reset(probe.statement)
+                sqlite3_bind_value(probe.statement, 1, value)
+                guard sqlite3_step(probe.statement) == SQLITE_ROW else {
+                    sqlite3_result_error(context, "JSON validity probe failed", -1)
+                    return
+                }
+                sqlite3_result_int(context, sqlite3_column_int(probe.statement, 0))
+            },
+            nil,
+            nil,
+            nil) == SQLITE_OK)
+        defer {
+            _ = withExtendedLifetime(probe) {
+                sqlite3_create_function_v2(db, "json_valid", 1, SQLITE_UTF8, nil, nil, nil, nil, nil)
+            }
+        }
+        var statement: OpaquePointer?
+        try #require(sqlite3_prepare_v2(
+            db,
+            OpenCodeGoLocalUsageReader.messageAndPartUsageSQL,
+            -1,
+            &statement,
+            nil) == SQLITE_OK)
+        defer { sqlite3_finalize(statement) }
+        var costs: [String: Double] = [:]
+        var rowCount = 0
+        var step = sqlite3_step(statement)
+        while step == SQLITE_ROW {
+            rowCount += 1
+            let id = try #require(sqlite3_column_text(statement, 4))
+            costs[String(cString: id)] = sqlite3_column_double(statement, 1)
+            step = sqlite3_step(statement)
+        }
+        #expect(step == SQLITE_DONE)
+        #expect(costs.count == fixtures.count)
+        #expect(rowCount == fixtures.count)
+        for (index, fixture) in fixtures.enumerated() {
+            #expect(costs[String(index)] == fixture.expected)
+            if fixture.skipsJSON {
+                #expect(probe.calls[fixture.json, default: 0] == 0)
+            } else {
+                #expect(probe.calls[fixture.json, default: 0] > 0)
+            }
+        }
+    }
+
+    private final class JSONValidityProbe {
+        private var database: OpaquePointer?
+        var statement: OpaquePointer?
+        var calls: [String: Int] = [:]
+
+        init() throws {
+            guard sqlite3_open(":memory:", &self.database) == SQLITE_OK else {
+                sqlite3_close(self.database)
+                self.database = nil
+                throw SQLiteTestError.open
+            }
+            guard sqlite3_prepare_v2(self.database, "SELECT json_valid(?)", -1, &self.statement, nil) == SQLITE_OK
+            else {
+                sqlite3_finalize(self.statement)
+                self.statement = nil
+                sqlite3_close(self.database)
+                self.database = nil
+                throw SQLiteTestError.prepare
+            }
+        }
+
+        deinit {
+            sqlite3_finalize(self.statement)
+            sqlite3_close(self.database)
+        }
     }
 }
 

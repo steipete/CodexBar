@@ -42,7 +42,7 @@ Vertex AI Claude usage is logged to the same local files as direct Anthropic API
 
 Regular cost refreshes retain `vertexai-v6.json`; the app's independent Usage & Spend refresh uses `vertexai-history-v6.json` and a separate report memo. App memos track that rows were selected for their current window; older unverified caches rebuild once, and changing the app window preserves cold-scan duplicate selection. Provider filtering, pricing, and other providers' shared cache locations remain unchanged.
 
-The cache and report memo use the same [incremental project-shard storage as Claude](claude.md#cost-usage-local-log-scan), with separate Vertex manifests and shards. Existing single-file caches migrate on their next save without a migration-only transcript rescan.
+The cache and report memo use the same [incremental project-shard storage as Claude](claude.md#cost-usage-local-log-scan), with separate Vertex manifests and shards. Existing single-file caches migrate on their next save without a migration-only transcript rescan. Complete source-date bounds let unchanged files reuse rows across app day rollovers when both windows select the whole source; boundary-spanning or uncertified sources still reparse to preserve accounting.
 
 ### Detection Methods
 

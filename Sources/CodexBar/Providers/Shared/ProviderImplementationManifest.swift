@@ -98,7 +98,7 @@ enum ProviderImplementationManifest {
         PluginAPIKeyProviderImplementation(spec: XKiroProviderDescriptor.spec),
         PluginCookieProviderImplementation(spec: MuseAIProviderDescriptor.spec),
         PluginCookieProviderImplementation(spec: LithosAIProviderDescriptor.spec),
-        PluginCookieProviderImplementation(spec: WorkBuddyProviderDescriptor.spec),
+        WorkBuddyProviderImplementation(),
         PluginAPIKeyProviderImplementation(spec: TavilyProviderDescriptor.spec),
         PluginAPIKeyProviderImplementation(spec: LinkupProviderDescriptor.spec),
         PluginCookieProviderImplementation(spec: TinyApiProviderDescriptor.spec),
@@ -116,5 +116,7 @@ enum ProviderImplementationManifest {
         PluginAPIKeyProviderImplementation(spec: ChatboxProviderDescriptor.spec),
         PluginAPIKeyProviderImplementation(spec: AbliterationProviderDescriptor.spec),
         PluginCookieProviderImplementation(spec: OpenDesignProviderDescriptor.spec),
+        SiliconFlowProviderImplementation(),
+        PluginAPIKeyProviderImplementation(spec: TripoProviderDescriptor.spec),
     ]
 }
