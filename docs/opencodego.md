@@ -13,8 +13,10 @@ OpenCode Go assistant records from `~/.local/share/opencode/opencode.db`.
 Both legacy `message`/`part` history and v2 `session_message` history are supported; migrated messages are counted once.
 Daily aggregation consumes requests incrementally instead of retaining a separate daily entry for every request.
 Legacy reads select billed parts and message fallbacks in one pass. Part costs still replace their parent message's
-cost, and timestamps, token availability, and migrated-message deduplication are unchanged. Large JSON parts still
-require validation; no size-based filter discards recorded usage.
+cost, and timestamps, token availability, and migrated-message deduplication are unchanged.
+Legacy tool/text parts with an unambiguous first `type` field are excluded before JSON parsing; other field orders,
+escaped keys, and billable parts keep full validation. This reduces memory spikes from large ignored tool output.
+No size-based filter discards recorded usage.
 Cost scans without a detected local install return empty history with unknown totals, so a remote
 `codexbar serve` host can track quota without a failing cost row. An authenticated install whose history
 is missing, or a database that cannot be read, still reports its history error.

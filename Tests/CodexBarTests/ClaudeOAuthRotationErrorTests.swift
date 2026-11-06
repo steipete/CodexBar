@@ -5,7 +5,7 @@ import Testing
 
 struct ClaudeOAuthRotationErrorTests {
     @Test
-    func `logged in profile with a prior Keychain grant reports revoked access`() {
+    func `prior Keychain grant without an observed denial does not claim token rotation`() {
         let error = ClaudeOAuthCredentialsStore.classifyTerminalMissingCredentialsError(
             directReadConsentGranted: true,
             keychainAccessDisabled: false,
@@ -13,9 +13,8 @@ struct ClaudeOAuthRotationErrorTests {
             previousKeychainGrantRecorded: true,
             loggedInProfilePresent: true)
 
-        #expect(error.localizedDescription.contains("token rotation"))
-        #expect(error.localizedDescription.contains("Click Refresh"))
-        #expect(error.localizedDescription.contains("CLI/Web"))
+        #expect(error.localizedDescription == "Claude OAuth credentials are currently unavailable to CodexBar. "
+            + "Click Refresh to retry access, or switch Claude Usage source to CLI/Web.")
     }
 
     @Test
@@ -35,7 +34,7 @@ struct ClaudeOAuthRotationErrorTests {
 
     @Test
     @MainActor
-    func `Claude rotation error localizes and includes stale capture age`() throws {
+    func `Claude credential access error localizes and includes stale capture age`() throws {
         let raw = ClaudeOAuthCredentialsError.keychainAccessRevoked.localizedDescription
         let message = try #require(ClaudeUIErrorMapper.userFacingMessage(
             raw,

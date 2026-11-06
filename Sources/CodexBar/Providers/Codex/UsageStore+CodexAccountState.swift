@@ -43,7 +43,7 @@ extension UsageStore {
         async
     {
         let refreshStartedAt = Date()
-        self.prepareRefreshState(for: .codex)
+        self.prepareRefreshState(for: .codex, allowDisabled: allowDisabled)
         if self.prepareCodexAccountScopedRefreshIfNeeded() {
             phaseDidChange?(.invalidated)
         }
