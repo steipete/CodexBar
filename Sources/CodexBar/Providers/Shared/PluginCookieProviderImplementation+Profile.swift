@@ -45,12 +45,12 @@ extension PluginCookieProviderImplementation {
         profiles: [BrowserProfile]? = nil) -> ProviderSettingsPickerDescriptor
     {
         let browser = Browser(rawValue: browser)
-        let profiles = profiles ?? browser.flatMap { try? BrowserCookieClient().codexBarStores(for: $0) }?
-            .compactMap(ProviderBrowserProfile.selectableProfile) ?? []
+        let profiles = profiles ?? browser.flatMap { try? BrowserCookieClient().codexBarStores(for: $0) }
+            .map { ProviderBrowserProfile.selectableProfiles(from: $0) } ?? []
         var seen = Set<String>()
         var options = [ProviderSettingsPickerOption(id: "", title: L("Select profile…"))]
         options += profiles.filter { seen.insert($0.id).inserted }.map {
-            ProviderSettingsPickerOption(id: $0.id, title: $0.name)
+            ProviderSettingsPickerOption(id: $0.id, title: $0.name, localizesTitle: false)
         }
         if let saved = context.settings.providerConfig(for: self.id)?.browserProfileID,
            !saved.isEmpty, !seen.contains(saved)

@@ -188,6 +188,9 @@ An HTTP 403 from the cost endpoint records a failed cost source with an in-memor
 The local Tokscale CSV fallback supports legacy, `Kind`, and cloud-agent layouts. A `Cloud Agent ID` header identifies
 the cloud-agent layout; trailing billing columns such as `Cost to you` leave the layout unchanged. The existing
 `Total Tokens` and `Cost` fields supply the exported token totals and API-rate cost.
+The reader processes physical lines without retaining a second array of split lines, reducing peak memory for
+large exports. UTF-8 validation, supported newline separators, quoting, and accounting remain unchanged; the
+decoded input and parsed usage rows still stay in memory during the read.
 
 If Auto fetches usage with a cookie that the app still cannot confirm for the current account, the result stays unpublished. An unchanged account scope waits for the next normal or manual refresh instead of repeatedly forcing another request. Real account, history-window, provider, or cost-timezone changes still request a replacement; a successful fetch that confirms its own cookie can publish immediately.
 
@@ -211,6 +214,12 @@ displays `GB 0%` in used mode. Lane percentages are tagged `T` (Total), `C` (Cur
 menus and VoiceOver keep the full names. Auto % ranks usable allowances, including Grok Bot, by depletion
 forecast and then used percentage; an exhausted total or exhaustion of every subquota still takes priority.
 Balance tokens remain independent, and the dropdown keeps its existing reset countdown and paid-weekly pace display.
+
+With a usage snapshot, the layout editor uses the account's window names: **Cursor** for the legacy monthly
+Auto allowance and **Weekly** for the unified weekly pool. Without a snapshot, elements retain their default
+labels or explicit provider overrides. Selecting **Grok Bot %** leaves adjacent reset elements on their
+original windows. An explicit Grok Bot reset element is not available yet; use the provider card to see
+Grok Bot's own reset when the provider reports one.
 
 Named-extra selections are stored in V4 layout keys. A V3 projection omits them while preserving explicit
 reset-window selections for 0.60.x; V2/V1 projections remain available for older releases. An unchanged

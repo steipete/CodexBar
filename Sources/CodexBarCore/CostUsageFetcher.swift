@@ -621,10 +621,18 @@ public struct CostUsageFetcher: Sendable {
             let home = environment["HOME"].map { URL(fileURLWithPath: $0, isDirectory: true) }
                 ?? FileManager.default.homeDirectoryForCurrentUser
             return try await CostUsageScanExecutor.run { _ in
-                let usage = try OpenCodeGoLocalUsageReader(homeDirectory: home).fetch(
-                    now: now, historyDays: clampedHistoryDays, calendar: fallbackCalendar)
-                return CostUsageTokenResult(snapshot: usage.toCostUsageTokenSnapshot(
-                    historyDays: clampedHistoryDays, calendar: fallbackCalendar))
+                do {
+                    let usage = try OpenCodeGoLocalUsageReader(homeDirectory: home).fetch(
+                        now: now, historyDays: clampedHistoryDays, calendar: fallbackCalendar)
+                    return CostUsageTokenResult(snapshot: usage.toCostUsageTokenSnapshot(
+                        historyDays: clampedHistoryDays, calendar: fallbackCalendar))
+                } catch OpenCodeGoLocalUsageError.notDetected {
+                    // Remote quota tracking does not require a local OpenCode install.
+                    return CostUsageTokenResult(snapshot: Self.unavailableLocalSnapshot(
+                        now: now,
+                        historyDays: clampedHistoryDays,
+                        calendar: fallbackCalendar))
+                }
             }
         }
         // Provider-specific by design: Muse local history has token evidence but no established dollar rates.
