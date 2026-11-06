@@ -48,6 +48,7 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
 
     #if DEBUG
     @TaskLocal static var scanObserverForTesting: (@Sendable () -> Void)?
+    @TaskLocal static var dailyEntryObserverForTesting: (@Sendable () -> Void)?
     #endif
 
     public func fetch(
@@ -181,32 +182,25 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
           AND json_extract(data, '$.role') = 'assistant'
     """
 
-    private static let messageAndPartUsageSQL = """
-        WITH provider_messages AS (\(Self.providerMessagesSQL)), provider_parts AS NOT MATERIALIZED (
+    /// A literal first root type rules these parts out; every other JSON shape keeps the full predicate.
+    static let messageAndPartUsageSQL = """
+        WITH provider_messages AS (\(Self.providerMessagesSQL))
         SELECT
-          CAST(COALESCE(json_extract(p.data, '$.time.created'), p.time_created, m.createdMs) AS INTEGER)
-            AS createdMs,
-          CAST(json_extract(p.data, '$.cost') AS REAL) AS cost,
+          CASE WHEN p.message_id IS NULL THEN m.createdMs ELSE
+            CAST(COALESCE(json_extract(p.data, '$.time.created'), p.time_created, m.createdMs) AS INTEGER)
+            END AS createdMs,
+          CASE WHEN p.message_id IS NULL THEN m.cost ELSE CAST(json_extract(p.data, '$.cost') AS REAL) END AS cost,
           m.modelID AS modelID,
-          CASE WHEN json_type(p.data, '$.tokens') = 'object'
-            THEN json_extract(p.data, '$.tokens') END AS tokens,
+          CASE WHEN p.message_id IS NULL THEN m.tokens
+            WHEN json_type(p.data, '$.tokens') = 'object' THEN json_extract(p.data, '$.tokens') END AS tokens,
           m.messageID AS messageID
-        FROM part p
-        JOIN provider_messages m ON m.messageID = p.message_id
-        WHERE json_valid(p.data)
-          AND json_extract(p.data, '$.type') = 'step-finish'
-          AND json_type(p.data, '$.cost') IN ('integer', 'real')
-        )
-        SELECT * FROM provider_parts
-        UNION ALL
-        SELECT createdMs, cost, modelID, tokens, messageID
         FROM provider_messages m
-        WHERE hasCost
-          AND NOT EXISTS (
-            SELECT 1
-            FROM provider_parts p
-            WHERE p.messageID = m.messageID
-          )
+        LEFT JOIN part p ON m.messageID = p.message_id
+          AND CASE WHEN substr(p.data, 1, 15) IN ('{"type":"tool",', '{"type":"text",')
+            THEN 0 WHEN json_valid(p.data) THEN
+              json_extract(p.data, '$.type') = 'step-finish'
+              AND json_type(p.data, '$.cost') IN ('integer', 'real') ELSE 0 END
+        WHERE p.message_id IS NOT NULL OR m.hasCost
     """
 
     private static let sessionMessageUsageSQL = """
@@ -381,7 +375,7 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         }
         let sinceStartOfDay = calendar.startOfDay(for: since)
 
-        let entries: [CostUsageDailyReport.Entry] = rows.compactMap { row in
+        let entries = rows.lazy.compactMap { row -> CostUsageDailyReport.Entry? in
             let date = Date(timeIntervalSince1970: TimeInterval(row.createdMs) / 1000)
             guard date >= sinceStartOfDay, date <= now else { return nil }
             let key = CostUsageScanner.CostUsageDayRange.dayKey(from: date, calendar: calendar)
@@ -398,6 +392,9 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
                 cacheReadTokens: tokens?.cache?.read,
                 cacheCreationTokens: tokens?.cache?.write,
                 reasoningTokens: tokens?.reasoning)
+            #if DEBUG
+            Self.dailyEntryObserverForTesting?()
+            #endif
             return CostUsageDailyReport.Entry(
                 date: key,
                 inputTokens: tokens?.input,
@@ -411,7 +408,7 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
                 modelsUsed: [model],
                 modelBreakdowns: [breakdown])
         }
-        return CostUsageDailyReport.merged([.init(data: entries, summary: nil)], calendar: calendar).data
+        return CostUsageDailyReport.mergedEntries(from: entries, calendar: calendar)
     }
 
     private static func percent(used: Double, limit: Double) -> Double {

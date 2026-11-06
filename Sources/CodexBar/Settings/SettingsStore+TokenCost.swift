@@ -50,7 +50,7 @@ extension SettingsStore {
         func hasAnyJsonl(in root: URL) -> Bool {
             guard fileManager.fileExists(atPath: root.path) else { return false }
             guard let enumerator = fileManager.enumerator(
-                at: root,
+                at: root.resolvingSymlinksInPath(),
                 includingPropertiesForKeys: [.isRegularFileKey],
                 options: [.skipsHiddenFiles, .skipsPackageDescendants])
             else { return false }

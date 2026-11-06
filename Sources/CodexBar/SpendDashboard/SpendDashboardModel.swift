@@ -35,7 +35,6 @@ struct SpendDashboardModel: Equatable, Sendable {
         var snapshot: CostUsageTokenSnapshot
         var retainedDetailSnapshot: CostUsageTokenSnapshot?
         let tokenActivityCache: CostUsageTokenActivityCache?
-        let accounting: PiSnapshotAccounting?
 
         init(
             id: String? = nil,
@@ -44,17 +43,15 @@ struct SpendDashboardModel: Equatable, Sendable {
             modelProviderName: String? = nil,
             snapshot: CostUsageTokenSnapshot,
             tokenActivityCache: CostUsageTokenActivityCache? = nil,
-            sourceKind: SpendDashboardModel.SourceKind = .native,
-            accounting: PiSnapshotAccounting? = nil)
+            sourceKind: SpendDashboardModel.SourceKind = .native)
         {
             self.id = id ?? provider.rawValue
             self.provider = provider
             self.displayName = displayName
             self.modelProviderName = modelProviderName ?? displayName
-            self.snapshot = snapshot
+            self.snapshot = snapshot.droppingQuotaSlices()
             self.tokenActivityCache = tokenActivityCache
             self.sourceKind = sourceKind
-            self.accounting = accounting
         }
 
         let sourceKind: SpendDashboardModel.SourceKind

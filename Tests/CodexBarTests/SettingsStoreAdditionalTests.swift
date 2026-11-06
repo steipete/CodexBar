@@ -255,6 +255,7 @@ struct SettingsStoreAdditionalTests {
             .aerostack: [.automatic, .primary],
             .sailresearch: [.automatic],
             .sofya: [.automatic],
+            .siliconflow: [.automatic],
             .fal: [.automatic],
             .flora: [.automatic],
             .parallel: [.automatic],
