@@ -100,16 +100,11 @@ struct ProviderMenuChartContent: View {
                 Spacer(minLength: 0)
                 ProviderMenuChartPicker(selection: self.mode)
             }
-            // Hidden layers still participate in measurement: fingerprint and height describe both modes.
-            ZStack(alignment: .topLeading) {
+            // Both modes reserve the same height, including the optional limit line.
+            if self.mode.wrappedValue == .live {
                 self.chart(mode: .live, selection: self.injectedSelection ?? self.$liveSelection)
-                    .opacity(self.mode.wrappedValue == .live ? 1 : 0)
-                    .allowsHitTesting(self.mode.wrappedValue == .live)
-                    .accessibilityHidden(self.mode.wrappedValue != .live)
+            } else {
                 self.chart(mode: .spend, selection: self.injectedSelection ?? self.$spendSelection)
-                    .opacity(self.mode.wrappedValue == .spend ? 1 : 0)
-                    .allowsHitTesting(self.mode.wrappedValue == .spend)
-                    .accessibilityHidden(self.mode.wrappedValue != .spend)
             }
         }
         .padding(.bottom, 10)

@@ -64,11 +64,16 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
             throw OpenCodeGoLocalUsageError.notDetected
         }
 
-        let rows = try self.cache.read(at: self.databaseURL) { try self.readRows() }
-        guard !rows.isEmpty else {
+        guard let snapshot = try self.cache.read(
+            at: self.databaseURL,
+            now: now,
+            historyDays: historyDays,
+            calendar: calendar,
+            scan: { try self.readRows() })
+        else {
             throw hasAuth ? OpenCodeGoLocalUsageError.historyUnavailable("no local usage rows") : .notDetected
         }
-        return Self.snapshot(rows: rows, now: now, historyDays: historyDays, calendar: calendar)
+        return snapshot
     }
 
     private func readRows() throws -> [UsageRow] {
@@ -182,6 +187,7 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
           AND json_extract(data, '$.role') = 'assistant'
     """
 
+    /// A literal first root type rules these parts out; every other JSON shape keeps the full predicate.
     static let messageAndPartUsageSQL = """
         WITH provider_messages AS (\(Self.providerMessagesSQL))
         SELECT
@@ -195,9 +201,10 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
           m.messageID AS messageID
         FROM provider_messages m
         LEFT JOIN part p ON m.messageID = p.message_id
-          AND json_valid(p.data)
-          AND json_extract(p.data, '$.type') = 'step-finish'
-          AND json_type(p.data, '$.cost') IN ('integer', 'real')
+          AND CASE WHEN substr(p.data, 1, 15) IN ('{"type":"tool",', '{"type":"text",')
+            THEN 0 WHEN json_valid(p.data) THEN
+              json_extract(p.data, '$.type') = 'step-finish'
+              AND json_type(p.data, '$.cost') IN ('integer', 'real') ELSE 0 END
         WHERE p.message_id IS NOT NULL OR m.hasCost
     """
 
@@ -222,49 +229,204 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
 
     private struct DatabaseFingerprint: Equatable {
         let path: String
+        let fileNumber: UInt64
         let size: UInt64
         let modificationDate: Date
+        let walFileNumber: UInt64?
         let walSize: UInt64?
         let walModificationDate: Date?
 
         static func current(for url: URL) -> Self? {
             let url = url.resolvingSymlinksInPath()
             guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+                  let fileNumber = attrs[.systemFileNumber] as? UInt64,
                   let size = attrs[.size] as? UInt64,
                   let mtime = attrs[.modificationDate] as? Date
             else { return nil }
             let walAttrs = try? FileManager.default.attributesOfItem(atPath: url.path + "-wal")
             return Self(
                 path: url.path,
+                fileNumber: fileNumber,
                 size: size,
                 modificationDate: mtime,
+                walFileNumber: walAttrs?[.systemFileNumber] as? UInt64,
                 walSize: walAttrs?[.size] as? UInt64,
                 walModificationDate: walAttrs?[.modificationDate] as? Date)
         }
     }
 
     private final class CacheBox: @unchecked Sendable {
-        private let lock = NSLock()
-        private var entry: (fingerprint: DatabaseFingerprint, rows: [UsageRow])?
+        private enum Payload {
+            case rows([UsageRow])
+            case aggregate(Aggregate)
+        }
 
-        func read(at url: URL, scan: () throws -> [UsageRow]) rethrows -> [UsageRow] {
+        private let lock = NSLock()
+        private var entry: (fingerprint: DatabaseFingerprint, payload: Payload)?
+        private static let byteLimit = 4 * 1024 * 1024
+
+        func read(
+            at url: URL,
+            now: Date,
+            historyDays: Int,
+            calendar: Calendar,
+            scan: () throws -> [UsageRow]) rethrows -> OpenCodeGoUsageSnapshot?
+        {
             self.lock.lock()
             defer { self.lock.unlock() }
             let fingerprint = DatabaseFingerprint.current(for: url)
             if let fingerprint, let entry = self.entry, entry.fingerprint == fingerprint {
-                return entry.rows
+                switch entry.payload {
+                case let .rows(rows):
+                    guard !rows.isEmpty else { return nil }
+                    return OpenCodeGoLocalUsageReader.snapshot(
+                        rows: rows, now: now, historyDays: historyDays, calendar: calendar)
+                case let .aggregate(aggregate):
+                    if let snapshot = aggregate.snapshot(now: now, historyDays: historyDays, calendar: calendar) {
+                        return snapshot
+                    }
+                }
             }
             self.entry = nil
             let rows = try scan()
-            // Keep exact timestamps for moving windows, but retain at most one 4 MiB row payload.
-            // Large histories still work; they simply do not stay resident between scans.
-            if let fingerprint, DatabaseFingerprint.current(for: url) == fingerprint,
-               rows.count <= 4 * 1024 * 1024 / MemoryLayout<UsageRow>.stride,
-               rows.reduce(0, { $0 + MemoryLayout<UsageRow>.stride + $1.model.utf8.count }) <= 4 * 1024 * 1024
-            {
-                self.entry = (fingerprint, rows)
+            guard !rows.isEmpty else {
+                if let fingerprint, DatabaseFingerprint.current(for: url) == fingerprint {
+                    self.entry = (fingerprint, .rows([]))
+                }
+                return nil
             }
-            return rows
+            let snapshot = OpenCodeGoLocalUsageReader.snapshot(
+                rows: rows, now: now, historyDays: historyDays, calendar: calendar)
+            let rowStorageBytes = rows.capacity * MemoryLayout<UsageRow>.stride
+            let rowsFit = rowStorageBytes <= Self.byteLimit
+                && rows.reduce(rowStorageBytes) { $0 + $1.model.utf8.count } <= Self.byteLimit
+            let payload: Payload? = if rowsFit {
+                .rows(rows)
+            } else {
+                Aggregate(
+                    rows: rows,
+                    snapshot: snapshot,
+                    historyDays: historyDays,
+                    calendar: calendar,
+                    byteLimit: Self.byteLimit).map(Payload.aggregate)
+            }
+            if let fingerprint, let payload, DatabaseFingerprint.current(for: url) == fingerprint {
+                self.entry = (fingerprint, payload)
+            }
+            return snapshot
+        }
+    }
+
+    private struct Aggregate {
+        private struct RollingCost {
+            let createdMs: Int64
+            let cost: Double
+        }
+
+        private let base: OpenCodeGoUsageSnapshot
+        private let rolling: [RollingCost]
+        private let historyDays: Int
+        private let calendar: Calendar
+        private let weekEndMs: Int64
+        private let monthEndMs: Int64
+        private let validUntil: Date
+
+        init?(
+            rows: [UsageRow],
+            snapshot: OpenCodeGoUsageSnapshot,
+            historyDays: Int,
+            calendar: Calendar,
+            byteLimit: Int)
+        {
+            let historyDays = max(1, historyDays)
+            guard calendar.date(byAdding: .day, value: -(historyDays - 1), to: snapshot.updatedAt) != nil else {
+                return nil
+            }
+            var bytes = MemoryLayout<Self>.stride
+                + snapshot.daily.capacity * MemoryLayout<CostUsageDailyReport.Entry>.stride
+            for day in snapshot.daily {
+                bytes += day.date.utf8.count
+                let models = day.modelsUsed ?? []
+                bytes += models.capacity * MemoryLayout<String>.stride
+                for model in models {
+                    bytes += model.utf8.count
+                }
+                let breakdowns = day.modelBreakdowns ?? []
+                bytes += breakdowns.capacity * MemoryLayout<CostUsageDailyReport.ModelBreakdown>.stride
+                for model in breakdowns {
+                    bytes += model.modelName.utf8.count
+                }
+                guard bytes <= byteLimit else { return nil }
+            }
+            let now = snapshot.updatedAt
+            let nowMs = Int64(now.timeIntervalSince1970 * 1000)
+            let sessionStart = nowMs - Int64(OpenCodeGoLocalUsageReader.fiveHours * 1000)
+            // Scaling a fractional timestamp can round up to the next integer millisecond.
+            let roundedNowIsFuture = Date(timeIntervalSince1970: TimeInterval(nowMs) / 1000) > now
+            var rolling: [RollingCost] = []
+            var nextFutureMs: Int64?
+            var anchorMs: Int64?
+            for row in rows {
+                anchorMs = min(anchorMs ?? row.createdMs, row.createdMs)
+                if row.createdMs > nowMs || (row.createdMs == nowMs && roundedNowIsFuture) {
+                    nextFutureMs = min(nextFutureMs ?? row.createdMs, row.createdMs)
+                } else if row.createdMs >= sessionStart {
+                    bytes += MemoryLayout<RollingCost>.stride
+                    guard bytes <= byteLimit else { return nil }
+                    rolling.append(RollingCost(createdMs: row.createdMs, cost: row.cost))
+                }
+            }
+            let spareBytes = (rolling.capacity - rolling.count) * MemoryLayout<RollingCost>.stride
+            guard bytes + spareBytes <= byteLimit,
+                  let dayEnd = calendar.dateInterval(of: .day, for: now)?.end
+            else { return nil }
+            self.weekEndMs = Int64((OpenCodeGoLocalUsageReader.startOfUTCWeek(now: now).timeIntervalSince1970
+                    + OpenCodeGoLocalUsageReader.week) * 1000)
+            self.monthEndMs = OpenCodeGoLocalUsageReader.monthBounds(now: now, anchorMs: anchorMs).endMs
+            let untilMs = min(min(self.weekEndMs, self.monthEndMs), nextFutureMs ?? Int64.max)
+            let validUntil = min(dayEnd, Date(timeIntervalSince1970: Double(untilMs) / 1000))
+            guard validUntil.timeIntervalSince1970.isFinite, validUntil > now else { return nil }
+            self.base = snapshot
+            self.rolling = rolling
+            self.historyDays = historyDays
+            self.calendar = calendar
+            self.validUntil = validUntil
+        }
+
+        func snapshot(now: Date, historyDays: Int, calendar: Calendar) -> OpenCodeGoUsageSnapshot? {
+            let historyDays = max(1, historyDays)
+            guard now >= self.base.updatedAt, now < self.validUntil,
+                  calendar == self.calendar, historyDays <= self.historyDays
+            else { return nil }
+            let nowMs = Int64(now.timeIntervalSince1970 * 1000)
+            let fiveHoursMs = Int64(OpenCodeGoLocalUsageReader.fiveHours * 1000)
+            var cost = 0.0
+            var oldestMs = nowMs
+            for row in self.rolling where row.createdMs >= nowMs - fiveHoursMs && row.createdMs < nowMs {
+                cost += row.cost
+                oldestMs = min(oldestMs, row.createdMs)
+            }
+            let daily: [CostUsageDailyReport.Entry]
+            if historyDays == self.historyDays {
+                daily = self.base.daily
+            } else if let since = calendar.date(byAdding: .day, value: -(historyDays - 1), to: now) {
+                let sinceKey = CostUsageScanner.CostUsageDayRange.dayKey(
+                    from: calendar.startOfDay(for: since), calendar: calendar)
+                daily = self.base.daily.filter { $0.date >= sinceKey }
+            } else {
+                daily = []
+            }
+            return OpenCodeGoUsageSnapshot(
+                hasMonthlyUsage: true,
+                rollingUsagePercent: OpenCodeGoLocalUsageReader.percent(
+                    used: cost, limit: OpenCodeGoLocalUsageReader.limits.session),
+                weeklyUsagePercent: self.base.weeklyUsagePercent,
+                monthlyUsagePercent: self.base.monthlyUsagePercent,
+                rollingResetInSec: max(0, Int((oldestMs + fiveHoursMs - nowMs) / 1000)),
+                weeklyResetInSec: max(0, Int((self.weekEndMs - nowMs) / 1000)),
+                monthlyResetInSec: max(0, Int((self.monthEndMs - nowMs) / 1000)),
+                daily: daily,
+                updatedAt: now)
         }
     }
 

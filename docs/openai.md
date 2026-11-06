@@ -86,8 +86,9 @@ the daily card can fall back to a legacy balance. Credentials and optional `proj
 and selected-account rules as the daily view.
 
 While open, the window polls every 30 seconds and supports Refresh (⌘R). Rate limiting doubles the polling interval
-up to 5 minutes; a successful fetch restores 30 seconds. Closing the window stops polling. Failed requests keep the
-last successful snapshot visible with an inline error. The data is near-realtime: buckets commonly arrive 2–3 minutes late.
+up to 5 minutes; a successful fetch restores 30 seconds. Closing the window stops polling and pauses its
+display clocks; reopening resumes them. Failed requests keep the last successful snapshot visible with an inline error.
+The data is near-realtime: buckets commonly arrive 2–3 minutes late.
 **Latest** shows the newest complete minute with any reported tokens across all models, searched within the last
 10 complete minutes. Its timestamp identifies that reporting frontier; the five-minute average ends there too.
 Selecting a model keeps the same frontier, so a model idle at that minute correctly shows zero. If all ten minutes

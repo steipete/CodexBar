@@ -309,6 +309,7 @@ extension CodexBarCLI {
           codexbar config preferences export [--file <preferences.json>]
           codexbar config preferences import --file <preferences.json> [--json]
           codexbar config login --provider copilot [--json]
+          codexbar config login --provider claudeplatform --stdin [--json]
           codexbar config providers [--format text|json] [--json] [--json-only] [--pretty]
           codexbar config enable --provider <name> [--format text|json] [--json] [--json-only] [--pretty]
           codexbar config disable --provider <name> [--format text|json] [--json] [--json-only] [--pretty]

@@ -261,7 +261,7 @@ public struct UsagePace: Sendable {
     }
 
     private static func nextDayBoundary(after date: Date, calendar: Calendar) -> Date? {
-        calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: date))
+        calendar.dateInterval(of: .day, for: date)?.end
     }
 
     private static func isWorkday(_ date: Date, calendar: Calendar, workDays: Int) -> Bool {

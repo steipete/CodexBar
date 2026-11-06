@@ -116,5 +116,7 @@ enum ProviderImplementationManifest {
         PluginAPIKeyProviderImplementation(spec: ChatboxProviderDescriptor.spec),
         PluginAPIKeyProviderImplementation(spec: AbliterationProviderDescriptor.spec),
         PluginCookieProviderImplementation(spec: OpenDesignProviderDescriptor.spec),
+        SiliconFlowProviderImplementation(),
+        PluginAPIKeyProviderImplementation(spec: TripoProviderDescriptor.spec),
     ]
 }

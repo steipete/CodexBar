@@ -9,7 +9,8 @@ extension StatusItemController {
             },
             isProviderRefreshActive: { [weak self] provider in
                 self?.store.refreshingProviders.contains(provider.instanceID) == true
-            })
+            },
+            isActive: !self.openMenus.isEmpty)
     }
 
     func menuCardModel(

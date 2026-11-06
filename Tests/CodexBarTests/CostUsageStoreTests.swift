@@ -532,9 +532,9 @@ extension CostUsageStoreTests {
         let reloaded = CostUsageStoreAccess.read(cacheRoot: fixture.root, calendar: calendar)
         #expect(reloaded.lastScanUnixMs == 2000)
 
-        // Repeating the unchanged scan checkpoints at most the prior metadata frame, then emits
-        // exactly one new metadata-row change. Both files are measured using SQLite's real `-wal`
-        // path; no claim of zero physical writes is made.
+        // With automatic checkpoints disabled, another unchanged scan appends freshness frames
+        // instead of truncating the WAL. It still emits exactly one metadata-row change. Both files
+        // use SQLite's real `-wal` path; no claim of zero physical writes is made.
         var repeated = reloaded
         repeated.lastScanUnixMs = 2500
         let repeatBefore = footprint()
@@ -545,7 +545,9 @@ extension CostUsageStoreTests {
         #expect(repeatCountersAfter.rows - repeatCountersBefore.rows == 1)
         #expect(repeatCountersAfter.pages <= 2)
         #expect(repeatAfter[dbURL]?.size == repeatBefore[dbURL]?.size)
-        #expect(repeatAfter[walURL]?.size == after[walURL]?.size)
+        let priorWALBytes = try #require(repeatBefore[walURL]?.size)
+        let repeatedWALBytes = try #require(repeatAfter[walURL]?.size)
+        #expect(repeatedWALBytes > priorWALBytes)
         #expect(repeatAfter[dbURL]?.mtime != nil)
         #expect(repeatAfter[walURL]?.mtime != repeatBefore[walURL]?.mtime)
         print("[no-op-write-proof] first before=\(before) after=\(after)")
@@ -954,6 +956,7 @@ extension CostUsageStoreTests {
 
 extension CostUsageStoreTests {
     private static let testedPredecessorParserHashes = [
+        "6b42e42bafad1922",
         "f98b2d0afc00443c", // Corrected revision-14 reports survive the identified-pricing export change.
         "0ef5e15cc00e8e25", // Current main before resumed-tier and Fast pricing correction.
         "5a57546c60494379", // Home-scoped main before archived-row retention.
@@ -1099,7 +1102,9 @@ extension CostUsageStoreTests {
         let after = await current.readSnapshot()
         var expected = before
         // Only predecessors from before the Fast pricing correction need report totals discarded.
-        if predecessorHash != "f98b2d0afc00443c" { expected.metadata.previousReportPayload = nil }
+        if !["f98b2d0afc00443c", "6b42e42bafad1922"].contains(predecessorHash) {
+            expected.metadata.previousReportPayload = nil
+        }
         #expect(after == expected)
         let legacy = try JSONDecoder().decode(
             CostUsageScanner.CodexBufferedFastLine.self, from: #require(after.bufferedLines.first).payload)

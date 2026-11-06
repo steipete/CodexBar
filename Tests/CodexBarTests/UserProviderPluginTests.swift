@@ -447,7 +447,7 @@ struct UserProviderPluginTests {
         let historyURL = fixture.history.appendingPathComponent("delete-me.json")
         try Data("history".utf8).write(to: historyURL)
         let staleCacheURL = fixture.cache.appendingPathComponent(
-            "delete-me-oldhash-sucrase-\(UserProviderPluginLoader.sucraseVersion).js")
+            "delete-me-\(String(repeating: "a", count: 64))-sucrase-\(UserProviderPluginLoader.sucraseVersion).js")
         try Data("stale".utf8).write(to: staleCacheURL)
 
         try UserProviderPluginManager.delete(
@@ -874,8 +874,8 @@ struct UserProviderPluginTests {
     }
 }
 
+@MainActor
 extension UserProviderPluginTests {
-    @MainActor
     @Test
     func `plugin layout renders reset tokens and observes reset only refreshes`() throws {
         let fixture = try Fixture()
