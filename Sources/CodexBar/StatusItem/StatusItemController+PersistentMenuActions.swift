@@ -20,7 +20,7 @@ extension StatusItemController {
     }
 
     func isRefreshActionInFlight(for menu: NSMenu) -> Bool {
-        if self.store.hasForcedRefreshEnrichmentInFlight {
+        if self.store.hasForcedRefreshEnrichmentInFlight || self.store.isRefreshing {
             return true
         }
 
@@ -29,24 +29,20 @@ extension StatusItemController {
             return true
         }
 
+        guard !self.manualRefreshTasks.isEmpty || !self.store.refreshingProviders.isEmpty else {
+            return false
+        }
         if self.isMergedOverviewSelected(in: menu) {
             // Overview stands for every provider, so it is busy while ANY manual refresh runs —
             // including the post-fetch tail of a per-provider refresh, after `refreshingProviders`
             // has cleared but its `.provider` task is still finishing status/token/credits work.
-            return self.store.isRefreshing
-                || !self.manualRefreshTasks.isEmpty
-                || !self.store.refreshingProviders.isEmpty
+            return true
         }
-        if let provider = self.manualRefreshProvider(for: menu) {
-            // A manual refresh of a different provider must not grey out this provider's row: only
-            // reflect the global refresh, this provider's own manual refresh, and its store refresh.
-            return self.store.isRefreshing
-                || self.manualRefreshTasks[.provider(provider)] != nil
-                || self.store.refreshingProviders.contains(provider)
-        }
-        return self.store.isRefreshing
-            || !self.manualRefreshTasks.isEmpty
-            || !self.store.refreshingProviders.isEmpty
+        guard let provider = self.manualRefreshProvider(for: menu) else { return true }
+        // A manual refresh of a different provider must not grey out this provider's row: only
+        // reflect this provider's own manual refresh and its store refresh.
+        return self.manualRefreshTasks[.provider(provider)] != nil
+            || self.store.refreshingProviders.contains(provider)
     }
 
     func isMergedOverviewSelected(in menu: NSMenu) -> Bool {

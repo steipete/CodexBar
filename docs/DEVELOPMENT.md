@@ -34,6 +34,8 @@ read_when:
 4. **Optional file log**: enable Debug → Logging → "Enable file logging" to write
    `~/Library/Logs/CodexBar/CodexBar.log` (verbosity defaults to "Verbose")
 
+CLI path diagnostics in **Settings → Debug** load when that pane opens. Startup still captures the login-shell PATH for normal provider commands; the Debug pane waits for that capture before resolving its diagnostic paths.
+
 ## Plural format validation
 
 Plural references share printf argument positions with ordinary values and star width/precision arguments. For example, `%d: %#@count@` can be translated as `%2$#@count@ (%1$d)`; swapping the count to `%1$#@count@` is invalid even though both arguments are integers. Run `node --test Scripts/test_localization_formats.mjs` for focused validator tests and `node Scripts/check-app-locales.mjs` for the catalogs.

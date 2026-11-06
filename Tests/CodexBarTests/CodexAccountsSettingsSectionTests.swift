@@ -261,14 +261,14 @@ struct CodexAccountsSettingsSectionTests {
     func `codex accounts section disables add and reauth while managed authentication is in flight`() async throws {
         let settings = Self.makeSettingsStore(suite: "CodexAccountsSettingsSectionTests-in-flight")
         let store = Self.makeUsageStore(settings: settings)
-        let managedStoreURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: managedStoreURL) }
+        let root = CodexCredentialFixtures.root
+        let managedStoreURL = root.appendingPathComponent("managed.json")
 
         let managedAccountID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-111111111111"))
         let managedAccount = ManagedCodexAccount(
             id: managedAccountID,
             email: "managed@example.com",
-            managedHomePath: "/tmp/managed",
+            managedHomePath: root.appendingPathComponent("legacy", isDirectory: true).path,
             createdAt: 1,
             updatedAt: 2,
             lastAuthenticatedAt: 2)
@@ -278,8 +278,6 @@ struct CodexAccountsSettingsSectionTests {
             accounts: [managedAccount]))
         settings._test_managedCodexAccountStoreURL = managedStoreURL
 
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: root) }
         let runner = BlockingManagedCodexLoginRunnerForSettingsSectionTests()
         let service = ManagedCodexAccountService(
             store: managedStore,

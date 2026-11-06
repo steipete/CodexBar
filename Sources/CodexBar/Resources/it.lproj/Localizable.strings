@@ -1576,7 +1576,7 @@
 "7-day usage" = "Utilizzo di 7 giorni";
 "Total usage" = "Utilizzo totale";
 "claude_oauth_keychain_access_disabled" = "L’accesso a Keychain è disattivato, quindi CodexBar non può leggere i dati di accesso di Claude.";
-"claude_oauth_keychain_access_revoked" = "L'accesso al portachiavi di Claude è stato revocato dalla rotazione del token di Claude Code. Fai clic su Aggiorna per concedere nuovamente l'accesso oppure imposta la fonte di utilizzo di Claude su CLI/Web.";
+"claude_oauth_keychain_access_revoked" = "Le credenziali OAuth di Claude non sono attualmente accessibili a CodexBar. Fai clic su Aggiorna per riprovare ad accedere oppure imposta la fonte di utilizzo di Claude su CLI/Web.";
 "claude_showing_last_known_usage" = "Visualizzazione dell'ultimo utilizzo noto, acquisito %@.";
 "claude_limited_usage_detail" = "Dettagli di utilizzo limitati";
 /* Spend dashboard cost analysis */
@@ -2394,8 +2394,6 @@
 "Unavailable account" = "Account: Non disponibile";
 "%@ over" = "%@ oltre il limite";
 "Paste the Cookie header from a Chrome request to www.workbuddy.cn/profile/plans-usage." = "Incolla l’intestazione Cookie di una richiesta Chrome a www.workbuddy.cn/profile/plans-usage.";
-"User-Agent" = "User-Agent";
-"Optional. Paste the User-Agent value from the same request as the Cookie." = "Facoltativo. Incolla il valore User-Agent della stessa richiesta da cui proviene l’intestazione Cookie.";
 "Reserved" = "Riservato";
 
 "Add folder…" = "Aggiungi cartella…";
@@ -2800,6 +2798,28 @@
 "Leave blank to use the default name." = "Lascia vuoto per usare il nome predefinito.";
 "Rewards" = "Premi";
 "Reward expiry" = "Scadenza dei premi";
+"China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "La Cina (CNY) è l'impostazione predefinita. Gli account internazionali usano https://api.siliconflow.com (USD).";
+"https://api.siliconflow.cn" = "https://api.siliconflow.cn";
+"SiliconFlow API origin must be https://api.siliconflow.cn or https://api.siliconflow.com." = "L’origine dell’API SiliconFlow deve essere https://api.siliconflow.cn o https://api.siliconflow.com.";
+"SiliconFlow refused the balance query. Check the balance in the SiliconFlow console." = "SiliconFlow ha rifiutato la richiesta del saldo. Controlla il saldo nella console SiliconFlow.";
+
+"SiliconFlow" = "SiliconFlow";
+"Show SiliconFlow usage" = "Mostra l’utilizzo di SiliconFlow";
+"SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow sta limitando la frequenza delle richieste. Riprova più tardi.";
+"SiliconFlow request failed. Try refreshing later." = "La richiesta a SiliconFlow non è riuscita. Riprova ad aggiornare più tardi.";
+"SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow ha restituito una risposta sconosciuta. Aggiorna CodexBar e riprova.";
+"Claude Platform session validated and saved." = "Sessione di Claude Platform convalidata e salvata.";
+"Use %@ or %@." = "Usa %@ o %@.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Accedi a %@. Passa in modo riservato l’intestazione Cookie contenente sessionKey a %@. Poi esegui %@.";
+"Read cookie header from stdin" = "Leggi l’intestazione cookie da stdin";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "Facoltativo. Incolla il valore User-Agent della stessa richiesta da cui proviene l’intestazione Cookie.";
 "Paste the WorkBuddy User-Agent as a single request header value." = "Incolla lo User-Agent di WorkBuddy come singolo valore dell’intestazione della richiesta.";
 "TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "Impossibile leggere il riepilogo di fatturazione di TypeSafe. Apri https://console.typesafe.ai/billing per verificare l’accesso; se la pagina si apre, segnala il problema di integrazione.";
 "No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "Nessun cookie di sessione TypeSafe trovato. Accedi a console.typesafe.ai/billing oppure incolla un’intestazione Cookie.";
+
+"Tripo" = "Tripo";
+"Show Tripo usage" = "Mostra l’utilizzo di Tripo";
+"Tripo is rate limiting requests. Try again later." = "Tripo sta limitando la frequenza delle richieste. Riprova più tardi.";
+"Tripo request failed. Try refreshing later." = "La richiesta a Tripo non è riuscita. Riprova ad aggiornare più tardi.";
+"Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo ha restituito una risposta sconosciuta. Aggiorna CodexBar e riprova.";

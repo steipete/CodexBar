@@ -100,8 +100,14 @@ WorkBuddy uses this shared cookie host for its billing-only plugin. Its descript
 version because the website binds sessions to the browser User-Agent; cookie values stay opaque to the script.
 See [WorkBuddy](workbuddy.md) for the request contract, bounded optional reset lookup, and account coverage.
 
+[Tripo](tripo.md) reads available and reserved API credits with one fixed-origin bearer request. It keeps credits
+as credits, without inferred quota windows or dollar conversions.
+
 [abliteration.ai](abliteration.md) uses a fixed-origin bearer request to read prepaid USD credits. It reuses the
 standard API-key field and classified errors, with no browser access or inferred reset schedule.
+
+[SiliconFlow](siliconflow.md) reads `GET /v1/user/info` with the same API-key field. China (`api.siliconflow.cn`)
+is the default and displays CNY; the international origin displays USD. The key is not sent to any other host.
 
 [X API](xapi.md) uses the same cookie host with a bundled `ct0` header echo for account discovery and developer-console
 credits. Its script preserves dollar balances and debt without receiving cookie values or adding a native fetcher.
@@ -173,7 +179,8 @@ defineProvider({
   ignored and the monogram is shown. The host rasterizes accepted icons into a 32×32 bitmap before display;
   canvas sizes are checked before native decoding and limited to 4096×4096. Include a finite `viewBox` or paired
   positive `width`/`height` (numbers or `px`); partial dimensions and other canvas units fall back to the monogram.
-  File icons are not supported.
+  Menu and card renders share a bounded cache of 64 SVG sources; changes to the evaluated SVG refresh its icon.
+  Text-only provider switchers skip icon loading. File icons are not supported.
 - `topLevel` (optional, default `true`): gives an enabled plugin its own provider-switcher tab when Merge Icons is on. Set to `false` to keep an appended card.
   Plugin tabs show a quota gauge using the [menu-bar percentage preference](#menu-bar-percentage). With Auto, they
   use the most constrained reported seven-day window, otherwise the first available primary, secondary, tertiary,
@@ -337,7 +344,10 @@ so portable third-party plugins must use the host helpers below instead of ECMA-
 - `ctx.date.now()`, `iso(text)`, `unixSeconds(number)`, and `unixMillis(number)` create JavaScript dates. `now()` uses
   the host refresh clock.
 - `ctx.date.nowMillis()` returns the host refresh clock as Unix epoch milliseconds for deterministic arithmetic.
-- `ctx.date.nextDailyReset(timeZoneIdentifier, hour)` returns the next wall-clock reset in an IANA time zone.
+- `ctx.date.nextDailyReset(timeZoneIdentifier, hour)` returns the next wall-clock reset strictly after the fetch
+  clock in an IANA time zone. The hour must be an integer from 0 through 23. Resets stay at that local hour across
+  daylight-saving changes. A skipped hour moves forward through the gap; a repeated hour uses its first occurrence,
+  with at most one reset per local day.
 - `ctx.date.addMonths(date, months, timeZoneIdentifier)` adds an integer number of Gregorian calendar months to a
   valid JavaScript `Date`; use negative months to subtract. Both engines call Foundation Calendar with the specified
   IANA time zone, preserving local wall-clock time across DST and clamping month ends (January 31 plus one month is
@@ -384,6 +394,10 @@ cross-process locking. Removing the source file manually does not delete state. 
 cookies, and tokens belong in secure settings. Storage does not alter `ctx.cache` or the settings `persist` allowlist.
 
 Bundled first-party providers that have cut over to JavaScript use the shared runtime's 20-second hung-script watchdog.
+Default API plugin descriptors retain a strategy for each declared timeout, reusing its initialized runtime across
+refreshes. Each fetch still reads current settings and credentials and requests fresh usage. Overlapping fetches use
+separate temporary runtimes so one account cannot consume another account's fetch deadline. Web strategies keep
+their existing source-specific lifecycle.
 A timeout fails that refresh and discards the poisoned worker before returning the error, so an immediate retry starts
 with a fresh context. Cancellation retires the worker in the same way. This is production-default and does not depend
 on `CODEXBAR_JS_PROVIDERS`.
@@ -564,7 +578,9 @@ TypeScript files are transpiled by the selected plugin engine with the bundled S
 type syntax but no module imports, JSX, decorators, or runtime TypeScript features that require module resolution.
 Transpiled output is cached in `~/Library/Caches/CodexBar/plugins/` under a filename containing the SHA-256 of the source
 and the Sucrase version. An unchanged file is a cache hit; any source or compiler-version change produces a new key.
-Transpile failures appear as that plugin's Settings error.
+After successfully compiling a new revision, CodexBar removes that file's superseded cache output. Already loaded
+runtimes keep their own source in memory and continue running. Transpile failures preserve the previous cache output
+and appear as that plugin's Settings error.
 
 ## Install, approve, run, and delete
 

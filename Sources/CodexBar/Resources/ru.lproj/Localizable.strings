@@ -1574,7 +1574,7 @@
 "7-day usage" = "Использование за 7 дней";
 "Total usage" = "Общее использование";
 "claude_oauth_keychain_access_disabled" = "Доступ к Keychain отключён, поэтому CodexBar не может прочитать данные входа в Claude.";
-"claude_oauth_keychain_access_revoked" = "Доступ к Связке ключей Claude был отозван из-за ротации токена в Claude Code. Нажмите «Обновить», чтобы повторно предоставить доступ, или переключите источник использования Claude на CLI/Web.";
+"claude_oauth_keychain_access_revoked" = "Учётные данные OAuth Claude сейчас недоступны для CodexBar. Нажмите «Обновить», чтобы повторить попытку доступа, или переключите источник использования Claude на CLI/Web.";
 "claude_showing_last_known_usage" = "Показаны последние известные данные об использовании (получены %@).";
 "claude_limited_usage_detail" = "Ограниченная детализация использования";
 /* Spend dashboard cost analysis */
@@ -2391,8 +2391,6 @@
 "Unavailable account" = "Аккаунт: Недоступно";
 "%@ over" = "%@ сверх лимита";
 "Paste the Cookie header from a Chrome request to www.workbuddy.cn/profile/plans-usage." = "Вставьте заголовок Cookie из запроса Chrome к www.workbuddy.cn/profile/plans-usage.";
-"User-Agent" = "User-Agent";
-"Optional. Paste the User-Agent value from the same request as the Cookie." = "Необязательно. Вставьте значение User-Agent из того же запроса, что и заголовок Cookie.";
 "Reserved" = "Зарезервировано";
 
 "Add folder…" = "Добавить папку…";
@@ -2797,6 +2795,28 @@
 "Leave blank to use the default name." = "Оставьте поле пустым, чтобы использовать имя по умолчанию.";
 "Rewards" = "Награды";
 "Reward expiry" = "Срок действия наград";
+"China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "По умолчанию — Китай (CNY). Международные аккаунты используют https://api.siliconflow.com (USD).";
+"https://api.siliconflow.cn" = "https://api.siliconflow.cn";
+"SiliconFlow API origin must be https://api.siliconflow.cn or https://api.siliconflow.com." = "Адрес API SiliconFlow должен быть https://api.siliconflow.cn или https://api.siliconflow.com.";
+"SiliconFlow refused the balance query. Check the balance in the SiliconFlow console." = "SiliconFlow отклонил запрос баланса. Проверьте баланс в консоли SiliconFlow.";
+
+"SiliconFlow" = "SiliconFlow";
+"Show SiliconFlow usage" = "Показывать использование SiliconFlow";
+"SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow ограничивает частоту запросов. Повторите попытку позже.";
+"SiliconFlow request failed. Try refreshing later." = "Запрос к SiliconFlow не выполнен. Попробуйте обновить позже.";
+"SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow вернул неизвестный ответ. Обновите CodexBar и повторите попытку.";
+"Claude Platform session validated and saved." = "Сеанс Claude Platform проверен и сохранён.";
+"Use %@ or %@." = "Используйте %@ или %@.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Войдите на %@. Конфиденциально передайте заголовок Cookie с sessionKey в %@. Затем выполните %@.";
+"Read cookie header from stdin" = "Читать заголовок Cookie из stdin";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "Необязательно. Вставьте значение User-Agent из того же запроса, что и заголовок Cookie.";
 "Paste the WorkBuddy User-Agent as a single request header value." = "Вставьте User-Agent WorkBuddy как одно значение заголовка запроса.";
 "TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "Не удалось прочитать сводку платежей TypeSafe. Откройте https://console.typesafe.ai/billing, чтобы проверить доступ. Если страница открывается, сообщите об ошибке интеграции.";
 "No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "Файлы cookie сеанса TypeSafe не найдены. Войдите на console.typesafe.ai/billing или вставьте заголовок Cookie.";
+
+"Tripo" = "Tripo";
+"Show Tripo usage" = "Показывать использование Tripo";
+"Tripo is rate limiting requests. Try again later." = "Tripo ограничивает частоту запросов. Повторите попытку позже.";
+"Tripo request failed. Try refreshing later." = "Запрос к Tripo не выполнен. Попробуйте обновить позже.";
+"Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo вернул неизвестный ответ. Обновите CodexBar и повторите попытку.";
