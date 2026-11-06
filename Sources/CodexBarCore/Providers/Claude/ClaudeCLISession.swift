@@ -169,6 +169,7 @@ actor ClaudeCLISession {
         var lastOutputAt = Date()
         var lastEnterAt = Date()
         var uncheckedFrame = false
+        var usagePanelOpen = false
         var trustPending = false
         var trustKeysLeft = 4
         var stoppedEarly = false
@@ -190,6 +191,9 @@ actor ClaudeCLISession {
                 uncheckedFrame = false
                 let screen = ClaudeCLIScreen.render(text)
                 let normalized = Self.normalizedNeedle(screen)
+                if commandSent, trimmed == "/usage" {
+                    usagePanelOpen = usagePanelOpen || ClaudeStatusProbe.usageCaptureHasSessionValue(normalized)
+                }
                 let trustKeys = Self.workspaceTrustKeys(onScreen: screen, acceptsTrust: self.launchedInProbeDirectory)
                 trustPending = trustKeys != nil || normalized.contains("quicksafetycheck:") ||
                     normalized.contains("doyoutrustthefilesinthisfolder?") ||
@@ -207,7 +211,7 @@ actor ClaudeCLISession {
                         stoppedEarly = true
                         break
                     }
-                    for needle in sendNeedles where !triggeredSends.contains(needle) {
+                    for needle in sendNeedles where !usagePanelOpen && !triggeredSends.contains(needle) {
                         if self.process?.isRunning == true, normalized.contains(needle) {
                             try? self.send("\r")
                             triggeredSends.insert(needle)
@@ -230,7 +234,9 @@ actor ClaudeCLISession {
                     stoppedEarly = true
                     break
                 }
-                self.sendPeriodicEnterIfNeeded(every: request.sendEnterEvery, lastEnterAt: &lastEnterAt)
+                self.sendPeriodicEnterIfNeeded(
+                    every: usagePanelOpen ? nil : request.sendEnterEvery,
+                    lastEnterAt: &lastEnterAt)
             }
             if let proc = self.process, !proc.isRunning {
                 Self.log.warning(
