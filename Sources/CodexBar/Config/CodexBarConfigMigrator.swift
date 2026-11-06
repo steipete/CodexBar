@@ -19,7 +19,7 @@ struct CodexBarConfigMigrator {
         let tokenAccountStore: any ProviderTokenAccountStoring
     }
 
-    private static let legacyMigrationCompletedKey = "codexbar.legacySecretsMigrationCompleted"
+    static let legacyMigrationCompletedKey = "codexbar.legacySecretsMigrationCompleted"
 
     private struct MigrationState {
         var didUpdate = false
@@ -150,15 +150,15 @@ struct CodexBarConfigMigrator {
         }
     }
 
-    private static func migrateLegacySecrets(
-        userDefaults: UserDefaults,
-        stores: LegacyStores,
-        config: inout CodexBarConfig,
-        state: inout MigrationState,
-        log: CodexBarLogger)
+    static func legacySecretSources(stores: LegacyStores)
+        -> [(
+            provider: UsageProvider,
+            store: String,
+            load: () throws -> String?,
+            field: WritableKeyPath<ProviderConfig, String?>)]
     {
         // Provider-specific by design: this one-shot migration names the retired per-provider secret stores.
-        let sources: [(UsageProvider, String, () throws -> String?, WritableKeyPath<ProviderConfig, String?>)] = [
+        [
             (.zai, "zai-token", stores.zaiTokenStore.loadToken, \.apiKey),
             (.synthetic, "synthetic-token", stores.syntheticTokenStore.loadToken, \.apiKey),
             (.copilot, "copilot-token", stores.copilotTokenStore.loadToken, \.apiKey),
@@ -173,7 +173,16 @@ struct CodexBarConfigMigrator {
             (.kimi, "kimi-token", stores.kimiTokenStore.loadToken, \.cookieHeader),
             (.opencode, "opencode-cookie", stores.opencodeCookieStore.loadCookieHeader, \.cookieHeader),
         ]
-        for (provider, store, loader, field) in sources {
+    }
+
+    private static func migrateLegacySecrets(
+        userDefaults: UserDefaults,
+        stores: LegacyStores,
+        config: inout CodexBarConfig,
+        state: inout MigrationState,
+        log: CodexBarLogger)
+    {
+        for (provider, store, loader, field) in self.legacySecretSources(stores: stores) {
             var value = self.loadLegacyString(provider: provider, store: store, state: &state, log: log, loader: loader)
             // Provider-specific by design: Kimi also accepted a cookie in UserDefaults.
             if provider == .kimi, value?.isEmpty ?? true {

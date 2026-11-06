@@ -712,5 +712,19 @@
     "strategies": ["munito.js"],
     "supportsTokenCost": false,
     "workspaceOrder": null
+  },
+  {
+    "availability": [false, false, true],
+    "cliResolution": {"TRIPO": ["tripo"]},
+    "enterpriseHost": false,
+    "environmentAvailability": [[false, false], [true, true], [true, true], [true, true]],
+    "fields": ["secure"],
+    "id": "tripo",
+    "projectToken": "",
+    "projections": {"TRIPO_API_KEY": "fixture-key"},
+    "sourceModes": ["api", "auto"],
+    "strategies": ["tripo.js"],
+    "supportsTokenCost": false,
+    "workspaceOrder": null
   }
 ]

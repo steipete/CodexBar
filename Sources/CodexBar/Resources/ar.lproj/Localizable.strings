@@ -1576,7 +1576,7 @@
 "7-day usage" = "الاستخدام خلال 7 أيام";
 "Total usage" = "إجمالي الاستخدام";
 "claude_oauth_keychain_access_disabled" = "الوصول إلى Keychain معطّل، لذا لا يستطيع CodexBar قراءة معلومات تسجيل الدخول إلى Claude.";
-"claude_oauth_keychain_access_revoked" = "تم إلغاء وصول CodexBar إلى سلسلة مفاتيح Claude بسبب تدوير الرمز المميز في Claude Code. انقر على «تحديث» لمنح الوصول مجددًا، أو بدّل مصدر استخدام Claude إلى CLI/Web.";
+"claude_oauth_keychain_access_revoked" = "بيانات اعتماد Claude OAuth غير متاحة حاليًا لـ CodexBar. انقر على «تحديث» لإعادة محاولة الوصول، أو بدّل مصدر استخدام Claude إلى CLI/Web.";
 "claude_showing_last_known_usage" = "يتم عرض آخر بيانات استخدام معروفة، تم التقاطها %@.";
 "claude_limited_usage_detail" = "تفاصيل الاستخدام محدودة";
 /* Spend dashboard cost analysis */
@@ -2394,8 +2394,6 @@
 "Unavailable account" = "الحساب: غير متوفر";
 "%@ over" = "تجاوز %@";
 "Paste the Cookie header from a Chrome request to www.workbuddy.cn/profile/plans-usage." = "الصق ترويسة Cookie من طلب Chrome إلى www.workbuddy.cn/profile/plans-usage.";
-"User-Agent" = "User-Agent";
-"Optional. Paste the User-Agent value from the same request as the Cookie." = "اختياري. الصق قيمة User-Agent من الطلب نفسه الذي يحتوي على Cookie.";
 "Reserved" = "محجوز";
 
 "Add folder…" = "إضافة مجلد…";
@@ -2800,6 +2798,28 @@
 "Leave blank to use the default name." = "اتركه فارغًا لاستخدام الاسم الافتراضي.";
 "Rewards" = "المكافآت";
 "Reward expiry" = "انتهاء صلاحية المكافآت";
+"China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "الصين (CNY) هي الافتراضي. الحسابات الدولية تستخدم https://api.siliconflow.com (USD).";
+"https://api.siliconflow.cn" = "https://api.siliconflow.cn";
+"SiliconFlow API origin must be https://api.siliconflow.cn or https://api.siliconflow.com." = "يجب أن يكون أصل واجهة SiliconFlow هو https://api.siliconflow.cn أو https://api.siliconflow.com.";
+"SiliconFlow refused the balance query. Check the balance in the SiliconFlow console." = "رفض SiliconFlow الاستعلام عن الرصيد. تحقّق من الرصيد في لوحة تحكم SiliconFlow.";
+
+"SiliconFlow" = "SiliconFlow";
+"Show SiliconFlow usage" = "إظهار استخدام SiliconFlow";
+"SiliconFlow is rate limiting requests. Try again later." = "يفرض SiliconFlow حدًا على عدد الطلبات. حاول لاحقًا.";
+"SiliconFlow request failed. Try refreshing later." = "فشل طلب SiliconFlow. حاول التحديث لاحقًا.";
+"SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "أعاد SiliconFlow استجابة غير معروفة. حدّث CodexBar وحاول مجددًا.";
+"Claude Platform session validated and saved." = "تم التحقق من جلسة Claude Platform وحفظها.";
+"Use %@ or %@." = "استخدم %@ أو %@.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "سجّل الدخول إلى %@. مرّر ترويسة Cookie التي تحتوي على sessionKey بشكل خاص إلى %@. ثم شغّل %@.";
+"Read cookie header from stdin" = "قراءة ترويسة ملفات تعريف الارتباط من stdin";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "اختياري. الصق قيمة User-Agent من الطلب نفسه الذي يحتوي على Cookie.";
 "Paste the WorkBuddy User-Agent as a single request header value." = "ألصق User-Agent الخاص بـ WorkBuddy كقيمة واحدة لترويسة الطلب.";
 "TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "تعذّرت قراءة ملخص فوترة TypeSafe. افتح https://console.typesafe.ai/billing للتحقق من إمكانية الوصول؛ إذا فُتحت الصفحة، فأبلغ عن خلل التكامل.";
 "No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "لم يتم العثور على ملفات تعريف ارتباط لجلسة TypeSafe. سجّل الدخول في console.typesafe.ai/billing أو الصق ترويسة Cookie.";
+
+"Tripo" = "Tripo";
+"Show Tripo usage" = "إظهار استخدام Tripo";
+"Tripo is rate limiting requests. Try again later." = "يفرض Tripo حدًا على عدد الطلبات. حاول لاحقًا.";
+"Tripo request failed. Try refreshing later." = "فشل طلب Tripo. حاول التحديث لاحقًا.";
+"Tripo returned an unrecognized response. Update CodexBar and try again." = "أعاد Tripo استجابة غير معروفة. حدّث CodexBar وحاول مجددًا.";

@@ -353,8 +353,7 @@ enum SpendDashboardSource {
                 displayName: store.metadata(for: provider).displayName,
                 snapshot: snapshot,
                 // Provider-specific by design: Pi reports local history rather than a subscription feed.
-                sourceKind: provider == .pi ? .localHistory : .native,
-                accounting: currentPublication.accounting))
+                sourceKind: provider == .pi ? .localHistory : .native))
         }
         return SpendDashboardLoadRequest(
             configuration: configuration,

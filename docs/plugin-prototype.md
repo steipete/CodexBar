@@ -165,7 +165,8 @@ supply standard ECMAScript built-ins, but no browser or Node host environment. T
 - `ctx.date.nowMillis()` returns that same refresh clock as Unix epoch milliseconds for deterministic date arithmetic
   (used by the z.ai quota-rate row).
 - `ctx.date.nextDailyReset(timeZoneIdentifier, hour)` returns the next wall-clock hour in an IANA time zone, including
-  DST transitions. Bundled plugins may use this for IANA daily resets.
+  DST transitions, strictly after the fetch clock. A skipped hour moves forward through the gap; a repeated hour uses
+  its first occurrence, with at most one reset per local day. Bundled plugins may use this for IANA daily resets.
 - `ctx.jwt.decode(token)` decodes the JSON payload segment without verifying a signature.
 - `ctx.pct(used, limit)` returns a finite percentage clamped to 0–100; a non-positive limit maps to 100.
 
