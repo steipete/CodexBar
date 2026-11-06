@@ -49,7 +49,7 @@ enum ProviderPluginSnapshotMapper {
             allowed: [
                 "primary", "secondary", "tertiary", "extraWindows", "cost", "costUsage", "details",
                 "identity", "iconProvider", "menuBarItems",
-                "subscriptionRenewsAt", "subscriptionExpiresAt", "dataConfidence", "empty",
+                "subscriptionRenewsAt", "subscriptionExpiresAt", "observedAt", "dataConfidence", "empty",
             ],
             path: "usage")
 
@@ -57,7 +57,16 @@ enum ProviderPluginSnapshotMapper {
         let secondary = try self.window(value, property: "secondary", percentPolicy: percentPolicy)
         let tertiary = try self.window(value, property: "tertiary", percentPolicy: percentPolicy)
         let extraRateWindows = try self.extraWindows(value, percentPolicy: percentPolicy)
-        let providerCost = try self.cost(value, now: now)
+        let observedAt = try self.optionalDate(value, property: "observedAt") ?? now
+        guard observedAt.timeIntervalSince1970.isFinite else {
+            throw ProviderPluginError.invalidSnapshot("observedAt must be a valid date")
+        }
+        guard observedAt.timeIntervalSince(now) <= 60 else {
+            throw ProviderPluginError.invalidSnapshot("observedAt is more than one minute ahead of fetch time")
+        }
+        // Allow small clock differences without publishing a future update time.
+        let updatedAt = min(observedAt, now)
+        let providerCost = try self.cost(value, updatedAt: updatedAt)
         let costUsage = try self.costUsage(value)
         let details = try self.details(value)
         let identity = try self.identity(value, provider: provider)
@@ -94,7 +103,7 @@ enum ProviderPluginSnapshotMapper {
             menuBarItems: menuBarItems,
             subscriptionExpiresAt: subscriptionExpiresAt,
             subscriptionRenewsAt: subscriptionRenewsAt,
-            updatedAt: now,
+            updatedAt: updatedAt,
             identity: identity,
             dataConfidence: dataConfidence)
     }
@@ -343,7 +352,7 @@ enum ProviderPluginSnapshotMapper {
         }
     }
 
-    private static func cost(_ root: any ProviderPluginValue, now: Date) throws -> ProviderCostSnapshot? {
+    private static func cost(_ root: any ProviderPluginValue, updatedAt: Date) throws -> ProviderCostSnapshot? {
         guard let value = root.property("cost"), !value.isUndefined, !value.isNull else { return nil }
         guard value.isObject, !value.isArray else {
             throw ProviderPluginError.invalidSnapshot("cost must be an object")
@@ -366,7 +375,7 @@ enum ProviderPluginSnapshotMapper {
             resetsAt: resetsAt,
             nextRegenAmount: nextRegenAmount,
             balance: balance,
-            updatedAt: now)
+            updatedAt: updatedAt)
     }
 
     private static func costUsage(

@@ -4,6 +4,45 @@ import Testing
 
 struct ProviderPluginSnapshotContractTests {
     @Test(arguments: ProviderPluginTransportTests.engines)
+    func `repeated fetches use the measurement time even when usage does not change`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let start = try #require(ISO8601DateParser.parse("2025-01-01T10:00:00Z"))
+        let runtime = try ProviderPluginTransportTests.runtime(engine, body: """
+        const sample = { primary: { usedPercent: 25 }, cost: { used: 25, limit: 100, currency: 'USD' } };
+        if (ctx.env.supportsObservedAt) sample.observedAt = '2025-01-01T10:00:00Z';
+        return sample;
+        """)
+        for minutes in [12, 13] {
+            let snapshot = try await runtime.fetchUsage(now: start.addingTimeInterval(Double(minutes * 60)))
+            #expect(snapshot.updatedAt == start)
+            #expect(snapshot.providerCost?.updatedAt == start)
+        }
+        let next = start.addingTimeInterval(14 * 60)
+        let refreshed = try ProviderPluginTransportTests.runtime(engine, body: """
+        return { usage: { primary: { usedPercent: 25 }, observedAt: new Date('2025-01-01T10:14:00Z') } };
+        """)
+        #expect(try await refreshed.fetchUsage(now: next.addingTimeInterval(10)).updatedAt == next)
+    }
+
+    @Test(arguments: ProviderPluginTransportTests.engines)
+    func `missing observations fall back to fetch time and minor clock skew is capped`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let now = try #require(ISO8601DateParser.parse("2025-01-01T10:12:00Z"))
+        for field in ["", ", observedAt: null", ", observedAt: '2025-01-01T10:12:30Z'"] {
+            let runtime = try ProviderPluginTransportTests.runtime(engine, body: "return { empty: true\(field) };")
+            #expect(try await runtime.fetchUsage(now: now).updatedAt == now)
+        }
+        for invalid in ["'not-a-date'", "0", "new Date(NaN)", "'2025-01-01T10:13:01Z'"] {
+            let runtime = try ProviderPluginTransportTests.runtime(engine, body: """
+            return { primary: { usedPercent: 25 }, observedAt: \(invalid) };
+            """)
+            await #expect(throws: ProviderPluginError.self) { try await runtime.fetchUsage(now: now) }
+        }
+    }
+
+    @Test(arguments: ProviderPluginTransportTests.engines)
     func `extra window knowledge preserves false and defaults to true`(engine: ProviderPluginEngineKind) async throws {
         let runtime = try ProviderPluginTransportTests.runtime(engine, body: """
         return { extraWindows: [
@@ -92,7 +131,8 @@ struct ProviderPluginSnapshotContractTests {
     @Test(arguments: ProviderPluginTransportTests.engines)
     func `empty marker does not bypass snapshot validation`(engine: ProviderPluginEngineKind) async throws {
         for body in [
-            "{}", "{ empty: false }", "{ empty: 'true' }", "{ empty: 1 }", "{ empty: null }",
+            "{}", "{ observedAt: '2025-01-01T10:00:00Z' }", "{ empty: false }", "{ empty: 'true' }", "{ empty: 1 }",
+            "{ empty: null }",
             "{ empty: true, primary: { usedPercent: 'wrong' } }", "{ empty: true, identity: [] }",
         ] {
             let runtime = try ProviderPluginTransportTests.runtime(engine, body: "return \(body);")

@@ -139,6 +139,8 @@ interface CodexBarUsageSnapshot {
   iconProvider?: string | null;
   /** Up to 8 ordered logo/percentage pairs in one status item. Requires ctx.env.supportsMenuBarItems === true. */
   menuBarItems?: CodexBarMenuBarItem[] | null;
+  /** When the source measured this usage. Defaults to the fetch time. */
+  observedAt?: Date | string | null;
   subscriptionRenewsAt?: Date | string | null;
   subscriptionExpiresAt?: Date | string | null;
   dataConfidence?: "exact" | "estimated" | "percentOnly" | "unknown";
@@ -302,6 +304,7 @@ interface CodexBarPluginContext {
     /** Older hosts omit this flag and reject the iconProvider snapshot field. */
     readonly supportsIconProvider?: boolean;
     readonly supportsMenuBarItems?: boolean;
+    readonly supportsObservedAt?: boolean;
   };
   readonly cache: {
     get<T = unknown>(key: string): T | undefined;

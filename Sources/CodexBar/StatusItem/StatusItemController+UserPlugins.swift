@@ -312,7 +312,8 @@ struct UserPluginMenuCardView: View {
                 .background(self.tint, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 VStack(alignment: .leading, spacing: 1) {
                     Text(self.plugin.manifest.name).font(.headline)
-                    Text(self.plugin.fileURL.lastPathComponent)
+                    Text(self.subtitle)
+                        .help(self.plugin.fileURL.lastPathComponent)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -362,6 +363,11 @@ struct UserPluginMenuCardView: View {
         .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
         .padding(.vertical, 8)
         .frame(width: self.width, alignment: .leading)
+    }
+
+    private var subtitle: String {
+        guard self.error == nil, let snapshot else { return self.plugin.fileURL.lastPathComponent }
+        return UsageFormatter.updatedString(from: snapshot.updatedAt)
     }
 
     @ViewBuilder
@@ -426,6 +432,10 @@ struct UserPluginMenuCardView: View {
         let resets = [snapshot?.primary, snapshot?.secondary, snapshot?.tertiary].map { window in
             window.flatMap { UsageFormatter.resetLine(for: $0, style: resetStyle, now: now) } ?? ""
         }
+        let freshness = snapshot.map {
+            error == nil ? UsageFormatter.updatedString(from: $0.updatedAt, now: now) :
+                LastKnownUsagePresentation.message(capturedAt: $0.updatedAt, now: now)
+        }
         return ([
             codexBarLocalizationSignature(),
             snapshot?.updatedAt.timeIntervalSinceReferenceDate.description ?? "none",
@@ -434,9 +444,7 @@ struct UserPluginMenuCardView: View {
             snapshot?.secondary?.title ?? "",
             snapshot?.tertiary?.title ?? "",
             error ?? "",
-            error == nil ? "" : snapshot.map {
-                LastKnownUsagePresentation.message(capturedAt: $0.updatedAt, now: now)
-            } ?? "",
+            freshness ?? "",
         ] + resets).joined(separator: "|")
     }
 }

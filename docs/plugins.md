@@ -403,7 +403,35 @@ across a plugin's lifetime. JavaScriptCore registration and completed-fetch call
 contexts alive. Completed-fetch watchdogs copy the timeout value, allowing retired runtimes to be released
 as soon as the fetch finishes.
 
+## Local quota example
+
+[Local Quota](examples/local-quota.js) is an optional user plugin that reads `GET /v1/quota` from an explicitly
+approved IPv4 loopback origin. It shows remaining quota and publishes the exporter's observation time when supported.
+To try it with a synthetic sample, run the following in a terminal:
+
+```sh
+demo_dir=$(mktemp -d)
+mkdir "$demo_dir/v1"
+printf '{"version":1,"used":25,"limit":100,"observedAt":"%s"}\n' "$(date -u +%FT%TZ)" > "$demo_dir/v1/quota"
+python3 -m http.server 18765 --bind 127.0.0.1 --directory "$demo_dir"
+```
+
+Install the example file in **Settings → Plugins**, set **Local origin** to `http://127.0.0.1:18765`, and approve
+that origin. The sample shows 75 remaining. Refreshing reads the same observation until you replace the file.
+The example rejects samples older than 15 minutes by default. Stop the demo server with Ctrl-C.
+
 ## Snapshot result
+
+A plugin reading cached measurements can set `observedAt` on its usage snapshot to the time the source measured usage.
+For example, if a plugin fetches a 10:00 sample at 10:12, the menu shows the sample as 12 minutes old.
+Omitting the field or returning `null` uses the fetch time. Supply a JavaScript Date or ISO-8601 string.
+Dates up to one minute ahead are capped at fetch time to allow for clock skew. Invalid dates and later timestamps fail
+validation. This field does not schedule a refresh.
+Older hosts reject unknown snapshot fields, so check the capability before setting it:
+
+```js
+if (ctx.env.supportsObservedAt === true) snapshot.observedAt = sample.observedAt;
+```
 
 Return at least one rate window, cost object, detail section, or non-empty identity field:
 

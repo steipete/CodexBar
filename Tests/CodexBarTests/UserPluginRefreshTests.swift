@@ -244,7 +244,8 @@ struct UserPluginRefreshTests {
         #expect(aged.contains(LastKnownUsagePresentation.message(capturedAt: snapshot.updatedAt, now: later)))
         let recovered = UserPluginMenuCardView.fingerprint(
             snapshot: snapshot, error: nil, resetStyle: .countdown, now: now)
-        #expect(recovered == UserPluginMenuCardView.fingerprint(
+        #expect(recovered.contains(UsageFormatter.updatedString(from: snapshot.updatedAt, now: now)))
+        #expect(recovered != UserPluginMenuCardView.fingerprint(
             snapshot: snapshot, error: nil, resetStyle: .countdown, now: later))
         #expect(!recovered.contains(LastKnownUsagePresentation.message(capturedAt: snapshot.updatedAt, now: now)))
         #expect(UserPluginMenuCardView.fingerprint(snapshot: nil, error: error, resetStyle: .countdown, now: now) ==
