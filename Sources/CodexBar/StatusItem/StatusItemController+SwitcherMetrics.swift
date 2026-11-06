@@ -72,8 +72,21 @@ extension StatusItemController {
         } else {
             snapshot?.switcherWeeklyWindow(for: provider, showUsed: showUsed)
         }
-        if let window {
-            return showUsed ? window.usedPercent : window.remainingPercent
+        let displayWindow: RateWindow? = if let window, !window.isSyntheticPlaceholder {
+            window
+        } else if provider == .claude,
+                  let snapshot,
+                  let spendWindow = MenuBarMetricWindowResolver.claudeSpendLimitWindow(snapshot: snapshot),
+                  snapshot.providerCost?.used.isFinite == true,
+                  snapshot.providerCost?.limit.isFinite == true,
+                  spendWindow.usedPercent.isFinite
+        {
+            spendWindow
+        } else {
+            window
+        }
+        if let displayWindow {
+            return showUsed ? displayWindow.usedPercent : displayWindow.remainingPercent
         }
         guard preference == .automatic,
               let snapshot,

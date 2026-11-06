@@ -188,6 +188,145 @@ struct StatusItemControllerMenuTests {
     }
 
     @Test
+    func `claude switcher uses monthly extra usage cap when normal windows are unavailable`() {
+        let snapshot = self.makeSnapshot(
+            primary: nil,
+            secondary: nil,
+            providerCost: ProviderCostSnapshot(
+                used: 48,
+                limit: 100,
+                currencyCode: "USD",
+                period: "Monthly cap",
+                updatedAt: Date()))
+
+        let remaining = StatusItemController.switcherWeeklyMetricPercent(
+            for: .claude,
+            snapshot: snapshot,
+            showUsed: false,
+            preference: .secondary)
+        let automatic = StatusItemController.switcherWeeklyMetricPercent(
+            for: .claude,
+            snapshot: snapshot,
+            showUsed: false)
+        let used = StatusItemController.switcherWeeklyMetricPercent(
+            for: .claude,
+            snapshot: snapshot,
+            showUsed: true,
+            preference: .secondary)
+
+        #expect(remaining == 52)
+        #expect(automatic == 52)
+        #expect(used == 48)
+    }
+
+    @Test
+    func `claude switcher replaces synthetic session placeholder with monthly extra usage cap`() {
+        let snapshot = self.makeSnapshot(
+            primary: RateWindow(
+                usedPercent: 0,
+                windowMinutes: 5 * 60,
+                resetsAt: nil,
+                resetDescription: nil,
+                isSyntheticPlaceholder: true),
+            secondary: nil,
+            providerCost: ProviderCostSnapshot(
+                used: 48,
+                limit: 100,
+                currencyCode: "USD",
+                period: "Monthly cap",
+                updatedAt: Date()))
+
+        let percent = StatusItemController.switcherWeeklyMetricPercent(
+            for: .claude,
+            snapshot: snapshot,
+            showUsed: false,
+            preference: .secondary)
+
+        #expect(percent == 52)
+    }
+
+    @Test
+    func `claude switcher keeps normal account quota ahead of monthly extra usage cap`() {
+        let snapshot = self.makeSnapshot(
+            primary: RateWindow(usedPercent: 20, windowMinutes: 5 * 60, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 65, windowMinutes: 7 * 24 * 60, resetsAt: nil, resetDescription: nil),
+            providerCost: ProviderCostSnapshot(
+                used: 48,
+                limit: 100,
+                currencyCode: "USD",
+                period: "Monthly cap",
+                updatedAt: Date()))
+
+        let percent = StatusItemController.switcherWeeklyMetricPercent(
+            for: .claude,
+            snapshot: snapshot,
+            showUsed: false,
+            preference: .secondary)
+
+        #expect(percent == 35)
+    }
+
+    @Test
+    func `claude switcher omits monthly extra usage cap when data is absent or invalid`() {
+        let missing = self.makeSnapshot(primary: nil, secondary: nil)
+        let invalid = self.makeSnapshot(
+            primary: nil,
+            secondary: nil,
+            providerCost: ProviderCostSnapshot(
+                used: 48,
+                limit: 0,
+                currencyCode: "USD",
+                period: "Monthly cap",
+                updatedAt: Date()))
+        let nonFinite = self.makeSnapshot(
+            primary: nil,
+            secondary: nil,
+            providerCost: ProviderCostSnapshot(
+                used: .nan,
+                limit: 100,
+                currencyCode: "USD",
+                period: "Monthly cap",
+                updatedAt: Date()))
+        let adminAPI = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            providerCost: ProviderCostSnapshot(
+                used: 48,
+                limit: 100,
+                currencyCode: "USD",
+                period: "Monthly cap",
+                updatedAt: Date()),
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: UsageProvider.claude.instanceID,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: "Admin API"))
+
+        for snapshot in [missing, invalid, nonFinite, adminAPI] {
+            #expect(StatusItemController.switcherWeeklyMetricPercent(
+                for: .claude,
+                snapshot: snapshot,
+                showUsed: false,
+                preference: .secondary) == nil)
+        }
+
+        #expect(StatusItemController.switcherWeeklyMetricPercent(
+            for: .codex,
+            snapshot: self.makeSnapshot(
+                primary: nil,
+                secondary: nil,
+                providerCost: ProviderCostSnapshot(
+                    used: 48,
+                    limit: 100,
+                    currencyCode: "USD",
+                    period: "Monthly cap",
+                    updatedAt: Date())),
+            showUsed: false,
+            preference: .secondary) == nil)
+    }
+
+    @Test
     func `switcher preserves provider quota when no weekly allowance exists`() {
         let monthly = RateWindow(
             usedPercent: 28,
