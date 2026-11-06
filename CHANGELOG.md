@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Usage & Spend: reduce opening memory and CPU by deferring offscreen charts, ledger rows, and activity views; totals and exports stay unchanged.
 - Plugins: reclaim superseded TypeScript compilation output after edits while preserving loaded runtimes and other plugins' caches.
 - Codex: include flat and legacy cost history when `sessions` or `archived_sessions` is symlinked to another disk.
 - Reset timing: preserve the reported local clock time in MiniMax HTML and Codex diagnostic resets after daylight-saving changes.
