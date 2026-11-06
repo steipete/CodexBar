@@ -125,6 +125,55 @@ struct CursorAccountBoundaryTests {
         #expect(CursorProviderDescriptor.menuBarExtras(snapshot: grok).isEmpty)
     }
 
+    @Test
+    func `private CLI cache preserves explicit unified evidence through disk round trip`() throws {
+        let live = Self.status(isUnified: true).toUsageSnapshot(now: Self.now)
+        let loaded = try Self.cached(live, provider: .cursor)
+        #expect(loaded.identity == nil)
+        #expect(loaded.cursorHasUnifiedWeeklyPool)
+        #expect(loaded.primary?.usedPercent == 80)
+        #expect(CursorProviderDescriptor.primaryLabel(snapshot: loaded) == "Weekly")
+        #expect(CursorProviderDescriptor.sharedWeeklyPool(snapshot: loaded) == live.primary)
+        #expect(CursorProviderDescriptor.primaryLabel(snapshot: loaded.scoped(to: .cursor)) == "Weekly")
+    }
+
+    @Test
+    func `private legacy CLI cache cannot infer unification from a weekly billing shape`() throws {
+        let independent = Self.status(isUnified: false).toUsageSnapshot(now: Self.now)
+        let loaded = try Self.cached(independent, provider: .cursor)
+        #expect(loaded.identity == nil)
+        #expect(!loaded.cursorHasUnifiedWeeklyPool)
+        #expect(loaded.primary?.windowMinutes == 10080)
+        #expect(loaded.primary?.usedPercent == 20)
+        #expect(CursorProviderDescriptor.primaryLabel(snapshot: loaded) == nil)
+        #expect(CursorProviderDescriptor.sharedWeeklyPool(snapshot: loaded) == nil)
+        #expect(CursorProviderDescriptor.menuBarExtras(snapshot: loaded).first?.window.usedPercent == 80)
+    }
+
+    @Test
+    func `non Cursor CLI cache entries cannot retain Cursor unified evidence`() throws {
+        let live = Self.status(isUnified: true).toUsageSnapshot(now: Self.now)
+        let loaded = try Self.cached(live, provider: .grok)
+        #expect(loaded.identity == nil)
+        #expect(!loaded.cursorHasUnifiedWeeklyPool)
+        #expect(CursorProviderDescriptor.sharedWeeklyPool(snapshot: loaded) == nil)
+        #expect(CursorProviderDescriptor.primaryLabel(snapshot: loaded) == nil)
+    }
+
+    private static func cached(_ snapshot: UsageSnapshot, provider: UsageProvider) throws -> UsageSnapshot {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CursorPrivateCacheBoundary-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("cache/usage.json")
+        let entry = try #require(CLIUsageCache.Entry(provider: provider, usage: snapshot))
+        try CLIUsageCache.write(CLIUsageCache(entries: [entry]), to: url)
+        let raw = try String(contentsOf: url, encoding: .utf8)
+        #expect(!raw.contains(Self.email))
+        #expect(!raw.contains("cursor-fixture-account"))
+        let loaded = try #require(CLIUsageCache.load(from: url))
+        return try #require(loaded.hit(for: provider, now: Self.now)).entry.usage
+    }
+
     #if os(macOS)
     private enum UnexpectedFallback: Error {
         case perform
