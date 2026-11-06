@@ -1306,7 +1306,8 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\nveya yalnızca session_id değerini yapıştırın";
 "Clear" = "Temizle";
 "No matching providers" = "Eşleşen sağlayıcı yok";
-"Search providers" = "Sağlayıcı ara";
+"No matching settings or providers" = "Eşleşen ayar veya sağlayıcı yok";
+"Search settings" = "Ayarlarda ara";
 "Re-login at claude.ai" = "claude.ai'da yeniden oturum aç";
 "Request quota: %@ / %@" = "İstek kotası: %@ / %@";
 "display_mode_reset_time" = "Sıfırlama zamanı";
@@ -2803,3 +2804,7 @@
 "An expiring reset credit was used automatically. Usage limits are being refreshed." = "Süresi dolmak üzere olan bir sıfırlama otomatik kullanıldı. Kullanım sınırları yenileniyor.";
 "Codex reset credit could not be used" = "Codex sıfırlaması kullanılamadı";
 "Automatic redemption did not complete. Check Codex before the credit expires." = "Otomatik kullanım tamamlanamadı. Sıfırlamanın süresi dolmadan Codex’i kontrol edin.";
+
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "TypeSafe faturalandırma özeti okunamadı. Erişimi kontrol etmek için https://console.typesafe.ai/billing adresini açın. Sayfa açılıyorsa entegrasyon hatasını bildirin.";
+
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "TypeSafe oturum çerezleri bulunamadı. console.typesafe.ai/billing adresinde oturum açın veya bir Cookie başlığı yapıştırın.";

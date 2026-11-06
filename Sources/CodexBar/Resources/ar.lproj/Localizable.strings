@@ -1312,7 +1312,8 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=... \n\n أو لصق القيمة session_id فقط";
 "Clear" = "واضح";
 "No matching providers" = "لا يوجد مزودون مطابقون";
-"Search providers" = "مزودو البحث";
+"No matching settings or providers" = "لا توجد إعدادات أو مزودون مطابقون";
+"Search settings" = "البحث في الإعدادات";
 
 "language_vietnamese" = "الفيتناميون";
 "language_indonesian" = "بهاسا إندونيسيا";
@@ -2804,3 +2805,7 @@
 "An expiring reset credit was used automatically. Usage limits are being refreshed." = "استُخدمت بطاقة توشك على الانتهاء تلقائيًا. جارٍ تحديث حدود الاستخدام.";
 "Codex reset credit could not be used" = "تعذّر استخدام بطاقة إعادة ضبط Codex";
 "Automatic redemption did not complete. Check Codex before the credit expires." = "لم يكتمل الاستخدام التلقائي. تحقّق من Codex قبل انتهاء صلاحية البطاقة.";
+
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "تعذّرت قراءة ملخص فوترة TypeSafe. افتح https://console.typesafe.ai/billing للتحقق من إمكانية الوصول؛ إذا فُتحت الصفحة، فأبلغ عن خلل التكامل.";
+
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "لم يتم العثور على ملفات تعريف ارتباط لجلسة TypeSafe. سجّل الدخول في console.typesafe.ai/billing أو الصق ترويسة Cookie.";

@@ -43,7 +43,8 @@ struct CLIOpenAIDashboardCacheTests {
         let restored = CodexBarCLI.loadOpenAIDashboardIfAvailable(
             usage: self.makeUsage(email: nil),
             sourceLabel: "openai-web",
-            context: context)
+            context: context,
+            now: Date(timeIntervalSince1970: 2000))
 
         #expect(restored == dashboard)
     }
@@ -73,7 +74,8 @@ struct CLIOpenAIDashboardCacheTests {
         let restored = CodexBarCLI.loadOpenAIDashboardIfAvailable(
             usage: self.makeUsage(email: "shared@example.com"),
             sourceLabel: "codex-cli",
-            context: context)
+            context: context,
+            now: Date(timeIntervalSince1970: 2000))
 
         #expect(restored == nil)
         #expect(OpenAIDashboardCacheStore.load() == nil)
@@ -103,7 +105,8 @@ struct CLIOpenAIDashboardCacheTests {
         let restored = CodexBarCLI.loadOpenAIDashboardIfAvailable(
             usage: self.makeUsage(email: "owner@example.com"),
             sourceLabel: "codex-cli",
-            context: context)
+            context: context,
+            now: Date(timeIntervalSince1970: 2000))
 
         #expect(restored == nil)
         #expect(OpenAIDashboardCacheStore.load() == nil)
@@ -133,7 +136,8 @@ struct CLIOpenAIDashboardCacheTests {
         let restored = CodexBarCLI.loadOpenAIDashboardIfAvailable(
             usage: self.makeUsage(email: "owner@example.com"),
             sourceLabel: "codex-cli",
-            context: context)
+            context: context,
+            now: Date(timeIntervalSince1970: 2000))
 
         #expect(restored == nil)
         #expect(OpenAIDashboardCacheStore.load() == nil)
@@ -164,7 +168,8 @@ struct CLIOpenAIDashboardCacheTests {
         let restored = CodexBarCLI.loadOpenAIDashboardIfAvailable(
             usage: self.makeUsage(email: "shared@example.com"),
             sourceLabel: "codex-cli",
-            context: context)
+            context: context,
+            now: Date(timeIntervalSince1970: 2000))
 
         #expect(restored == nil)
         #expect(OpenAIDashboardCacheStore.load() == nil)
@@ -194,7 +199,8 @@ struct CLIOpenAIDashboardCacheTests {
         let restored = CodexBarCLI.loadOpenAIDashboardIfAvailable(
             usage: self.makeUsage(email: "shared@example.com"),
             sourceLabel: "codex-cli",
-            context: context)
+            context: context,
+            now: Date(timeIntervalSince1970: 2000))
 
         #expect(restored == nil)
         #expect(OpenAIDashboardCacheStore.load() == nil)
@@ -222,7 +228,8 @@ struct CLIOpenAIDashboardCacheTests {
         let restored = CodexBarCLI.loadOpenAIDashboardIfAvailable(
             usage: self.makeUsage(email: "owner@example.com"),
             sourceLabel: "codex-cli",
-            context: context)
+            context: context,
+            now: Date(timeIntervalSince1970: 2000))
 
         #expect(restored == dashboard)
     }
@@ -249,7 +256,8 @@ struct CLIOpenAIDashboardCacheTests {
         let restored = CodexBarCLI.loadOpenAIDashboardIfAvailable(
             usage: self.makeUsage(email: "owner@example.com"),
             sourceLabel: "oauth",
-            context: context)
+            context: context,
+            now: Date(timeIntervalSince1970: 2000))
 
         #expect(restored == dashboard)
     }
@@ -275,7 +283,8 @@ struct CLIOpenAIDashboardCacheTests {
         let restored = CodexBarCLI.loadOpenAIDashboardIfAvailable(
             usage: self.makeUsage(email: "owner@example.com"),
             sourceLabel: "openai-web",
-            context: context)
+            context: context,
+            now: Date(timeIntervalSince1970: 2000))
 
         #expect(restored == nil)
         #expect(OpenAIDashboardCacheStore.load() == nil)
@@ -305,10 +314,41 @@ struct CLIOpenAIDashboardCacheTests {
         let restored = CodexBarCLI.loadOpenAIDashboardIfAvailable(
             usage: self.makeUsage(email: "owner@example.com"),
             sourceLabel: "codex-cli",
-            context: context)
+            context: context,
+            now: Date(timeIntervalSince1970: 2000))
 
         #expect(restored == nil)
         #expect(OpenAIDashboardCacheStore.load() == nil)
+    }
+
+    @Test(arguments: [
+        (0.0, true), (1500.0, true), (3600.0, true), (3601.0, false),
+        (5_616_000.0, false), (-60.0, true), (-61.0, false),
+    ])
+    func `oauth dashboard attachment is bounded by cache age`(age: TimeInterval, shouldAttach: Bool) throws {
+        let now = Date(timeIntervalSince1970: 10_000_000)
+        let authHome = try self.makeAuthHome(email: "owner@example.com", accountId: "acct-owner")
+        defer { try? FileManager.default.removeItem(at: authHome) }
+        let context = self.makeContext(
+            authHome: authHome,
+            knownOwners: [
+                CodexDashboardKnownOwnerCandidate(
+                    identity: .providerAccount(id: "acct-owner"),
+                    normalizedEmail: "owner@example.com"),
+            ])
+        let dashboard = self.makeDashboard(email: "owner@example.com", updatedAt: now.addingTimeInterval(-age))
+        OpenAIDashboardCacheStore.save(OpenAIDashboardCache(accountEmail: "owner@example.com", snapshot: dashboard))
+        defer { OpenAIDashboardCacheStore.clear() }
+
+        let restored = CodexBarCLI.loadOpenAIDashboardIfAvailable(
+            usage: self.makeUsage(email: "owner@example.com", updatedAt: now),
+            sourceLabel: "oauth",
+            context: context,
+            now: now)
+
+        #expect(restored == (shouldAttach ? dashboard : nil))
+        // Age alone must not delete the shared cache, which other surfaces can display as history.
+        #expect(OpenAIDashboardCacheStore.load()?.snapshot == dashboard)
     }
 
     private func makeContext(
@@ -336,7 +376,10 @@ struct CLIOpenAIDashboardCacheTests {
             browserDetection: browserDetection)
     }
 
-    private func makeUsage(email: String?) -> UsageSnapshot {
+    private func makeUsage(
+        email: String?,
+        updatedAt: Date = Date(timeIntervalSince1970: 2000)) -> UsageSnapshot
+    {
         UsageSnapshot(
             primary: RateWindow(
                 usedPercent: 10,
@@ -344,7 +387,7 @@ struct CLIOpenAIDashboardCacheTests {
                 resetsAt: Date(timeIntervalSince1970: 7200),
                 resetDescription: nil),
             secondary: nil,
-            updatedAt: Date(timeIntervalSince1970: 2000),
+            updatedAt: updatedAt,
             identity: ProviderIdentitySnapshot(
                 providerID: .codex,
                 accountEmail: email,
@@ -352,7 +395,10 @@ struct CLIOpenAIDashboardCacheTests {
                 loginMethod: nil))
     }
 
-    private func makeDashboard(email: String) -> OpenAIDashboardSnapshot {
+    private func makeDashboard(
+        email: String,
+        updatedAt: Date = Date(timeIntervalSince1970: 2000)) -> OpenAIDashboardSnapshot
+    {
         let creditEvents = [
             CreditEvent(
                 date: Date(timeIntervalSince1970: 1000),
@@ -379,7 +425,7 @@ struct CLIOpenAIDashboardCacheTests {
             secondaryLimit: nil,
             creditsRemaining: 42,
             accountPlan: "pro",
-            updatedAt: Date(timeIntervalSince1970: 2000))
+            updatedAt: updatedAt)
     }
 
     private func makeAuthHome(email: String?, accountId: String? = nil) throws -> URL {

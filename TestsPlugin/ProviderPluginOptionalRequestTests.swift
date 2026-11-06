@@ -87,9 +87,15 @@ struct ProviderPluginOptionalRequestTests {
         #expect(try await runtime.fetchUsage().identity?.loginMethod == "ready")
     }
 
-    @Test
+    @Test(.timeLimit(.minutes(1)))
     func `slow primary does not receive a fresh collection budget`() async throws {
-        // Scale the shared host budget and both delays together, keeping a full second between events.
+        let deadlines = RequestCalls()
+        let (budget, budgetExpired) = AsyncStream<Void>.makeStream()
+        let (pending, release) = AsyncStream<Void>.makeStream()
+        defer {
+            budgetExpired.finish()
+            release.finish()
+        }
         let manifest = try Self.runtime(engine: .quickJS) { request in
             try Self.response(request, body: "unused")
         }.manifest
@@ -104,7 +110,9 @@ struct ProviderPluginOptionalRequestTests {
         let payload = try await ProviderPluginHTTPResponse.fetch(
             request,
             transport: ProviderHTTPTransportHandler { request in
-                try await Task.sleep(for: request.url?.path == "/primary" ? .seconds(3) : .seconds(4))
+                #expect(request.url?.path == "/primary")
+                var iterator = budget.makeAsyncIterator()
+                #expect(await iterator.next() != nil)
                 return try Self.response(request, body: "late")
             },
             wantsJSON: false,
@@ -113,8 +121,22 @@ struct ProviderPluginOptionalRequestTests {
             rejectsNonSuccessResponses: false,
             contextOptions: ProviderPluginContextOptions(
                 optionalRequestTimeoutSeconds: nil,
-                optionalCollectionBudget: .seconds(2)))
+                waitForOptionalDeadline: { _, duration in
+                    deadlines.start()
+                    #expect(duration == .milliseconds(200))
+                },
+                beforeHTTPAttempt: { request in
+                    // Keep the independent request timer from substituting for collection expiry.
+                    if request.url?.path == "/optional" {
+                        for await _ in pending {}
+                        try Task.checkCancellation()
+                    }
+                },
+                didCollectHTTPCompletion: { completion in
+                    if case .budgetExpired = completion { budgetExpired.yield() }
+                }))
         #expect(payload.value["optional"] is NSNull)
+        #expect(deadlines.counts.0 == 1)
     }
 
     @Test(.timeLimit(.minutes(1)), arguments: BundledPluginTestSupport.engines, [false, true])

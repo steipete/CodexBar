@@ -53,23 +53,21 @@ struct ProviderPluginMemoryTests {
         #expect(objects.liveCount == 0)
     }
 
-    @Test
-    func `completed JavaScriptCore fetches release retired runtimes`() async throws {
+    @Test(arguments: [ProviderPluginEngineKind.quickJS, .javaScriptCore])
+    func `completed fetches release retired runtimes before their timeout`(
+        engine: ProviderPluginEngineKind) async throws
+    {
         let objects = TrackedObjects()
         for _ in 0..<20 {
-            let runtime = try ProviderPluginRuntime(source: Self.cookiePlugin, engine: .javaScriptCore)
+            let runtime = try ProviderPluginRuntime(source: Self.cookiePlugin, engine: engine)
             objects.record(runtime)
             _ = try await runtime.fetchUsage(
                 cookieSessionResolver: { _, _ in
                     .init(header: "fixture=synthetic", source: "Fixture", origin: "https://example.test")
                 },
                 cookieSessionValidator: { _, _ in })
-        }
-        // The fetch watchdogs release their temporary runtime references; on a loaded runner they can fire late,
-        // so wait for release with a generous deadline instead of a single fixed sleep.
-        let deadline = ContinuousClock.now + .seconds(ProviderPluginRuntime.defaultTimeout * 4 + 5)
-        while objects.liveCount > 0, ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(250))
+            // Drain the completed fetch's worker callback before observing the runtime's lifetime.
+            _ = try runtime.globalType(of: "absentFixtureGlobal")
         }
         #expect(objects.capturedCount == 20)
         #expect(objects.liveCount == 0)

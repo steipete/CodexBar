@@ -1298,7 +1298,8 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\noder fügen Sie nur den session_id-Wert ein";
 "Clear" = "Klar";
 "No matching providers" = "Keine passenden Anbieter";
-"Search providers" = "Suchanbieter";
+"No matching settings or providers" = "Keine passenden Einstellungen oder Anbieter";
+"Search settings" = "Einstellungen durchsuchen";
 
 "Request quota: %@ / %@" = "Anfragelimit: %@ / %@";
 "language_arabic" = "العربية";
@@ -2798,3 +2799,7 @@
 "An expiring reset credit was used automatically. Usage limits are being refreshed." = "Eine bald ablaufende Zurücksetzung wurde automatisch verwendet. Die Nutzungslimits werden aktualisiert.";
 "Codex reset credit could not be used" = "Codex-Zurücksetzung konnte nicht verwendet werden";
 "Automatic redemption did not complete. Check Codex before the credit expires." = "Die automatische Verwendung wurde nicht abgeschlossen. Prüfe Codex vor Ablauf der Zurücksetzung.";
+
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "Die TypeSafe-Abrechnungsübersicht konnte nicht gelesen werden. Öffne https://console.typesafe.ai/billing, um den Zugriff zu prüfen. Wenn sich die Seite öffnet, melde den Integrationsfehler.";
+
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "Keine TypeSafe-Sitzungscookies gefunden. Melde dich unter console.typesafe.ai/billing an oder füge einen Cookie-Header ein.";

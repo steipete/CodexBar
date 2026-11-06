@@ -1294,7 +1294,8 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\nhoặc chỉ dán giá trị session_id";
 "Clear" = "Xóa";
 "No matching providers" = "Không có nhà cung cấp phù hợp";
-"Search providers" = "Tìm kiếm nhà cung cấp";
+"No matching settings or providers" = "Không có cài đặt hoặc nhà cung cấp phù hợp";
+"Search settings" = "Tìm kiếm cài đặt";
 
 "language_vietnamese" = "Tiếng Việt";
 "language_turkish" = "Türkçe";
@@ -2801,3 +2802,7 @@
 "An expiring reset credit was used automatically. Usage limits are being refreshed." = "Một thẻ đặt lại sắp hết hạn đã được dùng tự động. Đang làm mới hạn mức sử dụng.";
 "Codex reset credit could not be used" = "Không thể dùng thẻ đặt lại Codex";
 "Automatic redemption did not complete. Check Codex before the credit expires." = "Chưa hoàn tất việc dùng tự động. Hãy kiểm tra Codex trước khi thẻ hết hạn.";
+
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "Không thể đọc tổng quan thanh toán TypeSafe. Mở https://console.typesafe.ai/billing để kiểm tra quyền truy cập; nếu trang mở được, hãy báo cáo lỗi tích hợp.";
+
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "Không tìm thấy cookie phiên TypeSafe. Đăng nhập tại console.typesafe.ai/billing hoặc dán tiêu đề Cookie.";

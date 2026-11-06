@@ -6,10 +6,18 @@ import Testing
 @testable import CodexBarCore
 
 struct ProviderPluginOptionalAdmissionTests {
-    @Test(arguments: BundledPluginTestSupport.engines)
+    @Test(.timeLimit(.minutes(1)), arguments: BundledPluginTestSupport.engines)
     func `request admission waits do not spend the optional collection budget`(
         engine: ProviderPluginEngineKind) async throws
     {
+        let (admissions, admitted) = AsyncStream<ContinuousClock.Instant>.makeStream()
+        let (deadlines, deadlineObserved) = AsyncStream<Void>.makeStream()
+        let (pending, release) = AsyncStream<Void>.makeStream()
+        defer {
+            admitted.finish()
+            deadlineObserved.finish()
+            release.finish()
+        }
         let runtime = try ProviderPluginRuntime(
             source: """
             defineProvider({
@@ -23,15 +31,29 @@ struct ProviderPluginOptionalAdmissionTests {
             """,
             resourceBundle: CodexBarCoreResources.bundle,
             transport: ProviderHTTPTransportHandler { request in
-                if request.url?.path == "/optional" { try await Task.sleep(for: .milliseconds(20)) }
-                return try (Data("ready".utf8), #require(HTTPURLResponse(
+                try (Data("ready".utf8), #require(HTTPURLResponse(
                     url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)))
             },
             allowsDynamicID: true,
             contextOptions: ProviderPluginContextOptions(
                 optionalRequestTimeoutSeconds: nil,
-                optionalCollectionBudget: .seconds(2),
-                beforeHTTPAttempt: { _ in try await Task.sleep(for: .seconds(3)) }),
+                waitForOptionalDeadline: { start, budget in
+                    #expect(budget == .milliseconds(200))
+                    var iterator = admissions.makeAsyncIterator()
+                    let admittedAt = try #require(await iterator.next())
+                    #expect(start >= admittedAt)
+                    deadlineObserved.yield()
+                    for await _ in pending {}
+                    try Task.checkCancellation()
+                },
+                beforeHTTPAttempt: { request in
+                    if request.url?.path == "/primary" {
+                        admitted.yield(.now)
+                    } else {
+                        var deadline = deadlines.makeAsyncIterator()
+                        #expect(await deadline.next() != nil)
+                    }
+                }),
             engine: engine)
         #expect(try await runtime.fetchUsage().identity?.loginMethod == "ready")
     }

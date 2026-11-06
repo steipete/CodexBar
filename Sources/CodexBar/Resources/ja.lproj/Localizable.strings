@@ -1295,7 +1295,8 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\nまたは session_id の値のみを貼り付けてください";
 "Clear" = "消去";
 "No matching providers" = "一致するプロバイダがありません";
-"Search providers" = "プロバイダを検索";
+"No matching settings or providers" = "一致する設定またはプロバイダがありません";
+"Search settings" = "設定を検索";
 
 "language_vietnamese" = "ベトナム語";
 "language_turkish" = "トルコ語";
@@ -2800,3 +2801,7 @@
 "An expiring reset credit was used automatically. Usage limits are being refreshed." = "期限間近のリセットカードを自動使用しました。使用量の上限を更新しています。";
 "Codex reset credit could not be used" = "Codex リセットカードを使用できませんでした";
 "Automatic redemption did not complete. Check Codex before the credit expires." = "自動使用が完了しませんでした。カードの有効期限が切れる前に Codex を確認してください。";
+
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "TypeSafeの請求概要を読み取れませんでした。https://console.typesafe.ai/billing を開いてアクセスを確認してください。ページが開く場合は、連携の不具合を報告してください。";
+
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "TypeSafeのセッションCookieが見つかりません。console.typesafe.ai/billing にサインインするか、Cookieヘッダーを貼り付けてください。";

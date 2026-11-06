@@ -1295,7 +1295,8 @@
 "CodexBar could not update managed account storage." = "CodexBar kunde inte uppdatera hanterad kontolagring.";
 "Clear" = "Rensa";
 "No matching providers" = "Inga matchande leverantörer";
-"Search providers" = "Sök leverantörer";
+"No matching settings or providers" = "Inga matchande inställningar eller leverantörer";
+"Search settings" = "Sök i inställningar";
 
 "language_vietnamese" = "Vietnamesiska";
 "language_arabic" = "العربية";
@@ -2799,3 +2800,7 @@
 "An expiring reset credit was used automatically. Usage limits are being refreshed." = "En snart utgående återställning användes automatiskt. Användningsgränserna uppdateras.";
 "Codex reset credit could not be used" = "Codex-återställningen kunde inte användas";
 "Automatic redemption did not complete. Check Codex before the credit expires." = "Den automatiska användningen slutfördes inte. Kontrollera Codex innan återställningen går ut.";
+
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "Det gick inte att läsa TypeSafes faktureringsöversikt. Öppna https://console.typesafe.ai/billing för att kontrollera åtkomsten. Om sidan öppnas, rapportera integrationsfelet.";
+
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "Inga sessionskakor för TypeSafe hittades. Logga in på console.typesafe.ai/billing eller klistra in ett Cookie-huvud.";

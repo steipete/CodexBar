@@ -1312,7 +1312,8 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=... \n\n หรือวางเฉพาะค่า session_id";
 "Clear" = "ล้างค่าการค้นหา";
 "No matching providers" = "ไม่มีผู้ให้บริการที่ตรงกัน";
-"Search providers" = "ผู้ให้บริการการค้นหา";
+"No matching settings or providers" = "ไม่มีการตั้งค่าหรือผู้ให้บริการที่ตรงกัน";
+"Search settings" = "ค้นหาการตั้งค่า";
 
 "language_vietnamese" = "เวียดนาม";
 "language_indonesian" = "บาฮาซาอินโดนีเซีย";
@@ -2802,3 +2803,7 @@
 "An expiring reset credit was used automatically. Usage limits are being refreshed." = "ใช้บัตรรีเซ็ตที่ใกล้หมดอายุโดยอัตโนมัติแล้ว กำลังรีเฟรชขีดจำกัดการใช้งาน";
 "Codex reset credit could not be used" = "ไม่สามารถใช้บัตรรีเซ็ต Codex ได้";
 "Automatic redemption did not complete. Check Codex before the credit expires." = "การใช้โดยอัตโนมัติไม่เสร็จสมบูรณ์ โปรดตรวจสอบ Codex ก่อนบัตรหมดอายุ";
+
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "ไม่สามารถอ่านภาพรวมการเรียกเก็บเงินของ TypeSafe ได้ เปิด https://console.typesafe.ai/billing เพื่อตรวจสอบการเข้าถึง หากเปิดหน้าได้ ให้รายงานข้อผิดพลาดในการเชื่อมต่อระบบ";
+
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "ไม่พบคุกกี้เซสชันของ TypeSafe ลงชื่อเข้าใช้ที่ console.typesafe.ai/billing หรือวางส่วนหัว Cookie";

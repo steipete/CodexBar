@@ -1299,7 +1299,8 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\nабо вставте лише значення session_id";
 "Clear" = "Очистити";
 "No matching providers" = "Немає відповідних постачальників";
-"Search providers" = "Пошук постачальників";
+"No matching settings or providers" = "Немає відповідних налаштувань або постачальників";
+"Search settings" = "Пошук у налаштуваннях";
 "language_arabic" = "العربية";
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
@@ -2801,3 +2802,7 @@
 "An expiring reset credit was used automatically. Usage limits are being refreshed." = "Автоматично використано скидання, строк дії якого завершується. Ліміти використання оновлюються.";
 "Codex reset credit could not be used" = "Не вдалося використати скидання Codex";
 "Automatic redemption did not complete. Check Codex before the credit expires." = "Автоматичне використання не завершено. Перевірте Codex до завершення строку дії скидання.";
+
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "Не вдалося прочитати огляд платежів TypeSafe. Відкрийте https://console.typesafe.ai/billing, щоб перевірити доступ. Якщо сторінка відкривається, повідомте про помилку інтеграції.";
+
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "Файли cookie сеансу TypeSafe не знайдено. Увійдіть на console.typesafe.ai/billing або вставте заголовок Cookie.";

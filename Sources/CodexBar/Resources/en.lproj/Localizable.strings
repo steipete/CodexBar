@@ -1297,7 +1297,8 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\nor paste just the session_id value";
 "Clear" = "Clear";
 "No matching providers" = "No matching providers";
-"Search providers" = "Search providers";
+"No matching settings or providers" = "No matching settings or providers";
+"Search settings" = "Search settings";
 
 "language_vietnamese" = "Vietnamese";
 "language_indonesian" = "Bahasa Indonesia";
@@ -2805,3 +2806,7 @@
 "An expiring reset credit was used automatically. Usage limits are being refreshed." = "An expiring reset credit was used automatically. Usage limits are being refreshed.";
 "Codex reset credit could not be used" = "Codex reset credit could not be used";
 "Automatic redemption did not complete. Check Codex before the credit expires." = "Automatic redemption did not complete. Check Codex before the credit expires.";
+
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure.";
+
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header.";
