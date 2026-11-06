@@ -22,7 +22,7 @@ struct WorkBuddySettingsTests {
                 webDebugDumpHTML: false,
                 verbose: false,
                 env: [:],
-                settings: .make(workbuddy: .init(cookieSource: source, manualCookieHeader: nil)),
+                settings: .make(workbuddy: .init(cookies: .init(cookieSource: source))),
                 fetcher: UsageFetcher(environment: [:]),
                 claudeFetcher: WorkBuddyUnusedClaudeFetcher(),
                 browserDetection: BrowserDetection(
@@ -34,6 +34,34 @@ struct WorkBuddySettingsTests {
             #expect(strategy.kind == .web)
             #expect(await strategy.isAvailable(context) == (source != .off))
         }
+    }
+
+    @Test(arguments: ProviderCookieSource.allCases)
+    func `config preserves the manual user agent and projects it only in manual mode`(
+        source: ProviderCookieSource) throws
+    {
+        var config = ProviderConfig(id: .workbuddy, cookieHeader: "session=fixture", cookieSource: source)
+        config.workBuddyUserAgent = "Mozilla/5.0 Edge fixture"
+        let restored = try JSONDecoder().decode(ProviderConfig.self, from: JSONEncoder().encode(config))
+        let descriptor = WorkBuddyProviderDescriptor.descriptor
+        let contribution = try #require(descriptor.settingsSection.credentialContribution(
+            context: .init(config: restored, account: nil)))
+        var builder = ProviderSettingsSnapshotBuilder()
+        builder.apply(contribution)
+        let settings = builder.build()
+        #expect(settings.workbuddy?.manualUserAgent == config.workBuddyUserAgent)
+        #expect(descriptor.settingsSection.cookieSettings(from: settings)?.cookieSource == source)
+
+        let context = ProviderFetchContext(
+            runtime: .cli, sourceMode: .web, includeCredits: false, webTimeout: 22,
+            webDebugDumpHTML: false, verbose: false, env: [:], settings: settings,
+            fetcher: UsageFetcher(environment: [:]), claudeFetcher: WorkBuddyUnusedClaudeFetcher(),
+            browserDetection: BrowserDetection(
+                homeDirectory: "/nonexistent/workbuddy-fixture",
+                fileExists: { _ in false }, directoryContents: { _ in nil }))
+        let web = try #require(WorkBuddyProviderDescriptor.spec.webSource)
+        let values = web.resolveValues(context)
+        #expect(values?.settings["manualUserAgent"] == (source == .manual ? config.workBuddyUserAgent : nil))
     }
 }
 

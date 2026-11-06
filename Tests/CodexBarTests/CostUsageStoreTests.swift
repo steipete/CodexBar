@@ -532,9 +532,9 @@ extension CostUsageStoreTests {
         let reloaded = CostUsageStoreAccess.read(cacheRoot: fixture.root, calendar: calendar)
         #expect(reloaded.lastScanUnixMs == 2000)
 
-        // Repeating the unchanged scan checkpoints at most the prior metadata frame, then emits
-        // exactly one new metadata-row change. Both files are measured using SQLite's real `-wal`
-        // path; no claim of zero physical writes is made.
+        // With automatic checkpoints disabled, another unchanged scan appends freshness frames
+        // instead of truncating the WAL. It still emits exactly one metadata-row change. Both files
+        // use SQLite's real `-wal` path; no claim of zero physical writes is made.
         var repeated = reloaded
         repeated.lastScanUnixMs = 2500
         let repeatBefore = footprint()
@@ -545,7 +545,9 @@ extension CostUsageStoreTests {
         #expect(repeatCountersAfter.rows - repeatCountersBefore.rows == 1)
         #expect(repeatCountersAfter.pages <= 2)
         #expect(repeatAfter[dbURL]?.size == repeatBefore[dbURL]?.size)
-        #expect(repeatAfter[walURL]?.size == after[walURL]?.size)
+        let priorWALBytes = try #require(repeatBefore[walURL]?.size)
+        let repeatedWALBytes = try #require(repeatAfter[walURL]?.size)
+        #expect(repeatedWALBytes > priorWALBytes)
         #expect(repeatAfter[dbURL]?.mtime != nil)
         #expect(repeatAfter[walURL]?.mtime != repeatBefore[walURL]?.mtime)
         print("[no-op-write-proof] first before=\(before) after=\(after)")

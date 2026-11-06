@@ -8,7 +8,7 @@ enum SettingsWindowIdentity {
 }
 
 @MainActor
-final class SettingsWindowController: NSWindowController {
+final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     enum Outcome: Equatable {
         case created
         case reused
@@ -26,7 +26,7 @@ final class SettingsWindowController: NSWindowController {
     private let didPresentWindow: WindowAction
     private let presentationFailed: @MainActor () -> Void
     private let logger = CodexBarLog.logger(LogCategories.app)
-    private var retainedWindow: NSWindow?
+    private var frameWhenClosed: NSRect?
 
     init(
         selection: PreferencesSelection,
@@ -90,7 +90,6 @@ final class SettingsWindowController: NSWindowController {
             window.contentViewController = hostingController
             window.title = selection.title
             SettingsWindowToolbar.configure(window)
-            window.isReleasedWhenClosed = false
             SettingsWindowSizing.enforceMinimumSize(window)
             if !window.setFrameUsingName(SettingsWindowIdentity.frameAutosaveName) {
                 window.center()
@@ -105,6 +104,20 @@ final class SettingsWindowController: NSWindowController {
         fatalError("init(coder:) has not been implemented")
     }
 
+    func windowWillClose(_ notification: Notification) {
+        guard self.isWindowLoaded,
+              let window = notification.object as? NSWindow,
+              window === self.window
+        else { return }
+        let frame = window.frame
+        self.frameWhenClosed = frame
+        // Detaching SwiftUI can resize the window and change its autosaved frame.
+        window.contentViewController = nil
+        window.contentView = NSView()
+        window.setFrame(frame, display: false)
+        self.window = nil
+    }
+
     @discardableResult
     func open(pane: SettingsPane?) -> Outcome {
         if let pane {
@@ -117,13 +130,17 @@ final class SettingsWindowController: NSWindowController {
         self.prepareToPresent()
         let outcome: Outcome
         let window: NSWindow
-        if let retainedWindow {
-            window = retainedWindow
+        if self.isWindowLoaded, let existingWindow = self.window {
+            window = existingWindow
             outcome = .reused
         } else if let createdWindow = self.makeWindow() {
             createdWindow.identifier = NSUserInterfaceItemIdentifier(SettingsWindowIdentity.identifier)
             SettingsWindowStageBehavior.applyCollectionBehavior(createdWindow)
-            self.retainedWindow = createdWindow
+            createdWindow.isReleasedWhenClosed = false
+            createdWindow.delegate = self
+            if let frameWhenClosed {
+                createdWindow.setFrame(frameWhenClosed, display: false)
+            }
             self.window = createdWindow
             window = createdWindow
             outcome = .created

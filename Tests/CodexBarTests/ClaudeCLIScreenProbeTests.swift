@@ -3,6 +3,43 @@ import Testing
 @testable import CodexBarCore
 
 struct ClaudeCLIScreenProbeTests {
+    @Test
+    func `usage capture waits for the refreshing panel to finish its scoped redraw`() throws {
+        let firstFrame = "\u{1b}[H" + """
+        Current session
+        9% used
+        Current week (all models)
+        67% used
+        What's contributing to your limits usage?
+        Scanning local sessions…
+        Refreshing…
+        Esc to cancel
+        """.replacingOccurrences(of: "\n", with: "\r\n")
+        let finalFrame = "\u{1b}[H\u{1b}[J" + """
+        Current session
+        9% used
+        Current week (all models)
+        67% used
+        Current week (Example Model)
+        42% used
+        What's contributing to your limits usage?
+        Scanning local sessions…
+        Esc to cancel
+        """.replacingOccurrences(of: "\n", with: "\r\n") + "\u{1b}[J"
+        func normalizedScreen(_ capture: String) -> String {
+            String(ClaudeCLIScreen.render(capture).lowercased().filter { !$0.isWhitespace })
+        }
+
+        #expect(!ClaudeStatusProbe.usageCaptureIsComplete(normalizedScreen(firstFrame)))
+        #expect(!ClaudeStatusProbe.usageCaptureIsComplete(normalizedScreen(
+            firstFrame.replacingOccurrences(of: "Refreshing…", with: "Refreshing..."))))
+        let completed = firstFrame + finalFrame
+        #expect(ClaudeStatusProbe.usageCaptureIsComplete(normalizedScreen(completed)))
+        let snapshot = try ClaudeStatusProbe.parse(text: completed)
+        #expect(snapshot.extraRateWindows.first?.window.usedPercent == 42)
+        #expect(ClaudeStatusProbe.usageCaptureIsComplete("currentsession9%used"))
+    }
+
     static func capture(_ name: String) throws -> String {
         let url = try #require(Bundle.module.url(
             forResource: name,
