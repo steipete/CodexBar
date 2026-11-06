@@ -57,7 +57,7 @@ After a quota refresh fails, retained usage bars use a neutral tint until recove
 Menu-card percentages, reset countdowns, and cost/credit values use tabular digits, keeping equal-length numeric updates steady. Titles, hints, and errors keep proportional typography.
 
 Stacked rows with leading window labels align their values and meters after the widest label. Rows that begin with names, explicit spaces, or inline icons retain their natural spacing; hiding percentage window labels is unchanged.
-- Provider cards with both live throughput and daily history use a fixed-height Live · Spend chart switch; Live is the default, and the choice is remembered locally per provider instance.
+- Provider cards with both live throughput and daily history use a fixed-height Live · Spend chart switch; Live is the default, and the choice is remembered locally per provider instance. Only the selected chart is built; switching preserves the card height, hover details, and optional live-limit row space.
 - About CodexBar includes the running version. When the updater is available, the menu offers Check for Updates… or the existing staged-update action.
 - Overview offers Share Usage Snapshot when its Usage & Spend summary has shareable data. The local preview uses the same spend sources, hidden-source choices, calendar, and currency as that summary; Copy Image exports PNG and TIFF without uploading anything.
 - Closing Share Usage Snapshot releases its preview views; reopening builds a fresh preview in the reusable window.

@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- Menu: build only the selected Live or Spend chart, reducing chart layout work while keeping card height and hover details unchanged.
+
 - Settings: release closed pane content to reduce retained memory and stop hidden Usage & Spend updates, preserving the window frame and selected pane.
 
 - Codex: stop repeated cost-history catch-up passes when fully read rollouts grow but pending dependencies make no progress (#3316).
