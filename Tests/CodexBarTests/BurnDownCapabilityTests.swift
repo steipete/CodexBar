@@ -29,6 +29,7 @@ struct BurnDownCapabilityTests {
                 .chatbox,
                 .abliteration,
                 .opendesign,
+                .siliconflow,
                 .tripo,
             ]
                 .contains(provider) ? [] : [provider]

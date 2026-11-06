@@ -42,6 +42,7 @@ struct CLIProviderSelectionTests {
             "|fal|",
             "|flora|",
             "|parallel|",
+            "|siliconflow|",
             "|claudeplatform|",
             "|munito|",
             "|soniox|",

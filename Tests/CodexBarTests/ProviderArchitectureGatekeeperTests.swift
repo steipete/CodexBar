@@ -157,8 +157,8 @@ struct ProviderArchitectureGatekeeperTests {
         }
 
         // Tripo extends the audited palette without changing existing provider colors.
-        #expect(widgetFingerprint == 745_687_217_734_974_594)
-        #expect(burnDownFingerprint == 15_323_119_608_800_105_055)
+        #expect(widgetFingerprint == 8_165_290_587_712_788_196)
+        #expect(burnDownFingerprint == 4_518_705_644_902_934_406)
     }
 
     @Test
@@ -198,7 +198,7 @@ struct ProviderArchitectureGatekeeperTests {
         let descriptors = ProviderDescriptorRegistry.all
         #expect(Set(descriptors.filter(\.metadata.balanceOnly).map(\.id)) == [
             .deepseek, .deepinfra, .moonshot, .poe, .hyper, .atlascloud, .vercel, .lithosai, .xapi, .linkup, .tinyapi,
-            .sailresearch, .sofya, .fal, .flora, .parallel, .tripo,
+            .sailresearch, .sofya, .fal, .flora, .parallel, .siliconflow, .tripo,
         ])
         #expect(Set(descriptors.filter(\.metadata.usesDetailBackedWindow).map(\.id)) == [
             .perplexity,
@@ -2291,9 +2291,9 @@ struct ProviderArchitectureGatekeeperTests {
         AllowedProviderConstruct(
             path: "Sources/CodexBar/StatusItem/StatusItemController+Actions.swift",
             anchor: "if provider == .qoder {",
-            expectedProviderIDs: ["claude", "helmcode", "qoder"],
-            expectedReferenceCount: 4,
-            expectedReferenceFingerprint: ["qoder@0", "qoder@3", "helmcode@7", "claude@12"],
+            expectedProviderIDs: ["claude", "helmcode", "qoder", "siliconflow"],
+            expectedReferenceCount: 5,
+            expectedReferenceFingerprint: ["qoder@0", "qoder@3", "siliconflow@6", "helmcode@13", "claude@18"],
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/StatusItem/StatusItemController+Actions.swift",
@@ -2620,11 +2620,11 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "Warning windows retain provider-owned family, balance, label, and extra-window policies."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore/UsageStore+QuotaWarnings.swift",
-            anchor: "guard provider != .claude || window != .session || Self.isSessionWindow(rateWindow) else { return }",
+            anchor: "let isClaudeSessionLane = provider == .claude && window == .session",
             expectedProviderIDs: ["claude"],
             expectedReferenceCount: 2,
-            expectedReferenceFingerprint: ["claude@0", "claude@5"],
-            reason: "Claude preserves session history across weekly promotion and reconciles unresolved warning owners."),
+            expectedReferenceFingerprint: ["claude@0", "claude@12"],
+            reason: "Claude keeps session history across weekly-only payloads and reconciles unresolved warning owners."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore/UsageStore+Refresh.swift",
             anchor: "let codexExplicitPAT = provider == .codex && self.settings.codexUsageDataSource == .pat",

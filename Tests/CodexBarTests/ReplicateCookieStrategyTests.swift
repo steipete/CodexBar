@@ -171,3 +171,18 @@ struct ReplicateCookieStrategyTests {
             browserDetection: browser)
     }
 }
+
+struct ReplicateHTTPSessionReuseTests {
+    @Test
+    func `web refreshes share a stateless HTTP pool`() {
+        let first = ReplicateWebFetchStrategy.usageSession
+        let second = ReplicateWebFetchStrategy.usageSession
+        #expect(first === second)
+        #expect(first.configuration.httpCookieStorage == nil)
+        #expect(!first.configuration.httpShouldSetCookies)
+        #expect(first.configuration.urlCache == nil)
+        #expect(first.configuration.urlCredentialStorage == nil)
+        #expect(first.configuration.requestCachePolicy == .reloadIgnoringLocalCacheData)
+        #expect(first.delegate is ProviderHTTPRedirectGuardDelegate)
+    }
+}

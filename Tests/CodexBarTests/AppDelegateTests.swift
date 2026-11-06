@@ -15,6 +15,7 @@ struct AppDelegateTests {
 
     @Test
     func `builds status controller after launch`() {
+        _ = NSApplication.shared
         let appDelegate = AppDelegate()
         var factoryCalls = 0
         var ttyShutdowns = 0

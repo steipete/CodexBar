@@ -422,6 +422,7 @@ struct DebugPane: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
         }
+        .task { await self.store.refreshPathDebugInfo() }
     }
 
     private var fileLogPath: String {

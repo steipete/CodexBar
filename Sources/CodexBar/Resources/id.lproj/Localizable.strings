@@ -1577,7 +1577,7 @@
 "7-day usage" = "Penggunaan 7 hari";
 "Total usage" = "Total penggunaan";
 "claude_oauth_keychain_access_disabled" = "Akses Keychain dinonaktifkan, sehingga CodexBar tidak dapat membaca informasi masuk Claude.";
-"claude_oauth_keychain_access_revoked" = "Akses Rantai Kunci Claude dicabut akibat rotasi token Claude Code. Klik Segarkan untuk memberikan akses lagi, atau ubah sumber penggunaan Claude ke CLI/Web.";
+"claude_oauth_keychain_access_revoked" = "Kredensial OAuth Claude saat ini tidak dapat diakses oleh CodexBar. Klik Segarkan untuk mencoba mengaksesnya lagi, atau ubah sumber penggunaan Claude ke CLI/Web.";
 "claude_showing_last_known_usage" = "Menampilkan penggunaan terakhir yang diketahui, diambil %@.";
 "claude_limited_usage_detail" = "Rincian penggunaan terbatas";
 /* Spend dashboard cost analysis */
@@ -2796,6 +2796,25 @@
 "Leave blank to use the default name." = "Biarkan kosong untuk menggunakan nama bawaan.";
 "Rewards" = "Hadiah";
 "Reward expiry" = "Kedaluwarsa hadiah";
+"China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "Default adalah Tiongkok (CNY). Akun internasional memakai https://api.siliconflow.com (USD).";
+"https://api.siliconflow.cn" = "https://api.siliconflow.cn";
+"SiliconFlow API origin must be https://api.siliconflow.cn or https://api.siliconflow.com." = "Asal API SiliconFlow harus https://api.siliconflow.cn atau https://api.siliconflow.com.";
+"SiliconFlow refused the balance query. Check the balance in the SiliconFlow console." = "SiliconFlow menolak kueri saldo. Periksa saldo di konsol SiliconFlow.";
+
+"SiliconFlow" = "SiliconFlow";
+"Show SiliconFlow usage" = "Tampilkan penggunaan SiliconFlow";
+"SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow membatasi frekuensi permintaan. Coba lagi nanti.";
+"SiliconFlow request failed. Try refreshing later." = "Permintaan SiliconFlow gagal. Coba segarkan lagi nanti.";
+"SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow mengembalikan respons yang tidak dikenali. Perbarui CodexBar dan coba lagi.";
+"Claude Platform session validated and saved." = "Sesi Claude Platform telah divalidasi dan disimpan.";
+"Use %@ or %@." = "Gunakan %@ atau %@.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Masuk di %@. Berikan header Cookie yang berisi sessionKey secara privat ke %@. Lalu jalankan %@.";
+"Read cookie header from stdin" = "Baca header cookie dari stdin";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "Opsional. Tempel nilai User-Agent dari permintaan yang sama dengan header Cookie.";
+"Paste the WorkBuddy User-Agent as a single request header value." = "Tempel User-Agent WorkBuddy sebagai satu nilai header permintaan.";
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "Ringkasan penagihan TypeSafe tidak dapat dibaca. Buka https://console.typesafe.ai/billing untuk memeriksa akses; jika halaman terbuka, laporkan kegagalan integrasi.";
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "Cookie sesi TypeSafe tidak ditemukan. Masuk di console.typesafe.ai/billing atau tempel header Cookie.";
 
 "Tripo" = "Tripo";
 "Show Tripo usage" = "Tampilkan penggunaan Tripo";
