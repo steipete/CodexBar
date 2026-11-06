@@ -35,6 +35,7 @@
 - Kiro: preserve the `+` in CLI-reported plan names so Pro+ subscriptions are shown as Kiro Pro+. (#4928) Thanks @jeanroloff!
 ### Changed
 
+- Menu: reduce CPU work when opening idle provider menus by skipping unnecessary Refresh-row target resolution.
 - Plugins: reuse SVG icon rasters across menu reopenings and skip icon work in text-only provider switchers.
 - Codex: avoid forced checkpoints during unchanged local cost refreshes while preserving scan timestamps and cache budgets (#4620).
 - Codex: avoid rebuilding decoded cost-cache file maps during unchanged refreshes.
