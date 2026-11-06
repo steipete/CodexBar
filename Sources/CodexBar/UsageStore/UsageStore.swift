@@ -234,6 +234,8 @@ final class UsageStore {
     @ObservationIgnored var lastOpenAIDashboardCookieImportEmail: String?
     @ObservationIgnored var lastCodexAccountScopedRefreshGuard: CodexAccountScopedRefreshGuard?
     @ObservationIgnored var lastCodexUsagePublicationGuard: CodexAccountScopedRefreshGuard?
+    @ObservationIgnored var codexWeeklyResetFollowUps:
+        [String: (createdAt: Date, task: Task<Void, Never>)] = [:]
     @ObservationIgnored var lastKnownLiveSystemCodexEmail: String?
     @ObservationIgnored var openAIWebAccountDidChange: Bool = false
     @ObservationIgnored var creditsRefreshTask: Task<Void, Never>?
@@ -979,6 +981,7 @@ final class UsageStore {
     }
 
     deinit {
+        self.codexWeeklyResetFollowUps.values.forEach { $0.task.cancel() }
         self.timerTask?.cancel()
         self.tokenRefreshSequenceTask?.cancel()
         self.codexCostCatchUpTask?.cancel()

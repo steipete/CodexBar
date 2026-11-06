@@ -1579,7 +1579,7 @@
 "7-day usage" = "Ús de 7 dies";
 "Total usage" = "Ús total";
 "claude_oauth_keychain_access_disabled" = "L’accés al Keychain està desactivat, de manera que CodexBar no pot llegir les dades d’inici de sessió de Claude.";
-"claude_oauth_keychain_access_revoked" = "L'accés al clauer de Claude s'ha revocat per la rotació del token de Claude Code. Feu clic a Actualitza per tornar a concedir l'accés, o canvieu l'origen d'ús de Claude a CLI/Web.";
+"claude_oauth_keychain_access_revoked" = "Les credencials OAuth de Claude no estan disponibles actualment per a CodexBar. Feu clic a Actualitza per tornar a provar l'accés, o canvieu l'origen d'ús de Claude a CLI/Web.";
 "claude_showing_last_known_usage" = "Es mostra l'últim ús conegut capturat %@.";
 "claude_limited_usage_detail" = "Detalls d’ús limitats";
 /* Spend dashboard cost analysis */
@@ -2796,6 +2796,16 @@
 "Leave blank to use the default name." = "Deixa-ho en blanc per fer servir el nom per defecte.";
 "Rewards" = "Recompenses";
 "Reward expiry" = "Caducitat de les recompenses";
+"China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "La Xina (CNY) és el valor predeterminat. Els comptes internacionals fan servir https://api.siliconflow.com (USD).";
+"https://api.siliconflow.cn" = "https://api.siliconflow.cn";
+"SiliconFlow API origin must be https://api.siliconflow.cn or https://api.siliconflow.com." = "L’origen de l’API de SiliconFlow ha de ser https://api.siliconflow.cn o https://api.siliconflow.com.";
+"SiliconFlow refused the balance query. Check the balance in the SiliconFlow console." = "SiliconFlow ha rebutjat la consulta del saldo. Comprova’l a la consola de SiliconFlow.";
+
+"SiliconFlow" = "SiliconFlow";
+"Show SiliconFlow usage" = "Mostra l’ús de SiliconFlow";
+"SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow limita la freqüència de les sol·licituds. Torna-ho a provar més tard.";
+"SiliconFlow request failed. Try refreshing later." = "La sol·licitud a SiliconFlow ha fallat. Torna a actualitzar més tard.";
+"SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow ha retornat una resposta desconeguda. Actualitza CodexBar i torna-ho a provar.";
 "Claude Platform session validated and saved." = "La sessió de Claude Platform s’ha validat i desat.";
 "Use %@ or %@." = "Feu servir %@ o %@.";
 "Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Inicieu sessió a %@. Proporcioneu de manera privada la seva capçalera Cookie amb sessionKey a %@. Després executeu %@.";

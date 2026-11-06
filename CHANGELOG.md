@@ -5,17 +5,24 @@
 ### Fixed
 
 - OpenCode Go: reduce local-history memory spikes by skipping JSON parsing of ordinary nonbillable tool and text parts.
+- Claude: release decoded local-history rows after publishing cost reports while keeping unchanged refreshes fast (#4803, #3323).
+- Codex: preserve legacy saved accounts whose credentials identify another workspace and reject ambiguous same-email replacements (#4499).
+- Keychain: keep shared provider credential reads noninteractive and recover unavailable legacy credentials through one gated read on explicit Refresh (#2562).
+- Claude: describe unavailable OAuth credentials without attributing the failure to token rotation, and clarify the background CLI cache policy (#3798, #4651).
 - Tests: isolate launch-time WebKit cache maintenance and initialize AppKit independently in app delegate checks (#4955).
 - Claude: restore local cost history and source detection through symlinked project roots without counting shared roots twice.
 - Langdock: show saved Edge and Chrome profile names without translating custom names, and preserve the selected profile after renaming (#4911). Thanks @dYn36!
 - Claude: hide the session row when five-hour usage is absent, preserve weekly and model-specific quotas, and retain session warning history (#4914). Thanks @BobbyWang0120!
 - TypeSafe: restore billing spend and balance from the overview API, retain expired-session recovery, and stop browser imports after the first valid session (#4918, #4922). Thanks @LeoLin990405!
+- Claude: release decoded local-history rows after publishing cost reports while keeping unchanged refreshes fast (#4803, #3323).
 - Grok: celebrate weekly resets only after the prior boundary has elapsed, preserve genuine resets, and suppress repeated or stale-sample celebrations across restarts (#4917, #4923). Thanks @LeoLin990405!
 - OpenCode Go: return unavailable cost history instead of an error when OpenCode is not installed locally, including on `codexbar serve` hosts tracking remote quota. (#4931) Thanks @VACInc!
 - Kiro: recover API usage with a valid CLI token and no stored profile, avoiding chat probes when the API supplies usable plan limits. (#4915) Thanks @Yuxin-Qiao!
 - Kiro: preserve the `+` in CLI-reported plan names so Pro+ subscriptions are shown as Kiro Pro+. (#4928) Thanks @jeanroloff!
 ### Changed
 
+- Claude and Vertex: release duplicate encoded cost-cache headers while preserving warm decoded history and unchanged refreshes.
+- Claude/Vertex: reduce midnight cost-scan CPU by reusing unchanged local history while preserving date-window and duplicate-response accounting.
 - Antigravity: reuse HTTP connections for account verification while preserving shorter refresh deadlines.
 
 - Replicate: reuse HTTP connections for billing refreshes without retaining cookies, credentials, or cached responses in the connection pool.
@@ -30,6 +37,10 @@
 
 - Settings: use native popup selectors while keeping imported custom choices visible (#4895). Thanks @elijahfriedman!
 ### Added
+
+- SiliconFlow: show prepaid balances in CNY or USD through the official API, with matching regional console links and the SiliconFlow mark (#4925). Thanks @maojiebc and @hendryque!
+
+- Codex: automatically confirm eligible weekly-reset readings once after the safety delay, keeping the refresh scoped to its original account when switching accounts (#4783).
 
 - CLI: validate and save Claude Platform sessions from private stdin input with `config login --provider claudeplatform --stdin`, without browser or Keychain access (#4845).
 - Settings: find panes by title alongside provider names in sidebar search, with an empty state covering both (#4875). Thanks @elijahfriedman!
