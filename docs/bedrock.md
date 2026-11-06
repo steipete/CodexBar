@@ -107,6 +107,7 @@ tracking continue unchanged.
 
 - Shows month-to-date Bedrock spend.
 - Cost Explorer's `DataUnavailableException` reports **Spend unavailable** for monthly spend and daily history; it is not a measured zero. A successful response reporting zero cost remains zero, including when AWS credits cover the net charge. Gross usage and credit adjustments are not shown separately.
+- Daily history retains explicitly measured zero-cost billing days, including their dates and service breakdowns; missing or unparseable rows do not create zero-cost entries.
 - Shows budget progress when a budget is configured.
 - Shows rolling 14-day Claude tokens and requests when CloudWatch access is available.
 - Reuses the shared inline dashboard for daily cost history when enough buckets are available.

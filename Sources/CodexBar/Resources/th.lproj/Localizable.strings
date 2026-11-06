@@ -2799,3 +2799,5 @@
 "Rewards" = "รางวัล";
 "Reward expiry" = "วันหมดอายุของรางวัล";
 "Paste the WorkBuddy User-Agent as a single request header value." = "วาง User-Agent ของ WorkBuddy เป็นค่าฮีเดอร์คำขอเพียงค่าเดียว";
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "ไม่สามารถอ่านภาพรวมการเรียกเก็บเงินของ TypeSafe ได้ เปิด https://console.typesafe.ai/billing เพื่อตรวจสอบการเข้าถึง หากเปิดหน้าได้ ให้รายงานข้อผิดพลาดในการเชื่อมต่อระบบ";
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "ไม่พบคุกกี้เซสชันของ TypeSafe ลงชื่อเข้าใช้ที่ console.typesafe.ai/billing หรือวางส่วนหัว Cookie";

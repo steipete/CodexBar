@@ -2765,3 +2765,5 @@
 "Rewards" = "보상";
 "Reward expiry" = "보상 만료일";
 "Paste the WorkBuddy User-Agent as a single request header value." = "WorkBuddy User-Agent를 단일 요청 헤더 값으로 붙여넣으세요.";
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "TypeSafe 청구 개요를 읽을 수 없습니다. https://console.typesafe.ai/billing 을 열어 접근할 수 있는지 확인하세요. 페이지가 열리면 연동 오류를 신고하세요.";
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "TypeSafe 세션 쿠키를 찾을 수 없습니다. console.typesafe.ai/billing 에 로그인하거나 Cookie 헤더를 붙여 넣으세요.";

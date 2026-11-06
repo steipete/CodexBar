@@ -2799,3 +2799,5 @@
 "Rewards" = "Recompenses";
 "Reward expiry" = "Caducitat de les recompenses";
 "Paste the WorkBuddy User-Agent as a single request header value." = "Enganxa el User-Agent del WorkBuddy com un únic valor de capçalera de sol·licitud.";
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "No s'ha pogut llegir el resum de facturació de TypeSafe. Obre https://console.typesafe.ai/billing per comprovar-hi l'accés; si la pàgina s'obre, informa de l'error d'integració.";
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "No s'han trobat galetes de sessió de TypeSafe. Inicia sessió a console.typesafe.ai/billing o enganxa una capçalera Cookie.";

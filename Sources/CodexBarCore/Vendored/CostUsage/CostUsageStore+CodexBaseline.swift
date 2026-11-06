@@ -204,7 +204,7 @@ extension CostUsageStore {
         self.currentDatabaseStamp() == baseline.stamp
     }
 
-    /// Retention may rewrite identical metadata when a protected window exceeds the budget.
+    /// Retention may prune history or change its window bounds.
     /// Only those own writes permit a fresh locked semantic comparison; external changes retry.
     func codexBaselineAfterRetention(_ baseline: CodexDecodedBaseline) -> CodexDecodedBaseline? {
         self.withDatabase(default: nil) { database in
