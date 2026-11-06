@@ -3,6 +3,7 @@ import CodexBarCore
 
 extension StatusItemController {
     func beginMenuTrackingSession(for menu: NSMenu) {
+        self.menuCardRefreshMonitor.isActive = true
         if menu.supermenu != nil, !self.isHostedSubviewMenu(menu) {
             self.advanceMenuInteraction(for: self.rootMenu(for: menu))
         }

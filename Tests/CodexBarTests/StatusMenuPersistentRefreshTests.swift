@@ -118,13 +118,16 @@ struct StatusMenuPersistentRefreshTests {
                 configRevision: settings.configRevision,
                 expiresAt: .distantFuture)
         }
-        return StatusItemController(
+        let controller = StatusItemController(
             store: store,
             settings: settings,
             account: account ?? AccountInfo(email: nil, plan: nil),
             updater: updater,
             preferencesSelection: PreferencesSelection(),
             statusBar: .system)
+        // These tests resolve visible cards directly without opening a native menu.
+        controller.menuCardRefreshMonitor.isActive = true
+        return controller
     }
 
     private static func isolatedEnvironment() -> [String: String] {
