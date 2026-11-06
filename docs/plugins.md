@@ -384,6 +384,10 @@ cross-process locking. Removing the source file manually does not delete state. 
 cookies, and tokens belong in secure settings. Storage does not alter `ctx.cache` or the settings `persist` allowlist.
 
 Bundled first-party providers that have cut over to JavaScript use the shared runtime's 20-second hung-script watchdog.
+Default API plugin descriptors retain a strategy for each declared timeout, reusing its initialized runtime across
+refreshes. Each fetch still reads current settings and credentials and requests fresh usage. Overlapping fetches use
+separate temporary runtimes so one account cannot consume another account's fetch deadline. Web strategies keep
+their existing source-specific lifecycle.
 A timeout fails that refresh and discards the poisoned worker before returning the error, so an immediate retry starts
 with a fresh context. Cancellation retires the worker in the same way. This is production-default and does not depend
 on `CODEXBAR_JS_PROVIDERS`.
