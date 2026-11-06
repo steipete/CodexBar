@@ -16,13 +16,13 @@ struct TypeSafeRedirectTests {
         configuration.timeoutIntervalForRequest = 3
         let session = URLSession(configuration: configuration, delegate: TypeSafeRedirectGuard(), delegateQueue: nil)
         defer { session.invalidateAndCancel() }
-        var request = try URLRequest(url: #require(URL(string: "http://127.0.0.1:\(port)/settings/billing")))
+        var request = try URLRequest(url: #require(URL(string: "http://127.0.0.1:\(port)/api/billing/overview")))
         request.setValue("session=synthetic-billing-cookie", forHTTPHeaderField: "Cookie")
         let (_, response) = try await session.data(for: request)
         #expect((response as? HTTPURLResponse)?.statusCode == status)
         let requests = server.requests.value
         #expect(requests.count == 1)
-        #expect(requests.first?.hasPrefix("GET /settings/billing ") == true)
+        #expect(requests.first?.hasPrefix("GET /api/billing/overview ") == true)
         #expect(requests.first?.contains("session=synthetic-billing-cookie") == true)
     }
 }
@@ -101,7 +101,7 @@ private final class TypeSafeRedirectConnection: @unchecked Sendable {
                 return
             }
             self.requests.setValue(self.requests.value + [request])
-            let reply = request.hasPrefix("GET /settings/billing ")
+            let reply = request.hasPrefix("GET /api/billing/overview ")
                 ? self.response : "HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
             self.connection.send(content: Data(reply.utf8), completion: .contentProcessed { [connection] _ in
                 connection.cancel()

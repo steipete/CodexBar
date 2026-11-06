@@ -42,14 +42,19 @@ enum MenuBarStatusItemWindowProbe {
     @MainActor private static var diagnosticRecords = 0
 
     /// Opt-in, bounded stdout trace; never includes window titles, accounts, or provider content.
-    @MainActor static func trace(_ stage: String, item: NSStatusItem? = nil, evidence: String = "") {
+    @MainActor static func trace(
+        _ stage: String,
+        item: NSStatusItem? = nil,
+        evidence: String = "",
+        context: [String: String] = [:])
+    {
         guard self.diagnosticsEnabled, self.diagnosticRecords < 128 else { return }
         self.diagnosticRecords += 1
         let name = item?.autosaveName ?? ""
         let window = item?.button?.window
         let records = self.windowInfo()
         let receipt: [String: Any] = [
-            "stage": stage, "sequence": self.diagnosticRecords,
+            "stage": stage, "sequence": self.diagnosticRecords, "context": context,
             "uptime": ProcessInfo.processInfo.systemUptime,
             "bundle": Bundle.main.bundleIdentifier ?? "unknown",
             "git": Bundle.main.object(forInfoDictionaryKey: "CodexGitCommit") as? String ?? "unknown",
@@ -64,7 +69,7 @@ enum MenuBarStatusItemWindowProbe {
                 $0.identifier?.rawValue.contains(PlaceholderSettingsWindowDecision.swiftUISettingsNameFragment) == true
             }.map { ["number": $0.windowNumber, "frame": NSStringFromRect($0.frame), "visible": $0.isVisible] } ?? [],
             "windowQuerySucceeded": records != nil,
-            "controlCenter": self.hostingDiagnostics(name: name, windowInfo: records ?? []),
+            "menuBarHosts": self.hostingDiagnostics(name: name, windowInfo: records ?? []),
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: receipt, options: [.sortedKeys]) else { return }
         FileHandle.standardOutput.write(data + Data([0x0A]))
@@ -73,16 +78,21 @@ enum MenuBarStatusItemWindowProbe {
     static func hostingDiagnostics(name: String, windowInfo: [[String: Any]]) -> [String: Any] {
         let windows = windowInfo.filter {
             ($0[kCGWindowLayer as String] as? Int) == 25
-                && ["Control Center", "Control Centre"].contains($0[kCGWindowOwnerName as String] as? String ?? "")
+                && ["Control Center", "Control Centre", "MenuBarAgent"]
+                .contains($0[kCGWindowOwnerName as String] as? String ?? "")
         }
         let matches = windows.filter { !name.isEmpty && ($0[kCGWindowName as String] as? String) == name }
         return [
             "layer25Count": windows.count,
             "layer25Numbers": windows.compactMap { $0[kCGWindowNumber as String] as? Int }.sorted(),
+            "ownerCounts": Dictionary(grouping: windows) {
+                $0[kCGWindowOwnerName as String] as? String ?? ""
+            }.mapValues(\.count),
             "unnamedCount": windows.filter { ($0[kCGWindowName as String] as? String ?? "").isEmpty }.count,
             "namedMatches": matches.map { record in
                 [
                     "number": record[kCGWindowNumber as String] as? Int ?? -1,
+                    "owner": record[kCGWindowOwnerName as String] as? String ?? "",
                     "bounds": NSStringFromRect(self.bounds(record[kCGWindowBounds as String]) ?? .zero),
                     "onscreen": (record[kCGWindowIsOnscreen as String] as? Bool) ?? false,
                 ] as [String: Any]
