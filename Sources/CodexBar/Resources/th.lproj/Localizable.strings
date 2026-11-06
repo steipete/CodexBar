@@ -1576,7 +1576,7 @@
 "7-day usage" = "การใช้งาน 7 วัน";
 "Total usage" = "การใช้งานทั้งหมด";
 "claude_oauth_keychain_access_disabled" = "การเข้าถึง Keychain ถูกปิดใช้งาน จึงทำให้ CodexBar ไม่สามารถอ่านข้อมูลการลงชื่อเข้าใช้ Claude ได้";
-"claude_oauth_keychain_access_revoked" = "สิทธิ์เข้าถึงพวงกุญแจ Claude ถูกเพิกถอนจากการหมุนเวียนโทเค็นของ Claude Code คลิกรีเฟรชเพื่อให้สิทธิ์อีกครั้ง หรือเปลี่ยนแหล่งที่มาการใช้งาน Claude เป็น CLI/Web";
+"claude_oauth_keychain_access_revoked" = "ขณะนี้ CodexBar ไม่สามารถเข้าถึงข้อมูลรับรอง OAuth ของ Claude ได้ คลิกรีเฟรชเพื่อลองเข้าถึงอีกครั้ง หรือเปลี่ยนแหล่งที่มาการใช้งาน Claude เป็น CLI/Web";
 "claude_showing_last_known_usage" = "กำลังแสดงการใช้งานล่าสุดที่ทราบ ซึ่งบันทึกเมื่อ %@";
 "claude_limited_usage_detail" = "รายละเอียดการใช้งานมีจำกัด";
 /* Spend dashboard cost analysis */
@@ -2796,3 +2796,22 @@
 "Leave blank to use the default name." = "เว้นว่างไว้เพื่อใช้ชื่อเริ่มต้น";
 "Rewards" = "รางวัล";
 "Reward expiry" = "วันหมดอายุของรางวัล";
+"China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "ค่าเริ่มต้นคือจีน (CNY) บัญชีต่างประเทศใช้ https://api.siliconflow.com (USD)";
+"https://api.siliconflow.cn" = "https://api.siliconflow.cn";
+"SiliconFlow API origin must be https://api.siliconflow.cn or https://api.siliconflow.com." = "ต้นทาง API ของ SiliconFlow ต้องเป็น https://api.siliconflow.cn หรือ https://api.siliconflow.com";
+"SiliconFlow refused the balance query. Check the balance in the SiliconFlow console." = "SiliconFlow ปฏิเสธคำขอยอดคงเหลือ โปรดตรวจสอบยอดคงเหลือในคอนโซล SiliconFlow";
+
+"SiliconFlow" = "SiliconFlow";
+"Show SiliconFlow usage" = "แสดงการใช้งาน SiliconFlow";
+"SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow กำลังจำกัดความถี่ของคำขอ ลองอีกครั้งในภายหลัง";
+"SiliconFlow request failed. Try refreshing later." = "คำขอ SiliconFlow ล้มเหลว ลองรีเฟรชอีกครั้งในภายหลัง";
+"SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow ส่งการตอบกลับที่ไม่รู้จัก โปรดอัปเดต CodexBar แล้วลองอีกครั้ง";
+"Claude Platform session validated and saved." = "ตรวจสอบและบันทึกเซสชัน Claude Platform แล้ว";
+"Use %@ or %@." = "ใช้ %@ หรือ %@";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "ลงชื่อเข้าใช้ที่ %@ ส่งส่วนหัว Cookie ที่มี sessionKey ไปยัง %@ แบบเป็นส่วนตัว จากนั้นเรียกใช้ %@";
+"Read cookie header from stdin" = "อ่านส่วนหัวคุกกี้จาก stdin";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "ไม่บังคับ วางค่า User-Agent จากคำขอเดียวกับที่มีส่วนหัว Cookie";
+"Paste the WorkBuddy User-Agent as a single request header value." = "วาง User-Agent ของ WorkBuddy เป็นค่าฮีเดอร์คำขอเพียงค่าเดียว";
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "ไม่สามารถอ่านภาพรวมการเรียกเก็บเงินของ TypeSafe ได้ เปิด https://console.typesafe.ai/billing เพื่อตรวจสอบการเข้าถึง หากเปิดหน้าได้ ให้รายงานข้อผิดพลาดในการเชื่อมต่อระบบ";
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "ไม่พบคุกกี้เซสชันของ TypeSafe ลงชื่อเข้าใช้ที่ console.typesafe.ai/billing หรือวางส่วนหัว Cookie";

@@ -153,12 +153,16 @@ extension UsageStore {
             self.clearQuotaWarningState(provider: provider, window: window)
             return
         }
+        // Missing five-hour readings preserve session warning history. Older caches may have a weekly window
+        // in the primary slot, so only a five-hour window belongs to this lane.
+        let isClaudeSessionLane = provider == .claude && window == .session
         guard let rateWindow else {
-            self.quotaWarningState.removeValue(forKey: key)
+            if !isClaudeSessionLane {
+                self.quotaWarningState.removeValue(forKey: key)
+            }
             return
         }
-        // Claude promotes weekly usage to primary when its session payload is missing.
-        guard provider != .claude || window != .session || Self.isSessionWindow(rateWindow) else { return }
+        guard !isClaudeSessionLane || Self.isSessionWindow(rateWindow) else { return }
         guard !rateWindow.isSyntheticPlaceholder else { return }
 
         let thresholds = self.settings.resolvedQuotaWarningThresholds(provider: provider.instanceID, window: window)
