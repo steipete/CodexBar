@@ -1289,11 +1289,8 @@ extension UsageStore {
 
             do {
                 let probe = CursorStatusProbe(browserDetection: browserDetection)
-                let snapshot: CursorStatusSnapshot = if cursorCookieSource == .manual,
-                                                        let normalizedHeader = CookieHeaderNormalizer
-                                                            .normalize(cursorCookieHeader)
-                {
-                    try await probe.fetchWithManualCookies(normalizedHeader)
+                let snapshot: CursorStatusSnapshot = if cursorCookieSource == .manual {
+                    try await probe.fetch(cookieHeaderOverride: cursorCookieHeader)
                 } else {
                     try await probe.fetch { msg in lines.append("[cursor-cookie] \(msg)") }
                 }

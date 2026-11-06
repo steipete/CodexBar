@@ -532,6 +532,7 @@ public struct CursorStatusSnapshot: Sendable {
                     .makeRow(label: "Request quota", value: "\(requests.used) / \(requests.limit)"),
                 ])]
             } ?? [],
+            cursorHasUnifiedWeeklyPool: sharedWeeklyPool != nil,
             updatedAt: now,
             identity: identity)
     }

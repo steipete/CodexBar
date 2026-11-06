@@ -197,6 +197,8 @@ public struct UsageSnapshot: Codable, Sendable {
     public let mistralUsage: MistralUsageSnapshot?
     /// Retains an observed zero when a metered Copilot seat has no visible credit row.
     public let copilotMeteredZeroCredits: Bool
+    /// Cursor API explicitly designated the primary window as the unified weekly pool.
+    public let cursorHasUnifiedWeeklyPool: Bool
     /// Live-only marker for optional Command Code subscription lookup failure.
     public let commandCodeSubscriptionEnrichmentUnavailable: Bool
     /// Live-only marker that Command Code returned a recognized subscription plan.
@@ -228,6 +230,7 @@ public struct UsageSnapshot: Codable, Sendable {
         case codexResetCredits
         case mistralUsage
         case copilotMeteredZeroCredits
+        case cursorHasUnifiedWeeklyPool
         case subscriptionExpiresAt
         case subscriptionRenewsAt
         case subscriptionRenewsAtIsDateOnly
@@ -263,6 +266,7 @@ public struct UsageSnapshot: Codable, Sendable {
         claudeResetCredits: ClaudeRateLimitResetCreditsSnapshot? = nil,
         mistralUsage: MistralUsageSnapshot? = nil,
         copilotMeteredZeroCredits: Bool = false,
+        cursorHasUnifiedWeeklyPool: Bool = false,
         commandCodeSubscriptionEnrichmentUnavailable: Bool = false,
         commandCodeHasSubscriptionPlan: Bool = false,
         commandCodeMonthlyGrantDepleted: Bool = false,
@@ -300,6 +304,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.claudeResetCredits = claudeResetCredits
         self.mistralUsage = mistralUsage
         self.copilotMeteredZeroCredits = copilotMeteredZeroCredits
+        self.cursorHasUnifiedWeeklyPool = cursorHasUnifiedWeeklyPool
         self.commandCodeSubscriptionEnrichmentUnavailable = commandCodeSubscriptionEnrichmentUnavailable
         self.commandCodeHasSubscriptionPlan = commandCodeHasSubscriptionPlan
         self.commandCodeMonthlyGrantDepleted = commandCodeMonthlyGrantDepleted
@@ -419,6 +424,8 @@ public struct UsageSnapshot: Codable, Sendable {
         self.mistralUsage = try container.decodeIfPresent(MistralUsageSnapshot.self, forKey: .mistralUsage)
         self.copilotMeteredZeroCredits = try container
             .decodeIfPresent(Bool.self, forKey: .copilotMeteredZeroCredits) ?? false
+        self.cursorHasUnifiedWeeklyPool = try container
+            .decodeIfPresent(Bool.self, forKey: .cursorHasUnifiedWeeklyPool) ?? false
         self.commandCodeSubscriptionEnrichmentUnavailable = false // Live-only fetch state
         self.commandCodeHasSubscriptionPlan = false // Live-only fetch state
         self.commandCodeMonthlyGrantDepleted = false // Live-only fetch state
@@ -462,6 +469,9 @@ public struct UsageSnapshot: Codable, Sendable {
         try container.encodeIfPresent(self.mistralUsage, forKey: .mistralUsage)
         if self.copilotMeteredZeroCredits {
             try container.encode(true, forKey: .copilotMeteredZeroCredits)
+        }
+        if self.cursorHasUnifiedWeeklyPool {
+            try container.encode(true, forKey: .cursorHasUnifiedWeeklyPool)
         }
         try container.encodeIfPresent(self.subscriptionExpiresAt, forKey: .subscriptionExpiresAt)
         try container.encodeIfPresent(self.subscriptionRenewsAt, forKey: .subscriptionRenewsAt)
@@ -672,6 +682,7 @@ public struct UsageSnapshot: Codable, Sendable {
             claudeResetCredits: self.claudeResetCredits,
             mistralUsage: self.mistralUsage,
             copilotMeteredZeroCredits: self.copilotMeteredZeroCredits,
+            cursorHasUnifiedWeeklyPool: self.cursorHasUnifiedWeeklyPool,
             commandCodeSubscriptionEnrichmentUnavailable: self.commandCodeSubscriptionEnrichmentUnavailable,
             commandCodeHasSubscriptionPlan: self.commandCodeHasSubscriptionPlan,
             commandCodeMonthlyGrantDepleted: self.commandCodeMonthlyGrantDepleted,

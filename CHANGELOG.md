@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- Cursor: preserve explicit unified-pool evidence across cached usage, keep legacy Cursor and Grok Bot allowances separate, reject empty Manual credentials and prevent failed Manual cost fetches from publishing unowned local CSV history, and use the current Cursor login route.
+
 - Tests: isolate launch-time WebKit cache maintenance and initialize AppKit independently in app delegate checks (#4955).
 - Claude: restore local cost history and source detection through symlinked project roots without counting shared roots twice.
 - Langdock: show saved Edge and Chrome profile names without translating custom names, and preserve the selected profile after renaming (#4911). Thanks @dYn36!

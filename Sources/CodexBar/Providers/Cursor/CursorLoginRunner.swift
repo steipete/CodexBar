@@ -126,7 +126,7 @@ final class CursorLoginRunner {
     private let pollInterval: TimeInterval
     private let logger = CodexBarLog.logger(LogCategories.provider(.cursor, scope: "login"))
 
-    static let authURL = URL(string: "https://authenticator.cursor.sh/")!
+    static let authURL = URL(string: "https://cursor.com/login")!
 
     init(
         browserDetection: BrowserDetection,
