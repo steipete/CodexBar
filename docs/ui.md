@@ -203,6 +203,7 @@ model-generic token label while the rendered menu-bar prefix and accessibility l
 - Renderer/critter icons dim when last refresh failed and can render incident indicators; brand display mode uses provider branding plus title text.
 - Loading animation runs at a bounded frame rate and has a hard continuous-duration ceiling so provider hangs cannot keep
   the menu bar redrawing forever.
+  An idle loading driver does not reapply icons that have already been updated.
 - Ordinary, fresh monochrome token layouts use template images so AppKit supplies native highlighting and
   inactive-display dimming. Combined stacked rows support inline monochrome icons, percentages, and reset text.
   Individual layout content and appearance remain in the bounded renderer cache; memory-pressure cleanup clears it.

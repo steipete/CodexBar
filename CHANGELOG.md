@@ -22,6 +22,7 @@
 
 - Settings: find panes by title alongside provider names in sidebar search, with an empty state covering both (#4875). Thanks @elijahfriedman!
 
+- Menu bar: avoid applying each split icon twice when the loading animation is already stopped (#4208).
 - Menu bar: skip reset-display refreshes for hidden conditional branches, reducing unnecessary idle icon work (#4208).
 - WorkBuddy: accept the matching browser User-Agent with manual cookies, scoped to WorkBuddy billing requests and validated before cookie access (#4939, #4940). Thanks @michaellx1057!
 
