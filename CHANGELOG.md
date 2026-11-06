@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- OpenCode Go: reuse bounded daily totals for unchanged large local histories while keeping moving quota windows and source changes current.
 - Menu: build only the selected Live or Spend chart, reducing chart layout work while keeping card height and hover details unchanged.
 
 - Settings: release closed pane content to reduce retained memory and stop hidden Usage & Spend updates, preserving the window frame and selected pane.
