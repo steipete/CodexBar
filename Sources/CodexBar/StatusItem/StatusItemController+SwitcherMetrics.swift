@@ -72,6 +72,7 @@ extension StatusItemController {
         } else {
             snapshot?.switcherWeeklyWindow(for: provider, showUsed: showUsed)
         }
+        // Provider-specific by design: Claude's enterprise/extra-usage spend limit can be its only real metric.
         let displayWindow: RateWindow? = if let window, !window.isSyntheticPlaceholder {
             window
         } else if provider == .claude,
