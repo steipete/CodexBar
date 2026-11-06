@@ -2394,8 +2394,6 @@
 "Unavailable account" = "Akun: Tidak tersedia";
 "%@ over" = "%@ terlampaui";
 "Paste the Cookie header from a Chrome request to www.workbuddy.cn/profile/plans-usage." = "Tempel header Cookie dari permintaan Chrome ke www.workbuddy.cn/profile/plans-usage.";
-"User-Agent" = "User-Agent";
-"Optional. Paste the User-Agent value from the same request as the Cookie." = "Opsional. Tempel nilai User-Agent dari permintaan yang sama dengan header Cookie.";
 "Reserved" = "Dicadangkan";
 
 "Add folder…" = "Tambahkan folder…";
@@ -2798,6 +2796,12 @@
 "Leave blank to use the default name." = "Biarkan kosong untuk menggunakan nama bawaan.";
 "Rewards" = "Hadiah";
 "Reward expiry" = "Kedaluwarsa hadiah";
+"Claude Platform session validated and saved." = "Sesi Claude Platform telah divalidasi dan disimpan.";
+"Use %@ or %@." = "Gunakan %@ atau %@.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Masuk di %@. Berikan header Cookie yang berisi sessionKey secara privat ke %@. Lalu jalankan %@.";
+"Read cookie header from stdin" = "Baca header cookie dari stdin";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "Opsional. Tempel nilai User-Agent dari permintaan yang sama dengan header Cookie.";
 "Paste the WorkBuddy User-Agent as a single request header value." = "Tempel User-Agent WorkBuddy sebagai satu nilai header permintaan.";
 "TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "Ringkasan penagihan TypeSafe tidak dapat dibaca. Buka https://console.typesafe.ai/billing untuk memeriksa akses; jika halaman terbuka, laporkan kegagalan integrasi.";
 "No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "Cookie sesi TypeSafe tidak ditemukan. Masuk di console.typesafe.ai/billing atau tempel header Cookie.";

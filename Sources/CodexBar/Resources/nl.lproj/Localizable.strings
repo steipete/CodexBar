@@ -2389,8 +2389,6 @@
 "Unavailable account" = "Account: Niet beschikbaar";
 "%@ over" = "%@ overschreden";
 "Paste the Cookie header from a Chrome request to www.workbuddy.cn/profile/plans-usage." = "Plak de Cookie-header van een Chrome-verzoek aan www.workbuddy.cn/profile/plans-usage.";
-"User-Agent" = "User-Agent";
-"Optional. Paste the User-Agent value from the same request as the Cookie." = "Optioneel. Plak de User-Agent-waarde uit hetzelfde verzoek als de Cookie-header.";
 "Reserved" = "Gereserveerd";
 
 "Add folder…" = "Map toevoegen…";
@@ -2793,6 +2791,12 @@
 "Leave blank to use the default name." = "Laat dit veld leeg om de standaardnaam te gebruiken.";
 "Rewards" = "Beloningen";
 "Reward expiry" = "Vervaldatum beloningen";
+"Claude Platform session validated and saved." = "Claude Platform-sessie gevalideerd en opgeslagen.";
+"Use %@ or %@." = "Gebruik %@ of %@.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Log in op %@. Geef de Cookie-header met sessionKey vertrouwelijk door aan %@. Voer vervolgens %@ uit.";
+"Read cookie header from stdin" = "Cookie-header lezen uit stdin";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "Optioneel. Plak de User-Agent-waarde uit hetzelfde verzoek als de Cookie-header.";
 "Paste the WorkBuddy User-Agent as a single request header value." = "Plak de User-Agent van WorkBuddy als één waarde voor de aanvraagheader.";
 "TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "Het factureringsoverzicht van TypeSafe kon niet worden gelezen. Open https://console.typesafe.ai/billing om de toegang te controleren. Als de pagina opent, meld dan de integratiefout.";
 "No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "Geen TypeSafe-sessiecookies gevonden. Meld je aan op console.typesafe.ai/billing of plak een Cookie-header.";

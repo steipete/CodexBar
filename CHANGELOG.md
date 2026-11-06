@@ -21,6 +21,7 @@
 - Settings: use native popup selectors while keeping imported custom choices visible (#4895). Thanks @elijahfriedman!
 ### Added
 
+- CLI: validate and save Claude Platform sessions from private stdin input with `config login --provider claudeplatform --stdin`, without browser or Keychain access (#4845).
 - Settings: find panes by title alongside provider names in sidebar search, with an empty state covering both (#4875). Thanks @elijahfriedman!
 
 - Codex: reclaim accumulated WebKit network caches while preserving sign-ins, retain same-day asset reuse, and retire the matching unused dashboard store when a managed account is removed (#4942).

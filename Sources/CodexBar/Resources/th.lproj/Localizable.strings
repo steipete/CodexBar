@@ -2394,8 +2394,6 @@
 "Unavailable account" = "บัญชี: ไม่พร้อมใช้งาน";
 "%@ over" = "เกิน %@";
 "Paste the Cookie header from a Chrome request to www.workbuddy.cn/profile/plans-usage." = "วางส่วนหัว Cookie จากคำขอของ Chrome ไปยัง www.workbuddy.cn/profile/plans-usage";
-"User-Agent" = "User-Agent";
-"Optional. Paste the User-Agent value from the same request as the Cookie." = "ไม่บังคับ วางค่า User-Agent จากคำขอเดียวกับที่มีส่วนหัว Cookie";
 "Reserved" = "สำรองไว้";
 
 "Add folder…" = "เพิ่มโฟลเดอร์…";
@@ -2798,6 +2796,12 @@
 "Leave blank to use the default name." = "เว้นว่างไว้เพื่อใช้ชื่อเริ่มต้น";
 "Rewards" = "รางวัล";
 "Reward expiry" = "วันหมดอายุของรางวัล";
+"Claude Platform session validated and saved." = "ตรวจสอบและบันทึกเซสชัน Claude Platform แล้ว";
+"Use %@ or %@." = "ใช้ %@ หรือ %@";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "ลงชื่อเข้าใช้ที่ %@ ส่งส่วนหัว Cookie ที่มี sessionKey ไปยัง %@ แบบเป็นส่วนตัว จากนั้นเรียกใช้ %@";
+"Read cookie header from stdin" = "อ่านส่วนหัวคุกกี้จาก stdin";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "ไม่บังคับ วางค่า User-Agent จากคำขอเดียวกับที่มีส่วนหัว Cookie";
 "Paste the WorkBuddy User-Agent as a single request header value." = "วาง User-Agent ของ WorkBuddy เป็นค่าฮีเดอร์คำขอเพียงค่าเดียว";
 "TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "ไม่สามารถอ่านภาพรวมการเรียกเก็บเงินของ TypeSafe ได้ เปิด https://console.typesafe.ai/billing เพื่อตรวจสอบการเข้าถึง หากเปิดหน้าได้ ให้รายงานข้อผิดพลาดในการเชื่อมต่อระบบ";
 "No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "ไม่พบคุกกี้เซสชันของ TypeSafe ลงชื่อเข้าใช้ที่ console.typesafe.ai/billing หรือวางส่วนหัว Cookie";

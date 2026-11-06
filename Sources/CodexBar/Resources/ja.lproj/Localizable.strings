@@ -2390,8 +2390,6 @@
 "Unavailable account" = "アカウント: 利用不可";
 "%@ over" = "%@ 超過";
 "Paste the Cookie header from a Chrome request to www.workbuddy.cn/profile/plans-usage." = "Chrome で www.workbuddy.cn/profile/plans-usage に送信したリクエストの Cookie ヘッダーを貼り付けてください。";
-"User-Agent" = "User-Agent";
-"Optional. Paste the User-Agent value from the same request as the Cookie." = "任意。Cookie ヘッダーと同じリクエストの User-Agent 値を貼り付けてください。";
 "Reserved" = "確保済み";
 
 "Add folder…" = "フォルダを追加…";
@@ -2796,6 +2794,12 @@
 "Leave blank to use the default name." = "空欄にするとデフォルトの名前を使用します。";
 "Rewards" = "報酬";
 "Reward expiry" = "報酬の有効期限";
+"Claude Platform session validated and saved." = "Claude Platform のセッションを検証して保存しました。";
+"Use %@ or %@." = "%@ または %@ を使用してください。";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "%@ にサインインしてください。sessionKey を含む Cookie ヘッダーを %@ に非公開で渡してください。その後、%@ を実行してください。";
+"Read cookie header from stdin" = "stdin から Cookie ヘッダーを読み取る";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "任意。Cookie ヘッダーと同じリクエストの User-Agent 値を貼り付けてください。";
 "Paste the WorkBuddy User-Agent as a single request header value." = "WorkBuddy の User-Agent を単一のリクエストヘッダー値として貼り付けてください。";
 "TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "TypeSafeの請求概要を読み取れませんでした。https://console.typesafe.ai/billing を開いてアクセスを確認してください。ページが開く場合は、連携の不具合を報告してください。";
 "No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "TypeSafeのセッションCookieが見つかりません。console.typesafe.ai/billing にサインインするか、Cookieヘッダーを貼り付けてください。";
