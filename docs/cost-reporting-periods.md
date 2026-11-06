@@ -1,5 +1,7 @@
 # Cost reporting periods
 
+Usage & Spend creates chart, ledger, and activity views as they approach the visible part of the scrolling pane. This reduces opening work without changing reporting windows, retained source data, or exported records.
+
 ## Conversation usage details
 
 In a cost submenu with session records, click a conversation to open the shared Sessions inspector in

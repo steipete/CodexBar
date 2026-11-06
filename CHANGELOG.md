@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Usage & Spend: reduce opening memory and CPU by deferring offscreen charts, ledger rows, and activity views; totals and exports stay unchanged.
 - Settings: release closed pane content to reduce retained memory and stop hidden Usage & Spend updates, preserving the window frame and selected pane.
 
 - Langdock: show saved Edge and Chrome profile names without translating custom names, and preserve the selected profile after renaming (#4911). Thanks @dYn36!
