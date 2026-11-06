@@ -2372,6 +2372,8 @@
 "Unavailable account" = "帳號: 無法使用";
 "%@ over" = "超出 %@";
 "Paste the Cookie header from a Chrome request to www.workbuddy.cn/profile/plans-usage." = "貼上 Chrome 向 www.workbuddy.cn/profile/plans-usage 傳送的請求中的 Cookie 標頭。";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "選填。貼上與 Cookie 來自同一請求的 User-Agent 值。";
 "Reserved" = "已保留";
 
 "Add folder…" = "新增資料夾…";
@@ -2772,3 +2774,6 @@
 "Leave blank to use the default name." = "留空以使用預設名稱。";
 "Rewards" = "獎勵";
 "Reward expiry" = "獎勵到期日期";
+"Paste the WorkBuddy User-Agent as a single request header value." = "將 WorkBuddy 的 User-Agent 貼上為單一請求標頭值。";
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "無法讀取 TypeSafe 帳單總覽。請開啟 https://console.typesafe.ai/billing 檢查存取權限；如果頁面可以開啟，請回報整合錯誤。";
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "找不到 TypeSafe 工作階段 Cookie。請在 console.typesafe.ai/billing 登入或貼上 Cookie 標頭。";

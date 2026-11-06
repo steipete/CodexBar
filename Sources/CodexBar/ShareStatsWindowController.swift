@@ -31,17 +31,11 @@ final class ShareStatsWindowController: NSWindowController, NSWindowDelegate {
         window.center()
         super.init(window: window)
         window.delegate = self
-        self.installContent()
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
-    }
-
-    func update(payload: ShareStatsPayload) {
-        self.payload = payload
-        self.installContent()
     }
 
     func present() {
@@ -50,7 +44,17 @@ final class ShareStatsWindowController: NSWindowController, NSWindowDelegate {
         self.window?.makeKeyAndOrderFront(nil)
     }
 
-    private func installContent() {
+    func windowWillClose(_ notification: Notification) {
+        guard let window else { return }
+        let frame = window.frame
+        // Clearing the controller resizes the window; keep its reusable geometry with an empty view.
+        window.contentViewController = nil
+        window.contentView = NSView()
+        window.setFrame(frame, display: false)
+    }
+
+    func update(payload: ShareStatsPayload) {
+        self.payload = payload
         self.window?.contentViewController = NSHostingController(rootView: ShareStatsPreviewView(
             payload: self.payload,
             copyImage: { [weak self] in
