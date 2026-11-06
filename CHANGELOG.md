@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- Reset timing: preserve the reported local clock time in MiniMax HTML and Codex diagnostic resets after daylight-saving changes.
+- Usage and spend: honor local day ends when daylight saving skips midnight, preserving workday pace, quota totals, and selected-day tool activity.
 - Plugins: keep daily resets at the requested local hour across daylight-saving changes, including half-hour shifts (#4984). Thanks @vincent-peng!
 - OpenAI: pause Live Usage display clocks while its window is closed.
 - Menu: stop updating cached cards after the last menu closes, and resume live values when reopened.

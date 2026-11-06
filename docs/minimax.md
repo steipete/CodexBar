@@ -63,6 +63,7 @@ and their region endpoints remain unchanged.
 
 ## Snapshot mapping
 - Primary usage, reset timing, and plan/tier are derived from Coding Plan response fields or page text.
+- HTML clock-time resets retain the reported local hour when rolling into the next day after a daylight-saving gap.
 - Unrepresentable integer fields and page durations are ignored without discarding otherwise usable usage percentages.
 - Web-session billing history, when available, is mapped into the shared inline usage dashboard:
   - 30-day token trend.
