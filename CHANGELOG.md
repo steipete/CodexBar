@@ -22,6 +22,8 @@
 
 - Settings: find panes by title alongside provider names in sidebar search, with an empty state covering both (#4875). Thanks @elijahfriedman!
 
+- WorkBuddy: accept the matching browser User-Agent with manual cookies, scoped to WorkBuddy billing requests and validated before cookie access (#4939, #4940). Thanks @michaellx1057!
+
 - Grok: count local tokens once per completed turn in `usage.json`, preserving daily attribution after compaction without adding the legacy session totals again (#4944). Thanks @Chipagosfinest!
 - Share: release the usage preview when its window closes and avoid building it twice on first open.
 - Cursor: reduce peak memory while reading large local usage CSV exports by processing lines without retaining a second split-line array.

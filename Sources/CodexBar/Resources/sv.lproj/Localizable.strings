@@ -2389,6 +2389,8 @@
 "Unavailable account" = "Konto: Inte tillgänglig";
 "%@ over" = "%@ över gränsen";
 "Paste the Cookie header from a Chrome request to www.workbuddy.cn/profile/plans-usage." = "Klistra in Cookie-headern från en Chrome-begäran till www.workbuddy.cn/profile/plans-usage.";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "Valfritt. Klistra in User-Agent-värdet från samma begäran som Cookie-huvudet.";
 "Reserved" = "Reserverat";
 
 "Add folder…" = "Lägg till mapp…";
@@ -2793,7 +2795,6 @@
 "Leave blank to use the default name." = "Lämna tomt för att använda standardnamnet.";
 "Rewards" = "Belöningar";
 "Reward expiry" = "Belöningarnas utgångsdatum";
-
+"Paste the WorkBuddy User-Agent as a single request header value." = "Klistra in WorkBuddys User-Agent som ett enda värde för förfrågningshuvudet.";
 "TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "Det gick inte att läsa TypeSafes faktureringsöversikt. Öppna https://console.typesafe.ai/billing för att kontrollera åtkomsten. Om sidan öppnas, rapportera integrationsfelet.";
-
 "No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "Inga sessionskakor för TypeSafe hittades. Logga in på console.typesafe.ai/billing eller klistra in ett Cookie-huvud.";
