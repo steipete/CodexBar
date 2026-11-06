@@ -25,6 +25,9 @@ request the same cleanup when released, including the default store, at most onc
 Same-day refreshes retain HTTP asset reuse; the first refresh after cleanup may
 download those assets again. Cookies, local storage and IndexedDB are excluded from this maintenance.
 
+Automatic maintenance skips WebKit stores in test processes. Tests exercise cleanup through fake stores instead,
+so app-launch tests never enumerate or modify persistent WebKit data.
+
 Removing a managed account also attempts to remove its exact email-and-managed-ID store after the
 account registry is saved and rechecked. CodexBar releases its cached store reference before requesting deletion;
 live views retain their own references. Other account scopes are untouched. If a view or other WebKit work still

@@ -17,6 +17,7 @@ final class OpenAIDashboardCacheMaintenance {
     private var nextCleanup: [UUID?: Date] = [:]
 
     func clearIfNeeded(_ store: any OpenAIDashboardWebsiteCacheStore, now: Date = Date()) async {
+        guard !TestProcessSafety.isRunning || !(store is WKWebsiteDataStore) else { return }
         guard store.isPersistent, now >= self.nextCleanup[store.identifier, default: .distantPast] else { return }
         // Keep same-day asset reuse; mark before awaiting so overlapping refreshes coalesce.
         self.nextCleanup[store.identifier] = now.addingTimeInterval(24 * 60 * 60)

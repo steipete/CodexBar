@@ -6,6 +6,12 @@ import WebKit
 @MainActor
 struct OpenAIDashboardCacheMaintenanceTests {
     @Test
+    func `launch maintenance is inert in test processes`() async {
+        #expect(TestProcessSafety.isRunning)
+        await OpenAIDashboardWebsiteDataStore.clearNetworkCaches()
+    }
+
+    @Test
     func `daily maintenance bounds cache growth and retains session data`() async {
         let maintenance = OpenAIDashboardCacheMaintenance()
         let store = FakeStore()

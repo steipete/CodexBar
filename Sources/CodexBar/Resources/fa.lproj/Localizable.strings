@@ -2798,3 +2798,7 @@
 "Leave blank to use the default name." = "برای استفاده از نام پیش‌فرض، این قسمت را خالی بگذارید.";
 "Rewards" = "پاداش‌ها";
 "Reward expiry" = "انقضای پاداش‌ها";
+
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "خواندن نمای کلی صورتحساب TypeSafe ممکن نشد. برای بررسی دسترسی، https://console.typesafe.ai/billing را باز کنید؛ اگر صفحه باز شد، خطای یکپارچه‌سازی را گزارش کنید.";
+
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "هیچ کوکی نشست TypeSafe پیدا نشد. در console.typesafe.ai/billing وارد شوید یا یک سرآیند Cookie جای‌گذاری کنید.";

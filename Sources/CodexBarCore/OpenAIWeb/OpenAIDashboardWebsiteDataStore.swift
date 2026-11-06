@@ -23,6 +23,7 @@ public enum OpenAIDashboardWebsiteDataStore {
     /// Reclaim old HTTP caches, including stores whose historical account mapping is unknown.
     /// Cookies, local storage and other session data are deliberately excluded.
     public static func clearNetworkCaches() async {
+        guard !TestProcessSafety.isRunning else { return }
         for identifier in await WKWebsiteDataStore.allDataStoreIdentifiers {
             await OpenAIDashboardCacheMaintenance.shared.clearIfNeeded(WKWebsiteDataStore(forIdentifier: identifier))
         }
