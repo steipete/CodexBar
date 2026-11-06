@@ -2792,3 +2792,12 @@
 "Leave blank to use the default name." = "Leer lassen, um den Standardnamen zu verwenden.";
 "Rewards" = "Prämien";
 "Reward expiry" = "Ablauf der Prämien";
+"Claude Platform session validated and saved." = "Claude Platform-Sitzung wurde validiert und gespeichert.";
+"Use %@ or %@." = "Verwenden Sie %@ oder %@.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Melden Sie sich bei %@ an. Übergeben Sie den Cookie-Header mit sessionKey vertraulich an %@. Führen Sie anschließend %@ aus.";
+"Read cookie header from stdin" = "Cookie-Header aus stdin lesen";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "Optional. Füge den User-Agent-Wert aus derselben Anfrage wie den Cookie-Header ein.";
+"Paste the WorkBuddy User-Agent as a single request header value." = "Füge den WorkBuddy-User-Agent als einzelnen Wert eines Anfrage-Headers ein.";
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "Die TypeSafe-Abrechnungsübersicht konnte nicht gelesen werden. Öffne https://console.typesafe.ai/billing, um den Zugriff zu prüfen. Wenn sich die Seite öffnet, melde den Integrationsfehler.";
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "Keine TypeSafe-Sitzungscookies gefunden. Melde dich unter console.typesafe.ai/billing an oder füge einen Cookie-Header ein.";
