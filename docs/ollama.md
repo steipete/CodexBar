@@ -19,8 +19,8 @@ The Ollama provider reads included usage and purchased credits through an API ke
   (`12.5%`). Free plans label the same included-credit meter **Free usage**; both labels map to the primary
   **Monthly** quota bar. This is not a token-cost or spend estimate.
 - **Legacy usage**: Reads API `session` / `weekly` remaining percentages as used percentages, and retains older settings-page meters.
-- **Reset timestamps**: Uses the `data-time` attribute on the “Resets in …” elements.
-- **API key auth**: Reads `https://ollama.com/api/balance` with `OLLAMA_API_KEY` or a configured key. Included usage is the primary **Monthly** bar; purchased credits appear as **Credit balance** in the same **Credits** section used by browser cookies.
+- **Reset timestamps**: API-key mode uses `included.session.resets_at` / `included.weekly.resets_at` for the legacy shape and `included.period.until` for the monthly shape; the settings page uses the `data-time` attribute on the “Resets in …” elements.
+- **API key auth**: Reads `https://ollama.com/api/balance` with `OLLAMA_API_KEY` or a configured key. The monthly `allowance_usd` / `balance_usd` shape becomes the primary **Monthly** bar, while the legacy `session` / `weekly` percent shape becomes the **Session** and **Weekly** bars. Purchased credits appear as **Credit balance** in the same **Credits** section used by browser cookies.
 - **Browser cookie auth**: Reads the settings page without an API key, including older session/hourly and weekly meters.
 
 ## Setup
@@ -47,6 +47,7 @@ Keychain access is disabled in Advanced settings. CodexBar does not switch cooki
 - API-key mode uses the bundled `ollama-api.ts` plugin to send one bearer-authenticated GET to `https://ollama.com/api/balance`. It no longer probes search or fetches the public model catalog during refresh.
 - The API's `included.allowance_usd - included.balance_usd` supplies **Monthly credits used** and the primary utilization percentage. `included.period.until` supplies its reset. The monthly classification and calendar pace match the cookie path; the shared window model does not store `period.from` as a separate start date.
 - `purchased.balance_usd` supplies **Credit balance**, including Balance layouts. It is never added to the included allowance. Both numeric and decimal-string amounts are supported; absent purchased credits stay absent. Purchased-only accounts get balance details without a quota bar, and a zero allowance does not create a percentage.
+- `included.session.remaining_percent` and `included.weekly.remaining_percent` supply **Session** (300 minutes) and **Weekly** (10,080 minutes) utilization as `100 - remaining_percent`, with the matching `resets_at` as the window reset. Percentages outside 0–100, or an unparseable `resets_at`, fail parsing. When a snapshot contains both shapes, the legacy session/weekly windows win; the monthly shape remains the fallback.
 - HTTP 401 and 403 invalidate the API key. Malformed balances fail parsing without exposing the response body; missing reset timestamps remain unavailable.
 - Cookie mode fetches `https://ollama.com/settings` using browser cookies.
 - Credit-wallet fields are matched by complete elements within their wallet section. Details coexist with any reported quota meters; no percentage is inferred when Ollama does not provide a meter. Refill text ends at its own element, even when it has no final period.
