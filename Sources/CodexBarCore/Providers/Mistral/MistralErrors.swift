@@ -11,7 +11,7 @@ public enum MistralUsageError: LocalizedError, Sendable {
         case .missingCookie:
             "No Mistral session cookies found in browsers."
         case .invalidCredentials:
-            "Mistral session expired or invalid (HTTP 401/403)."
+            "Mistral session expired or invalid."
         case let .apiError(detail):
             "Mistral API error: \(detail)"
         case let .parseFailed(detail):

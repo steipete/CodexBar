@@ -13,6 +13,7 @@
 - OpenCode Go: return unavailable cost history instead of an error when OpenCode is not installed locally, including on `codexbar serve` hosts tracking remote quota. (#4931) Thanks @VACInc!
 - Kiro: recover API usage with a valid CLI token and no stored profile, avoiding chat probes when the API supplies usable plan limits. (#4915) Thanks @Yuxin-Qiao!
 - Kiro: preserve the `+` in CLI-reported plan names so Pro+ subscriptions are shown as Kiro Pro+. (#4928) Thanks @jeanroloff!
+- Mistral: treat a redirect to the Mistral login as an expired session, so CodexBar clears the cached cookie and retries browser sessions instead of failing with `HTTP 302` until the cache is cleared by hand (#5000).
 ### Changed
 
 - Antigravity: reuse HTTP connections for account verification while preserving shorter refresh deadlines.
