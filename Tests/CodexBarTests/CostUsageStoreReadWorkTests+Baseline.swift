@@ -126,7 +126,7 @@ extension CostUsageStoreReadWorkTests {
         let saved = fixture.store.syncSaveCodexCache(
             loaded.cache,
             calendar: fixture.calendar,
-            requestedScanWindow: (sinceKey: ReadWorkFixture.day, untilKey: ReadWorkFixture.day),
+            requestedScanWindow: (sinceKey: "2026-07-01", untilKey: ReadWorkFixture.day),
             fileBudgetBytes: 1,
             skipIdenticalContent: true,
             receipt: loaded.receipt)

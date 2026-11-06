@@ -11,6 +11,13 @@ OpenCode Go is registered separately from OpenCode as `opencodego`. It supports 
 with five-hour, weekly, and monthly quota windows when reported by the selected source. Local cost history reads
 OpenCode Go assistant records from `~/.local/share/opencode/opencode.db`.
 Both legacy `message`/`part` history and v2 `session_message` history are supported; migrated messages are counted once.
+Daily aggregation consumes requests incrementally instead of retaining a separate daily entry for every request.
+Legacy reads select billed parts and message fallbacks in one pass. Part costs still replace their parent message's
+cost, and timestamps, token availability, and migrated-message deduplication are unchanged. Large JSON parts still
+require validation; no size-based filter discards recorded usage.
+Cost scans without a detected local install return empty history with unknown totals, so a remote
+`codexbar serve` host can track quota without a failing cost row. An authenticated install whose history
+is missing, or a database that cannot be read, still reports its history error.
 
 Auto and API sources can reuse the active OpenCode CLI login without another API key. Auto keeps configured API
 keys and usable browser sessions ahead of the CLI login. API mode uses the configured key when present, otherwise

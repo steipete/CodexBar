@@ -281,10 +281,10 @@ public enum ClaudeProviderDescriptor {
         }
         guard context.metric == .automatic || context.metric == .primaryAndSecondary,
               context.snapshot.secondary == nil,
-              context.snapshot.tertiary == nil,
               context.snapshot.primary == nil || context.snapshot.primary?.isSyntheticPlaceholder == true
         else { return .unhandled }
-        let window = context.snapshot.claudeScopedWeeklyWindow?.window
+        let window = context.snapshot.tertiary?.measured
+            ?? context.snapshot.claudeScopedWeeklyWindow?.window
             ?? context.snapshot.claudeMonthlySpendWindow?.window
         return .resolved(window)
     }

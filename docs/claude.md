@@ -62,6 +62,14 @@ With **Disable Keychain access** on, a failed background Auto CLI fetch retries 
 Consecutive failures double the delay up to four hours; a successful fetch resets it. Explicit authentication
 failures still wait for a successful manual refresh. Keychain-enabled background access keeps its existing policy.
 
+With Keychain access enabled and **Only on user action** selected, the app's background Auto refreshes can reuse a
+successful CLI result for up to 15 minutes, or until a quota window resets, but cannot launch another Claude CLI probe.
+A successful manual Refresh does not lift that restriction: Claude runs outside CodexBar's no-prompt Keychain
+controls. If OAuth is unusable and Web has no accessible session, scheduled refreshes fail after the cached result
+expires even though the timer continues running. The retained capture timestamp remains unchanged; changing the
+refresh interval cannot repair source access. Manual Refresh can obtain a new CLI result without enabling future
+background CLI launches under this policy.
+
 Usage source picker:
 - Preferences → Providers → Claude → Usage source (Auto/OAuth/Web/CLI).
 
@@ -153,6 +161,9 @@ If CodexBar reports that its Claude OAuth cache is temporarily unavailable in ma
 that the login keychain is unlocked in Keychain Access, then retry Refresh. This guidance does not
 change the existing prompt policy or switch to another credential source.
 
+The credentials-unavailable message does not establish that a token rotated or macOS revoked access. The same
+state can follow a read suppressed by the selected policy. Refresh retries within the existing consent and prompt rules.
+
 - Preferences → Providers → Claude → Keychain prompt policy.
 - Options:
   - `Never prompt`: never attempts interactive Claude OAuth Keychain prompts.
@@ -229,13 +240,13 @@ change the existing prompt policy or switch to another credential source.
   - `anthropic-beta: oauth-2025-04-20`
   - Reset inventory uses `claude-cli/<detected-version> (external, cli)`; eligibility remains server-controlled.
 - Mapping:
-  - `five_hour` → session window.
-  - `seven_day` → weekly window; also becomes the primary fallback when `five_hour` is absent or has no utilization.
+  - `five_hour` → session window only when it reports utilization; missing or null five-hour data leaves the session row absent.
+  - `seven_day` → weekly window, with `seven_day_oauth_apps` as its fallback. Weekly data never fills the session lane.
   - `seven_day_sonnet` / `seven_day_opus` → model-specific weekly window.
   - `limits[].weekly_scoped` → model-specific weekly windows; generic `All models` scopes stay in the main weekly row.
     OAuth and Web share per-entry parsing: malformed siblings or optional fields do not hide valid model rows. Boolean and string percentages are ignored.
   - The menu localizes scoped titles as a model name plus weekly duration; canonical snapshot and CLI titles remain unchanged.
-  - Automatic and Session + Weekly menu bar metrics fall back to the most constrained known scoped weekly window when the regular quota windows are missing. Unknown scoped measurements remain unavailable; Extra usage stays a spend-only fallback.
+  - Automatic and Session + Weekly menu bar metrics use a measured Sonnet/Opus weekly window when regular quotas are absent, then the most constrained known scoped weekly window. Unknown scoped measurements remain unavailable; Extra usage stays a spend-only fallback.
   - `seven_day_routines` / `seven_day_cowork` → Daily Routines extra window.
   - Claude Design/Omelette keys are ignored because Claude Design shares the main Claude usage limit.
   - `extra_usage` → Extra usage cost (monthly spend/limit).
@@ -307,7 +318,7 @@ action, and honors denial cooldowns. OAuth and Claude Code login sources are unc
   The fixtures cover the reported subscription schema, including cancellation and absent dates; they do not
   establish that every plan or organization role can access this endpoint. Team/Enterprise billing access and
   live cancelled subscriptions remain unverified. Quota resets and Extra usage balances are independent.
-- Session quota warnings ignore a weekly quota promoted into the primary field when the five-hour payload is missing. Existing session warning history stays tied to its account, and weekly warnings continue independently.
+- Missing five-hour readings preserve the account’s session warning history. Legacy cached weekly windows in the primary field still do not count as session usage, and weekly warnings continue independently.
 - Preferences → Providers → Claude → Cookie source (Automatic or Manual).
 - Manual mode accepts a `Cookie:` header from a claude.ai request.
 Each Claude token account can optionally select a **Claude config directory** in Settings → Providers → Claude.
@@ -610,9 +621,11 @@ mode. The additive field is omitted after recovery and from shell rows.
     "Current session" + "Current week" headers. Cursor jumps preserve unchanged cells from earlier frames, keeping
     scoped weekly percentages, reset spacing, and account identity intact. Erased content is not reused as history.
   - Plain reports, including color-only ANSI output and legacy CR-delimited text, retain their existing parsing behavior.
-  - Capture completion uses the current rendered frame and waits for session quota values; percentages in the
+  - Capture completion uses the current rendered frame and waits for session quota values and the CLI's
+    `Refreshing…` footer to clear; percentages in the
     "What's contributing to your limits usage?" insights section cannot finish a loading quota probe. Once quota is
-    complete, insight text cannot trigger another command-palette confirmation.
+    visible, further Enter retries stop while the scoped weekly breakdown finishes refreshing. The existing capture
+    timeout still bounds the wait; unmarked late redraws cannot be distinguished from a complete panel.
   - Extracts percent left/used and reset text near those headers.
   - When a reset date cannot be parsed, the menu preserves its description and normalizes leading `Reset` or `Resets` labels once, including scoped weekly limits.
   - Parses `Account:` and `Org:` lines when present.
@@ -630,6 +643,7 @@ mode. The additive field is omitted after recovery and from shell rows.
 - Source roots:
   - Native Claude logs:
     - `$CLAUDE_CONFIG_DIR` selects one literal directory and uses `<root>/projects`; commas are part of its path.
+    - Symlinks at selected history directory roots are resolved before source detection and scanning. Aliases to the same directory remain deduplicated; nested directory symlinks are not traversed.
     - Also includes claude-swap session profiles at `~/.claude-swap-backup/sessions/<slot>-<label>/projects`. On Linux, also checks `$XDG_DATA_HOME/claude-swap/sessions` (default `~/.local/share/claude-swap/sessions`). Discovery examines only immediate positive-numbered slot directories and their `projects` child; it does not read credentials or run cswap.
     - Fallback roots:
       - `~/.config/claude/projects`
