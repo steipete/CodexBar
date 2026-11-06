@@ -1165,7 +1165,7 @@ extension UserProviderPluginTests {
             #expect(controller.lastObservedStoreIconWorkSignature != iconSignature)
             #expect(controller.menuLocalizationSignature() != menuSignature)
             let expected = try #require(provider.flatMap { ProviderBrandIcon.image(for: $0) }
-                ?? StatusItemController.userPluginSVGImage(plugin))
+                ?? ProviderBrandIcon.image(for: plugin))
             let brandSize = expected.size
             #expect(button.image?.tiffRepresentation == expected.tiffRepresentation)
             controller.populateMenu(menu, provider: nil)
@@ -1244,7 +1244,7 @@ extension UserProviderPluginTests {
             #expect(ProviderPluginIconSVG.isValid(open + shape + "</svg>"), "rejected: \(paint)")
         }
         #expect(plugin.manifest.icon.monogram == "SV")
-        let image = try #require(StatusItemController.userPluginSVGImage(plugin))
+        let image = try #require(ProviderBrandIcon.image(for: plugin))
         #expect(image.isTemplate)
         #expect(image.size == NSSize(width: 16, height: 16))
         let bitmap = try #require(image.representations.first as? NSBitmapImageRep)

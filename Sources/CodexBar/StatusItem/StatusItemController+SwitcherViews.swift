@@ -10,7 +10,7 @@ enum ProviderSwitcherSelection: Hashable {
 final class ProviderSwitcherView: NSView {
     private struct Segment {
         let selection: ProviderSwitcherSelection
-        let image: NSImage
+        let image: NSImage?
         let title: String
     }
 
@@ -60,10 +60,10 @@ final class ProviderSwitcherView: NSView {
         let minimumGap: CGFloat = 1
         var segments = providers.map { provider in
             let fullTitle = Self.switcherTitle(for: provider)
-            let icon = iconProvider(provider)
-            icon.isTemplate = true
+            let icon = showsIcons ? iconProvider(provider) : nil
+            icon?.isTemplate = true
             // Avoid any resampling: we ship exact 16pt/32px assets for crisp rendering.
-            icon.size = NSSize(width: 16, height: 16)
+            icon?.size = NSSize(width: 16, height: 16)
             return Segment(
                 selection: .provider(provider.instanceID),
                 image: icon,
@@ -72,13 +72,13 @@ final class ProviderSwitcherView: NSView {
         segments.append(contentsOf: pluginProviders.map { plugin in
             Segment(
                 selection: .provider(plugin.manifest.id),
-                image: Self.pluginSwitcherImage(plugin, iconProvider: pluginIconProvider),
+                image: showsIcons ? Self.pluginSwitcherImage(plugin, iconProvider: pluginIconProvider) : nil,
                 title: plugin.manifest.name)
         })
         if includesOverview {
-            let overviewIcon = Self.overviewIcon()
-            overviewIcon.isTemplate = true
-            overviewIcon.size = NSSize(width: 16, height: 16)
+            let overviewIcon = showsIcons ? Self.overviewIcon() : nil
+            overviewIcon?.isTemplate = true
+            overviewIcon?.size = NSSize(width: 16, height: 16)
             segments.insert(
                 Segment(
                     selection: .overview,
@@ -117,20 +117,20 @@ final class ProviderSwitcherView: NSView {
 
         func makeButton(index: Int, segment: Segment) -> NSButton {
             let button: NSButton
-            if self.stackedIcons {
+            if self.stackedIcons, let image = segment.image {
                 let stacked = StackedToggleButton(
                     title: segment.title,
-                    image: segment.image,
+                    image: image,
                     target: self,
                     action: #selector(self.handleSelection(_:)))
                 if self.rowCount >= 4 {
                     stacked.setTitleFontSize(NSFont.smallSystemFontSize - 3)
                 }
                 button = stacked
-            } else if self.showsIcons {
+            } else if let image = segment.image {
                 let inline = InlineIconToggleButton(
                     title: segment.title,
-                    image: segment.image,
+                    image: image,
                     target: self,
                     action: #selector(self.handleSelection(_:)))
                 button = inline
@@ -141,13 +141,7 @@ final class ProviderSwitcherView: NSView {
                     action: #selector(self.handleSelection(_:)))
             }
             button.tag = index
-            if self.showsIcons {
-                if self.stackedIcons {
-                    // StackedToggleButton manages its own image view.
-                } else {
-                    // InlineIconToggleButton manages its own image view.
-                }
-            } else {
+            if !self.showsIcons {
                 button.image = nil
                 button.imagePosition = .noImage
             }
