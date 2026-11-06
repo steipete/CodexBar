@@ -66,6 +66,10 @@ describe fetching, not authentication methods, and cookie support can be optiona
 not declared by the descriptor are not enumerated. User-plugin entries currently omit this metadata. Listing it
 does not read credentials, launch login flows, import cookies, or contact providers; `enabled` keeps its existing meaning.
 
+For Claude Platform setup or renewal, pipe a Console Cookie header containing `sessionKey` privately into
+`codexbar config login --provider claudeplatform --stdin --json` (`claude-platform` also works). It validates the
+candidate before replacing a saved cookie. See [validated session import](cli-configuration.md#claude-platform-session-import).
+
 Arguments are parsed strictly: unknown options, missing option values, and extra positional arguments
 fail before the command runs. For example, `codex-accounts promote` accepts one account identifier;
 a second identifier is an error. For an option value beginning with a dash, use the equals form

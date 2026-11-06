@@ -115,12 +115,18 @@ public struct PluginProviderSpec: Sendable {
             subscriptionDashboardURL: self.subscriptionDashboardURL,
             statusPageURL: self.statusPageURL,
             statusLinkURL: self.statusLinkURL)
-        let fetchPlan: ProviderFetchPlan = fetchPlan ?? ProviderFetchPlan(
-            sourceModes: self.webSource?.sourceModes ?? [.auto, .api],
-            pipeline: ProviderFetchPipeline(resolveStrategies: { context in
-                if let web = self.webSource { return [self.webStrategy(web, context: context)] }
-                return [self.makeStrategy(timeout: self.fetchTimeout(environment: context.env))]
-            }))
+        let fetchPlan: ProviderFetchPlan = fetchPlan ?? {
+            // Strategies own their runtimes; retain the finite API timeout variants across refreshes.
+            let timeouts = self.webSource == nil ? Set([self.timeout] + self.toggles.compactMap(\.enabledTimeout)) : []
+            let strategies = Dictionary(uniqueKeysWithValues: timeouts.map { ($0, self.makeStrategy(timeout: $0)) })
+            return ProviderFetchPlan(
+                sourceModes: self.webSource?.sourceModes ?? [.auto, .api],
+                pipeline: ProviderFetchPipeline(resolveStrategies: { context in
+                    if let web = self.webSource { return [self.webStrategy(web, context: context)] }
+                    let timeout = self.fetchTimeout(environment: context.env)
+                    return [strategies[timeout] ?? self.makeStrategy(timeout: timeout)]
+                }))
+        }()
         let cli = ProviderCLIConfig(
             name: self.id.rawValue,
             aliases: self.aliases,

@@ -5,6 +5,8 @@
 ### Fixed
 
 - Codex: preserve legacy saved accounts whose credentials identify another workspace and reject ambiguous same-email replacements (#4499).
+- Keychain: keep shared provider credential reads noninteractive and recover unavailable legacy credentials through one gated read on explicit Refresh (#2562).
+- Claude: describe unavailable OAuth credentials without attributing the failure to token rotation, and clarify the background CLI cache policy (#3798, #4651).
 - Tests: isolate launch-time WebKit cache maintenance and initialize AppKit independently in app delegate checks (#4955).
 - Claude: restore local cost history and source detection through symlinked project roots without counting shared roots twice.
 - Langdock: show saved Edge and Chrome profile names without translating custom names, and preserve the selected profile after renaming (#4911). Thanks @dYn36!
@@ -16,12 +18,26 @@
 - Kiro: preserve the `+` in CLI-reported plan names so Pro+ subscriptions are shown as Kiro Pro+. (#4928) Thanks @jeanroloff!
 ### Changed
 
+- Antigravity: reuse HTTP connections for account verification while preserving shorter refresh deadlines.
+
+- Replicate: reuse HTTP connections for billing refreshes without retaining cookies, credentials, or cached responses in the connection pool.
+
+- Alibaba Token Plan: reuse HTTP connections between refreshes while preserving separate dashboard and quota cookie routing.
+
+- Antigravity: reuse the known `agy` version across refreshes while its executable is unchanged, avoiding repeated version subprocesses.
+
+- Plugins: reduce API refresh CPU work by reusing initialized script runtimes while preserving concurrent account fetches.
 - Menu: dim retained quota and Code Review bars after their own refresh failures, while keeping successful fallback readings and separate credit/cost sections in their normal colors (#4883). Thanks @Chipagosfinest!
 - Menu: use tabular digits for usage and cost values to reduce movement when equal-length numbers change (#4884). Thanks @Chipagosfinest!
 
 - Settings: use native popup selectors while keeping imported custom choices visible (#4895). Thanks @elijahfriedman!
 ### Added
 
+- SiliconFlow: show prepaid balances in CNY or USD through the official API, with matching regional console links and the SiliconFlow mark (#4925). Thanks @maojiebc and @hendryque!
+
+- Codex: automatically confirm eligible weekly-reset readings once after the safety delay, keeping the refresh scoped to its original account when switching accounts (#4783).
+
+- CLI: validate and save Claude Platform sessions from private stdin input with `config login --provider claudeplatform --stdin`, without browser or Keychain access (#4845).
 - Settings: find panes by title alongside provider names in sidebar search, with an empty state covering both (#4875). Thanks @elijahfriedman!
 
 - Codex: reclaim accumulated WebKit network caches while preserving sign-ins, retain same-day asset reuse, and retire the matching unused dashboard store when a managed account is removed (#4942).
