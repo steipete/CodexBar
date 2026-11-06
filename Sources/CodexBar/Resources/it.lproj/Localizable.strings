@@ -2798,3 +2798,7 @@
 "Leave blank to use the default name." = "Lascia vuoto per usare il nome predefinito.";
 "Rewards" = "Premi";
 "Reward expiry" = "Scadenza dei premi";
+
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "Impossibile leggere il riepilogo di fatturazione di TypeSafe. Apri https://console.typesafe.ai/billing per verificare l’accesso; se la pagina si apre, segnala il problema di integrazione.";
+
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "Nessun cookie di sessione TypeSafe trovato. Accedi a console.typesafe.ai/billing oppure incolla un’intestazione Cookie.";

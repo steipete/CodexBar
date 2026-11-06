@@ -229,13 +229,13 @@ change the existing prompt policy or switch to another credential source.
   - `anthropic-beta: oauth-2025-04-20`
   - Reset inventory uses `claude-cli/<detected-version> (external, cli)`; eligibility remains server-controlled.
 - Mapping:
-  - `five_hour` → session window.
-  - `seven_day` → weekly window; also becomes the primary fallback when `five_hour` is absent or has no utilization.
+  - `five_hour` → session window only when it reports utilization; missing or null five-hour data leaves the session row absent.
+  - `seven_day` → weekly window, with `seven_day_oauth_apps` as its fallback. Weekly data never fills the session lane.
   - `seven_day_sonnet` / `seven_day_opus` → model-specific weekly window.
   - `limits[].weekly_scoped` → model-specific weekly windows; generic `All models` scopes stay in the main weekly row.
     OAuth and Web share per-entry parsing: malformed siblings or optional fields do not hide valid model rows. Boolean and string percentages are ignored.
   - The menu localizes scoped titles as a model name plus weekly duration; canonical snapshot and CLI titles remain unchanged.
-  - Automatic and Session + Weekly menu bar metrics fall back to the most constrained known scoped weekly window when the regular quota windows are missing. Unknown scoped measurements remain unavailable; Extra usage stays a spend-only fallback.
+  - Automatic and Session + Weekly menu bar metrics use a measured Sonnet/Opus weekly window when regular quotas are absent, then the most constrained known scoped weekly window. Unknown scoped measurements remain unavailable; Extra usage stays a spend-only fallback.
   - `seven_day_routines` / `seven_day_cowork` → Daily Routines extra window.
   - Claude Design/Omelette keys are ignored because Claude Design shares the main Claude usage limit.
   - `extra_usage` → Extra usage cost (monthly spend/limit).
@@ -307,7 +307,7 @@ action, and honors denial cooldowns. OAuth and Claude Code login sources are unc
   The fixtures cover the reported subscription schema, including cancellation and absent dates; they do not
   establish that every plan or organization role can access this endpoint. Team/Enterprise billing access and
   live cancelled subscriptions remain unverified. Quota resets and Extra usage balances are independent.
-- Session quota warnings ignore a weekly quota promoted into the primary field when the five-hour payload is missing. Existing session warning history stays tied to its account, and weekly warnings continue independently.
+- Missing five-hour readings preserve the account’s session warning history. Legacy cached weekly windows in the primary field still do not count as session usage, and weekly warnings continue independently.
 - Preferences → Providers → Claude → Cookie source (Automatic or Manual).
 - Manual mode accepts a `Cookie:` header from a claude.ai request.
 Each Claude token account can optionally select a **Claude config directory** in Settings → Providers → Claude.
@@ -610,9 +610,11 @@ mode. The additive field is omitted after recovery and from shell rows.
     "Current session" + "Current week" headers. Cursor jumps preserve unchanged cells from earlier frames, keeping
     scoped weekly percentages, reset spacing, and account identity intact. Erased content is not reused as history.
   - Plain reports, including color-only ANSI output and legacy CR-delimited text, retain their existing parsing behavior.
-  - Capture completion uses the current rendered frame and waits for session quota values; percentages in the
+  - Capture completion uses the current rendered frame and waits for session quota values and the CLI's
+    `Refreshing…` footer to clear; percentages in the
     "What's contributing to your limits usage?" insights section cannot finish a loading quota probe. Once quota is
-    complete, insight text cannot trigger another command-palette confirmation.
+    visible, further Enter retries stop while the scoped weekly breakdown finishes refreshing. The existing capture
+    timeout still bounds the wait; unmarked late redraws cannot be distinguished from a complete panel.
   - Extracts percent left/used and reset text near those headers.
   - When a reset date cannot be parsed, the menu preserves its description and normalizes leading `Reset` or `Resets` labels once, including scoped weekly limits.
   - Parses `Account:` and `Org:` lines when present.
@@ -665,6 +667,7 @@ mode. The additive field is omitted after recovery and from shell rows.
   - GPT usage recorded through Claude Code uses the bundled OpenAI model's long-context boundary (272K for supported models), while retaining catalog rates. Uncached input and cache-read/create tokens all contribute to the prompt length. Saved reports are recalculated after pricing corrections without discarding retained Codex history.
   - Native provider cache: `~/Library/Caches/CodexBar/cost-usage/claude-v6.json`. This is a small manifest; its sibling `claude-v6.json.fragments` directory holds immutable JSON shards grouped by transcript project/directory, including source identities and empty-file parse offsets.
   - Report memo: `~/Library/Caches/CodexBar/cost-usage/claude-v6.report-memo.json` stores the daily report and references project shards for source stamps. It is reused only while transcript inventory, cache/pricing artifacts, requested window, and report-semantics revision still match.
+  - Publishing a report releases its decoded transcript rows from memory. The completed report stays warm for unchanged refreshes; a changed source reloads its disk shards and retains them through the next update before releasing them again.
   - An unreadable transcript root or directory fails the refresh without replacing the last valid cache or report memo. Restoring access allows the next refresh to reuse that history; genuinely missing paths still count as removed sources.
   - A pricing catalog replacement during a refresh preserves certification of the parsed transcript window. The next refresh applies the replacement prices to cached rows without reparsing unchanged transcripts, including after a restart. Externally replaced transcript caches still require window certification again.
   - Unchanged sources reuse the memo even when a menu refresh bypasses the scan debounce. Explicit rescans still reparse transcripts, but byte-identical cache and report-memo content is not rewritten; an unchanged rebuild retains its previous scan timestamp.
