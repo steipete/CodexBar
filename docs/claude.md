@@ -632,6 +632,7 @@ mode. The additive field is omitted after recovery and from shell rows.
 - Source roots:
   - Native Claude logs:
     - `$CLAUDE_CONFIG_DIR` selects one literal directory and uses `<root>/projects`; commas are part of its path.
+    - Symlinks at selected history directory roots are resolved before source detection and scanning. Aliases to the same directory remain deduplicated; nested directory symlinks are not traversed.
     - Also includes claude-swap session profiles at `~/.claude-swap-backup/sessions/<slot>-<label>/projects`. On Linux, also checks `$XDG_DATA_HOME/claude-swap/sessions` (default `~/.local/share/claude-swap/sessions`). Discovery examines only immediate positive-numbered slot directories and their `projects` child; it does not read credentials or run cswap.
     - Fallback roots:
       - `~/.config/claude/projects`
