@@ -182,6 +182,7 @@ final class CostUsageClaudeReportMemo: @unchecked Sendable {
             hasWindowScopedRows: hasWindowScopedRows)
         self.lock.withLock { self.installUnlocked(key: key, entry: entry) }
         Self.persist(entry, canonicalCachePath: canonicalCachePath)
+        CostUsageClaudeFragments.shared.evict(at: URL(fileURLWithPath: canonicalCachePath))
     }
 
     #if DEBUG
