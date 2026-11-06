@@ -457,6 +457,7 @@ Every participating CLI must support schema 2. This opt-in mode does not change 
     - `~/.codex/sessions/YYYY/MM/DD/*.jsonl`
     - `~/.codex/archived_sessions/*.jsonl` (flat; date inferred from filename when present)
     - Or `$CODEX_HOME/sessions/...` + `$CODEX_HOME/archived_sessions/...` if `CODEX_HOME` is set.
+    - `sessions` and `archived_sessions` may each be symlinked to another directory or disk, including flat and legacy nested logs. The archive sibling is selected from the configured home before resolving either link; nested directory links are not recursively followed. Existing incomplete linked-root inventories are rediscovered without clearing saved history.
   - Supported pi-compatible sessions:
     - `~/.pi/agent/sessions/**/*.jsonl`
     - `~/.omp/agent/sessions/**/*.jsonl`

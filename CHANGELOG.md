@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Codex: include flat and legacy cost history when `sessions` or `archived_sessions` is symlinked to another disk.
 - Reset timing: preserve the reported local clock time in MiniMax HTML and Codex diagnostic resets after daylight-saving changes.
 - Usage and spend: honor local day ends when daylight saving skips midnight, preserving workday pace, quota totals, and selected-day tool activity.
 - Plugins: keep daily resets at the requested local hour across daylight-saving changes, including half-hour shifts (#4984). Thanks @vincent-peng!
