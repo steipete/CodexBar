@@ -690,7 +690,9 @@ struct ManagedCodexAccountServiceTests {
             #expect(error.userFacingMessage.contains("OAuth callback used the wrong browser profile"))
         }
     }
+}
 
+extension ManagedCodexAccountServiceTests {
     @Test
     func `remove deletes managed home under managed root`() async throws {
         let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -708,17 +710,23 @@ struct ManagedCodexAccountServiceTests {
             lastAuthenticatedAt: 1)
         let store = InMemoryManagedCodexAccountStore(
             accounts: ManagedCodexAccountSet(version: 1, accounts: [account]))
+        var removedStores: [UUID] = []
         let service = ManagedCodexAccountService(
             store: store,
             homeFactory: TestManagedCodexHomeFactory(root: root),
             loginRunner: StubManagedCodexLoginRunner.success,
             identityReader: StubManagedCodexIdentityReader.emails([]),
-            workspaceResolver: StubManagedCodexWorkspaceResolver())
+            workspaceResolver: StubManagedCodexWorkspaceResolver(),
+            removeWebsiteData: { account, isStillRemoved in
+                #expect(isStillRemoved())
+                removedStores.append(account.id)
+            })
 
         try await service.removeManagedAccount(id: account.id)
 
         #expect(store.snapshot.accounts.isEmpty)
         #expect(FileManager.default.fileExists(atPath: home.path) == false)
+        #expect(removedStores == [account.id])
     }
 
     @Test
@@ -781,12 +789,17 @@ struct ManagedCodexAccountServiceTests {
             lastAuthenticatedAt: 1)
         let store = FailingManagedCodexAccountStore(
             accounts: ManagedCodexAccountSet(version: 1, accounts: [account]))
+        var removedStores: [UUID] = []
         let service = ManagedCodexAccountService(
             store: store,
             homeFactory: TestManagedCodexHomeFactory(root: root),
             loginRunner: StubManagedCodexLoginRunner.success,
             identityReader: StubManagedCodexIdentityReader.emails([]),
-            workspaceResolver: StubManagedCodexWorkspaceResolver())
+            workspaceResolver: StubManagedCodexWorkspaceResolver(),
+            removeWebsiteData: { account, isStillRemoved in
+                #expect(isStillRemoved())
+                removedStores.append(account.id)
+            })
 
         await #expect(throws: TestManagedCodexAccountStoreError.writeFailed) {
             try await service.removeManagedAccount(id: account.id)
@@ -795,6 +808,7 @@ struct ManagedCodexAccountServiceTests {
         #expect(store.snapshot.accounts.count == 1)
         #expect(store.snapshot.accounts.first?.managedHomePath == home.path)
         #expect(FileManager.default.fileExists(atPath: home.path))
+        #expect(removedStores == [])
     }
 
     @Test
