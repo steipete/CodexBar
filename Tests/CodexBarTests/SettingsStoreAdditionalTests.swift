@@ -259,6 +259,7 @@ struct SettingsStoreAdditionalTests {
             .fal: [.automatic],
             .flora: [.automatic],
             .parallel: [.automatic],
+            .tripo: [.automatic],
             .aixy: [.automatic],
             .typesafe: [.automatic],
             .hyper: [.automatic],

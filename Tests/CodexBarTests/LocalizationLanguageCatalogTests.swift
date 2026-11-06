@@ -784,6 +784,7 @@ struct LocalizationLanguageCatalogTests {
             "SuperGrok OAuth",
             "Token",
             "Trae CN",
+            "Tripo",
             "User-Agent",
             "Zed cookie",
             "ZeroGPU",

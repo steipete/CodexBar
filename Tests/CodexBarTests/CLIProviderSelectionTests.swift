@@ -49,6 +49,7 @@ struct CLIProviderSelectionTests {
             "|traecn|",
             "|chatbox|",
             "|abliteration|",
+            "|tripo|",
             "|both|",
             "|all]",
         ]

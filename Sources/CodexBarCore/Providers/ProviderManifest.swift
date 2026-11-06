@@ -117,5 +117,6 @@ public enum ProviderManifest {
         AbliterationProviderDescriptor.descriptor,
         OpenDesignProviderDescriptor.descriptor,
         SiliconFlowProviderDescriptor.descriptor,
+        TripoProviderDescriptor.descriptor,
     ]
 }

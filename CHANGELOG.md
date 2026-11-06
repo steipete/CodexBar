@@ -5,6 +5,14 @@
 ### Fixed
 
 - Usage & Spend: reduce opening memory and CPU by deferring offscreen charts, ledger rows, and activity views; totals and exports stay unchanged.
+- Plugins: reclaim superseded TypeScript compilation output after edits while preserving loaded runtimes and other plugins' caches.
+- Codex: include flat and legacy cost history when `sessions` or `archived_sessions` is symlinked to another disk.
+- Reset timing: preserve the reported local clock time in MiniMax HTML and Codex diagnostic resets after daylight-saving changes.
+- Usage and spend: honor local day ends when daylight saving skips midnight, preserving workday pace, quota totals, and selected-day tool activity.
+- Plugins: keep daily resets at the requested local hour across daylight-saving changes, including half-hour shifts (#4984). Thanks @vincent-peng!
+- OpenAI: pause Live Usage display clocks while its window is closed.
+- Menu: stop updating cached cards after the last menu closes, and resume live values when reopened.
+- OpenCode Go: reuse bounded daily totals for unchanged large local histories while keeping moving quota windows and source changes current.
 - Menu: build only the selected Live or Spend chart, reducing chart layout work while keeping card height and hover details unchanged.
 
 - Settings: release closed pane content to reduce retained memory and stop hidden Usage & Spend updates, preserving the window frame and selected pane.
@@ -28,6 +36,13 @@
 - Kiro: preserve the `+` in CLI-reported plan names so Pro+ subscriptions are shown as Kiro Pro+. (#4928) Thanks @jeanroloff!
 ### Changed
 
+- Widgets: reload only Switcher widgets when paging providers, avoiding reload requests for unrelated widget kinds.
+
+- Widgets: reduce timeline decoding work by reading only the configured provider's payload while preserving snapshot freshness and account ownership checks.
+
+- App: reduce allocator-retained memory after large cost-history refreshes on recent macOS versions, without passing the policy to provider CLIs or helpers (#4803, #4486).
+- Menu: reduce CPU work when opening idle provider menus by skipping unnecessary Refresh-row target resolution.
+- Plugins: reuse SVG icon rasters across menu reopenings and skip icon work in text-only provider switchers.
 - Codex: avoid forced checkpoints during unchanged local cost refreshes while preserving scan timestamps and cache budgets (#4620).
 - Codex: avoid rebuilding decoded cost-cache file maps during unchanged refreshes.
 - CLI: reduce startup work for usage and configuration commands by constructing only the selected command family.
@@ -49,6 +64,7 @@
 - Settings: use native popup selectors while keeping imported custom choices visible (#4895). Thanks @elijahfriedman!
 ### Added
 
+- Tripo: show available and reserved API credits through the official balance endpoint (#4927). Thanks @hendryque for the shared social-card artwork!
 - SiliconFlow: show prepaid balances in CNY or USD through the official API, with matching regional console links and the SiliconFlow mark (#4925). Thanks @maojiebc and @hendryque!
 
 - Codex: automatically confirm eligible weekly-reset readings once after the safety delay, keeping the refresh scoped to its original account when switching accounts (#4783).
