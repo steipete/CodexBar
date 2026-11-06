@@ -15,6 +15,9 @@ Daily aggregation consumes requests incrementally instead of retaining a separat
 Legacy reads select billed parts and message fallbacks in one pass. Part costs still replace their parent message's
 cost, and timestamps, token availability, and migrated-message deduplication are unchanged. Large JSON parts still
 require validation; no size-based filter discards recorded usage.
+Cost scans without a detected local install return empty history with unknown totals, so a remote
+`codexbar serve` host can track quota without a failing cost row. An authenticated install whose history
+is missing, or a database that cannot be read, still reports its history error.
 
 Auto and API sources can reuse the active OpenCode CLI login without another API key. Auto keeps configured API
 keys and usable browser sessions ahead of the CLI login. API mode uses the configured key when present, otherwise
