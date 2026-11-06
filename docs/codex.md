@@ -556,6 +556,8 @@ Every participating CLI must support schema 2. This opt-in mode does not change 
   - Saves skip unchanged files using the transaction-validated scan baseline, so a changed session or scan metadata
     does not rewrite every retained file's metadata, aggregates, fork state, buffers, and accumulator. Changed files,
     parser/calendar migrations, and incomplete persisted row sets still take the normal persistence path.
+    Unchanged checks reuse decoded completion flags instead of rebuilding the restored file map. Incoming optional
+    flags still normalize, and filesystem reconciliation runs both before and under the writer lock.
     Hydrating an empty token history does not force a content rewrite when no snapshot rows are stored for that file.
     Clearing a non-empty history still removes its snapshot rows and preserves sibling histories.
   - Excess cached request rows trigger bounded revalidation of readable, unchanged session files. Ordered source
