@@ -12,9 +12,7 @@ struct OpenAILiveUsageView: View {
             if let error = self.model.lastError {
                 HStack {
                     if self.model.isRateLimited {
-                        TimelineView(.periodic(from: .now, by: 1)) { context in
-                            Text(L("Rate limited; retrying in %ds", self.retrySeconds(at: context.date)))
-                        }
+                        OpenAILiveUsageRetryText(model: self.model)
                     } else {
                         Text(error)
                     }
@@ -82,14 +80,7 @@ struct OpenAILiveUsageView: View {
             .pickerStyle(.segmented)
             .labelsHidden()
             .frame(width: 150)
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                if let updated = self.model.lastUpdated {
-                    Text(Self.updatedText(from: updated, now: context.date))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                }
-            }
+            OpenAILiveUsageUpdatedText(model: self.model)
             Button(L("Limits…"), action: self.openSettings)
             Button(action: { self.model.refresh() }, label: {
                 if self.model.isLoading {
@@ -240,10 +231,6 @@ struct OpenAILiveUsageView: View {
         .textSelection(.enabled)
     }
 
-    private func retrySeconds(at date: Date) -> Int {
-        max(0, Int(ceil(self.model.nextRefreshAt?.timeIntervalSince(date) ?? self.model.pollingInterval)))
-    }
-
     static func updatedText(from updated: Date, now: Date) -> String {
         let seconds = max(0, now.timeIntervalSince(updated))
         if seconds < 60 { return L("Updated just now") }
@@ -336,5 +323,50 @@ private struct OpenAILiveUsageTable: View {
 
     private func cell(_ text: String) -> some View {
         Text(text).monospacedDigit().frame(width: 85, alignment: .trailing)
+    }
+}
+
+/// Keep activity observation local to the clock labels.
+private struct OpenAILiveUsageUpdatedText: View {
+    let model: OpenAILiveUsageModel
+
+    var body: some View {
+        TimelineView(OpenAILiveUsageTimelineSchedule(model: self.model)) { context in
+            if let updated = self.model.lastUpdated {
+                Text(OpenAILiveUsageView.updatedText(from: updated, now: context.date))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+        }
+    }
+}
+
+private struct OpenAILiveUsageRetryText: View {
+    let model: OpenAILiveUsageModel
+
+    var body: some View {
+        TimelineView(OpenAILiveUsageTimelineSchedule(model: self.model)) { context in
+            Text(L("Rate limited; retrying in %ds", self.retrySeconds(at: context.date)))
+        }
+    }
+
+    private func retrySeconds(at date: Date) -> Int {
+        max(0, Int(ceil(self.model.nextRefreshAt?.timeIntervalSince(date) ?? self.model.pollingInterval)))
+    }
+}
+
+struct OpenAILiveUsageTimelineSchedule: TimelineSchedule {
+    private let isActive: Bool
+    private let periodic = PeriodicTimelineSchedule(from: .now, by: 1)
+
+    @MainActor
+    init(model: OpenAILiveUsageModel) {
+        self.isActive = model.isActive
+    }
+
+    func entries(from startDate: Date, mode: TimelineScheduleMode) -> AnySequence<Date> {
+        guard self.isActive else { return AnySequence([]) }
+        return AnySequence(self.periodic.entries(from: startDate, mode: mode))
     }
 }

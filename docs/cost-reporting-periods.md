@@ -42,7 +42,11 @@ is selected. No additional history store is created.
 
 ## History windows
 
+Usage & Spend captures daily/hourly summaries and conversation/project details without retaining exact quota-window events or an unused native accounting alternative. This lets obsolete quota payloads be released after their source publication is replaced or cleared. The source publication and regular menu quota data keep their own lifetimes; dashboard totals, Overview, and stale last-known details are unchanged.
+
 The menu's **History window** supports rolling days, **Month to date**, and **All**. Usage & Spend uses the same period model and keeps its own range selection. Existing saved day counts retain their rolling windows; the dashboard's former All selection migrates to All available history.
+
+Usage & Spend prepares its detailed display model on demand and reuses it until the source, period, or selection changes. Background publications keep Overview current without eagerly preparing an unused dashboard model. Underlying source history remains available; a dashboard view that still observes updates can continue to request the model.
 
 Usage & Spend groups ranges longer than 45 reporting days by week, and ranges longer than 180 days by month. Select a bucket to inspect its days, then a day with hourly records to inspect individual hours. Daily scrolling keeps whole reporting days visible across daylight-saving changes. Hour labels use a shared 24-hour clock and include UTC offsets in the inspector to distinguish repeated hours. The legend can isolate an account without changing dashboard totals. It shows sources with recorded amounts in the displayed range, drilled interval, or hourly day, including recorded zero-dollar amounts. Sources without priced records in that scope are omitted; account labels and colors stay stable. Legend chips and inspector amounts wrap in narrow windows. Daily inspection only selects existing buckets, so plot padding cannot produce an adjacent date with an empty inspector.
 

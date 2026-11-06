@@ -22,7 +22,7 @@ package struct KeychainStringStore: Sendable {
         var update: @Sendable ([String: Any], [String: Any]) -> OSStatus
         var add: @Sendable ([String: Any]) -> OSStatus
         var delete: @Sendable ([String: Any]) -> OSStatus
-        var preflight: @Sendable (KeychainPromptContext) -> Void
+        var preflight: @Sendable (KeychainPromptContext) -> KeychainAccessPreflight.Outcome
 
         static let live = Self(
             read: { query in
@@ -34,12 +34,9 @@ package struct KeychainStringStore: Sendable {
             add: { KeychainSecurity.add($0 as CFDictionary, nil) },
             delete: { KeychainSecurity.delete($0 as CFDictionary) },
             preflight: { context in
-                if KeychainAccessPreflight.checkGenericPassword(
+                KeychainAccessPreflight.checkGenericPassword(
                     service: context.service,
-                    account: context.account).requiresInteraction
-                {
-                    KeychainPromptHandler.handler?(context)
-                }
+                    account: context.account)
             })
     }
 
@@ -71,16 +68,53 @@ package struct KeychainStringStore: Sendable {
     }
 
     package func load() throws -> String? {
+        try Task.checkCancellation()
         guard !KeychainAccessGate.isDisabled else { return nil }
+        var requiresInteraction = false
+        switch self.operations.preflight(self.context) {
+        case .allowed: break
+        case .notFound: return nil
+        case .interactionRequired:
+            requiresInteraction = true
+        case .temporarilyUnavailable:
+            // Migration must preserve unreadable credentials instead of treating them as absent.
+            throw KeychainStringStoreError.keychainStatus(errSecInteractionNotAllowed)
+        case let .failure(status):
+            throw KeychainStringStoreError.keychainStatus(OSStatus(status))
+        }
         var query = self.query
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         query[kSecReturnData as String] = true
-        self.operations.preflight(self.context)
-        let (status, data) = self.operations.read(query)
+        let (status, data) = try self.read(query, requiresInteraction: requiresInteraction)
         if status == errSecItemNotFound { return nil }
         try self.check(status, operation: "read")
         guard let data else { throw KeychainStringStoreError.invalidData }
         return Self.cleaned(String(data: data, encoding: .utf8))
+    }
+
+    private func read(_ query: [String: Any], requiresInteraction: Bool) throws -> (OSStatus, Data?) {
+        try Task.checkCancellation()
+        if !requiresInteraction {
+            var noUIQuery = query
+            KeychainNoUIQuery.apply(to: &noUIQuery)
+            let result = self.operations.read(noUIQuery)
+            try Task.checkCancellation()
+            if result.0 != errSecInteractionNotAllowed { return result }
+        }
+        try Task.checkCancellation()
+        guard KeychainPromptHandler.isInstalled,
+              BrowserCookieAccessGate.claimCredentialRead(service: self.context.service),
+              KeychainPromptHandler.notifyIfHandled(self.context)
+        else { throw KeychainStringStoreError.keychainStatus(errSecInteractionNotAllowed) }
+        try Task.checkCancellation()
+        let result = self.operations.read(query)
+        if [errSecUserCanceled, errSecAuthFailed, errSecNoAccessForItem, errSecInteractionNotAllowed]
+            .contains(result.0)
+        {
+            BrowserCookieAccessGate.recordCredentialDenial(service: self.context.service)
+        }
+        try Task.checkCancellation()
+        return result
     }
 
     @discardableResult

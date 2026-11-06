@@ -11,6 +11,12 @@ OpenCode Go is registered separately from OpenCode as `opencodego`. It supports 
 with five-hour, weekly, and monthly quota windows when reported by the selected source. Local cost history reads
 OpenCode Go assistant records from `~/.local/share/opencode/opencode.db`.
 Both legacy `message`/`part` history and v2 `session_message` history are supported; migrated messages are counted once.
+Daily aggregation consumes requests incrementally instead of retaining a separate daily entry for every request.
+Legacy reads select billed parts and message fallbacks in one pass. Part costs still replace their parent message's
+cost, and timestamps, token availability, and migrated-message deduplication are unchanged.
+Legacy tool/text parts with an unambiguous first `type` field are excluded before JSON parsing; other field orders,
+escaped keys, and billable parts keep full validation. This reduces memory spikes from large ignored tool output.
+No size-based filter discards recorded usage.
 Cost scans without a detected local install return empty history with unknown totals, so a remote
 `codexbar serve` host can track quota without a failing cost row. An authenticated install whose history
 is missing, or a database that cannot be read, still reports its history error.
@@ -46,11 +52,13 @@ require an existing no-UI Safe Storage grant, and the actual cookie read disallo
 blocked, or rejected discovered sessions leave the local estimate available; Cookie source Off disables discovery.
 An invalid manual credential still surfaces its authentication error. No local estimate is used for pace forecasts.
 
-Unchanged database scans are reused within the app/server process, keyed by the database and SQLite `-wal`
-sidecar sizes and modification dates. WAL commits, checkpoints, and removal invalidate the cache. One parsed-row
-payload of at most 4 MiB (row storage plus model text, excluding allocator overhead) is retained; larger payloads
-remain readable but are not cached. Exact row timestamps let quota windows, resets, and requested history ranges
-advance on cache hits. Separate CLI invocations each perform their own initial scan.
+Unchanged database scans are reused within the app/server process, keyed by database and SQLite `-wal`
+sidecar identities, sizes, and modification dates. WAL commits, checkpoints, removal, and database replacement
+invalidate the cache. One payload has a 4 MiB storage budget (excluding allocator overhead): small histories keep
+parsed rows; larger histories keep daily totals and only timestamp/cost pairs for the recent five-hour window.
+Moving quota windows and resets remain live. Aggregate reuse ends at calendar or billing boundaries, future records,
+backward clock changes, or a wider requested history range; changed sources always rescan. Payloads exceeding the
+budget remain readable without being retained. Separate CLI invocations each perform their own initial scan.
 
 The shared [OpenCode guide](opencode.md) documents authentication, scoped source selection, usage mapping, and the
 boundary between device-local estimates and account quota. Keep those details there so the two guides do not drift.

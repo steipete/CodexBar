@@ -48,6 +48,8 @@ extension UsageStore {
         }
         self.tokenAccountLiveStateProviders.remove(provider.instanceID)
         if provider == .codex {
+            self.codexWeeklyResetFollowUps.values.forEach { $0.task.cancel() }
+            self.codexWeeklyResetFollowUps.removeAll()
             self.codexAccountSnapshots = []
             self.lastCodexUsagePublicationGuard = nil
         }

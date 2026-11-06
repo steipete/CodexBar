@@ -6,7 +6,7 @@ import Testing
 @MainActor
 struct UsageStorePathDebugTests {
     @Test
-    func `refresh path debug info populates snapshot`() async throws {
+    func `path diagnostics stay unloaded until requested`() async throws {
         let suite = "UsageStorePathDebugTests-path"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
@@ -19,15 +19,23 @@ struct UsageStorePathDebugTests {
             fetcher: UsageFetcher(),
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings,
-            startupBehavior: .full)
+            startupBehavior: .testing)
 
-        let deadline = Date().addingTimeInterval(2)
-        while store.pathDebugInfo == .empty, Date() < deadline {
-            try? await Task.sleep(nanoseconds: 50_000_000)
+        let diagnosticsWereLoaded = store.pathDebugInfo != .empty
+        #expect(!diagnosticsWereLoaded)
+        var loads = 0
+        let snapshot = PathDebugSnapshot(
+            codexBinary: "/synthetic/bin/codex",
+            claudeBinary: nil,
+            geminiBinary: nil,
+            effectivePATH: "/synthetic/bin:/usr/bin",
+            loginShellPATH: "/synthetic/bin")
+        await store.refreshPathDebugInfo {
+            loads += 1
+            return snapshot
         }
-
-        #expect(store.pathDebugInfo != .empty)
-        #expect(store.pathDebugInfo.effectivePATH.isEmpty == false)
+        #expect(loads == 1)
+        #expect(store.pathDebugInfo == snapshot)
     }
 
     @Test

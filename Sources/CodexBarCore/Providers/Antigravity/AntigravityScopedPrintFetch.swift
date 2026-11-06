@@ -194,6 +194,25 @@ enum AntigravityScopedAgyStaging {
         return updated
     }
 
+    private static let fullBudgetIdentitySession = Self.makeIdentitySession(timeout: 15)
+
+    static func identitySession(timeout: TimeInterval) -> URLSession {
+        // Shorter budgets need their own resource deadline.
+        timeout == 15 ? self.fullBudgetIdentitySession : self.makeIdentitySession(timeout: timeout)
+    }
+
+    private static func makeIdentitySession(timeout: TimeInterval) -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.httpCookieStorage = nil
+        configuration.httpShouldSetCookies = false
+        configuration.urlCredentialStorage = nil
+        configuration.urlCache = nil
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        configuration.timeoutIntervalForRequest = timeout
+        configuration.timeoutIntervalForResource = timeout
+        return ProviderHTTPClient.redirectGuardedSession(configuration: configuration)
+    }
+
     /// Verify the effective access token, including agy's in-place refresh, independently of the ID-token claim.
     static func runEffectiveAccountEmail(
         payload: AntigravityAgyFileTokenPayload,
@@ -204,11 +223,10 @@ enum AntigravityScopedAgyStaging {
         var request = URLRequest(url: AntigravityOAuthConfig.userInfoURL)
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = min(timeout, 15)
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.timeoutIntervalForRequest = request.timeoutInterval
-        configuration.timeoutIntervalForResource = request.timeoutInterval
-        let session = ProviderHTTPClient.redirectGuardedSession(configuration: configuration)
-        defer { session.invalidateAndCancel() }
+        let session = Self.identitySession(timeout: request.timeoutInterval)
+        defer {
+            if request.timeoutInterval != 15 { session.invalidateAndCancel() }
+        }
         do {
             try Task.checkCancellation()
             let (data, response) = try await (dataLoader ?? { try await session.data(for: $0) })(request)
