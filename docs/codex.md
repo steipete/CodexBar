@@ -347,6 +347,7 @@ and stable account numbers distinguish rows while usable workspace labels remain
   - `Credits:` line
   - `5h limit` line → percent + reset text
   - `Weekly limit` line → percent + reset text
+- Time-only reset text retains its requested local hour when rolling into tomorrow, even if daylight saving skipped that hour today.
 - Detects update prompts and surfaces a "CLI update needed" error.
 
 ## Account identity resolution (for web matching)

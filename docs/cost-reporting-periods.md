@@ -23,6 +23,7 @@ model requests. This view does not estimate a tool's price from its duration or 
 Messages sharing a turn cannot be priced separately. Missing turn ownership or older history without
 request records appears as unattributed usage; unavailable prices remain unknown. Requests outside the
 selected period and usage belonging to separate subagent sessions are not added to a parent's turn.
+Selected-day tool activity ends at the next local day boundary, including when daylight saving skips midnight.
 For the Codex adapter, automatic approval-review sessions can appear alongside user-created
 conversations because its scanner reads local Codex session logs. A recorded zero-dollar amount does not imply zero tokens.
 

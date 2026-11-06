@@ -252,6 +252,8 @@ target. This is a budget for the remaining period, not a measurement of today's 
 
 The **Work days** setting selects the weekly pace model. **Automatic** uses Codex historical pace when enough data is available. Historical daily credits follow local calendar-day boundaries, including midnight daylight-saving transitions. Selecting 4, 5, 6, or 7 days uses that explicit schedule for pace and ETA instead; CodexBar continues collecting history in the background, but does not use historical predictions until the setting returns to Automatic. Six days counts Monday through Saturday and excludes Sunday, including in the session forecast's remaining capacity.
 
+Explicit workday schedules and daily totals in quota windows also follow actual local day boundaries when daylight saving skips midnight.
+
 - **On pace** – usage matches the expected rate.
 - **X% in deficit** – you're consuming faster than the even rate; at this pace you'll run out before the window resets.
 - **X% in reserve** – you're consuming slower than the even rate; you have headroom to spare.

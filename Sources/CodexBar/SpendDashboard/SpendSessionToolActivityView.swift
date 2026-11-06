@@ -4,7 +4,7 @@ import SwiftUI
 func spendToolActivityRange(group: SpendDashboardModel.CurrencyGroup) -> Range<Date> {
     guard let day = group.selectedDay else { return group.chartDomain.lowerBound..<group.chartDomain.upperBound }
     let start = group.calendar.startOfDay(for: day)
-    let end = group.calendar.date(byAdding: .day, value: 1, to: start) ?? start.addingTimeInterval(86400)
+    let end = group.calendar.dateInterval(of: .day, for: start)?.end ?? start.addingTimeInterval(86400)
     return start..<end
 }
 
