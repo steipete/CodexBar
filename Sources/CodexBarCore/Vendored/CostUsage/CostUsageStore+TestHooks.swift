@@ -11,6 +11,7 @@ struct CostUsageStoreTestHooks: Sendable {
     var identicalContentPostCommitCheckpoint: (databaseURL: URL, checkpoint: @Sendable () -> Void)?
     var codexCatchUpReconciliationVisit: (@Sendable () -> Void)?
     var projectSourceReportStorageChanged: (@Sendable () -> Void)?
+    var codexScanCompleteNormalizationVisit: (@Sendable () -> Void)?
     var readWorkRecorder: CostUsageStoreReadWorkRecorder?
     var scanStoreOverride: CostUsageStore?
     var codexTokenSnapshotReadFailure: (@Sendable (URL, String) -> Bool)?

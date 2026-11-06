@@ -16,25 +16,63 @@ import WebKit
 /// account email. This ensures `OpenAIDashboardWebViewCache` can use object identity for cache lookups.
 @MainActor
 public enum OpenAIDashboardWebsiteDataStore {
-    /// Cached data store instances keyed by normalized email and optional Codex source scope.
+    /// Cached data store instances keyed by the same account identifier WebKit persists.
     /// Using the same instance ensures stable object identity for WebView cache lookups.
-    private static var cachedStores: [String: WKWebsiteDataStore] = [:]
+    private static var cachedStores: [UUID: WKWebsiteDataStore] = [:]
+
+    /// Reclaim old HTTP caches, including stores whose historical account mapping is unknown.
+    /// Cookies, local storage and other session data are deliberately excluded.
+    public static func clearNetworkCaches() async {
+        guard !TestProcessSafety.isRunning else { return }
+        for identifier in await WKWebsiteDataStore.allDataStoreIdentifiers {
+            await OpenAIDashboardCacheMaintenance.shared.clearIfNeeded(WKWebsiteDataStore(forIdentifier: identifier))
+        }
+    }
+
+    public static func removeStore(
+        forRemovedAccount account: ManagedCodexAccount,
+        isStillRemoved: @MainActor () -> Bool) async
+    {
+        await self.removeStore(
+            forRemovedAccount: account,
+            identifiers: WKWebsiteDataStore.allDataStoreIdentifiers,
+            isStillRemoved: isStillRemoved,
+            releaseCachedStore: { self.cachedStores.removeValue(forKey: $0) },
+            remove: { try await WKWebsiteDataStore.remove(forIdentifier: $0) })
+    }
+
+    static func removeStore(
+        forRemovedAccount account: ManagedCodexAccount,
+        identifiers: [UUID],
+        isStillRemoved: @MainActor () -> Bool,
+        releaseCachedStore: @MainActor (UUID) -> Void,
+        remove: @MainActor (UUID) async throws -> Void) async
+    {
+        guard let identifier = self.identifier(forAccountEmail: account.email, scope: .managedAccount(account.id)),
+              identifiers.contains(identifier), isStillRemoved() else { return }
+        // Our cached owner can keep a network session alive even after all WebViews have gone.
+        releaseCachedStore(identifier)
+        do {
+            // Live views or outstanding WebKit work still protect their store from deletion.
+            try await remove(identifier)
+        } catch {
+            // In-use or unverifiable stores keep their sessions; the cache-only sweep still reclaims their bytes.
+        }
+    }
 
     public static func store(
         forAccountEmail email: String?,
         scope: CookieHeaderCache.Scope? = nil) -> WKWebsiteDataStore
     {
-        guard let normalized = normalizeEmail(email) else { return .default() }
-        let storageKey = self.storageKey(normalizedEmail: normalized, scope: scope)
+        guard let id = self.identifier(forAccountEmail: email, scope: scope) else { return .default() }
 
         // Return cached instance if available to maintain stable object identity
-        if let cached = cachedStores[storageKey] {
+        if let cached = cachedStores[id] {
             return cached
         }
 
-        let id = Self.identifier(forStorageKey: storageKey)
         let store = WKWebsiteDataStore(forIdentifier: id)
-        self.cachedStores[storageKey] = store
+        self.cachedStores[id] = store
         return store
     }
 
@@ -62,8 +100,8 @@ public enum OpenAIDashboardWebsiteDataStore {
         }
 
         // Remove from cache so a fresh instance is created on next access
-        if let normalized = normalizeEmail(email) {
-            self.cachedStores.removeValue(forKey: self.storageKey(normalizedEmail: normalized, scope: scope))
+        if let id = self.identifier(forAccountEmail: email, scope: scope) {
+            self.cachedStores.removeValue(forKey: id)
         }
     }
 
@@ -82,12 +120,9 @@ public enum OpenAIDashboardWebsiteDataStore {
         return raw.lowercased()
     }
 
-    private static func storageKey(normalizedEmail: String, scope: CookieHeaderCache.Scope?) -> String {
-        guard let scope else { return normalizedEmail }
-        return "\(normalizedEmail)|\(scope.isolationIdentifier)"
-    }
-
-    private static func identifier(forStorageKey storageKey: String) -> UUID {
+    static func identifier(forAccountEmail email: String?, scope: CookieHeaderCache.Scope? = nil) -> UUID? {
+        guard let normalized = normalizeEmail(email) else { return nil }
+        let storageKey = scope.map { "\(normalized)|\($0.isolationIdentifier)" } ?? normalized
         let digest = SHA256.hash(data: Data(storageKey.utf8))
         var bytes = Array(digest.prefix(16))
 

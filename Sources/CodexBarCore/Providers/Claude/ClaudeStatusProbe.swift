@@ -1488,7 +1488,7 @@ extension ClaudeStatusProbe {
         let sendEnterEvery: TimeInterval? = subcommand == "/usage" ? 0.8 : nil
         let stopWhenNormalized: (@Sendable (String) -> Bool)? = subcommand == "/usage"
             ? { @Sendable normalizedScan in
-                Self.usageCaptureHasSessionValue(normalizedScan)
+                Self.usageCaptureIsComplete(normalizedScan)
                     || Self.usageCaptureHasSubscriptionNotice(normalizedScan)
             }
             : nil
@@ -1518,7 +1518,14 @@ extension ClaudeStatusProbe {
         }
     }
 
-    private static func usageCaptureHasSessionValue(_ normalizedText: String) -> Bool {
+    static func usageCaptureIsComplete(_ normalizedText: String) -> Bool {
+        // The CLI can show session quotas while its scoped weekly rows are still refreshing.
+        !normalizedText.contains("refreshing…esctocancel")
+            && !normalizedText.contains("refreshing...esctocancel")
+            && self.usageCaptureHasSessionValue(normalizedText)
+    }
+
+    static func usageCaptureHasSessionValue(_ normalizedText: String) -> Bool {
         let insightsStart = normalizedText.range(of: "what'scontributingtoyourlimitsusage?")?.lowerBound
             ?? normalizedText.endIndex
         let quotaText = normalizedText[..<insightsStart]

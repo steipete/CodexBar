@@ -46,6 +46,10 @@ for line in sys.stdin:
             with urllib.request.urlopen(f'http://127.0.0.1:{port}{path}',timeout=45) as response:
                 assert response.status == 200
                 return json.load(response)
+        def usage():
+            payload=get('/usage?provider=codex')
+            assert len(payload)==1 and payload[0]['provider']=='codex'
+            assert payload[0].get('usage',{}).get('primary',{}).get('usedPercent')==12, 'synthetic RPC usage was not returned'
         def pipes():
             values=set()
             for fd in Path(f'/proc/{child.pid}/fd').iterdir():
@@ -62,19 +66,20 @@ for line in sys.stdin:
                 except OSError:
                     assert child.poll() is None and time.monotonic()<deadline
                     time.sleep(.1)
+            ready=pipes()
+            # Foundation creates process-wide pipes on the first RPC child launch.
+            usage()
             initial=pipes()
             for _ in range(60):
-                payload=get('/usage?provider=codex')
-                assert len(payload)==1 and payload[0]['provider']=='codex'
-                assert payload[0].get('usage',{}).get('primary',{}).get('usedPercent')==12, 'synthetic RPC usage was not returned'
+                usage()
             deadline=time.monotonic()+10
             remaining=pipes()-initial
             while remaining and time.monotonic()<deadline:
                 time.sleep(.05)
                 remaining=pipes()-initial
             assert get('/health')['status']=='ok'
-            print(json.dumps({'rpc_fetches':60,'initial_pipes':len(initial),'retained_pipe_growth':len(remaining),'health':200}),flush=True)
-            assert not remaining, 'RPC refreshes retained output pipes'
+            print(json.dumps({'rpc_fetches':60,'ready_pipes':len(ready),'initial_pipes':len(initial),'final_pipes':len(pipes()),'retained_pipe_growth':len(remaining),'health':200}),flush=True)
+            assert not remaining, f'RPC refreshes retained output pipes: {len(remaining)} after warm-up'
         finally:
             child.terminate()
             try: child.wait(timeout=20)

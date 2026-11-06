@@ -138,9 +138,12 @@ extension CostUsageStore {
                 database: database,
                 table: "scan_metadata",
                 home: home) ?? .empty
-            metadata.scanSinceDay = sinceDay
-            metadata.scanUntilDay = untilDay
-            try self.writeSingleton(metadata, database: database, table: "scan_metadata", home: home)
+            // Identical writes invalidate the scanner baseline even when no history was pruned.
+            if metadata.scanSinceDay != sinceDay || metadata.scanUntilDay != untilDay {
+                metadata.scanSinceDay = sinceDay
+                metadata.scanUntilDay = untilDay
+                try self.writeSingleton(metadata, database: database, table: "scan_metadata", home: home)
+            }
 
             let afterFiles = try self.scalarInt(database, "SELECT COUNT(*) FROM files")
             let afterSnapshots = try self.scalarInt(database, "SELECT COUNT(*) FROM token_snapshots")
@@ -306,17 +309,22 @@ extension CostUsageStore {
         maxFileBytes: Int64,
         requestedSinceDay: String? = nil,
         requestedUntilDay: String? = nil,
-        calendar: Calendar = .current) -> CostUsageStoreBudgetResult
+        calendar: Calendar = .current,
+        forceCheckpoint: Bool = true) -> CostUsageStoreBudgetResult
     {
         let fallback = CostUsageStoreBudgetResult(deletedRows: 0, rowCount: 0, fileBytes: 0)
         return self.withDatabase(default: fallback) { database in
             let initialRows = try Self.rowCount(database)
-            let initialBytes = Self.fileSize(at: self.databaseURL)
-            let metadata = try Self.readSingleton(
-                CostUsageStoreMetadata.self,
-                database: database,
-                table: "scan_metadata",
-                home: self.home)
+            let initialBytes = try Self.allocatedFileBytes(database, at: self.databaseURL)
+            let metadata: CostUsageStoreMetadata? = if requestedSinceDay == nil || requestedUntilDay == nil {
+                try Self.readSingleton(
+                    CostUsageStoreMetadata.self,
+                    database: database,
+                    table: "scan_metadata",
+                    home: self.home)
+            } else {
+                nil
+            }
             let sinceDay = requestedSinceDay ?? metadata?.scanSinceDay
             let untilDay = requestedUntilDay ?? metadata?.scanUntilDay
             let rowLimit = max(0, maxRows)
@@ -325,10 +333,7 @@ extension CostUsageStore {
                let sinceDay, let untilDay, sinceDay <= untilDay
             {
                 // Budget eviction cannot reconstruct archived rows outside a smaller report window.
-                let hasArchives = try Self.readFiles(database, home: self.home).contains {
-                    CostUsageScanner.isArchivedCodexRollout($0.path)
-                }
-                if !hasArchives {
+                if try !Self.hasArchivedRollout(database, home: self.home) {
                     _ = try Self.prune(
                         database,
                         home: self.home,
@@ -351,9 +356,13 @@ extension CostUsageStore {
                     calendar: calendar) else { break }
                 catchUpRequired = true
             }
-            try Self.reclaimFreePages(database)
+            // Unchanged native saves use SQLite's normal WAL checkpoint policy.
+            // Reclamation still checkpoints, and live page counts include uncheckpointed growth.
+            if try forceCheckpoint || Self.scalarInt(database, "PRAGMA freelist_count") > 0 {
+                try Self.reclaimFreePages(database)
+            }
 
-            var fileBytes = Self.fileSize(at: self.databaseURL)
+            var fileBytes = try Self.allocatedFileBytes(database, at: self.databaseURL)
             while fileBytes > byteLimit {
                 guard try Self.deleteOldestRetainedFile(
                     database,
@@ -364,7 +373,7 @@ extension CostUsageStore {
                 else { break }
                 catchUpRequired = true
                 try Self.reclaimFreePages(database)
-                fileBytes = Self.fileSize(at: self.databaseURL)
+                fileBytes = try Self.allocatedFileBytes(database, at: self.databaseURL)
             }
             if catchUpRequired {
                 try Self.rebuildDayAggregates(database, home: self.home)
@@ -377,6 +386,20 @@ extension CostUsageStore {
                 fileBytes: fileBytes,
                 catchUpRequired: catchUpRequired)
         }
+    }
+
+    private static func hasArchivedRollout(_ database: OpaquePointer, home: String) throws -> Bool {
+        let statement = try self.prepare(database, "SELECT path FROM files WHERE home = ? ORDER BY path")
+        defer { sqlite3_finalize(statement) }
+        self.bind(home, to: statement, at: 1)
+        var result = sqlite3_step(statement)
+        while result == SQLITE_ROW {
+            guard let path = self.columnText(statement, at: 0) else { throw StoreError.invalidData }
+            if CostUsageScanner.isArchivedCodexRollout(path) { return true }
+            result = sqlite3_step(statement)
+        }
+        guard result == SQLITE_DONE else { throw StoreError.sqlite(result) }
+        return false
     }
 
     func fileSizeBytes() -> Int64 {
@@ -483,6 +506,12 @@ extension CostUsageStore {
     private static func reclaimFreePages(_ database: OpaquePointer) throws {
         try self.execute(database, "PRAGMA incremental_vacuum(1000000)")
         try self.execute(database, "PRAGMA wal_checkpoint(TRUNCATE)")
+    }
+
+    private static func allocatedFileBytes(_ database: OpaquePointer, at url: URL) throws -> Int64 {
+        let liveBytes = try self.scalarInt(database, "PRAGMA page_count") * self.scalarInt(database, "PRAGMA page_size")
+        // A reader can block truncation after vacuum; those physical bytes still count.
+        return max(self.fileSize(at: url), liveBytes)
     }
 
     private static func fileSize(at url: URL) -> Int64 {
