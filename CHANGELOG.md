@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Tests: isolate launch-time WebKit cache maintenance and initialize AppKit independently in app delegate checks (#4955).
 - Claude: restore local cost history and source detection through symlinked project roots without counting shared roots twice.
 - Langdock: show saved Edge and Chrome profile names without translating custom names, and preserve the selected profile after renaming (#4911). Thanks @dYn36!
 - Claude: hide the session row when five-hour usage is absent, preserve weekly and model-specific quotas, and retain session warning history (#4914). Thanks @BobbyWang0120!
@@ -22,6 +23,7 @@
 
 - Settings: find panes by title alongside provider names in sidebar search, with an empty state covering both (#4875). Thanks @elijahfriedman!
 
+- Codex: reclaim accumulated WebKit network caches while preserving sign-ins, retain same-day asset reuse, and retire the matching unused dashboard store when a managed account is removed (#4942).
 - Menu bar: avoid applying each split icon twice when the loading animation is already stopped (#4208).
 - Menu bar: skip reset-display refreshes for hidden conditional branches, reducing unnecessary idle icon work (#4208).
 - WorkBuddy: accept the matching browser User-Agent with manual cookies, scoped to WorkBuddy billing requests and validated before cookie access (#4939, #4940). Thanks @michaellx1057!
