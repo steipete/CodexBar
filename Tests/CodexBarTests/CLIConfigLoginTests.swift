@@ -6,6 +6,18 @@ import Testing
 
 struct CLIConfigLoginTests {
     @Test
+    func `Claude Platform login accepts stdin for both provider aliases`() throws {
+        for provider in ["claudeplatform", "claude-platform"] {
+            let invocation = try Program(descriptors: CodexBarCLI.commandDescriptors())
+                .resolve(arguments: ["config", "login", "--provider", provider, "--stdin", "--json"])
+            #expect(invocation.path == ["config", "login"])
+            #expect(invocation.parsedValues.options["provider"] == [provider])
+            #expect(invocation.parsedValues.flags.contains("stdin"))
+            #expect(CLIOutputPreferences.from(values: invocation.parsedValues).format == .json)
+        }
+    }
+
+    @Test
     func `config login resolves provider and JSON options`() throws {
         let invocation = try Program(descriptors: CodexBarCLI.commandDescriptors())
             .resolve(arguments: ["config", "login", "--provider", "copilot", "--json"])

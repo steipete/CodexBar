@@ -16,7 +16,7 @@ Manual mode accepts a Cookie header captured from a request to `https://replicat
 
 ## Implementation
 
-Native code owns local credential selection, browser import and cache recovery. The bundled `replicate.ts` plugin owns all network requests and parsing:
+Native code owns local credential selection, browser import and cache recovery. Web refreshes share an ephemeral HTTP connection pool with cookie, credential and response storage disabled; each request retains its explicit session cookie and the existing redirect guard. The bundled `replicate.ts` plugin owns all network requests and parsing:
 
 1. GET the billing page with `Accept: text/html` and resolve the selected user or organization from its JSON React props.
 2. GET that account's invoices and use the current `monthly-usage` invoice's `total_cost_before_adjustments` as required spend.
