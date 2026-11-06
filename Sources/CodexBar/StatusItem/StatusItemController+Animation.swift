@@ -1340,7 +1340,8 @@ extension StatusItemController {
     }
 
     private func stopLoadingAnimation(resetStart: Bool = true) {
-        self.animationDriver?.stop()
+        guard let driver = self.animationDriver else { return }
+        driver.stop()
         self.animationDriver = nil
         self.animationPhase = 0
         if resetStart {

@@ -64,6 +64,18 @@ background secret reads remain non-interactive.
 Provider-owned child processes are a separate boundary. CodexBar may intentionally launch a provider CLI such as
 Claude for usage. That executable owns its credential behavior, which CodexBar cannot constrain or fully inspect.
 
+Startup migration reads legacy provider tokens and saved cookies only after a successful noninteractive access
+preflight, using explicit no-UI queries. Unavailable credentials remain intact and migration cleanup stays pending.
+Choose **Refresh** for the affected provider to retry importing its missing credentials. The global Refresh retries
+enabled providers; the existing Settings Refresh action can also retry its specifically chosen disabled provider.
+An explicit retry can explain and request one Keychain grant, shared with the action's browser
+imports; a denial suppresses another legacy-credential prompt for six hours. Settings changes and scheduled refreshes
+cannot request that grant. Temporary Keychain failures still need the login Keychain to be unlocked before retrying.
+Only credentials used by the chosen source or enabled optional web details are retried; saved-cookie recovery requires
+the Manual cookie source. Cancellation stops authorization and prevents the returned credential from being imported.
+Recovery preserves current settings, skips selected token accounts, and does not delete legacy credentials. Fields
+already configured at startup or imported during this app session are not reimported after you clear them.
+
 ## Why permission can be requested again
 
 Keychain access control evaluates the requesting executable's code signature and designated requirement, not just its
