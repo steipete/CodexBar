@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- OpenAI: pause Live Usage display clocks while its window is closed.
 - Menu: stop updating cached cards after the last menu closes, and resume live values when reopened.
 - OpenCode Go: reuse bounded daily totals for unchanged large local histories while keeping moving quota windows and source changes current.
 - Menu: build only the selected Live or Spend chart, reducing chart layout work while keeping card height and hover details unchanged.
