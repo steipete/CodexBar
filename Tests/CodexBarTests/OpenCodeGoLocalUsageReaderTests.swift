@@ -7,6 +7,76 @@ import Testing
 
 struct OpenCodeGoLocalUsageReaderTests {
     @Test
+    func `message fallback visits ignored parts only once`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        try Self.createDatabase(at: env.databaseURL)
+        let messageID = try Self.insertMessage(
+            databaseURL: env.databaseURL, createdMs: 1_772_798_399_000, cost: 1)
+        var db: OpaquePointer?
+        guard sqlite3_open(env.databaseURL.path, &db) == SQLITE_OK else { throw SQLiteTestError.open }
+        defer { sqlite3_close(db) }
+        try Self.exec(db: db, sql: """
+        WITH RECURSIVE fixtures(n) AS (VALUES(0) UNION ALL SELECT n + 1 FROM fixtures WHERE n < 999)
+        INSERT INTO part (id, message_id, session_id, data, time_created)
+        SELECT 'part-' || n, '\(messageID)', 'synthetic',
+          CASE WHEN n = 0 THEN '{' ELSE '{"type":"tool","cost":100}' END, 1772798399000
+        FROM fixtures
+        """)
+        var statement: OpaquePointer?
+        let prepared = sqlite3_prepare_v2(
+            db, OpenCodeGoLocalUsageReader.messageAndPartUsageSQL, -1, &statement, nil)
+        defer { sqlite3_finalize(statement) }
+        try #require(prepared == SQLITE_OK)
+        #expect(sqlite3_step(statement) == SQLITE_ROW)
+        #expect(sqlite3_column_double(statement, 1) == 1)
+        #expect(sqlite3_step(statement) == SQLITE_DONE)
+        let visits = sqlite3_stmt_status(statement, SQLITE_STMTSTATUS_FULLSCAN_STEP, 0)
+            + sqlite3_stmt_status(statement, SQLITE_STMTSTATUS_AUTOINDEX, 0)
+        #expect(visits <= 1000)
+    }
+
+    @Test
+    func `daily history accumulates each request only once`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        try Self.createDatabase(at: env.databaseURL)
+        let now = Date(timeIntervalSince1970: 1_772_798_400)
+        for _ in 0..<32 {
+            try Self.insertMessage(
+                databaseURL: env.databaseURL,
+                createdMs: Self.ms(now) - 1000,
+                cost: 0.25,
+                model: "synthetic-model",
+                tokens: ["total": 100, "input": 80, "output": 20])
+        }
+        let work = LockIsolated((created: 0, consumed: 0, peak: 0))
+        let created: @Sendable () -> Void = {
+            var value = work.value
+            value.created += 1
+            value.peak = max(value.peak, value.created - value.consumed)
+            work.setValue(value)
+        }
+        let consumed: @Sendable () -> Void = {
+            var value = work.value
+            value.consumed += 1
+            work.setValue(value)
+        }
+        let snapshot = try OpenCodeGoLocalUsageReader.$dailyEntryObserverForTesting.withValue(created) {
+            try CostUsageDailyReport.$entryAccumulationObserverForTesting.withValue(consumed) {
+                try OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL).fetch(now: now)
+            }
+        }
+        #expect(snapshot.daily.count == 1)
+        #expect(snapshot.daily.first?.costUSD == 8)
+        #expect(snapshot.daily.first?.totalTokens == 3200)
+        #expect(snapshot.daily.first?.requestCount == 32)
+        #expect(work.value.created == 32)
+        #expect(work.value.consumed == 32)
+        #expect(work.value.peak == 1)
+    }
+
+    @Test
     func `cost fetcher exposes existing local daily history`() async throws {
         let env = try Self.makeEnvironment()
         defer { try? FileManager.default.removeItem(at: env.root) }
@@ -22,6 +92,41 @@ struct OpenCodeGoLocalUsageReaderTests {
         #expect(snapshot.daily.count == 1)
         #expect(snapshot.daily.first?.modelBreakdowns?.first?.costUSD == 1)
         #expect(OpenCodeGoProviderDescriptor.descriptor.cli.supportsCostCommand)
+    }
+
+    @Test
+    func `cost fetcher returns empty history when OpenCode is not installed`() async throws {
+        // `codexbar serve` hosts often track OpenCode Go quota through the API without a local
+        // OpenCode install; their `/cost` row must be empty, not an error.
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("OpenCodeGoLocalUsageReaderTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let snapshot = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .opencodego,
+            environment: ["HOME": root.path],
+            now: Date(timeIntervalSince1970: 1_772_798_400),
+            allowPricingRefresh: false)
+        #expect(snapshot.daily.isEmpty)
+        #expect(!snapshot.historyCoverageIsEstablished)
+        #expect(snapshot.sessionCostUSD == nil)
+        #expect(snapshot.sessionTokens == nil)
+        #expect(snapshot.last30DaysCostUSD == nil)
+        #expect(snapshot.last30DaysTokens == nil)
+    }
+
+    @Test
+    func `cost fetcher still reports missing history when OpenCode Go is logged in`() async throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        try Self.writeAuth(to: env.authURL)
+        await #expect(throws: OpenCodeGoLocalUsageError.historyUnavailable("database not found")) {
+            _ = try await CostUsageFetcher.loadTokenSnapshot(
+                provider: .opencodego,
+                environment: ["HOME": env.root.path],
+                now: Date(timeIntervalSince1970: 1_772_798_400),
+                allowPricingRefresh: false)
+        }
     }
 
     @Test

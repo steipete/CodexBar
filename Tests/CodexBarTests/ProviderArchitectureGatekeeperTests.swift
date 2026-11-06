@@ -2505,16 +2505,23 @@ struct ProviderArchitectureGatekeeperTests {
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore/UsageStore+LimitResetCelebration.swift",
             anchor: "let isClaudeWeekly = input.provider == .claude && input.seriesName == .weekly",
-            expectedProviderIDs: ["claude", "codex"],
-            expectedReferenceCount: 2,
-            expectedReferenceFingerprint: ["claude@0", "codex@1"],
-            reason: "Claude and Codex weekly resets use distinct confirmation evidence in the shared detector."),
+            expectedProviderIDs: ["claude", "codex", "grok"],
+            expectedReferenceCount: 3,
+            expectedReferenceFingerprint: ["claude@0", "codex@1", "grok@2"],
+            reason: "Claude, Codex, and Grok weekly resets use distinct confirmation evidence in the shared detector."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore/UsageStore+LimitResetCelebration.swift",
             anchor: "if input.provider == .codex, input.seriesName == .weekly {",
-            expectedProviderIDs: ["codex"],
+            expectedProviderIDs: ["codex", "grok"],
             expectedReferenceCount: 2,
-            expectedReferenceFingerprint: ["codex@0", "codex@11"],
+            expectedReferenceFingerprint: ["codex@0", "grok@6"],
+            reason: "Codex and Grok weekly confirmation require provider-specific boundary evidence."),
+        AllowedProviderConstruct(
+            path: "Sources/CodexBar/UsageStore/UsageStore+LimitResetCelebration.swift",
+            anchor: "snapshot.loginMethod(for: .codex)?",
+            expectedProviderIDs: ["codex"],
+            expectedReferenceCount: 1,
+            expectedReferenceFingerprint: ["codex@0"],
             reason: "Codex weekly confirmation compares its provider boundary and subscription tier."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore/UsageStore+LimitResetIdentity.swift",
@@ -2613,11 +2620,11 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "Warning windows retain provider-owned family, balance, label, and extra-window policies."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore/UsageStore+QuotaWarnings.swift",
-            anchor: "guard provider != .claude || window != .session || Self.isSessionWindow(rateWindow) else { return }",
+            anchor: "let isClaudeSessionLane = provider == .claude && window == .session",
             expectedProviderIDs: ["claude"],
             expectedReferenceCount: 2,
-            expectedReferenceFingerprint: ["claude@0", "claude@5"],
-            reason: "Claude preserves session history across weekly promotion and reconciles unresolved warning owners."),
+            expectedReferenceFingerprint: ["claude@0", "claude@12"],
+            reason: "Claude keeps session history across weekly-only payloads and reconciles unresolved warning owners."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore/UsageStore+Refresh.swift",
             anchor: "let codexExplicitPAT = provider == .codex && self.settings.codexUsageDataSource == .pat",
@@ -3200,9 +3207,9 @@ struct ProviderArchitectureGatekeeperTests {
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/CostUsageFetcher.swift",
             anchor: "if provider == .opencodego {",
-            expectedProviderIDs: ["muse", "opencodego", "pi"],
-            expectedReferenceCount: 3,
-            expectedReferenceFingerprint: ["opencodego@0", "muse@11", "pi@23"],
+            expectedProviderIDs: ["opencodego"],
+            expectedReferenceCount: 1,
+            expectedReferenceFingerprint: ["opencodego@0"],
             reason: "The CLI cost adapter reuses OpenCode Go's existing device-local recorded history reader."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/CostUsageFetcher.swift",
