@@ -158,7 +158,7 @@ struct CodexBarTimelineProvider: AppIntentTimelineProvider {
         return CodexBarWidgetEntry(
             date: Date(),
             provider: provider,
-            snapshot: WidgetSnapshotStore.load() ?? WidgetPreviewData.snapshot())
+            snapshot: WidgetSnapshotStore.load(provider: provider) ?? WidgetPreviewData.snapshot())
     }
 
     func timeline(
@@ -166,7 +166,7 @@ struct CodexBarTimelineProvider: AppIntentTimelineProvider {
         in context: Context) async -> Timeline<CodexBarWidgetEntry>
     {
         let provider = configuration.provider.provider
-        let snapshot = WidgetSnapshotStore.load() ?? WidgetPreviewData.emptySnapshot()
+        let snapshot = WidgetSnapshotStore.load(provider: provider) ?? WidgetPreviewData.emptySnapshot()
         let now = Date()
         let entry = CodexBarWidgetEntry(date: now, provider: provider, snapshot: snapshot)
         let refresh = BurnDownRefreshSchedule.nextRefresh(snapshot: snapshot, provider: provider, now: now)
@@ -242,7 +242,7 @@ struct CodexBarCompactTimelineProvider: AppIntentTimelineProvider {
             date: Date(),
             provider: provider,
             metric: metric,
-            snapshot: WidgetSnapshotStore.load() ?? WidgetPreviewData.snapshot())
+            snapshot: WidgetSnapshotStore.load(provider: provider) ?? WidgetPreviewData.snapshot())
     }
 
     func timeline(
@@ -251,7 +251,7 @@ struct CodexBarCompactTimelineProvider: AppIntentTimelineProvider {
     {
         let provider = configuration.provider.provider
         let metric = configuration.metric
-        let snapshot = WidgetSnapshotStore.load() ?? WidgetPreviewData.emptySnapshot()
+        let snapshot = WidgetSnapshotStore.load(provider: provider) ?? WidgetPreviewData.emptySnapshot()
         let entry = CodexBarCompactEntry(
             date: Date(),
             provider: provider,
