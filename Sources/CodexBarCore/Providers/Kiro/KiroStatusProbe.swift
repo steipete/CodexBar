@@ -1027,14 +1027,14 @@ public struct KiroStatusProbe: Sendable {
 
         // Parse plan name from "| KIRO FREE" or similar (legacy format)
         // Horizontal whitespace only ([ \t]) so the match cannot bridge a newline into the next line.
-        if let planMatch = text.range(of: #"\|[ \t]*(KIRO[ \t]+\w+)"#, options: .regularExpression) {
+        if let planMatch = text.range(of: #"\|[ \t]*(KIRO[ \t]+[\w+]+)"#, options: .regularExpression) {
             let raw = String(text[planMatch]).replacingOccurrences(of: "|", with: "")
             planName = raw.trimmingCharacters(in: .whitespaces)
         }
 
         // Parse plan name from "Estimated Usage | resets on 2026-06-01 | KIRO FREE" (kiro-cli 2.x)
         if let estimatedMatch = text.range(
-            of: #"Estimated Usage[ \t]*\|[^\n|]*\|[ \t]*([A-Z][A-Z0-9 ]+)"#,
+            of: #"Estimated Usage[ \t]*\|[^\n|]*\|[ \t]*([A-Z][A-Z0-9 +]+)"#,
             options: .regularExpression)
         {
             let line = String(text[estimatedMatch])

@@ -4,13 +4,13 @@ import Testing
 @MainActor
 struct PreferencesAdvancedPaneTests {
     @Test
-    func `cli install status prefers successful installs over unrelated failures`() {
+    func `cli install status reports skipped protected directories alongside successful installs`() {
         let status = AdvancedPane.cliInstallStatus(
             installed: ["Installed: /opt/homebrew/bin"],
             conflicts: [],
             failures: ["No write access: /usr/local/bin"])
 
-        #expect(status == "Installed: /opt/homebrew/bin")
+        #expect(status == "Installed: /opt/homebrew/bin · No write access: /usr/local/bin")
     }
 
     @Test
