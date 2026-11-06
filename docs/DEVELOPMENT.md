@@ -34,6 +34,8 @@ read_when:
 4. **Optional file log**: enable Debug → Logging → "Enable file logging" to write
    `~/Library/Logs/CodexBar/CodexBar.log` (verbosity defaults to "Verbose")
 
+CLI path diagnostics in **Settings → Debug** load when that pane opens. Startup still captures the login-shell PATH for normal provider commands; the Debug pane waits for that capture before resolving its diagnostic paths.
+
 ## Plural format validation
 
 Plural references share printf argument positions with ordinary values and star width/precision arguments. For example, `%d: %#@count@` can be translated as `%2$#@count@ (%1$d)`; swapping the count to `%1$#@count@` is invalid even though both arguments are integers. Run `node --test Scripts/test_localization_formats.mjs` for focused validator tests and `node Scripts/check-app-locales.mjs` for the catalogs.
@@ -607,6 +609,23 @@ swiftlint --strict
 ```
 
 ## Distribution
+
+### Allocator policy
+
+The packaged app sets `LSEnvironment.MallocLargeCache=0` before LaunchServices starts it. On recent xzone
+allocators (macOS 26.3 and later published sources), this disables huge-allocation caching and deferred
+reclamation of freed large, tiny, and small storage. Three paired synthetic whole-app runs on macOS 27 reduced
+mean refresh/settled physical footprint by 38%/36%, with less than 1% additional busy CPU. This reduces freed
+allocator storage; it does not establish or fix every memory-growth report.
+
+`MallocLargeCache` is an undocumented Apple allocator control whose meaning varies by OS. On macOS 14/15,
+and the magazine path in 26.0, it only disables the large last-free cache; 26.0's xzone initializer does not
+read it. Those older runtimes have not been benchmarked. Recheck the policy when updating the SDK or OS baseline.
+
+malloc reads the policy before `main`; the app then removes the variable before constructing provider environments,
+so provider CLIs and the HTTP helper retain their normal allocator policy. The separately launched widget has no
+override. Sparkle relaunches through LaunchServices. Direct binary execution does not apply `LSEnvironment`;
+explicitly pass `MallocLargeCache=0` when reproducing the packaged allocator policy from a shell.
 
 ### Local Development Build
 ```bash

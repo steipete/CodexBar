@@ -21,6 +21,7 @@ enum CodexBarLaunchMode: Equatable {
 enum CodexBarEntryPoint {
     @MainActor
     static func main() {
+        self.removeAllocatorEnvironmentOverride()
         // Packaging launch smoke check (#2738): force the resource loads that
         // trapped in 0.48.0 and exit before any AppKit/UI setup.
         if CodexBarCoreResourceSmoke.isRequested() {
@@ -36,6 +37,11 @@ enum CodexBarEntryPoint {
         }
         TerminalLauncher().cleanUpAbandonedConfigs()
         CodexBarApp.main()
+    }
+
+    static func removeAllocatorEnvironmentOverride() {
+        // malloc consumes its startup policy before main. Keep it out of provider CLIs and helpers.
+        unsetenv("MallocLargeCache")
     }
 }
 

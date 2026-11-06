@@ -1,9 +1,9 @@
-import CodexBarCore
 import Foundation
 import Observation
 import os.lock
 import Testing
 @testable import CodexBar
+@testable import CodexBarCore
 
 @MainActor
 struct SpendDashboardCachedPresentationTests {
@@ -524,5 +524,171 @@ struct SpendDashboardLazyModelTests {
                 now: Self.now,
                 force: mode.forcesLoader)
         }
+    }
+}
+
+@MainActor
+struct SpendDashboardProjectionLifetimeTests {
+    @Test
+    func `capture releases obsolete quota history while preserving source and dashboard data`() async throws {
+        let settings = testSettingsStore(
+            suiteName: "SpendDashboardProjectionLifetimeTests",
+            userDefaults: InMemoryUserDefaults())
+        settings.costUsageEnabled = true
+        settings.costUsageBucketTimeZoneIdentifier = "UTC"
+        settings.preferredCurrencyCode = "USD"
+        enableTestProviders(
+            [.claude],
+            settings: settings)
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+        let lifetimes = Self.seedPublication(store)
+        let sourceBefore = try Self.sourceQuotaSummary(store)
+        let expected = try Self.sourceModel(store)
+        #expect(lifetimes.native != nil)
+        #expect(lifetimes.selected != nil)
+        let request = await SpendDashboardSource.makeRequest(
+            settings: settings,
+            store: store,
+            mode: .captureOnly,
+            now: Self.now)
+        let captured = try #require(request.capturedInputs.first)
+        #expect(request.capturedInputs.count == 1)
+        #expect(captured.snapshot.quotaSlices.isEmpty)
+        #expect(captured.snapshot.quotaProjectionMemo !== lifetimes.selected)
+        #expect(captured.snapshot.hourly.count == 1)
+        #expect(try Self.sourceQuotaSummary(store) == sourceBefore)
+        #expect(SpendDashboardModel.build(
+            inputs: request.capturedInputs,
+            now: Self.now,
+            calendar: CostUsageBucketTimeZone.calendar(identifier: "UTC")) == expected)
+        #expect(expected.groups.first?.totalCost == 9)
+        #expect(expected.groups.first?.sessions.count == 1)
+
+        store.clearSpendDashboardTokenSnapshot(for: .claude)
+
+        withExtendedLifetime(request) {
+            #expect(lifetimes.native == nil)
+            #expect(lifetimes.selected == nil)
+            #expect(SpendDashboardModel.build(
+                inputs: request.capturedInputs,
+                now: Self.now,
+                calendar: CostUsageBucketTimeZone.calendar(identifier: "UTC")) == expected)
+            #expect(request.capturedInputs.first?.snapshot.sessions.first?.title == "Synthetic history")
+        }
+    }
+
+    @Test
+    func `capture reuses a snapshot memo when no exact quota slices need dropping`() {
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: nil,
+            sessionCostUSD: nil,
+            last30DaysTokens: nil,
+            last30DaysCostUSD: nil,
+            daily: [],
+            updatedAt: Self.now)
+        let input = SpendDashboardModel.ProviderInput(
+            provider: .claude,
+            displayName: "Claude",
+            snapshot: snapshot)
+        #expect(input.snapshot.quotaProjectionMemo === snapshot.quotaProjectionMemo)
+    }
+
+    private static let now = Date(timeIntervalSince1970: 1_784_179_200)
+
+    private final class Lifetimes {
+        weak var native: CostUsageQuotaProjectionMemo?
+        weak var selected: CostUsageQuotaProjectionMemo?
+
+        init(
+            native: CostUsageTokenSnapshot,
+            selected: CostUsageTokenSnapshot)
+        {
+            self.native = native.quotaProjectionMemo
+            self.selected = selected.quotaProjectionMemo
+        }
+    }
+
+    @inline(never)
+    private static func seedPublication(_ store: UsageStore) -> Lifetimes {
+        let native = Self.snapshot(cost: 4)
+        let inclusive = Self.snapshot(cost: 9)
+        store._setSpendDashboardTokenSnapshotForTesting(
+            inclusive,
+            for: .claude,
+            accounting: .includesPi(
+                scope: "synthetic-pi-scope",
+                native: native))
+        return Lifetimes(
+            native: native,
+            selected: inclusive)
+    }
+
+    @inline(never)
+    private static func sourceQuotaSummary(_ store: UsageStore) throws -> [CostUsageQuotaWeek] {
+        let snapshot = try #require(store.spendDashboardTokenSnapshotPublicationForCurrentConfig(for: .claude)?
+            .snapshot)
+        #expect(snapshot.quotaSlices.count == 1)
+        return snapshot.quotaWeekSummaries(
+            resetAt: Self.now.addingTimeInterval(86400),
+            now: Self.now,
+            calendar: CostUsageBucketTimeZone.calendar(identifier: "UTC"))
+    }
+
+    @inline(never)
+    private static func sourceModel(_ store: UsageStore) throws -> SpendDashboardModel {
+        let snapshot = try #require(store.spendDashboardTokenSnapshotPublicationForCurrentConfig(for: .claude)?
+            .snapshot)
+        var input = SpendDashboardModel.ProviderInput(
+            provider: .claude,
+            displayName: "Claude",
+            snapshot: snapshot)
+        // Compare the real captured projection with a model built from the complete untrimmed source.
+        input.snapshot = snapshot
+        return SpendDashboardModel.build(
+            inputs: [input],
+            now: Self.now,
+            calendar: CostUsageBucketTimeZone.calendar(identifier: "UTC"))
+    }
+
+    private static func snapshot(cost: Double) -> CostUsageTokenSnapshot {
+        CostUsageTokenSnapshot(
+            sessionTokens: nil,
+            sessionCostUSD: nil,
+            last30DaysTokens: 100,
+            last30DaysCostUSD: cost,
+            daily: [.init(
+                date: "2026-07-16",
+                inputTokens: 80,
+                outputTokens: 20,
+                totalTokens: 100,
+                costUSD: cost,
+                modelsUsed: nil,
+                modelBreakdowns: nil)],
+            sessions: [.init(
+                sessionID: "synthetic-session",
+                lastActivity: self.now,
+                inputTokens: 80,
+                cachedInputTokens: 0,
+                outputTokens: 20,
+                totalTokens: 100,
+                requestCount: 1,
+                costUSD: cost,
+                modelBreakdowns: [],
+                title: "Synthetic history")],
+            detailsAreComplete: true,
+            hourly: [.init(
+                hour: self.now.addingTimeInterval(-1200),
+                totalTokens: 100,
+                costUSD: cost)],
+            quotaSlices: [.init(
+                timestamp: self.now,
+                totalTokens: 100,
+                costUSD: cost)],
+            updatedAt: self.now)
     }
 }
