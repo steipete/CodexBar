@@ -23,6 +23,7 @@
 - Kiro: preserve the `+` in CLI-reported plan names so Pro+ subscriptions are shown as Kiro Pro+. (#4928) Thanks @jeanroloff!
 ### Changed
 
+- Codex: avoid forced checkpoints during unchanged local cost refreshes while preserving scan timestamps and cache budgets (#4620).
 - Codex: avoid rebuilding decoded cost-cache file maps during unchanged refreshes.
 - CLI: reduce startup work for usage and configuration commands by constructing only the selected command family.
 - Usage & Spend: release obsolete quota history held by dashboard snapshots while preserving spend totals and conversation details.
