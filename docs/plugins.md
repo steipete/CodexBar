@@ -564,7 +564,9 @@ TypeScript files are transpiled by the selected plugin engine with the bundled S
 type syntax but no module imports, JSX, decorators, or runtime TypeScript features that require module resolution.
 Transpiled output is cached in `~/Library/Caches/CodexBar/plugins/` under a filename containing the SHA-256 of the source
 and the Sucrase version. An unchanged file is a cache hit; any source or compiler-version change produces a new key.
-Transpile failures appear as that plugin's Settings error.
+After successfully compiling a new revision, CodexBar removes that file's superseded cache output. Already loaded
+runtimes keep their own source in memory and continue running. Transpile failures preserve the previous cache output
+and appear as that plugin's Settings error.
 
 ## Install, approve, run, and delete
 
