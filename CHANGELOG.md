@@ -5,6 +5,10 @@
 ### Fixed
 
 - OpenCode Go: reuse bounded daily totals for unchanged large local histories while keeping moving quota windows and source changes current.
+- Menu: build only the selected Live or Spend chart, reducing chart layout work while keeping card height and hover details unchanged.
+
+- Settings: release closed pane content to reduce retained memory and stop hidden Usage & Spend updates, preserving the window frame and selected pane.
+
 - Codex: stop repeated cost-history catch-up passes when fully read rollouts grow but pending dependencies make no progress (#3316).
 - Performance: load CLI path diagnostics when Debug settings open, reducing app startup work.
 - OpenCode Go: reduce local-history memory spikes by skipping JSON parsing of ordinary nonbillable tool and text parts.
@@ -24,6 +28,8 @@
 - Kiro: preserve the `+` in CLI-reported plan names so Pro+ subscriptions are shown as Kiro Pro+. (#4928) Thanks @jeanroloff!
 ### Changed
 
+- Codex: avoid forced checkpoints during unchanged local cost refreshes while preserving scan timestamps and cache budgets (#4620).
+- Codex: avoid rebuilding decoded cost-cache file maps during unchanged refreshes.
 - CLI: reduce startup work for usage and configuration commands by constructing only the selected command family.
 - Usage & Spend: release obsolete quota history held by dashboard snapshots while preserving spend totals and conversation details.
 - Claude and Vertex: release duplicate encoded cost-cache headers while preserving warm decoded history and unchanged refreshes.
