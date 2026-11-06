@@ -259,6 +259,8 @@ final class SettingsStore {
     @ObservationIgnored let configStore: CodexBarConfigStore
     @ObservationIgnored let antigravityOAuthCredentialsStore: AntigravityOAuthCredentialsStore
     @ObservationIgnored let keychainAccessPolicy: SettingsStoreKeychainAccessPolicy
+    @ObservationIgnored let legacyCredentialStores: CodexBarConfigMigrator.LegacyStores
+    @ObservationIgnored var legacyCredentialRecoverySources: Set<String>
     @ObservationIgnored var config: CodexBarConfig
     @ObservationIgnored var configPersistTask: Task<Void, Never>?
     @ObservationIgnored var configPersistWriteTask: Task<Void, Never>?
@@ -387,11 +389,13 @@ final class SettingsStore {
             tokenAccountStore: tokenAccountStore)
         let config: CodexBarConfig
         do {
-            config = try CodexBarConfigMigrator.loadOrMigrate(
-                configStore: configStore,
-                userDefaults: userDefaults,
-                keychainAccessDisabled: keychainAccessPolicy.isExplicitlyDisabled(),
-                stores: legacyStores)
+            config = try ProviderInteractionContext.$current.withValue(.background) {
+                try CodexBarConfigMigrator.loadOrMigrate(
+                    configStore: configStore,
+                    userDefaults: userDefaults,
+                    keychainAccessDisabled: keychainAccessPolicy.isExplicitlyDisabled(),
+                    stores: legacyStores)
+            }
         } catch {
             config = CodexBarConfig.makeDefault().normalized()
             self.configNeedsReload = true
@@ -405,6 +409,14 @@ final class SettingsStore {
         self.configStore = configStore
         self.antigravityOAuthCredentialsStore = antigravityOAuthCredentialsStore
         self.keychainAccessPolicy = keychainAccessPolicy
+        self.legacyCredentialStores = legacyStores
+        self.legacyCredentialRecoverySources = Set(CodexBarConfigMigrator.legacySecretSources(stores: legacyStores)
+            .compactMap { source in
+                Self
+                    .normalizedConfigField(config
+                        .providerConfig(for: source.provider.instanceID)?[keyPath: source.field])
+                    == nil ? source.store : nil
+            })
         self.config = config
         self.configLoading = true
         let defaultsState = Self.loadDefaultsState(

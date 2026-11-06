@@ -92,6 +92,10 @@ Usage source picker:
   ahead. The later reset must not move backward. Exact OAuth, account, plan, unchanged positive reset-credit
   inventory across fresh observations (and historical inventory when present), minimum confirmation age, and
   candidate expiry checks still apply.
+- Eligible delayed candidates receive one noninteractive, account-scoped refresh at the existing 60-second minimum.
+  Repeated refreshes keep that pending work, and switching away updates only the candidate's account row.
+  Credential or source changes, provider disablement, and the 30-minute expiry stop stale follow-ups. Failed
+  confirmation waits for an ordinary refresh instead of starting an automatic retry loop.
 - Debug logs in `codex-weekly-reset-publication` include fixed reason codes for delayed-candidate
   creation, pruning, revalidation, and account-scoped storage requests. They distinguish source/confidence,
   timing, boundary, identity/plan compatibility, and credit-inventory failures without logging account or credit
@@ -172,6 +176,11 @@ again immediately before the live replacement. External writers can still race a
 
 Saved-account removal and import repair retain an old managed home while another saved record references
 the same path. Cleanup still requires the managed-home safety checks and releases the home after its last reference.
+
+Adding or reauthenticating a known workspace preserves same-email legacy rows when their saved credentials identify
+another workspace or owner, or cannot be read safely. Missing credential files retain the existing legacy
+reconciliation behavior. If the incoming login also lacks a workspace identity, an ambiguous replacement fails
+without changing the saved row or credentials.
 
 Registry write attempts under the account lock emit one bounded `codex-accounts` log entry with the operation,
 before/requested/written row counts, and success or failure. Successful managed-home deletions emit the operation
@@ -631,6 +640,7 @@ Every participating CLI must support schema 2. This opt-in mode does not change 
   still scan local history. Faster provider refreshes still update quota/status. The scanner's default 60-second
   debounce is a separate internal limit, bypassed by forced scans and catch-up passes; it is not the app's refresh cadence.
 - Usage & Spend catch-up remains inactive after a no-progress or error pause until you choose **Refresh** in the dashboard toolbar or catch-up panel. Opening the dashboard or receiving background updates does not retry those terminal pauses. Low-power and thermal pauses can still recover automatically; this retry policy does not change cached history or token accounting.
+- Growth in a fully read rollout's scan target does not hide a stalled parent dependency. Unfinished scan targets and newly resolved dependencies still count as progress; a no-progress pause keeps the existing explicit Refresh retry policy.
 - Each catch-up worker permits one recovery per cache when a repeated progress state comes from a time-budget yield before any file attempt or byte read. Automatic recovery waits for the normal cooldown, then uses a full scan budget. Repeated empty passes and semantic cycles still pause; user stops, errors, and power or thermal constraints keep their existing behavior.
 - Dashboard synchronization can clear a no-progress pause or retire a sleeping automatic worker with a read-only check when another scan has completed the same accounts, roots, time zone, and requested history window. Synchronization during that check queues another coverage read before completion can publish. It does not start a scan, change scan budgets or duty-cycle delays, or override a user stop or error. Completion uses confirmed cache coverage rather than comparing scan start times with the pause time.
 - Menu cost catch-up keeps user stops and no-progress/error pauses across scheduled refreshes. Choose **Refresh** to retry after the worker stops. Successful completion still honors queued refreshes for newly discovered history; low-power and thermal pauses can recover automatically.
