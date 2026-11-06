@@ -1,6 +1,7 @@
 import Foundation
 
 public enum ClaudePlatformProviderDescriptor {
+    package static let webTimeout: TimeInterval = 60
     public static let descriptor: ProviderDescriptor = Self.spec.makeDescriptor()
     public static let spec = PluginProviderSpec(
         id: .claudeplatform,
@@ -37,7 +38,7 @@ public enum ClaudePlatformProviderDescriptor {
                 ClaudePlatformProviderSettingsKey.self,
                 cookieSettings: CookieProviderSettings.self),
             browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
-            timeout: .fixed(60),
+            timeout: .fixed(Self.webTimeout),
             browserSupportExemption: { _, _, settings in
                 settings?[ClaudePlatformProviderSettingsKey.self]?.cookieSource == .manual
             },

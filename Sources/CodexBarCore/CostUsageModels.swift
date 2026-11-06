@@ -195,9 +195,9 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
     /// Hour-aligned buckets for spend charts and legacy quota history.
     public let hourly: [CostUsageHourlyEntry]
     /// Exact event-time slices for quota-window projection. Empty for legacy/coarse providers.
-    public let quotaSlices: [CostUsageTimedEntry]
+    public private(set) var quotaSlices: [CostUsageTimedEntry]
     public let updatedAt: Date
-    let quotaProjectionMemo = CostUsageQuotaProjectionMemo()
+    private(set) var quotaProjectionMemo = CostUsageQuotaProjectionMemo()
 
     public init(
         sessionTokens: Int?,
@@ -244,6 +244,15 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         self.hourly = hourly
         self.quotaSlices = quotaSlices
         self.updatedAt = updatedAt
+    }
+
+    package func droppingQuotaSlices() -> Self {
+        guard !self.quotaSlices.isEmpty else { return self }
+        var copy = self
+        copy.quotaSlices = []
+        // The shared memo belongs to the original immutable entries, including their exact slices.
+        copy.quotaProjectionMemo = CostUsageQuotaProjectionMemo()
+        return copy
     }
 
     /// Coverage is established *and* the read of that coverage ran to completion. Surfaces that
@@ -422,6 +431,9 @@ public struct CostUsageProjectSourceBreakdown: Sendable, Equatable {
 }
 
 public struct CostUsageDailyReport: Sendable, Codable {
+    #if DEBUG
+    @TaskLocal static var entryAccumulationObserverForTesting: (@Sendable () -> Void)?
+    #endif
     public struct ModelBreakdown: Sendable, Codable, Equatable {
         public let modelName: String
         public let costUSD: Double?
@@ -1011,6 +1023,9 @@ extension CostUsageDailyReport {
         var breakdowns: [String: BreakdownAccumulator] = [:]
 
         mutating func add(_ entry: Entry) {
+            #if DEBUG
+            CostUsageDailyReport.entryAccumulationObserverForTesting?()
+            #endif
             self.tokenMix.merge(.from(entry: entry))
             self.requestCount.add(entry.requestCount)
             // Classify each source before combining costs: a priced source cannot price another source's missing rows.
@@ -1116,7 +1131,7 @@ extension CostUsageDailyReport {
         _ reports: [CostUsageDailyReport],
         calendar: Calendar = .current) -> CostUsageDailyReport
     {
-        let entries = self.mergedEntries(from: reports, calendar: calendar)
+        let entries = self.mergedEntries(from: reports.lazy.flatMap(\.data), calendar: calendar)
         let mergedHourly = self.mergedHourly(from: reports, calendar: calendar)
         let mergedQuotaSlices = self.mergedQuotaSlices(from: reports)
         guard !entries.isEmpty || !mergedHourly.isEmpty || !mergedQuotaSlices.isEmpty else {
@@ -1208,18 +1223,16 @@ extension CostUsageDailyReport {
         }
     }
 
-    private static func mergedEntries(
-        from reports: [CostUsageDailyReport],
+    static func mergedEntries(
+        from entries: some Sequence<Entry>,
         calendar: Calendar) -> [Entry]
     {
         var dayAccumulators: [String: EntryAccumulator] = [:]
-        for report in reports {
-            for entry in report.data {
-                let rawDate = entry.date.trimmingCharacters(in: .whitespacesAndNewlines)
-                let dayKey = CostUsageTokenSnapshot.localDayKey(for: rawDate, calendar: calendar)
-                    ?? rawDate
-                dayAccumulators[dayKey, default: EntryAccumulator()].add(entry)
-            }
+        for entry in entries {
+            let rawDate = entry.date.trimmingCharacters(in: .whitespacesAndNewlines)
+            let dayKey = CostUsageTokenSnapshot.localDayKey(for: rawDate, calendar: calendar)
+                ?? rawDate
+            dayAccumulators[dayKey, default: EntryAccumulator()].add(entry)
         }
 
         return dayAccumulators
