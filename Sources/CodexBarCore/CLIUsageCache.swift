@@ -41,6 +41,8 @@ public struct CLIUsageCache: Codable, Sendable {
                 secondary: usage.secondary,
                 tertiary: usage.tertiary,
                 extraRateWindows: usage.extraRateWindows,
+                // Provider-specific by design: Only Cursor entries keep confirmed pool evidence after identity
+                // redaction.
                 cursorHasUnifiedWeeklyPool: provider == UsageProvider.cursor.rawValue &&
                     CursorProviderDescriptor.sharedWeeklyPool(snapshot: usage) != nil,
                 updatedAt: usage.updatedAt)
