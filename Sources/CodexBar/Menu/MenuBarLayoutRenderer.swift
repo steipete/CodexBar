@@ -685,7 +685,7 @@ final class MenuBarLayoutRenderer {
 
     /// nil == resolved to .hidden (render nothing, no separator). A returned .conditional
     /// means the id is dangling or the depth cap was hit; renderItem shows the placeholder.
-    private static func resolvedDisplayToken(
+    static func resolvedDisplayToken(
         _ token: MenuBarLayoutToken,
         data: MenuBarLayoutRenderData,
         conditionals: [UUID: MenuBarLayoutConditional],
