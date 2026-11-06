@@ -309,12 +309,13 @@ extension CostUsageStore {
         maxFileBytes: Int64,
         requestedSinceDay: String? = nil,
         requestedUntilDay: String? = nil,
-        calendar: Calendar = .current) -> CostUsageStoreBudgetResult
+        calendar: Calendar = .current,
+        forceCheckpoint: Bool = true) -> CostUsageStoreBudgetResult
     {
         let fallback = CostUsageStoreBudgetResult(deletedRows: 0, rowCount: 0, fileBytes: 0)
         return self.withDatabase(default: fallback) { database in
             let initialRows = try Self.rowCount(database)
-            let initialBytes = Self.fileSize(at: self.databaseURL)
+            let initialBytes = try Self.allocatedFileBytes(database, at: self.databaseURL)
             let metadata: CostUsageStoreMetadata? = if requestedSinceDay == nil || requestedUntilDay == nil {
                 try Self.readSingleton(
                     CostUsageStoreMetadata.self,
@@ -355,9 +356,13 @@ extension CostUsageStore {
                     calendar: calendar) else { break }
                 catchUpRequired = true
             }
-            try Self.reclaimFreePages(database)
+            // Unchanged native saves use SQLite's normal WAL checkpoint policy.
+            // Reclamation still checkpoints, and live page counts include uncheckpointed growth.
+            if try forceCheckpoint || Self.scalarInt(database, "PRAGMA freelist_count") > 0 {
+                try Self.reclaimFreePages(database)
+            }
 
-            var fileBytes = Self.fileSize(at: self.databaseURL)
+            var fileBytes = try Self.allocatedFileBytes(database, at: self.databaseURL)
             while fileBytes > byteLimit {
                 guard try Self.deleteOldestRetainedFile(
                     database,
@@ -368,7 +373,7 @@ extension CostUsageStore {
                 else { break }
                 catchUpRequired = true
                 try Self.reclaimFreePages(database)
-                fileBytes = Self.fileSize(at: self.databaseURL)
+                fileBytes = try Self.allocatedFileBytes(database, at: self.databaseURL)
             }
             if catchUpRequired {
                 try Self.rebuildDayAggregates(database, home: self.home)
@@ -501,6 +506,12 @@ extension CostUsageStore {
     private static func reclaimFreePages(_ database: OpaquePointer) throws {
         try self.execute(database, "PRAGMA incremental_vacuum(1000000)")
         try self.execute(database, "PRAGMA wal_checkpoint(TRUNCATE)")
+    }
+
+    private static func allocatedFileBytes(_ database: OpaquePointer, at url: URL) throws -> Int64 {
+        let liveBytes = try self.scalarInt(database, "PRAGMA page_count") * self.scalarInt(database, "PRAGMA page_size")
+        // A reader can block truncation after vacuum; those physical bytes still count.
+        return max(self.fileSize(at: url), liveBytes)
     }
 
     private static func fileSize(at url: URL) -> Int64 {

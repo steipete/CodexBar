@@ -103,6 +103,9 @@ See [WorkBuddy](workbuddy.md) for the request contract, bounded optional reset l
 [abliteration.ai](abliteration.md) uses a fixed-origin bearer request to read prepaid USD credits. It reuses the
 standard API-key field and classified errors, with no browser access or inferred reset schedule.
 
+[SiliconFlow](siliconflow.md) reads `GET /v1/user/info` with the same API-key field. China (`api.siliconflow.cn`)
+is the default and displays CNY; the international origin displays USD. The key is not sent to any other host.
+
 [X API](xapi.md) uses the same cookie host with a bundled `ct0` header echo for account discovery and developer-console
 credits. Its script preserves dollar balances and debt without receiving cookie values or adding a native fetcher.
 
@@ -384,6 +387,10 @@ cross-process locking. Removing the source file manually does not delete state. 
 cookies, and tokens belong in secure settings. Storage does not alter `ctx.cache` or the settings `persist` allowlist.
 
 Bundled first-party providers that have cut over to JavaScript use the shared runtime's 20-second hung-script watchdog.
+Default API plugin descriptors retain a strategy for each declared timeout, reusing its initialized runtime across
+refreshes. Each fetch still reads current settings and credentials and requests fresh usage. Overlapping fetches use
+separate temporary runtimes so one account cannot consume another account's fetch deadline. Web strategies keep
+their existing source-specific lifecycle.
 A timeout fails that refresh and discards the poisoned worker before returning the error, so an immediate retry starts
 with a fresh context. Cancellation retires the worker in the same way. This is production-default and does not depend
 on `CODEXBAR_JS_PROVIDERS`.

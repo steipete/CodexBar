@@ -122,10 +122,10 @@ extension StatusItemController {
         }.min()
     }
 
-    /// Wake at `resetsAt - threshold` for every placed reset-countdown predicate. Nothing else in the
-    /// layout changes at that instant, so without this the branch would only flip on the next unrelated
-    /// refresh. Run-out predicates are deliberately excluded: their estimate drifts with usage rather
-    /// than crossing a fixed instant, and `menuBarPaceRefreshDelays` already covers that lane.
+    /// Wake when a placed reset predicate crosses its threshold or loses its value at expiration.
+    /// Both can change the branch even when no reset token is visible. Run-out predicates are excluded:
+    /// their estimate drifts with usage rather than crossing a fixed instant, and
+    /// `menuBarPaceRefreshDelays` already covers that lane.
     private func menuBarConditionalResetDelays(
         provider: ProviderInstanceID,
         resolution: MenuBarLayoutResolution,
@@ -147,11 +147,10 @@ extension StatusItemController {
             case .spendResetsIn: data.spend
             default: nil
             }
-            guard let resetsAt = window?.resetsAt else { return nil }
+            guard let resetsAt = window?.resetsAt, resetsAt > now else { return nil }
             let flipAt = resetsAt.addingTimeInterval(-predicate.threshold * 3600)
-            let delay = flipAt.timeIntervalSince(now)
-            guard delay > 0 else { return nil }
-            return delay + Self.menuBarCountdownRefreshEpsilon
+            let nextChange = flipAt >= now ? min(flipAt, resetsAt) : resetsAt
+            return nextChange.timeIntervalSince(now) + Self.menuBarCountdownRefreshEpsilon
         }
     }
 
