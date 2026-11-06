@@ -55,6 +55,7 @@ On macOS 26 and later, Settings uses the system split-view sidebar, toolbar, sea
 
 After a quota refresh fails, retained usage bars use a neutral tint until recovery, even with an account subtitle override. Successful fallback diagnostics and account-switch failures with successfully refreshed quotas keep the provider color. Current exhausted quota measurements also keep their tint; a limit notice alone does not mark them stale. Code Review follows its own dashboard refresh outcome; separately refreshed monthly credit meters, supplemental costs, and charts keep their own color.
 Menu-card percentages, reset countdowns, and cost/credit values use tabular digits, keeping equal-length numeric updates steady. Titles, hints, and errors keep proportional typography.
+Cached cards suspend live value resolution after the last menu closes and resume with current values when reopened. Closing a submenu while its parent remains open keeps the parent card live.
 
 Stacked rows with leading window labels align their values and meters after the widest label. Rows that begin with names, explicit spaces, or inline icons retain their natural spacing; hiding percentage window labels is unchanged.
 - Provider cards with both live throughput and daily history use a fixed-height Live · Spend chart switch; Live is the default, and the choice is remembered locally per provider instance. Only the selected chart is built; switching preserves the card height, hover details, and optional live-limit row space.
@@ -220,6 +221,8 @@ model-generic token label while the rendered menu-bar prefix and accessibility l
   tertiary, and extra windows render when the provider snapshot has data for them.
 - Manual refresh updates the open card subtitle and persistent Refresh-row spinner in place. Repeated clicks share the
   active request, and the existing row geometry remains fixed through success or failure.
+  Idle rows skip provider-selection resolution until a refresh is active; Overview and provider-specific busy rules
+  remain unchanged.
 - Provider errors use up to three red lines, with inline backtick-delimited commands rendered in monospace and the copy control aligned to the first line. Copy preserves the original error text. Stale Claude usage has a separate, single-line secondary notice; Settings error previews retain the notice with the error.
 - Live pace and metric detail text use the full row width. Updates that exceed the space reserved when the menu opened
   show a trailing ellipsis; reopening the menu measures the updated text again.
@@ -257,6 +260,8 @@ follows the existing pace visibility setting. Unknown usage, missing resets, and
 target. This is a budget for the remaining period, not a measurement of today's usage or an alert threshold.
 
 The **Work days** setting selects the weekly pace model. **Automatic** uses Codex historical pace when enough data is available. Historical daily credits follow local calendar-day boundaries, including midnight daylight-saving transitions. Selecting 4, 5, 6, or 7 days uses that explicit schedule for pace and ETA instead; CodexBar continues collecting history in the background, but does not use historical predictions until the setting returns to Automatic. Six days counts Monday through Saturday and excludes Sunday, including in the session forecast's remaining capacity.
+
+Explicit workday schedules and daily totals in quota windows also follow actual local day boundaries when daylight saving skips midnight.
 
 - **On pace** – usage matches the expected rate.
 - **X% in deficit** – you're consuming faster than the even rate; at this pace you'll run out before the window resets.

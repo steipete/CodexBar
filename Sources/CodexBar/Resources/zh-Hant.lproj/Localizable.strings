@@ -2791,3 +2791,9 @@
 "Paste the WorkBuddy User-Agent as a single request header value." = "將 WorkBuddy 的 User-Agent 貼上為單一請求標頭值。";
 "TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "無法讀取 TypeSafe 帳單總覽。請開啟 https://console.typesafe.ai/billing 檢查存取權限；如果頁面可以開啟，請回報整合錯誤。";
 "No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "找不到 TypeSafe 工作階段 Cookie。請在 console.typesafe.ai/billing 登入或貼上 Cookie 標頭。";
+
+"Tripo" = "Tripo";
+"Show Tripo usage" = "顯示 Tripo 用量";
+"Tripo is rate limiting requests. Try again later." = "Tripo 正在限制請求頻率。請稍後再試。";
+"Tripo request failed. Try refreshing later." = "Tripo 請求失敗。請稍後嘗試重新整理。";
+"Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo 傳回了無法辨識的回應。請更新 CodexBar 後再試。";

@@ -193,6 +193,7 @@ extension StatusItemController {
 
         self.clearMergedSwitcherContentCache(for: menu)
         let wasTracked = self.openMenus.removeValue(forKey: key) != nil
+        self.menuCardRefreshMonitor.isActive = !self.openMenus.isEmpty
         let menuTrackingEnded = wasTracked && self.openMenus.isEmpty
         if self.openMenus.isEmpty {
             self.parentMenuRebuildPendingAfterHostedSubviewClose = false
