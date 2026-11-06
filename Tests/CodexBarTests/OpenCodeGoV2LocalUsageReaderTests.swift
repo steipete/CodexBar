@@ -7,6 +7,57 @@ import Testing
 
 struct OpenCodeGoV2LocalUsageReaderTests {
     @Test
+    func `unusable legacy parts allow v2 fallback while zero cost parts deduplicate`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("OpenCodeGoV2Tests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let databaseURL = root.appendingPathComponent("opencode.db")
+        try Self.withDatabase(at: databaseURL) { db in
+            try Self.createV2Table(db: db)
+            try Self.exec(db: db, sql: """
+            CREATE TABLE message (id TEXT PRIMARY KEY, data TEXT NOT NULL, time_created INTEGER);
+            CREATE TABLE part (id TEXT PRIMARY KEY, message_id TEXT, data TEXT, time_created INTEGER);
+            INSERT INTO message VALUES ('negative_part',
+              '{"role":"assistant","providerID":"opencode-go","cost":9,"tokens":{"total":900}}', 1772794800000);
+            INSERT INTO message VALUES ('bad_time_part',
+              '{"role":"assistant","providerID":"opencode-go","cost":9,"tokens":{"total":900}}', 1772794800000);
+            INSERT INTO message VALUES ('zero_part',
+              '{"role":"assistant","providerID":"opencode-go","cost":9,"tokens":{"total":900}}', 1772794800000);
+            INSERT INTO part VALUES ('p_negative', 'negative_part',
+              '{"type":"step-finish","cost":-1,"tokens":{"total":1}}', 1772794800000);
+            INSERT INTO part VALUES ('p_bad_time', 'bad_time_part',
+              '{"type":"step-finish","cost":5,"time":{"created":0},"tokens":{"total":5}}', 1772794800000);
+            INSERT INTO part VALUES ('p_zero', 'zero_part',
+              '{"type":"step-finish","cost":0,"tokens":{"total":0}}', 1772794800000);
+            """)
+            try Self.insertV2Message(
+                db: db,
+                id: "negative_part",
+                createdMs: 1_772_794_800_000,
+                data: #"{"model":{"providerID":"opencode-go","id":"fixture-model"},"cost":3,"tokens":{"total":30}}"#)
+            try Self.insertV2Message(
+                db: db,
+                id: "bad_time_part",
+                createdMs: 1_772_794_800_000,
+                data: #"{"model":{"providerID":"opencode-go","id":"fixture-model"},"cost":4,"tokens":{"total":40}}"#)
+            try Self.insertV2Message(
+                db: db,
+                id: "zero_part",
+                createdMs: 1_772_794_800_000,
+                data: #"{"model":{"providerID":"opencode-go","id":"fixture-model"},"cost":8,"tokens":{"total":80}}"#)
+        }
+        let snapshot = try OpenCodeGoLocalUsageReader(
+            authURL: root.appendingPathComponent("absent-auth.json"), databaseURL: databaseURL)
+            .fetch(now: Date(timeIntervalSince1970: 1_772_798_400))
+        let day = try #require(snapshot.daily.first)
+        #expect(snapshot.daily.count == 1)
+        #expect(day.requestCount == 3)
+        #expect(day.costUSD == 7)
+        #expect(day.totalTokens == 70)
+    }
+
+    @Test
     func `reads v2 Go requests without a legacy auth file or message table`() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("OpenCodeGoV2Tests-\(UUID().uuidString)", isDirectory: true)

@@ -6,6 +6,27 @@ import Testing
 
 @MainActor
 struct MenuCardChartSwitchTests {
+    @Test
+    func `only the selected chart installs native hover tracking`() throws {
+        let model = Self.model()
+        let throughput = try #require(model.throughput)
+        let dashboard = try #require(model.inlineUsageDashboard)
+        func trackingViewCount(_ view: NSView) -> Int {
+            (view is MouseLocationReader.TrackingView ? 1 : 0)
+                + view.subviews.reduce(0) { $0 + trackingViewCount($1) }
+        }
+        for mode in ProviderMenuChartMode.allCases {
+            let hosting = NSHostingView(rootView: ProviderMenuChartContent(
+                provider: .openai, throughput: throughput, dashboard: dashboard, color: .blue)
+                .environment(\.providerMenuChartSelection, .constant(mode)))
+            hosting.frame = NSRect(x: 0, y: 0, width: 350, height: 150)
+            hosting.layoutSubtreeIfNeeded()
+            _ = hosting.fittingSize
+            hosting.layoutSubtreeIfNeeded()
+            #expect(trackingViewCount(hosting) == 1)
+        }
+    }
+
     private static let now = Date(timeIntervalSince1970: 1_700_000_000)
 
     @Test

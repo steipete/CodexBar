@@ -2050,9 +2050,9 @@ extension CostUsageFetcher {
         for (path, usage) in scopedFiles.sorted(by: { $0.key < $1.key }) {
             progressHasher.combine(path)
             progressHasher.combine(usage.codexScanFileId)
-            progressHasher.combine(usage.codexScanTargetSize)
             progressHasher.combine(usage.codexScanComplete)
             if usage.codexScanComplete == false {
+                progressHasher.combine(usage.codexScanTargetSize)
                 progressHasher.combine(usage.parsedBytes)
                 progressHasher.combine(usage.size)
                 progressHasher.combine(usage.codexJSONLResumeState?.offset)

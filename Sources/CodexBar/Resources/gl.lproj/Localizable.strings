@@ -1572,7 +1572,7 @@
 "7-day usage" = "Uso de 7 días";
 "Total usage" = "Uso total";
 "claude_oauth_keychain_access_disabled" = "O acceso ao Keychain está desactivado, polo que CodexBar non pode ler os datos de inicio de sesión de Claude.";
-"claude_oauth_keychain_access_revoked" = "O acceso ao chaveiro de Claude foi revogado pola rotación do token de Claude Code. Preme Actualizar para volver conceder o acceso ou cambia a orixe de uso de Claude a CLI/Web.";
+"claude_oauth_keychain_access_revoked" = "As credenciais OAuth de Claude non están dispoñibles actualmente para CodexBar. Preme Actualizar para tentar acceder de novo ou cambia a orixe de uso de Claude a CLI/Web.";
 "claude_showing_last_known_usage" = "Mostrando o último uso coñecido, capturado %@.";
 "claude_limited_usage_detail" = "Detalles de uso limitados";
 /* Spend dashboard cost analysis */
@@ -2793,7 +2793,28 @@
 "Leave blank to use the default name." = "Deixa este campo baleiro para usar o nome predeterminado.";
 "Rewards" = "Recompensas";
 "Reward expiry" = "Caducidade das recompensas";
+"China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "China (CNY) é o predeterminado. As contas internacionais usan https://api.siliconflow.com (USD).";
+"https://api.siliconflow.cn" = "https://api.siliconflow.cn";
+"SiliconFlow API origin must be https://api.siliconflow.cn or https://api.siliconflow.com." = "A orixe da API de SiliconFlow debe ser https://api.siliconflow.cn ou https://api.siliconflow.com.";
+"SiliconFlow refused the balance query. Check the balance in the SiliconFlow console." = "SiliconFlow rexeitou a consulta do saldo. Comproba o saldo na consola de SiliconFlow.";
 
+"SiliconFlow" = "SiliconFlow";
+"Show SiliconFlow usage" = "Mostrar o uso de SiliconFlow";
+"SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow está a limitar as solicitudes. Téntao de novo máis tarde.";
+"SiliconFlow request failed. Try refreshing later." = "Fallou a solicitude a SiliconFlow. Tenta actualizar máis tarde.";
+"SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow devolveu unha resposta descoñecida. Actualiza CodexBar e téntao de novo.";
+"Claude Platform session validated and saved." = "Validouse e gardouse a sesión de Claude Platform.";
+"Use %@ or %@." = "Usa %@ ou %@.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Inicia sesión en %@. Proporciona de forma privada a súa cabeceira Cookie con sessionKey a %@. Despois executa %@.";
+"Read cookie header from stdin" = "Ler a cabeceira de cookies de stdin";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "Opcional. Pega o valor de User-Agent da mesma solicitude que a cabeceira Cookie.";
+"Paste the WorkBuddy User-Agent as a single request header value." = "Pega o User-Agent de WorkBuddy como un único valor de cabeceira da solicitude.";
 "TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "Non se puido ler o resumo de facturación de TypeSafe. Abre https://console.typesafe.ai/billing para comprobar o acceso; se a páxina se abre, informa do fallo de integración.";
-
 "No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "Non se atoparon cookies de sesión de TypeSafe. Inicia sesión en console.typesafe.ai/billing ou pega unha cabeceira Cookie.";
+
+"Tripo" = "Tripo";
+"Show Tripo usage" = "Mostrar o uso de Tripo";
+"Tripo is rate limiting requests. Try again later." = "Tripo está a limitar as solicitudes. Téntao de novo máis tarde.";
+"Tripo request failed. Try refreshing later." = "Fallou a solicitude a Tripo. Tenta actualizar máis tarde.";
+"Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo devolveu unha resposta descoñecida. Actualiza CodexBar e téntao de novo.";

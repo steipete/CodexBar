@@ -98,7 +98,7 @@ struct SettingsWindowControllerTests {
 
         // Reopening Settings preserves its page; explicitly opening About resets it.
         window.close()
-        #expect(controller.open(pane: nil) == .reused)
+        #expect(controller.open(pane: nil) == .created)
         #expect(selection.destination.aboutRoute == .acknowledgements)
         #expect(controller.open(pane: .about) == .reused)
         #expect(selection.destination.aboutRoute == nil)

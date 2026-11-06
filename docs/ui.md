@@ -9,6 +9,8 @@ read_when:
 
 ## Settings
 
+Closing Settings releases its hosted panes so hidden content stops reacting to updates. Reopening restores the window frame, selected pane, and in-session Back/Forward history; Usage & Spend keeps its shared data and reporting-period selection. The pane views are rebuilt when reopened.
+
 Settings selectors use native popup controls in official builds. Imported custom values, such as three work days, stay visible alongside the preset choices.
 
 On macOS 26 and later, Settings uses the system split-view sidebar, toolbar, search, and scroll-edge effects. The native sidebar toggle and divider can hide or restore the sidebar; its saved width is preserved. The detail scroll view and frosted toolbar backing fill the available column even in wide windows. Earlier macOS versions keep the existing sidebar, titlebar layout, and detail reading-width cap.
@@ -38,7 +40,7 @@ On macOS 26 and later, Settings uses the system split-view sidebar, toolbar, sea
 - Provider accent colors use a hex field and a color picker that also previews the selected color; Reset restores the provider default.
 - General → Default terminal supports installed Terminal, iTerm, Ghostty, and stable Warp. Terminal is the default and fallback. Warp launches target its app directly and use owner-only temporary tab configs, removed after one minute; interrupted-launch leftovers are cleaned on the next app start.
 - Provider → Visible usage items includes titled provider detail sections. Choices persist across language changes and apply to provider cards and Overview. Untitled details remain visible; cost-summary sections stay controlled by their existing display setting.
-- The empty SwiftUI Settings placeholder is dismissed once per presentation, on the next main-queue turn after AppKit finishes ordering it onscreen. Retained hidden windows are left alone; the real Settings window remains reusable.
+- The empty SwiftUI Settings placeholder is dismissed once per presentation, on the next main-queue turn after AppKit finishes ordering it onscreen. Retained hidden windows are left alone; the real Settings window is reused while it remains open.
 - The placeholder never promotes the app to a Dock application or keeps it there. This avoids the launch-time Dock icon on macOS 27 when AppKit accepts promotion but refuses to restore accessory policy. Real Settings and update dialogs still request temporary Dock presence; the OS can still refuse demotion after those dialogs close.
 - Usage & Spend heatmap tooltips prefer the space above the hovered cell and stay within the grid, falling below when needed. On narrow grids they compact vertically and may overlap cells; keyboard selection remains available in the daily grid.
 - Token activity uses appearance-aware colors, brighter high-usage cells in Dark mode, and a slashed outline for unavailable history. The continuous annual grid keeps day cells at least 10 points wide with 3-point gaps; narrow cards scroll horizontally from the recent end and show labeled controls for earlier and more recent activity. The controls page with overlapping weeks, disable at each end, and disappear when the year fits. Month labels scroll with the grid, keyboard navigation reveals the active date, and tooltips stay inside the visible viewport.
@@ -56,9 +58,10 @@ Menu-card percentages, reset countdowns, and cost/credit values use tabular digi
 Cached cards suspend live value resolution after the last menu closes and resume with current values when reopened. Closing a submenu while its parent remains open keeps the parent card live.
 
 Stacked rows with leading window labels align their values and meters after the widest label. Rows that begin with names, explicit spaces, or inline icons retain their natural spacing; hiding percentage window labels is unchanged.
-- Provider cards with both live throughput and daily history use a fixed-height Live · Spend chart switch; Live is the default, and the choice is remembered locally per provider instance.
+- Provider cards with both live throughput and daily history use a fixed-height Live · Spend chart switch; Live is the default, and the choice is remembered locally per provider instance. Only the selected chart is built; switching preserves the card height, hover details, and optional live-limit row space.
 - About CodexBar includes the running version. When the updater is available, the menu offers Check for Updates… or the existing staged-update action.
 - Overview offers Share Usage Snapshot when its Usage & Spend summary has shareable data. The local preview uses the same spend sources, hidden-source choices, calendar, and currency as that summary; Copy Image exports PNG and TIFF without uploading anything.
+- Closing Share Usage Snapshot releases its preview views; reopening builds a fresh preview in the reusable window.
 - Shared cards and copied statistics keep model families from providers with complete model history, even when another provider in the same currency has unpriced or incomplete history. A ranking that omits providers or model rows is labeled **PARTIAL** on the image and **Top models (partial)** in copied text; complete rankings retain **BY USAGE**. Selected-day model rows are omitted because the shared totals describe the full reporting window.
 - LSUIElement app: no Dock icon; status item uses custom NSImage.
 - Cached status menus and previously opened submenus follow macOS appearance changes before reopening, preserving the effective Light/Dark and accessibility appearance.
@@ -102,6 +105,8 @@ Stacked rows with leading window labels align their values and meters after the 
   Pro/Flash quotas, not these Antigravity family allowances; it does not synthesize a weekly quota.
 - Layout palette chips use their natural label widths and wrap into rows instead of squeezing longer token names into equal-width columns.
 - Time tokens offer Session and Weekly variants of Resets in and Reset at, including in conditional branches.
+  Hidden conditional reset tokens do not schedule display refreshes. Clock-based conditions still schedule their
+  own updates so the reset appears when its condition changes.
   The original unqualified reset tokens continue to follow the automatic window. A selected window that is
   unavailable displays a dash rather than substituting another window. Cursor also exposes **Grok Bot %**
   while its named allowance is available; a saved token shows its label and a dash when unavailable. Saved layouts use V4 keys
@@ -201,6 +206,7 @@ model-generic token label while the rendered menu-bar prefix and accessibility l
 - Renderer/critter icons dim when last refresh failed and can render incident indicators; brand display mode uses provider branding plus title text.
 - Loading animation runs at a bounded frame rate and has a hard continuous-duration ceiling so provider hangs cannot keep
   the menu bar redrawing forever.
+  An idle loading driver does not reapply icons that have already been updated.
 - Ordinary, fresh monochrome token layouts use template images so AppKit supplies native highlighting and
   inactive-display dimming. Combined stacked rows support inline monochrome icons, percentages, and reset text.
   Individual layout content and appearance remain in the bounded renderer cache; memory-pressure cleanup clears it.

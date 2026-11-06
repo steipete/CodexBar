@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import CodexBarCore
 
@@ -29,5 +30,19 @@ struct AlibabaTokenPlanSECTokenScrapeTests {
     @Test
     func `returns nil when no token is present`() {
         #expect(AlibabaTokenPlanUsageFetcher.extractSECToken(from: "<html><body>no token here</body></html>") == nil)
+    }
+}
+
+struct AlibabaHTTPSessionReuseTests {
+    @Test
+    func `API and dashboard refreshes share their connection pool`() {
+        let api = AlibabaTokenPlanUsageFetcher.usageSession
+        let dashboard = AlibabaTokenPlanUsageFetcher.usageSession
+        #expect(api === dashboard)
+        #expect(api.delegate == nil)
+        #expect(api.configuration.timeoutIntervalForRequest == URLSessionConfiguration.default
+            .timeoutIntervalForRequest)
+        #expect(api.configuration.timeoutIntervalForResource == URLSessionConfiguration.default
+            .timeoutIntervalForResource)
     }
 }
