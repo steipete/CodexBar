@@ -4,19 +4,53 @@
 
 ### Fixed
 
+- Usage & Spend: reduce opening memory and CPU by deferring offscreen charts, ledger rows, and activity views; totals and exports stay unchanged.
+- Plugins: reclaim superseded TypeScript compilation output after edits while preserving loaded runtimes and other plugins' caches.
+- Codex: include flat and legacy cost history when `sessions` or `archived_sessions` is symlinked to another disk.
+- Reset timing: preserve the reported local clock time in MiniMax HTML and Codex diagnostic resets after daylight-saving changes.
+- Usage and spend: honor local day ends when daylight saving skips midnight, preserving workday pace, quota totals, and selected-day tool activity.
+- Plugins: keep daily resets at the requested local hour across daylight-saving changes, including half-hour shifts (#4984). Thanks @vincent-peng!
+- OpenAI: pause Live Usage display clocks while its window is closed.
+- Menu: stop updating cached cards after the last menu closes, and resume live values when reopened.
+- OpenCode Go: reuse bounded daily totals for unchanged large local histories while keeping moving quota windows and source changes current.
+- Menu: build only the selected Live or Spend chart, reducing chart layout work while keeping card height and hover details unchanged.
+
+- Settings: release closed pane content to reduce retained memory and stop hidden Usage & Spend updates, preserving the window frame and selected pane.
+
+- Codex: stop repeated cost-history catch-up passes when fully read rollouts grow but pending dependencies make no progress (#3316).
+- Performance: load CLI path diagnostics when Debug settings open, reducing app startup work.
+- OpenCode Go: reduce local-history memory spikes by skipping JSON parsing of ordinary nonbillable tool and text parts.
+- Claude: release decoded local-history rows after publishing cost reports while keeping unchanged refreshes fast (#4803, #3323).
+- Codex: preserve legacy saved accounts whose credentials identify another workspace and reject ambiguous same-email replacements (#4499).
+- Keychain: keep shared provider credential reads noninteractive and recover unavailable legacy credentials through one gated read on explicit Refresh (#2562).
+- Claude: describe unavailable OAuth credentials without attributing the failure to token rotation, and clarify the background CLI cache policy (#3798, #4651).
 - Tests: isolate launch-time WebKit cache maintenance and initialize AppKit independently in app delegate checks (#4955).
 - Claude: restore local cost history and source detection through symlinked project roots without counting shared roots twice.
 - Langdock: show saved Edge and Chrome profile names without translating custom names, and preserve the selected profile after renaming (#4911). Thanks @dYn36!
 - Claude: hide the session row when five-hour usage is absent, preserve weekly and model-specific quotas, and retain session warning history (#4914). Thanks @BobbyWang0120!
 - TypeSafe: restore billing spend and balance from the overview API, retain expired-session recovery, and stop browser imports after the first valid session (#4918, #4922). Thanks @LeoLin990405!
+- Claude: release decoded local-history rows after publishing cost reports while keeping unchanged refreshes fast (#4803, #3323).
 - Grok: celebrate weekly resets only after the prior boundary has elapsed, preserve genuine resets, and suppress repeated or stale-sample celebrations across restarts (#4917, #4923). Thanks @LeoLin990405!
 - OpenCode Go: return unavailable cost history instead of an error when OpenCode is not installed locally, including on `codexbar serve` hosts tracking remote quota. (#4931) Thanks @VACInc!
 - Kiro: recover API usage with a valid CLI token and no stored profile, avoiding chat probes when the API supplies usable plan limits. (#4915) Thanks @Yuxin-Qiao!
 - Kiro: preserve the `+` in CLI-reported plan names so Pro+ subscriptions are shown as Kiro Pro+. (#4928) Thanks @jeanroloff!
 ### Changed
 
-- Widgets: skip duplicate snapshot writes and reload requests while preserving fresh measurement timestamps, account changes, and write recovery.
+- Widgets: reload only Switcher widgets when paging providers, avoiding reload requests for unrelated widget kinds.
 
+- Widgets: reduce timeline decoding work by reading only the configured provider's payload while preserving snapshot freshness and account ownership checks.
+
+- Widgets: skip duplicate snapshot writes and reload requests while preserving fresh measurement timestamps, account changes, and write recovery (#4999).
+
+- App: reduce allocator-retained memory after large cost-history refreshes on recent macOS versions, without passing the policy to provider CLIs or helpers (#4803, #4486).
+- Menu: reduce CPU work when opening idle provider menus by skipping unnecessary Refresh-row target resolution.
+- Plugins: reuse SVG icon rasters across menu reopenings and skip icon work in text-only provider switchers.
+- Codex: avoid forced checkpoints during unchanged local cost refreshes while preserving scan timestamps and cache budgets (#4620).
+- Codex: avoid rebuilding decoded cost-cache file maps during unchanged refreshes.
+- CLI: reduce startup work for usage and configuration commands by constructing only the selected command family.
+- Usage & Spend: release obsolete quota history held by dashboard snapshots while preserving spend totals and conversation details.
+- Claude and Vertex: release duplicate encoded cost-cache headers while preserving warm decoded history and unchanged refreshes.
+- Claude/Vertex: reduce midnight cost-scan CPU by reusing unchanged local history while preserving date-window and duplicate-response accounting.
 - Antigravity: reuse HTTP connections for account verification while preserving shorter refresh deadlines.
 
 - Replicate: reuse HTTP connections for billing refreshes without retaining cookies, credentials, or cached responses in the connection pool.
@@ -31,6 +65,11 @@
 
 - Settings: use native popup selectors while keeping imported custom choices visible (#4895). Thanks @elijahfriedman!
 ### Added
+
+- Tripo: show available and reserved API credits through the official balance endpoint (#4927). Thanks @hendryque for the shared social-card artwork!
+- SiliconFlow: show prepaid balances in CNY or USD through the official API, with matching regional console links and the SiliconFlow mark (#4925). Thanks @maojiebc and @hendryque!
+
+- Codex: automatically confirm eligible weekly-reset readings once after the safety delay, keeping the refresh scoped to its original account when switching accounts (#4783).
 
 - CLI: validate and save Claude Platform sessions from private stdin input with `config login --provider claudeplatform --stdin`, without browser or Keychain access (#4845).
 - Settings: find panes by title alongside provider names in sidebar search, with an empty state covering both (#4875). Thanks @elijahfriedman!

@@ -14,6 +14,7 @@ read_when:
 - `WidgetSnapshotStore` writes compact JSON snapshots to the app-group container.
 - Provider entries include optional `details` sections from the same usage snapshot, including Claude Cloud credits, their remaining amount, grant total, and expiry when reported. Empty sections are omitted. These are supplementary data for snapshot consumers; quota `usageRows` and widget rendering are unchanged, and older readers ignore the added field. Details require a current source snapshot and are not restored from an older quota-only reading.
 - Widgets read the snapshot and render usage/credits/history states.
+- Provider-pinned timelines read the complete snapshot file but decode only the configured provider's payload. Availability metadata and all account records remain intact, including cross-provider duplicate-pin checks. Switcher and configuration pickers still decode the full snapshot. Invalid unrelated provider payloads do not hide a valid pinned provider; invalid selected payloads still fail normally. The stored JSON, history, measurement times, reload requests, and timeline schedules are unchanged.
 - Measured Antigravity quota rows retain their own duration and reset time, including five-hour lanes. Unknown-capacity rows stay unavailable rather than displaying an invented percentage.
 - Usage and Switcher tiles emphasize the most constrained general quota, preserve other allowances as detail rows, and show full provider names. Code-review and model-specific allowances do not replace a provider's general quota headline. Providers without quota bars keep credits or local-cost information useful.
 - WidgetKit owns the outer margins. All sizes share rendering and quota-selection rules, with overflow labels for omitted rows. Native relative-date text keeps snapshot ages and resets current between timeline reloads. Token-cost rows show their own saved age when more than ten minutes behind quota data. New usage still requires an app refresh and an accepted WidgetKit timeline.
@@ -46,6 +47,8 @@ Persistence must finish before requesting a timeline reload. Failed attempts ret
 - **CodexBar Burn Down (Combined)** (`CodexBarCombinedBurnDownWidget`): two quota burn-down charts, medium only.
 
 Switcher widgets share one remembered provider selection, so switching one updates all Switcher widgets. To keep Claude and Codex visible side by side, add two **CodexBar Usage** widgets and configure each widget's **Provider** separately. Usage widgets read their own configured provider instead of the shared Switcher selection.
+
+Switching providers saves the selection before requesting a reload of the Switcher kind. Other widget kinds keep their own provider selections and timelines; paging the Switcher does not request a reload for them.
 
 ## Account selection
 

@@ -1,6 +1,8 @@
 import Foundation
 
 public struct WidgetSnapshot: Codable, Sendable {
+    static let selectedProviderKey = CodingUserInfoKey(rawValue: "CodexBar.widgetProvider")!
+
     public struct WidgetUsageRowSnapshot: Codable, Equatable, Sendable {
         public let id: String
         public let title: String
@@ -201,15 +203,35 @@ public struct WidgetSnapshot: Codable, Sendable {
         case generatedAt
     }
 
+    private enum ProviderKey: String, CodingKey { case provider }
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.entries = try container.decode([ProviderEntry].self, forKey: .entries)
+        let enabledProviders = try container.decodeIfPresent([ProviderInstanceID].self, forKey: .enabledProviders)
+        if let selectedProvider = decoder.userInfo[Self.selectedProviderKey] as? ProviderInstanceID {
+            var encodedEntries = try container.nestedUnkeyedContainer(forKey: .entries)
+            var entries: [ProviderEntry] = []
+            var providerIDs: [ProviderInstanceID] = []
+            while !encodedEntries.isAtEnd {
+                let entryDecoder = try encodedEntries.superDecoder()
+                let provider = try entryDecoder.container(keyedBy: ProviderKey.self)
+                    .decode(ProviderInstanceID.self, forKey: .provider)
+                if enabledProviders == nil { providerIDs.append(provider) }
+                if provider == selectedProvider {
+                    try entries.append(ProviderEntry(from: entryDecoder))
+                }
+            }
+            self.entries = entries
+            self.enabledProviders = enabledProviders ?? providerIDs
+        } else {
+            self.entries = try container.decode([ProviderEntry].self, forKey: .entries)
+            self.enabledProviders = enabledProviders ?? self.entries.map(\.provider)
+        }
+        // Keep all accounts: duplicate pin IDs must remain ambiguous even across providers.
         self.accounts = try container.decodeIfPresent([AccountEntry].self, forKey: .accounts) ?? []
         self.accountOverflowCounts = try container
             .decodeIfPresent([String: Int].self, forKey: .accountOverflowCounts) ?? [:]
         self.generatedAt = try container.decode(Date.self, forKey: .generatedAt)
-        self.enabledProviders = try container.decodeIfPresent([ProviderInstanceID].self, forKey: .enabledProviders)
-            ?? self.entries.map(\.provider)
         self.usageBarsShowUsed = try container.decodeIfPresent(Bool.self, forKey: .usageBarsShowUsed) ?? false
     }
 
@@ -240,17 +262,23 @@ public enum WidgetSnapshotStore {
     private nonisolated(unsafe) static var boundedIOCircuitBreakerTripped = false
     private static let log = CodexBarLog.logger("widget-snapshot")
 
-    public static func load(bundleID: String? = Bundle.main.bundleIdentifier) -> WidgetSnapshot? {
+    public static func load(
+        bundleID: String? = Bundle.main.bundleIdentifier,
+        provider: UsageProvider? = nil) -> WidgetSnapshot?
+    {
         guard !TestProcessSafety.isRunning, !self.isBoundedIOCircuitBreakerTripped() else { return nil }
-        return self.load(from: AppGroupSupport.snapshotURL(bundleID: bundleID))
+        return self.load(from: AppGroupSupport.snapshotURL(bundleID: bundleID), provider: provider)
     }
 
     public static func load(
         from url: URL,
-        timeout: TimeInterval = WidgetSnapshotStore.defaultLoadTimeout) -> WidgetSnapshot?
+        timeout: TimeInterval = WidgetSnapshotStore.defaultLoadTimeout,
+        provider: UsageProvider? = nil) -> WidgetSnapshot?
     {
         guard let data = self.loadData(from: url, timeout: timeout) else { return nil }
-        return try? self.decoder.decode(WidgetSnapshot.self, from: data)
+        let decoder = self.decoder
+        decoder.userInfo[WidgetSnapshot.selectedProviderKey] = provider?.instanceID
+        return try? decoder.decode(WidgetSnapshot.self, from: data)
     }
 
     package static func loadData(

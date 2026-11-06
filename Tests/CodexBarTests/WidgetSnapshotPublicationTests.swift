@@ -107,15 +107,22 @@ struct WidgetSnapshotPublicationTests {
         #expect(reloads == 4)
         #expect(WidgetSnapshotStore.load(from: url)?.generatedAt == snapshot.generatedAt)
 
+        // Hash the bytes on disk, even when a rewrite decodes to the identical snapshot.
+        let savedData = try Data(contentsOf: url)
+        try (savedData + Data("\n".utf8)).write(to: url)
+        await publish()
+        #expect(reloads == 5)
+        #expect(try Data(contentsOf: url) == savedData)
+
         try FileManager.default.removeItem(at: url)
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false)
         await publish()
         #expect(publication == nil)
-        #expect(reloads == 5)
+        #expect(reloads == 6)
         try FileManager.default.removeItem(at: url)
         await publish()
         #expect(publication != nil)
-        #expect(reloads == 6)
+        #expect(reloads == 7)
     }
 
     @Test

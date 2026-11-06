@@ -899,6 +899,16 @@ struct CodexBarWidgetProviderTests {
 
 extension CodexBarWidgetProviderTests {
     @Test
+    func `switching saves selection before reloading only the stable switcher kind`() {
+        var events: [String] = []
+        SwitchWidgetProviderIntent(provider: .claude).switchProvider(
+            saveSelection: { events.append("save:\($0.rawValue)") },
+            reloadTimelines: { events.append("reload:\($0)") })
+
+        #expect(events == ["save:claude", "reload:CodexBarSwitcherWidget"])
+    }
+
+    @Test
     func `provider choice supports Cursor`() {
         #expect(ProviderChoice(provider: .cursor) == .cursor)
         #expect(ProviderChoice.cursor.provider == .cursor)

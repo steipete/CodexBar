@@ -87,6 +87,8 @@ struct StatusMenuScopedCodexRefreshTests {
             let creditsStarted = ScopedRefreshGate()
             let releaseCredits = ScopedRefreshGate()
             let monitor = controller.menuCardRefreshMonitor
+            // Exercise a visible card directly, without native menu tracking.
+            monitor.isActive = true
             let frozen = try #require(controller.menuCardModel(for: .codex))
             var coreModel: UsageMenuCardView.Model?
             var creditsLoaderCalls = 0

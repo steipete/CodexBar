@@ -1,5 +1,7 @@
 # Cost reporting periods
 
+Usage & Spend creates chart, ledger, and activity views as they approach the visible part of the scrolling pane. This reduces opening work without changing reporting windows, retained source data, or exported records.
+
 ## Conversation usage details
 
 In a cost submenu with session records, click a conversation to open the shared Sessions inspector in
@@ -23,6 +25,7 @@ model requests. This view does not estimate a tool's price from its duration or 
 Messages sharing a turn cannot be priced separately. Missing turn ownership or older history without
 request records appears as unattributed usage; unavailable prices remain unknown. Requests outside the
 selected period and usage belonging to separate subagent sessions are not added to a parent's turn.
+Selected-day tool activity ends at the next local day boundary, including when daylight saving skips midnight.
 For the Codex adapter, automatic approval-review sessions can appear alongside user-created
 conversations because its scanner reads local Codex session logs. A recorded zero-dollar amount does not imply zero tokens.
 
@@ -40,6 +43,8 @@ request details. Session accounting keeps the source snapshot's reporting period
 is selected. No additional history store is created.
 
 ## History windows
+
+Usage & Spend captures daily/hourly summaries and conversation/project details without retaining exact quota-window events or an unused native accounting alternative. This lets obsolete quota payloads be released after their source publication is replaced or cleared. The source publication and regular menu quota data keep their own lifetimes; dashboard totals, Overview, and stale last-known details are unchanged.
 
 The menu's **History window** supports rolling days, **Month to date**, and **All**. Usage & Spend uses the same period model and keeps its own range selection. Existing saved day counts retain their rolling windows; the dashboard's former All selection migrates to All available history.
 
