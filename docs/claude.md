@@ -62,6 +62,14 @@ With **Disable Keychain access** on, a failed background Auto CLI fetch retries 
 Consecutive failures double the delay up to four hours; a successful fetch resets it. Explicit authentication
 failures still wait for a successful manual refresh. Keychain-enabled background access keeps its existing policy.
 
+With Keychain access enabled and **Only on user action** selected, the app's background Auto refreshes can reuse a
+successful CLI result for up to 15 minutes, or until a quota window resets, but cannot launch another Claude CLI probe.
+A successful manual Refresh does not lift that restriction: Claude runs outside CodexBar's no-prompt Keychain
+controls. If OAuth is unusable and Web has no accessible session, scheduled refreshes fail after the cached result
+expires even though the timer continues running. The retained capture timestamp remains unchanged; changing the
+refresh interval cannot repair source access. Manual Refresh can obtain a new CLI result without enabling future
+background CLI launches under this policy.
+
 Usage source picker:
 - Preferences → Providers → Claude → Usage source (Auto/OAuth/Web/CLI).
 
@@ -152,6 +160,9 @@ This cleanup applies to the reusable PTY session, not the separate one-shot usag
 If CodexBar reports that its Claude OAuth cache is temporarily unavailable in macOS Keychain, check
 that the login keychain is unlocked in Keychain Access, then retry Refresh. This guidance does not
 change the existing prompt policy or switch to another credential source.
+
+The credentials-unavailable message does not establish that a token rotated or macOS revoked access. The same
+state can follow a read suppressed by the selected policy. Refresh retries within the existing consent and prompt rules.
 
 - Preferences → Providers → Claude → Keychain prompt policy.
 - Options:
