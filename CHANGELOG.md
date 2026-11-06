@@ -22,6 +22,7 @@
 
 - Settings: find panes by title alongside provider names in sidebar search, with an empty state covering both (#4875). Thanks @elijahfriedman!
 
+- Share: release the usage preview when its window closes and avoid building it twice on first open.
 - Cursor: reduce peak memory while reading large local usage CSV exports by processing lines without retaining a second split-line array.
 - Usage & Spend: prepare the detailed dashboard model on demand instead of retaining unused projections after background cost updates, while keeping Overview current.
 - OpenCode Go: reduce local-history refresh memory by aggregating requests incrementally and selecting billed parts and message fallbacks in one pass.
