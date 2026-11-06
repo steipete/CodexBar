@@ -686,7 +686,7 @@ extension CostUsageScanner {
             }
             var enumerationError: Error?
             guard let enumerator = FileManager.default.enumerator(
-                at: existingRoot,
+                at: existingRoot.resolvingSymlinksInPath(),
                 includingPropertiesForKeys: nil,
                 options: [.skipsHiddenFiles, .skipsPackageDescendants],
                 errorHandler: { _, error in

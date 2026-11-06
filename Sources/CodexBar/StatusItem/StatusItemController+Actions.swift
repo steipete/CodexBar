@@ -417,6 +417,12 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
                 sourceLabel: self.store.sourceLabel(for: .qoder))
         }
 
+        if provider == .siliconflow {
+            return SiliconFlowProviderImplementation.dashboardURL(
+                settings: self.settings,
+                environment: environment)
+        }
+
         // Provider-specific by design: the successful Helmcode snapshot owns the detected tenant.
         if provider == .helmcode {
             return HelmcodeProviderDescriptor.dashboardURL(snapshot: self.store.snapshot(for: provider.instanceID))

@@ -45,6 +45,77 @@ enum ProviderConfigStringField: Sendable, Equatable {
 }
 
 extension SettingsStore {
+    func recoverLegacyCredentials(for provider: UsageProvider?, allowDisabled: Bool = false) {
+        guard !Task.isCancelled, ProviderInteractionContext.current == .userInitiated,
+              !KeychainAccessGate.isDisabled, !self.configNeedsReload,
+              !self.userDefaults.bool(forKey: CodexBarConfigMigrator.legacyMigrationCompletedKey)
+        else { return }
+        for source in CodexBarConfigMigrator.legacySecretSources(stores: self.legacyCredentialStores) {
+            guard !Task.isCancelled else { return }
+            guard provider == nil || provider == source.provider,
+                  self.legacyCredentialRecoverySources.contains(source.store),
+                  self.legacyCredentialSourceIsActive(provider: source.provider, field: source.field),
+                  self.effectiveSelectedTokenAccount(for: source.provider) == nil,
+                  (allowDisabled && provider == source.provider) || self.isProviderEnabled(
+                      provider: source.provider,
+                      metadata: ProviderDescriptorRegistry.descriptor(for: source.provider).metadata)
+            else { continue }
+            guard Self.normalizedConfigField(self.providerConfig(for: source.provider)?[keyPath: source.field]) == nil
+            else {
+                self.legacyCredentialRecoverySources.remove(source.store)
+                continue
+            }
+            let revision = self.providerConfigRevision(for: source.provider)
+            do {
+                guard let value = try Self.normalizedConfigField(source.load()),
+                      // The explanation alert can allow another settings edit before the read returns.
+                      !Task.isCancelled, !self.configNeedsReload,
+                      revision == self.providerConfigRevision(for: source.provider),
+                      self.legacyCredentialSourceIsActive(provider: source.provider, field: source.field),
+                      Self
+                          .normalizedConfigField(self.providerConfig(for: source.provider)?[keyPath: source.field]) ==
+                          nil
+                else { continue }
+                self.updateProviderConfig(provider: source.provider) { $0[keyPath: source.field] = value }
+                self.legacyCredentialRecoverySources.remove(source.store)
+            } catch {
+                CodexBarLog.logger(LogCategories.configMigration).info(
+                    "Legacy credential recovery deferred",
+                    metadata: ["store": source.store])
+            }
+        }
+    }
+
+    private func legacyCredentialSourceIsActive(
+        provider: UsageProvider,
+        field: WritableKeyPath<ProviderConfig, String?>) -> Bool
+    {
+        let source = self.providerConfig(for: provider)?.source ?? .auto
+        if field == \.apiKey { return source == .auto || source == .api }
+        guard self.resolvedCookieSource(provider: provider, fallback: .auto) == .manual else { return false }
+        // Provider-specific by design: recover only credentials used by each legacy source or its optional web details.
+        switch provider {
+        case .codex:
+            return self.codexCookieSource == .manual
+        case .claude:
+            let settings = self.claudeSettingsSnapshot(tokenOverride: nil)
+            guard settings.cookieSource == .manual else { return false }
+            switch settings.usageDataSource {
+            case .auto, .web: return true
+            case .cli, .oauth: return settings.webExtrasEnabled || self.showOptionalCreditsAndExtraUsage
+            case .api: return false
+            }
+        case .cursor, .augment:
+            return ProviderDescriptorRegistry.descriptor(for: provider).fetchPlan.sourceModes.contains(source)
+        case .factory:
+            return self.factoryUsageDataSource != .api
+        case .kimi:
+            return source == .auto || source == .web || source == .api
+        default:
+            return source.usesWeb
+        }
+    }
+
     subscript(providerConfig provider: UsageProvider, field field: ProviderConfigStringField) -> String {
         get {
             field.read(from: self.configSnapshot.providerConfig(for: provider.instanceID))

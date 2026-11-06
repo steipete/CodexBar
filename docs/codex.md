@@ -92,6 +92,10 @@ Usage source picker:
   ahead. The later reset must not move backward. Exact OAuth, account, plan, unchanged positive reset-credit
   inventory across fresh observations (and historical inventory when present), minimum confirmation age, and
   candidate expiry checks still apply.
+- Eligible delayed candidates receive one noninteractive, account-scoped refresh at the existing 60-second minimum.
+  Repeated refreshes keep that pending work, and switching away updates only the candidate's account row.
+  Credential or source changes, provider disablement, and the 30-minute expiry stop stale follow-ups. Failed
+  confirmation waits for an ordinary refresh instead of starting an automatic retry loop.
 - Debug logs in `codex-weekly-reset-publication` include fixed reason codes for delayed-candidate
   creation, pruning, revalidation, and account-scoped storage requests. They distinguish source/confidence,
   timing, boundary, identity/plan compatibility, and credit-inventory failures without logging account or credit
@@ -172,6 +176,11 @@ again immediately before the live replacement. External writers can still race a
 
 Saved-account removal and import repair retain an old managed home while another saved record references
 the same path. Cleanup still requires the managed-home safety checks and releases the home after its last reference.
+
+Adding or reauthenticating a known workspace preserves same-email legacy rows when their saved credentials identify
+another workspace or owner, or cannot be read safely. Missing credential files retain the existing legacy
+reconciliation behavior. If the incoming login also lacks a workspace identity, an ambiguous replacement fails
+without changing the saved row or credentials.
 
 Registry write attempts under the account lock emit one bounded `codex-accounts` log entry with the operation,
 before/requested/written row counts, and success or failure. Successful managed-home deletions emit the operation
@@ -264,6 +273,7 @@ and stable account numbers distinguish rows while usable workspace labels remain
 - Preferences → Providers → Codex → OpenAI cookies (Automatic or Manual).
 - URL: `https://chatgpt.com/codex/cloud/settings/analytics#usage`.
 - Uses an off-screen `WKWebView` with a per-account `WKWebsiteDataStore`.
+- Clears disposable WebKit disk/memory caches at launch and at most daily after background use, preserving cookies and session storage. Removing a managed account attempts to remove only its matching scoped store; unknown historical mappings retain sessions. See [WebKit storage and cleanup](webkit.md#persistent-data-and-cache-maintenance).
   - Store key: deterministic UUID from the normalized email.
 - WebKit store can hold multiple accounts concurrently.
 - Active page preparation and JavaScript evaluations share the refresh deadline. Expired pages are terminated and discarded; verified API usage remains available. Timeout diagnostics do not start new JavaScript after the deadline.
