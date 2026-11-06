@@ -104,3 +104,72 @@ struct CursorAntigravityLocalReaderTests {
         return url
     }
 }
+
+struct CursorCSVLineBufferTests {
+    private static let header = "Date,Model,Input (w/ Cache Write),Input (w/o Cache Write),"
+        + "Cache Read,Output Tokens,Total Tokens,Cost"
+    private static let row = "2026-08-20T10:00:00Z,\"synthetic,模型-🦞-café-e\u{0301}\",\"1,200\",800,400,300,1500,0.125"
+
+    @Test
+    func `CSV parsing materializes one line at a time`() throws {
+        let count = 2048
+        let text = Self.header + "\n" + String(repeating: Self.row + "\n", count: count)
+        let url = try Self.writeTemporary(Data(text.utf8))
+        defer { try? FileManager.default.removeItem(at: url) }
+        let peakBytes = LockIsolated(0)
+        let observer: @Sendable (Int) -> Void = { bytes in
+            peakBytes.setValue(max(peakBytes.value, bytes))
+        }
+        let rows = CursorLocalCSVReader.$observeBufferedLineBytesForTesting.withValue(observer) {
+            CursorLocalCSVReader.parseFile(at: url)
+        }
+
+        #expect(rows.count == count)
+        #expect(peakBytes.value > 0)
+        #expect(peakBytes.value <= max(Self.header.utf8.count, Self.row.utf8.count))
+        let report = CursorLocalCSVReader.makeDailyReport(from: rows)
+        #expect(report.summary?.totalTokens == count * 1500)
+        #expect(report.summary?.totalCostUSD == Double(count) / 8)
+    }
+
+    @Test
+    func `CSV line iteration preserves newline and quoting behavior`() throws {
+        for separator in ["\n", "\r", "\r\n", "\u{000B}", "\u{000C}", "\u{0085}", "\u{2028}", "\u{2029}"] {
+            let text = [" \t", "", Self.header, "\t", Self.row, "", Self.row, " "].joined(separator: separator)
+            let url = try Self.writeTemporary(Data(text.utf8))
+            defer { try? FileManager.default.removeItem(at: url) }
+            let rows = CursorLocalCSVReader.parseFile(at: url)
+            #expect(rows.count == 2)
+            let row = try #require(rows.first)
+            #expect(row.model.utf8.elementsEqual("synthetic,模型-🦞-café-e\u{0301}".utf8))
+            #expect(row.input == 800)
+            #expect(row.cacheWrite == 400)
+            #expect(row.cacheRead == 400)
+            #expect(row.output == 300)
+            #expect(row.totalTokens == 1500)
+            #expect(row.cost == 0.125)
+        }
+        // The existing parser splits physical lines even inside quoted fields.
+        let quotedNewline = Self.header + "\n"
+            + "2026-08-20T10:00:00Z,\"synthetic\nmodel\",1200,800,400,300,1500,0.125"
+        let url = try Self.writeTemporary(Data(quotedNewline.utf8))
+        defer { try? FileManager.default.removeItem(at: url) }
+        #expect(CursorLocalCSVReader.parseFile(at: url).isEmpty)
+    }
+
+    @Test
+    func `CSV invalid UTF8 rejects the entire file`() throws {
+        var data = Data((Self.header + "\n" + Self.row + "\n").utf8)
+        data.append(0xFF)
+        let url = try Self.writeTemporary(data)
+        defer { try? FileManager.default.removeItem(at: url) }
+        #expect(CursorLocalCSVReader.parseFile(at: url).isEmpty)
+    }
+
+    private static func writeTemporary(_ data: Data) throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cursor-line-buffer-\(UUID().uuidString).csv")
+        try data.write(to: url)
+        return url
+    }
+}
