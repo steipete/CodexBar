@@ -2814,3 +2814,9 @@
 "Paste the WorkBuddy User-Agent as a single request header value." = "Dán User-Agent của WorkBuddy dưới dạng một giá trị tiêu đề yêu cầu duy nhất.";
 "TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "Không thể đọc tổng quan thanh toán TypeSafe. Mở https://console.typesafe.ai/billing để kiểm tra quyền truy cập; nếu trang mở được, hãy báo cáo lỗi tích hợp.";
 "No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "Không tìm thấy cookie phiên TypeSafe. Đăng nhập tại console.typesafe.ai/billing hoặc dán tiêu đề Cookie.";
+
+"Tripo" = "Tripo";
+"Show Tripo usage" = "Hiển thị mức sử dụng Tripo";
+"Tripo is rate limiting requests. Try again later." = "Tripo đang giới hạn tần suất yêu cầu. Hãy thử lại sau.";
+"Tripo request failed. Try refreshing later." = "Yêu cầu Tripo không thành công. Hãy thử làm mới sau.";
+"Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo trả về phản hồi không nhận dạng được. Hãy cập nhật CodexBar rồi thử lại.";

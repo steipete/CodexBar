@@ -2813,3 +2813,9 @@
 "Paste the WorkBuddy User-Agent as a single request header value." = "WorkBuddy の User-Agent を単一のリクエストヘッダー値として貼り付けてください。";
 "TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "TypeSafeの請求概要を読み取れませんでした。https://console.typesafe.ai/billing を開いてアクセスを確認してください。ページが開く場合は、連携の不具合を報告してください。";
 "No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "TypeSafeのセッションCookieが見つかりません。console.typesafe.ai/billing にサインインするか、Cookieヘッダーを貼り付けてください。";
+
+"Tripo" = "Tripo";
+"Show Tripo usage" = "Tripo の使用状況を表示";
+"Tripo is rate limiting requests. Try again later." = "Tripo がリクエストの頻度を制限しています。後でもう一度お試しください。";
+"Tripo request failed. Try refreshing later." = "Tripo へのリクエストに失敗しました。後でもう一度更新してください。";
+"Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo から認識できない応答が返されました。CodexBar を更新して、もう一度お試しください。";

@@ -49,6 +49,7 @@
 - Settings: use native popup selectors while keeping imported custom choices visible (#4895). Thanks @elijahfriedman!
 ### Added
 
+- Tripo: show available and reserved API credits through the official balance endpoint (#4927). Thanks @hendryque for the shared social-card artwork!
 - SiliconFlow: show prepaid balances in CNY or USD through the official API, with matching regional console links and the SiliconFlow mark (#4925). Thanks @maojiebc and @hendryque!
 
 - Codex: automatically confirm eligible weekly-reset readings once after the safety delay, keeping the refresh scoped to its original account when switching accounts (#4783).
