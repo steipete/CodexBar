@@ -62,6 +62,14 @@ With **Disable Keychain access** on, a failed background Auto CLI fetch retries 
 Consecutive failures double the delay up to four hours; a successful fetch resets it. Explicit authentication
 failures still wait for a successful manual refresh. Keychain-enabled background access keeps its existing policy.
 
+With Keychain access enabled and **Only on user action** selected, the app's background Auto refreshes can reuse a
+successful CLI result for up to 15 minutes, or until a quota window resets, but cannot launch another Claude CLI probe.
+A successful manual Refresh does not lift that restriction: Claude runs outside CodexBar's no-prompt Keychain
+controls. If OAuth is unusable and Web has no accessible session, scheduled refreshes fail after the cached result
+expires even though the timer continues running. The retained capture timestamp remains unchanged; changing the
+refresh interval cannot repair source access. Manual Refresh can obtain a new CLI result without enabling future
+background CLI launches under this policy.
+
 Usage source picker:
 - Preferences → Providers → Claude → Usage source (Auto/OAuth/Web/CLI).
 
@@ -152,6 +160,9 @@ This cleanup applies to the reusable PTY session, not the separate one-shot usag
 If CodexBar reports that its Claude OAuth cache is temporarily unavailable in macOS Keychain, check
 that the login keychain is unlocked in Keychain Access, then retry Refresh. This guidance does not
 change the existing prompt policy or switch to another credential source.
+
+The credentials-unavailable message does not establish that a token rotated or macOS revoked access. The same
+state can follow a read suppressed by the selected policy. Refresh retries within the existing consent and prompt rules.
 
 - Preferences → Providers → Claude → Keychain prompt policy.
 - Options:
@@ -668,14 +679,16 @@ mode. The additive field is omitted after recovery and from shell rows.
   - GPT usage recorded through Claude Code uses the bundled OpenAI model's long-context boundary (272K for supported models), while retaining catalog rates. Uncached input and cache-read/create tokens all contribute to the prompt length. Saved reports are recalculated after pricing corrections without discarding retained Codex history.
   - Native provider cache: `~/Library/Caches/CodexBar/cost-usage/claude-v6.json`. This is a small manifest; its sibling `claude-v6.json.fragments` directory holds immutable JSON shards grouped by transcript project/directory, including source identities and empty-file parse offsets.
   - Report memo: `~/Library/Caches/CodexBar/cost-usage/claude-v6.report-memo.json` stores the daily report and references project shards for source stamps. It is reused only while transcript inventory, cache/pricing artifacts, requested window, and report-semantics revision still match.
+  - Publishing a report releases its decoded transcript rows from memory. The completed report stays warm for unchanged refreshes; a changed source reloads its disk shards and retains them through the next update before releasing them again.
   - An unreadable transcript root or directory fails the refresh without replacing the last valid cache or report memo. Restoring access allows the next refresh to reuse that history; genuinely missing paths still count as removed sources.
   - A pricing catalog replacement during a refresh preserves certification of the parsed transcript window. The next refresh applies the replacement prices to cached rows without reparsing unchanged transcripts, including after a restart. Externally replaced transcript caches still require window certification again.
+  - The decoded fragment memo keeps a digest instead of a second encoded copy of report headers. Decoded values remain warm; unchanged-save checks, cache budgets, and persisted JSON are unchanged.
   - Unchanged sources reuse the memo even when a menu refresh bypasses the scan debounce. Explicit rescans still reparse transcripts, but byte-identical cache and report-memo content is not rewritten; an unchanged rebuild retains its previous scan timestamp.
   - Changed refreshes write only affected project shards and the manifests. Loaded usage dictionaries reserve capacity for their source files, and unchanged immutable file records are reused across refreshes to reduce peak memory on large histories. Report aggregates remain in the memo header; a large individual project or report can still require larger writes. Unchanged shards are neither read nor re-encoded while their snapshot remains in the bounded memory memo. The memo retains at most eight snapshots under a conservative encoded-size budget; schema, time-zone, source, window, filter, and pricing checks remain independent.
   - Writers commit shards before atomically replacing the manifest, then remove unreferenced shards under the same cross-process lock used by readers. A process interrupted before the manifest replacement leaves the previous snapshot intact. Missing or corrupt referenced shards reject the snapshot rather than returning partial totals. Clone-capable macOS volumes reuse unchanged blocks within a changed shard; other volumes use full shard writes.
   - Existing single-file JSON caches load and migrate on their next save. Migration itself does not require rereading transcripts, and compact row fields and parser revisions are unchanged. Older CodexBar builds can rebuild these caches from the original logs if downgraded. Public report JSON is unchanged.
   - The app's Usage & Spend refresh uses `claude-history-v6.json` and its own report memo. The two app refreshes do not replace each other's retained rows or restart each other's transcript scans. Once both have established their windows, same-day append refreshes read changed tails once per cache.
-  - App memos record whether every file's rows were selected for their scan window. Older or externally replaced caches without that proof rebuild once, even if their stored bounds already match; app window changes also rebuild to preserve cold-scan duplicate selection. The regular cache filename and row schema remain compatible, and standalone CLI range behavior is unchanged.
+  - App memos record whether every file's rows were selected for their scan window. Older or externally replaced caches without that proof rebuild once, even if their stored bounds already match. Complete transcript scans also retain source-date bounds in the existing project shards. On a day rollover or other app window change, unchanged files reuse their rows when their full date span fits both windows, or retain no rows when the span is outside the new window. Files crossing a window boundary, incomplete sources, and older entries without date bounds still reparse to preserve cold-scan duplicate selection and recover previously excluded events. Explicit rescans and changed source/filter/configuration checks remain active. Date bounds are populated on the next required parse without a migration-only rebuild. The regular cache filename, compact row schema, parser revision, and standalone CLI range behavior are unchanged.
   - The Claude/Vertex cache artifact retains source file identities independently of the shared Codex parser fingerprint. Replacing a transcript rebuilds its rows rather than merging an old prefix into a new suffix; genuine appends still use the saved parse offset. Older entries without identity are rebuilt once before reuse, including during the normal refresh debounce.
   - Older Claude/Vertex native caches and report memos are rebuilt once from unchanged transcripts to apply the corrected response deduplication. Corrected reports remain eligible for memo reuse across launches.
   - pi-compatible session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v9.json`. Version 8 rebuilds once from transcripts to establish source scope and completeness. Enabling the standalone [Pi provider](pi.md) keeps Claude history native-only in combined views.
