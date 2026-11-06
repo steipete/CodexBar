@@ -212,14 +212,19 @@ struct MenuBarVisibilityWatcherTests {
     }
 
     @Test
-    func `startup recovery triggers for blocked visible snapshot`() {
+    func `missing AppKit window enters startup recovery despite unavailable server names`() {
         let launchedAt = Date(timeIntervalSince1970: 1000)
-        let blocked = Self.snapshot(hasWindow: false, hasScreen: false)
+        let blocked = Self.snapshot(hasWindow: false, hasScreen: false, isOnCurrentScreen: false, buttonWidth: 34)
+        let evidence = StatusItemStartupVisibilityEvidence(
+            autosaveName: "codexbar-merged", expectsVisibility: true, visibilityDefault: true, snapshot: blocked)
 
         #expect(MenuBarVisibilityWatcher.shouldAttemptStartupRecovery(
             appLaunchedAt: launchedAt,
             now: launchedAt.addingTimeInterval(2),
-            snapshots: [blocked]))
+            snapshots: [blocked],
+            evidence: [evidence],
+            windowSnapshots: [],
+            detectTahoeBlockedStatusItem: true))
     }
 
     @Test

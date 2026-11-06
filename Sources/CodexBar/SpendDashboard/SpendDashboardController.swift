@@ -1179,7 +1179,33 @@ final class SpendDashboardController {
         }
     }
 
-    private(set) var model = SpendDashboardModel(requestedDays: 30, groups: [])
+    var model: SpendDashboardModel {
+        _ = self.modelRevision
+        if let cachedModel { return cachedModel }
+        let configuration = self.configuration
+        let model = SpendDashboardModel.build(
+            inputs: self.loadedInputs,
+            reportingPeriod: self.selectedPeriod,
+            now: self.loadedAt,
+            calendar: configuration?.bucketCalendar ?? .current,
+            preferredCurrencyCode: configuration?.preferredCurrencyCode ?? "auto",
+            hiddenSourceIDs: Set(configuration?.hiddenSourceIDs ?? []),
+            hideNativeCodexWhenOpenCodexPresent: configuration?.hideNativeCodexCostWhenOpenCodexPresent ?? false,
+            selectedDay: self.selectedDay)
+        self.cachedModel = model
+        #if DEBUG
+        self._test_modelBuildCount += 1
+        #endif
+        return model
+    }
+
+    private var modelRevision: UInt64 = 0
+    @ObservationIgnored private var cachedModel: SpendDashboardModel? = SpendDashboardModel(
+        requestedDays: 30, groups: [])
+    #if DEBUG
+    @ObservationIgnored private(set) var _test_modelBuildCount = 0
+    #endif
+
     private(set) var publication = SpendDashboardPublication.empty
     private(set) var isRefreshing = false
     private(set) var failedSourceCount = 0
@@ -1252,7 +1278,7 @@ final class SpendDashboardController {
                     self.selectedDay = normalized
                 }
             }
-            self.rebuildModel()
+            self.invalidateModel()
             return
         }
         self.configuration = configuration
@@ -1304,7 +1330,7 @@ final class SpendDashboardController {
                 self.loadedInputScopes.removeValue(forKey: sourceID)
             }
             self.failedSourceCount = 0
-            self.rebuildModel()
+            self.invalidateModel()
         }
         let shouldPrimeCachedCodex: Bool = if case .ordinary = phase {
             self.cachedLoader != nil && !Set(Self.codexOwnershipByID(configuration.codexAccountIdentities).keys)
@@ -1326,7 +1352,7 @@ final class SpendDashboardController {
             self.lastSuccessfulConfiguration = configuration
             self.phase = .ordinary
             self.loadTask = nil
-            self.rebuildModel()
+            self.invalidateModel()
             return
         }
 
@@ -1409,7 +1435,7 @@ final class SpendDashboardController {
         self.failedSourceIDs = result.failedSourceIDs
         self.openCodexObservation = result.openCodexObservation
         self.refreshRetainedCodexDisplayNames(request.configuration.codexAccountDisplayNames)
-        self.rebuildModel()
+        self.invalidateModel()
     }
 
     private func handleBuiltRequest(
@@ -1575,7 +1601,7 @@ final class SpendDashboardController {
         self.isRefreshing = false
         self.phase = .ordinary
         self.loadTask = nil
-        self.rebuildModel()
+        self.invalidateModel()
     }
 
     private static func merge(
@@ -1648,7 +1674,7 @@ final class SpendDashboardController {
         guard period != self.selectedPeriod else { return }
         self.selectedPeriod = period
         self.userDefaults.set(period.rawValue, forKey: Self.periodDefaultsKey)
-        self.rebuildModel(publish: false)
+        self.invalidateModel(publish: false)
     }
 
     func selectDay(_ day: Date?) {
@@ -1656,7 +1682,7 @@ final class SpendDashboardController {
         let normalized = day.map { calendar.startOfDay(for: $0) }
         guard normalized != self.selectedDay else { return }
         self.selectedDay = normalized
-        self.rebuildModel(publish: false)
+        self.invalidateModel(publish: false)
     }
 
     func refreshDateWindow(now: Date? = nil) {
@@ -1683,7 +1709,7 @@ final class SpendDashboardController {
         self.lastRefreshDateWindowAt = now
         self.lastRefreshDateWindowDayStart = nextDay
         self.loadedAt = now
-        self.rebuildModel()
+        self.invalidateModel()
         guard let configuration else { return }
         guard !isSameDay || self.lastSuccessfulConfiguration == nil || self.failedSourceCount > 0
         else { return }
@@ -1704,20 +1730,12 @@ final class SpendDashboardController {
         self.lastRefreshDateWindowAt = nil
         self.lastRefreshDateWindowDayStart = nil
         self.dashboardSnapshotLoadedAt = nil
-        self.publishCurrentState()
+        self.invalidateModel()
     }
 
-    private func rebuildModel(publish: Bool = true) {
-        let configuration = self.configuration
-        self.model = SpendDashboardModel.build(
-            inputs: self.loadedInputs,
-            reportingPeriod: self.selectedPeriod,
-            now: self.loadedAt,
-            calendar: configuration?.bucketCalendar ?? .current,
-            preferredCurrencyCode: configuration?.preferredCurrencyCode ?? "auto",
-            hiddenSourceIDs: Set(configuration?.hiddenSourceIDs ?? []),
-            hideNativeCodexWhenOpenCodexPresent: configuration?.hideNativeCodexCostWhenOpenCodexPresent ?? false,
-            selectedDay: self.selectedDay)
+    private func invalidateModel(publish: Bool = true) {
+        self.cachedModel = nil
+        self.modelRevision &+= 1
         if publish {
             self.publishCurrentState()
         }
@@ -1845,7 +1863,7 @@ final class SpendDashboardController {
         }
         guard didChange else { return }
         self.loadedInputs = relabeled
-        self.rebuildModel()
+        self.invalidateModel()
     }
 
     private static func relabelCodexInput(

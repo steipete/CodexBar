@@ -476,6 +476,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         WidgetExtensionRecovery.launch(reload: UsageStore.reloadWidgetTimelines)
         self.dockIconController.start()
         self.memoryPressureMonitor.start()
+        Task { await OpenAIDashboardWebsiteDataStore.clearNetworkCaches() }
         #if DEBUG
         self.installDebugMemoryPressureObserverIfNeeded()
         #endif
