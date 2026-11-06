@@ -103,9 +103,15 @@ struct SwitchWidgetProviderIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult {
-        WidgetSelectionStore.saveSelectedProvider(self.provider.provider)
-        WidgetCenter.shared.reloadAllTimelines()
+        self.switchProvider(
+            saveSelection: { WidgetSelectionStore.saveSelectedProvider($0) },
+            reloadTimelines: { WidgetCenter.shared.reloadTimelines(ofKind: $0) })
         return .result()
+    }
+
+    func switchProvider(saveSelection: (UsageProvider) -> Void, reloadTimelines: (String) -> Void) {
+        saveSelection(self.provider.provider)
+        reloadTimelines(CodexBarSwitcherWidget.kind)
     }
 }
 

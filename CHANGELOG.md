@@ -35,6 +35,8 @@
 - Kiro: preserve the `+` in CLI-reported plan names so Pro+ subscriptions are shown as Kiro Pro+. (#4928) Thanks @jeanroloff!
 ### Changed
 
+- Widgets: reload only Switcher widgets when paging providers, avoiding reload requests for unrelated widget kinds.
+
 - Widgets: reduce timeline decoding work by reading only the configured provider's payload while preserving snapshot freshness and account ownership checks.
 
 - App: reduce allocator-retained memory after large cost-history refreshes on recent macOS versions, without passing the policy to provider CLIs or helpers (#4803, #4486).
