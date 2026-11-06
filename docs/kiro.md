@@ -21,10 +21,13 @@ Kiro reuses `kiro-cli` authentication for API usage reads and CLI fallback. The 
    - Endpoint follows the CLI profile ARN: US East uses `POST https://codewhisperer.us-east-1.amazonaws.com/`;
      Frankfurt uses `POST https://q.eu-central-1.amazonaws.com/`. Invalid or unsupported profile ARNs skip the API.
      Header `X-Amz-Target: AmazonCodeWhispererService.GetUsageLimits`, body `{"profileArn": ...}`.
+     Builder ID logins may persist a token without a profile row. In that case CodexBar sends `{}` to
+     the fixed US East endpoint. A present but malformed profile or unreadable profile storage still
+     skips the API; it never redirects an existing unsupported profile to the default region.
    - Credentials come from the CLI's own state, opened **read-only** (the CLI owns the token and its refresh):
      `~/Library/Application Support/kiro-cli/data.sqlite3`
      - `auth_kv` key `kirocli:odic:token` → `access_token`
-     - `state` key `api.codewhisperer.profile` → `arn`
+     - `state` key `api.codewhisperer.profile` → `arn` when the profile row exists
    - Regional endpoints follow [AWS profile-region routing](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/firewall.html), independently of the IAM Identity Center authentication region.
    - This is the existing private CLI service/state contract, not a documented public Kiro API.
      Missing credentials, API failures, nonpositive allowances, or combined bonus totals fall back to the CLI.
@@ -52,6 +55,8 @@ Kiro reuses `kiro-cli` authentication for API usage reads and CLI fallback. The 
    - Requires `kiro-cli` installed and logged in. Output is ANSI-decorated; CodexBar strips escape sequences.
    - Kiro CLI 2.20 summaries such as `Plan: KIRO PRO MAX | 1 usage breakdowns` are accepted as plan-only
      reports. A breakdown count does not imply zero usage or an available allowance.
+   - CLI plan names preserve the `+` suffix: `KIRO PRO+` displays as `Kiro Pro+` in both legacy and
+     `Estimated Usage` reports.
 
 Background refreshes first make an unauthenticated, four-second `HEAD` request to the CLI profile's usage
 host. Missing or unsupported private region state uses the default US East host. A transport failure stops

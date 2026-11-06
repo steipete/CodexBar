@@ -236,7 +236,7 @@ struct BedrockUsageStatsTests {
     }
 
     @Test
-    func `cost explorer measured zero remains a successful balance`() async throws {
+    func `cost explorer measured zero remains in monthly usage and daily history`() async throws {
         let registered = URLProtocol.registerClass(BedrockStubURLProtocol.self)
         defer {
             if registered { URLProtocol.unregisterClass(BedrockStubURLProtocol.self) }
@@ -247,7 +247,8 @@ struct BedrockUsageStatsTests {
             return Self.makeResponse(
                 url: url,
                 body: #"""
-                {"ResultsByTime":[{"Groups":[{"Keys":["Amazon Bedrock"],
+                {"ResultsByTime":[{"TimePeriod":{"Start":"2026-10-29","End":"2026-10-30"},
+                  "Groups":[{"Keys":["Amazon Bedrock"],
                   "Metrics":{"UnblendedCost":{"Amount":"0.00000000","Unit":"USD"}}}]}]}
                 """#,
                 statusCode: 200)
@@ -259,6 +260,21 @@ struct BedrockUsageStatsTests {
             environment: [BedrockSettingsReader.apiURLKey: "https://bedrock.test"])
         #expect(snapshot.monthlySpend == 0)
         #expect(snapshot.toUsageSnapshot().providerCost?.used == 0)
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-10-29T12:00:00Z"))
+        let cost = try await CostUsageFetcher(calendar: CostUsageBucketTimeZone.calendar(identifier: "UTC"))
+            .loadTokenSnapshot(
+                provider: .bedrock,
+                environment: [
+                    BedrockSettingsReader.accessKeyIDKey: "AKIATEST",
+                    BedrockSettingsReader.secretAccessKeyKey: "testSecret",
+                    BedrockSettingsReader.apiURLKey: "https://bedrock.test",
+                ],
+                now: now)
+        #expect(cost.daily.map(\.date) == ["2026-10-29"])
+        #expect(cost.daily.first?.costUSD == 0)
+        #expect(cost.last30DaysCostUSD == 0)
+        #expect(cost.sessionCostUSD == 0)
+        #expect(cost.last30DaysTokens == nil)
     }
 
     @Test

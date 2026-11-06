@@ -259,6 +259,7 @@ enum CodexBarCLI {
         let configSignature = CommandSignature.describe(ConfigOptions()).flattened()
         let configDumpSignature = CommandSignature.describe(ConfigDumpOptions()).flattened()
         let configProviderToggleSignature = CommandSignature.describe(ConfigProviderToggleOptions()).flattened()
+        let configLoginSignature = CommandSignature.describe(ConfigLoginOptions()).flattened()
         let configSetSourceSignature = CommandSignature.describe(ConfigSetSourceOptions()).flattened()
         let configSetAPIKeySignature = CommandSignature.describe(ConfigSetAPIKeyOptions()).flattened()
         let configSetCookieSignature = CommandSignature.describe(ConfigSetCookieOptions()).flattened()
@@ -296,9 +297,9 @@ enum CodexBarCLI {
                     signature: configProviderToggleSignature),
                 CommandDescriptor(
                     name: "login",
-                    abstract: "GitHub Copilot Login",
+                    abstract: UsageFormatter.localized("Authentication"),
                     discussion: nil,
-                    signature: configProviderToggleSignature),
+                    signature: configLoginSignature),
                 CommandDescriptor(
                     name: "set-api-key",
                     abstract: "Store a provider API key",

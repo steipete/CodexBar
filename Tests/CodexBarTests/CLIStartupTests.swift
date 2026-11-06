@@ -17,6 +17,7 @@ struct CLIStartupTests {
         let arguments = [
             ["usage", "--provider", "codex", "--json"],
             ["config", "providers", "--json"],
+            ["config", "login", "--provider", "claudeplatform", "--stdin", "--json"],
             ["config", "--json"],
             ["config", "preferences", "export", "--json"],
             ["sessions"],

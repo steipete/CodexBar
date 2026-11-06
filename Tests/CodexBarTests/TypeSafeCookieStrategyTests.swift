@@ -67,35 +67,92 @@ struct TypeSafeCookieStrategyTests {
     }
 
     @Test
-    func `cookie paths match billing and preserve longest path precedence`() {
+    func `cookie paths match billing overview and preserve longest path precedence`() {
         let records = [
             Self.record("console.typesafe.ai", scope: .hostOnly, name: "session", value: "root"),
-            Self.record("console.typesafe.ai", scope: .hostOnly, name: "session", value: "settings", path: "/settings"),
             Self.record(
                 "console.typesafe.ai",
                 scope: .hostOnly,
                 name: "session",
-                value: "exact",
-                path: "/settings/billing"),
-            Self.record("console.typesafe.ai", scope: .hostOnly, name: "api", path: "/api"),
+                value: "overview",
+                path: "/api/billing/overview"),
+            Self.record(
+                "console.typesafe.ai",
+                scope: .hostOnly,
+                name: "billing-api",
+                value: "value",
+                path: "/api/billing"),
+            Self.record(
+                "console.typesafe.ai",
+                scope: .hostOnly,
+                name: "trailing",
+                path: "/api/billing/overview/"),
+            Self.record(
+                "console.typesafe.ai",
+                scope: .hostOnly,
+                name: "sibling",
+                path: "/api/billing/overview-extra"),
+            Self.record("console.typesafe.ai", scope: .hostOnly, name: "legacy", path: "/billing"),
             Self.record("console.typesafe.ai", scope: .hostOnly, name: "auth", path: "/auth"),
-            Self.record("console.typesafe.ai", scope: .hostOnly, name: "sibling", path: "/settings/billing-extra"),
-            Self.record("console.typesafe.ai", scope: .hostOnly, name: "prefix", path: "/setting"),
-            Self.record("console.typesafe.ai", scope: .hostOnly, name: "trailing", path: "/settings/"),
         ]
+        let filtered = TypeSafeCookieImporter.recordsForDestination(records)
+        #expect(filtered.map(\.name) == ["session", "billing-api", "session"])
         #expect(TypeSafeCookieImporter.cookieHeader(from: records) ==
-            "session=exact; trailing=value; session=settings; session=root")
+            "session=overview; billing-api=value; session=root")
     }
 
     @Test
-    func `real plugin sends filtered cookies only to billing requests`() async throws {
+    func `legacy unscoped cache is excluded from the billing request`() async throws {
+        let storage = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: storage) }
+        try await KeychainCacheStore.withImplicitTestStoreForTesting {
+            try await CookieHeaderCache.withLegacyBaseURLOverrideForTesting(storage) {
+                CookieHeaderCache.store(
+                    provider: .typesafe,
+                    cookieHeader: "session=legacy-settings",
+                    sourceLabel: "legacy")
+                defer { CookieHeaderCache.clearAllScopes(provider: .typesafe) }
+
+                let requests = RequestLog()
+                let strategy = TypeSafeWebFetchStrategy(
+                    transport: ProviderHTTPTransportHandler { request in
+                        await requests.append(request)
+                        return try TypeSafeTestFixture.pluginResponse(for: request)
+                    },
+                    sessionLoader: { _ in
+                        AnySequence([.init(cookieHeader: "session=fresh-billing", sourceLabel: "Chrome")])
+                    })
+
+                _ = try await strategy.fetch(Self.context(.auto))
+
+                let recorded = await requests.all
+                let billingRequests = recorded.filter { $0.url?.path == "/api/billing/overview" }
+                #expect(!billingRequests.isEmpty)
+                #expect(billingRequests.allSatisfy {
+                    $0.value(forHTTPHeaderField: "Cookie") == "session=fresh-billing"
+                })
+                #expect(CookieHeaderCache.load(provider: .typesafe)?.cookieHeader == "session=legacy-settings")
+                #expect(CookieHeaderCache.load(
+                    provider: .typesafe,
+                    scope: .typesafeBilling)?.cookieHeader == "session=fresh-billing")
+            }
+        }
+    }
+
+    @Test
+    func `real plugin sends filtered cookies only to the billing overview request`() async throws {
         let requests = RequestLog()
         let records = [
             Self.record("console.typesafe.ai", scope: .hostOnly, name: "session", value: "allowed"),
             Self.record(".typesafe.ai", scope: .domain, name: "shared", value: "allowed"),
             Self.record(".console.typesafe.ai", scope: .domain, name: "console", value: "allowed"),
-            Self.record("console.typesafe.ai", scope: .hostOnly, name: "scoped", value: "allowed", path: "/settings"),
-            Self.record("console.typesafe.ai", scope: .hostOnly, name: "api", value: "blocked", path: "/api"),
+            Self.record(
+                "console.typesafe.ai",
+                scope: .hostOnly,
+                name: "scoped",
+                value: "allowed",
+                path: "/api/billing/overview"),
+            Self.record("console.typesafe.ai", scope: .hostOnly, name: "legacy", value: "blocked", path: "/billing"),
             Self.record(".www.typesafe.ai", scope: .domain, name: "private", value: "blocked"),
             Self.record("nottypesafe.ai", scope: .domain, name: "lookalike", value: "blocked"),
             Self.record("typesafe.ai.example.org", scope: .domain, name: "suffix", value: "blocked"),
@@ -108,7 +165,7 @@ struct TypeSafeCookieStrategyTests {
                 await requests.append(request)
                 return try TypeSafeTestFixture.pluginResponse(for: request)
             },
-            sessionLoader: { _ in [.init(cookieHeader: header, sourceLabel: "Chrome")] },
+            sessionLoader: { _ in AnySequence([.init(cookieHeader: header, sourceLabel: "Chrome")]) },
             cacheLoader: { .authoritative(nil) },
             cacheClearer: { _ in Issue.record("unexpected cache clear"); return false },
             cacheWriter: { _, _ in })
@@ -118,14 +175,11 @@ struct TypeSafeCookieStrategyTests {
         #expect(result.sourceLabel == "web")
         #expect(result.strategyID == "typesafe.web")
         let recorded = await requests.all
-        let billing = try #require(recorded.first { $0.httpMethod == "GET" && $0.url?.path == "/settings/billing" })
-        let chunk = try #require(recorded.first { $0.url?.path == "/_next/static/chunks/app.js" })
-        let post = try #require(recorded.first { $0.httpMethod == "POST" })
-        #expect(billing.value(forHTTPHeaderField: "Cookie") ==
+        #expect(recorded.count == 1)
+        let overview = try #require(recorded
+            .first { $0.httpMethod == "GET" && $0.url?.path == "/api/billing/overview" })
+        #expect(overview.value(forHTTPHeaderField: "Cookie") ==
             "scoped=allowed; session=allowed; shared=allowed; console=allowed")
-        #expect(post.value(forHTTPHeaderField: "Cookie") ==
-            "scoped=allowed; session=allowed; shared=allowed; console=allowed")
-        #expect(chunk.value(forHTTPHeaderField: "Cookie") == nil)
     }
 
     @Test
@@ -133,7 +187,7 @@ struct TypeSafeCookieStrategyTests {
         let log = Log()
         let strategy = TypeSafeWebFetchStrategy(
             usageLoader: { cookie in log.append(cookie); return Self.usage() },
-            sessionLoader: { _ in Issue.record("unexpected import"); return [] },
+            sessionLoader: { _ in Issue.record("unexpected import"); return AnySequence([]) },
             cacheLoader: { Issue.record("unexpected cache read"); return .authoritative(nil) },
             cacheClearer: { _ in Issue.record("unexpected cache clear"); return false },
             cacheWriter: { _, _ in Issue.record("unexpected cache write") })
@@ -157,10 +211,10 @@ struct TypeSafeCookieStrategyTests {
                 }
                 return Self.usage()
             },
-            sessionLoader: { _ in [
+            sessionLoader: { _ in AnySequence([
                 .init(cookieHeader: "session=expired", sourceLabel: "Chrome A"),
                 .init(cookieHeader: "session=valid", sourceLabel: "Chrome B"),
-            ] },
+            ]) },
             cacheLoader: { .authoritative(cached) },
             cacheClearer: { expected in #expect(expected == cached); return true },
             cacheWriter: { expected, session in
@@ -185,11 +239,16 @@ struct TypeSafeCookieStrategyTests {
             transport: ProviderHTTPTransportHandler { request in
                 await requests.append(request)
                 if request.value(forHTTPHeaderField: "Cookie") == "session=stale" {
-                    return try TypeSafeTestFixture.response(request, status: 307, body: "", contentType: "text/html")
+                    return try TypeSafeTestFixture.response(
+                        request,
+                        status: 307,
+                        body: "",
+                        contentType: "text/html",
+                        headers: ["Location": "https://console.typesafe.ai/login?next=%2Fbilling"])
                 }
                 return try TypeSafeTestFixture.pluginResponse(for: request)
             },
-            sessionLoader: { _ in [.init(cookieHeader: "session=fresh", sourceLabel: "Chrome")] },
+            sessionLoader: { _ in AnySequence([.init(cookieHeader: "session=fresh", sourceLabel: "Chrome")]) },
             cacheLoader: { .authoritative(cached) },
             cacheClearer: { expected in #expect(expected == cached); log.append("cleared"); return true },
             cacheWriter: { expected, session in
@@ -201,17 +260,46 @@ struct TypeSafeCookieStrategyTests {
 
         #expect(result.usage.providerCost?.balance == 4.98)
         #expect(log.values == ["cleared", "stored session=fresh"])
-        let cookies = await requests.all.filter { $0.httpMethod != nil && $0.url?.path == "/settings/billing" }
+        let cookies = await requests.all.filter { $0.httpMethod != nil && $0.url?.path == "/api/billing/overview" }
             .map { $0.value(forHTTPHeaderField: "Cookie") }
-        #expect(cookies == ["session=stale", "session=fresh", "session=fresh"])
+        #expect(cookies == ["session=stale", "session=fresh"])
     }
 
-    @Test(arguments: [ProviderFetchClassifiedError.Kind.networkFailure, .parseFailure, .rateLimited])
+    @Test
+    func `non-login redirect is not treated as an expired session`() async {
+        let strategy = TypeSafeWebFetchStrategy(
+            transport: ProviderHTTPTransportHandler { request in
+                if request.url?.path == "/api/billing/overview" {
+                    return try TypeSafeTestFixture.response(
+                        request,
+                        status: 307,
+                        body: "",
+                        contentType: "text/html",
+                        headers: ["Location": "https://console.typesafe.ai/billing/"])
+                }
+                return try TypeSafeTestFixture.pluginResponse(for: request)
+            },
+            sessionLoader: { _ in AnySequence([.init(cookieHeader: "session=fresh", sourceLabel: "Chrome")]) },
+            cacheLoader: { .authoritative(nil) },
+            cacheClearer: { _ in Issue.record("unexpected cache clear"); return false },
+            cacheWriter: { _, _ in Issue.record("unexpected cache write") })
+
+        do {
+            _ = try await strategy.fetch(Self.context(.auto))
+            Issue.record("expected an api failure")
+        } catch let error as ProviderFetchClassifiedError {
+            #expect(error.kind == .apiFailure)
+        } catch {
+            Issue.record("unexpected error: \(error)")
+        }
+    }
+
+    @Test(arguments: [ProviderFetchClassifiedError.Kind.networkFailure, .parseFailure, .rateLimited, .apiFailure])
     func `non authentication failures preserve cache without importing`(kind: ProviderFetchClassifiedError.Kind) async {
         let error = ProviderFetchClassifiedError(kind: kind, message: "fixture")
         let strategy = TypeSafeWebFetchStrategy(
             usageLoader: { _ in throw error },
-            sessionLoader: { _ in Issue.record("unexpected import"); return [] },
+            sessionLoader: { _ in Issue.record("unexpected import"); return AnySequence([]) },
             cacheLoader: { .authoritative(.init(
                 cookieHeader: "session=cached",
                 storedAt: TypeSafeTestFixture.now,
@@ -226,7 +314,7 @@ struct TypeSafeCookieStrategyTests {
     func `temporarily unavailable cache stops before browser import`() async {
         let strategy = TypeSafeWebFetchStrategy(
             usageLoader: { _ in Issue.record("unexpected fetch"); return Self.usage() },
-            sessionLoader: { _ in Issue.record("unexpected import"); return [] },
+            sessionLoader: { _ in Issue.record("unexpected import"); return AnySequence([]) },
             cacheLoader: { .keychainTemporarilyUnavailable(legacyEntry: nil) },
             cacheClearer: { _ in Issue.record("unexpected clear"); return false },
             cacheWriter: { _, _ in Issue.record("unexpected write") })
@@ -241,7 +329,7 @@ struct TypeSafeCookieStrategyTests {
         let error = ProviderFetchClassifiedError(kind: .authenticationExpired, message: "fixture")
         let strategy = TypeSafeWebFetchStrategy(
             usageLoader: { _ in throw error },
-            sessionLoader: { _ in Issue.record("unexpected fallback"); return [] },
+            sessionLoader: { _ in Issue.record("unexpected fallback"); return AnySequence([]) },
             cacheLoader: { .authoritative(.init(
                 cookieHeader: "session=pinned",
                 storedAt: TypeSafeTestFixture.now,
@@ -266,7 +354,7 @@ struct TypeSafeCookieStrategyTests {
                 }
                 return Self.usage()
             },
-            sessionLoader: { _ in [.init(cookieHeader: "session=new", sourceLabel: "new")] },
+            sessionLoader: { _ in AnySequence([.init(cookieHeader: "session=new", sourceLabel: "new")]) },
             cacheLoader: { .authoritative(cached) },
             cacheClearer: { _ in false },
             cacheWriter: { expected, _ in #expect(expected.entry == cached) })
@@ -278,13 +366,42 @@ struct TypeSafeCookieStrategyTests {
     func `cancellation cannot publish candidate to cache`() async {
         let strategy = TypeSafeWebFetchStrategy(
             usageLoader: { _ in withUnsafeCurrentTask { $0?.cancel() }; return Self.usage() },
-            sessionLoader: { _ in [.init(cookieHeader: "session=fixture", sourceLabel: "Chrome")] },
+            sessionLoader: { _ in AnySequence([.init(cookieHeader: "session=fixture", sourceLabel: "Chrome")]) },
             cacheLoader: { .authoritative(nil) },
             cacheClearer: { _ in Issue.record("unexpected clear"); return false },
             cacheWriter: { _, _ in Issue.record("cancelled cache write") })
         let task = Task { try await strategy.fetch(Self.context(.auto)) }
 
         await #expect(throws: CancellationError.self) { try await task.value }
+    }
+
+    @Test(arguments: [false, true])
+    func `browser candidates stop at the first validated session`(expiredFirst: Bool) async throws {
+        let log = Log()
+        let strategy = TypeSafeWebFetchStrategy(
+            usageLoader: { cookie in
+                log.append("fetch " + cookie)
+                if cookie == "session=expired" {
+                    throw ProviderFetchClassifiedError(kind: .authenticationExpired, message: "fixture")
+                }
+                return Self.usage()
+            },
+            sessionLoader: { _ in
+                var cookies = (expiredFirst ? ["session=expired", "session=valid", "session=unused"]
+                    : ["session=valid", "session=unused"]).makeIterator()
+                return AnySequence(AnyIterator {
+                    guard let cookie = cookies.next() else { return nil }
+                    log.append("load " + cookie)
+                    return TypeSafeResolvedSession(cookieHeader: cookie, sourceLabel: "fixture")
+                })
+            },
+            cacheLoader: { .authoritative(nil) },
+            cacheClearer: { _ in Issue.record("unexpected clear"); return false },
+            cacheWriter: { _, session in #expect(session.cookieHeader == "session=valid") })
+        _ = try await strategy.fetch(Self.context(.auto))
+        let expected = (expiredFirst ? ["load session=expired", "fetch session=expired"] : [])
+            + ["load session=valid", "fetch session=valid"]
+        #expect(log.values == expected)
     }
 
     private static func record(
