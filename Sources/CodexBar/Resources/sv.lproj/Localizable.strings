@@ -2793,6 +2793,16 @@
 "Leave blank to use the default name." = "Lämna tomt för att använda standardnamnet.";
 "Rewards" = "Belöningar";
 "Reward expiry" = "Belöningarnas utgångsdatum";
+"China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "Kina (CNY) är standard. Internationella konton använder https://api.siliconflow.com (USD).";
+"https://api.siliconflow.cn" = "https://api.siliconflow.cn";
+"SiliconFlow API origin must be https://api.siliconflow.cn or https://api.siliconflow.com." = "SiliconFlows API-ursprung måste vara https://api.siliconflow.cn eller https://api.siliconflow.com.";
+"SiliconFlow refused the balance query. Check the balance in the SiliconFlow console." = "SiliconFlow nekade saldoförfrågan. Kontrollera saldot i SiliconFlow-konsolen.";
+
+"SiliconFlow" = "SiliconFlow";
+"Show SiliconFlow usage" = "Visa SiliconFlow-användning";
+"SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow begränsar antalet förfrågningar. Försök igen senare.";
+"SiliconFlow request failed. Try refreshing later." = "SiliconFlow-förfrågan misslyckades. Försök uppdatera senare.";
+"SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow returnerade ett okänt svar. Uppdatera CodexBar och försök igen.";
 "Claude Platform session validated and saved." = "Claude Platform-sessionen har validerats och sparats.";
 "Use %@ or %@." = "Använd %@ eller %@.";
 "Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Logga in på %@. Skicka Cookie-headern med sessionKey privat till %@. Kör sedan %@.";

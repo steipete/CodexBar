@@ -30,6 +30,8 @@
 - Settings: use native popup selectors while keeping imported custom choices visible (#4895). Thanks @elijahfriedman!
 ### Added
 
+- SiliconFlow: show prepaid balances in CNY or USD through the official API, with matching regional console links and the SiliconFlow mark (#4925). Thanks @maojiebc and @hendryque!
+
 - CLI: validate and save Claude Platform sessions from private stdin input with `config login --provider claudeplatform --stdin`, without browser or Keychain access (#4845).
 - Settings: find panes by title alongside provider names in sidebar search, with an empty state covering both (#4875). Thanks @elijahfriedman!
 

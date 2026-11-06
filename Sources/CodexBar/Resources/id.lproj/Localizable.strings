@@ -2796,6 +2796,16 @@
 "Leave blank to use the default name." = "Biarkan kosong untuk menggunakan nama bawaan.";
 "Rewards" = "Hadiah";
 "Reward expiry" = "Kedaluwarsa hadiah";
+"China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "Default adalah Tiongkok (CNY). Akun internasional memakai https://api.siliconflow.com (USD).";
+"https://api.siliconflow.cn" = "https://api.siliconflow.cn";
+"SiliconFlow API origin must be https://api.siliconflow.cn or https://api.siliconflow.com." = "Asal API SiliconFlow harus https://api.siliconflow.cn atau https://api.siliconflow.com.";
+"SiliconFlow refused the balance query. Check the balance in the SiliconFlow console." = "SiliconFlow menolak kueri saldo. Periksa saldo di konsol SiliconFlow.";
+
+"SiliconFlow" = "SiliconFlow";
+"Show SiliconFlow usage" = "Tampilkan penggunaan SiliconFlow";
+"SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow membatasi frekuensi permintaan. Coba lagi nanti.";
+"SiliconFlow request failed. Try refreshing later." = "Permintaan SiliconFlow gagal. Coba segarkan lagi nanti.";
+"SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow mengembalikan respons yang tidak dikenali. Perbarui CodexBar dan coba lagi.";
 "Claude Platform session validated and saved." = "Sesi Claude Platform telah divalidasi dan disimpan.";
 "Use %@ or %@." = "Gunakan %@ atau %@.";
 "Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Masuk di %@. Berikan header Cookie yang berisi sessionKey secara privat ke %@. Lalu jalankan %@.";
