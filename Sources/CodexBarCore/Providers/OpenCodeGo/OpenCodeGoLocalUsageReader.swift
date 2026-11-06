@@ -182,6 +182,7 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
           AND json_extract(data, '$.role') = 'assistant'
     """
 
+    /// A literal first root type rules these parts out; every other JSON shape keeps the full predicate.
     static let messageAndPartUsageSQL = """
         WITH provider_messages AS (\(Self.providerMessagesSQL))
         SELECT
@@ -195,9 +196,10 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
           m.messageID AS messageID
         FROM provider_messages m
         LEFT JOIN part p ON m.messageID = p.message_id
-          AND json_valid(p.data)
-          AND json_extract(p.data, '$.type') = 'step-finish'
-          AND json_type(p.data, '$.cost') IN ('integer', 'real')
+          AND CASE WHEN substr(p.data, 1, 15) IN ('{"type":"tool",', '{"type":"text",')
+            THEN 0 WHEN json_valid(p.data) THEN
+              json_extract(p.data, '$.type') = 'step-finish'
+              AND json_type(p.data, '$.cost') IN ('integer', 'real') ELSE 0 END
         WHERE p.message_id IS NOT NULL OR m.hasCost
     """
 
