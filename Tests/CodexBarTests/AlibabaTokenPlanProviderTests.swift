@@ -1002,16 +1002,14 @@ struct AlibabaTokenPlanCLIUsageTests {
     @Test
     func `maps all provider regions to Bailian CLI argv without a shell`() {
         #expect(AlibabaTokenPlanCLIUsageFetcher.arguments(region: .chinaMainland) == [
-            "usage", "token-plan", "--console-region", "cn-beijing",
-            "--console-site", "domestic", "--output", "json",
+            "token-plan", "list-seats", "--page-no", "1", "--page-size", "10", "--output", "json",
         ])
         #expect(AlibabaTokenPlanCLIUsageFetcher.arguments(region: .chinaMainlandPersonal) == [
             "console", "call", "--api", "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/usage", "--data", "{}",
             "--console-region", "cn-beijing", "--console-site", "domestic", "--output", "json",
         ])
         #expect(AlibabaTokenPlanCLIUsageFetcher.arguments(region: .international) == [
-            "usage", "token-plan", "--console-region", "ap-southeast-1",
-            "--console-site", "international", "--output", "json",
+            "token-plan", "list-seats", "--page-no", "1", "--page-size", "10", "--output", "json",
         ])
         #expect(AlibabaTokenPlanCLIUsageFetcher.arguments(region: .internationalPersonal) == [
             "console", "call", "--api", "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/usage", "--data", "{}",
