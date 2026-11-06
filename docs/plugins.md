@@ -399,7 +399,8 @@ abandoned evaluation thread can remain alive until process exit.
 
 QuickJS worker jobs drain autoreleased host objects when they finish, preventing refresh temporaries from building up
 across a plugin's lifetime. JavaScriptCore registration and completed-fetch callbacks do not keep retired runtimes or
-contexts alive; active evaluations and the existing fetch watchdog still determine when cleanup can finish.
+contexts alive. Completed-fetch watchdogs copy the timeout value, allowing retired runtimes to be released
+as soon as the fetch finishes.
 
 ## Snapshot result
 
