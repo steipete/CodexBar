@@ -533,6 +533,7 @@ Every participating CLI must support schema 2. This opt-in mode does not change 
     connection, database identity and SQLite change observations,
     checking again under the writer lock. Filesystem/anchor and catch-up reconciliation still run at comparison
     time; a concurrent database change requests a rescan. Fresh database opens retain integrity validation.
+  - Cost cache retention skips identical metadata writes and reads only paths when checking for archived rollouts. Explicit scan bounds avoid loading fallback metadata. Unchanged protected histories keep their warm scan baseline even above the cache budget.
   - Scan loads retain decoded baselines for up to four recently used cache roots. Transaction-validated freshness and priority-cursor updates share one metadata write and keep the decoded history warm. Content changes, external commits, failed operations, schema changes, and database replacement invalidate reuse. Each load still issues a fresh save receipt and rechecks transcript identity.
   - Up to four recently used cache roots retain validated reader connections and decoded status/activity data.
     External writes invalidate cached data; database replacement or incompatible metadata reopens the reader through

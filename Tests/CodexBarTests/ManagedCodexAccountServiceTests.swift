@@ -983,6 +983,138 @@ extension ManagedCodexAccountServiceTests {
     }
 }
 
+extension ManagedCodexAccountServiceTests {
+    enum LegacyCredentialState: CaseIterable, Sendable {
+        case missingHome, missingAuth, unreadable, malformed
+    }
+
+    @Test(arguments: LegacyCredentialState.allCases)
+    func `legacy replacement distinguishes missing credentials from unreadable or malformed files`(
+        _ credentialState: LegacyCredentialState) async throws
+    {
+        let root = CodexCredentialFixtures.root
+        let legacyHome = root.appendingPathComponent("accounts/legacy", isDirectory: true)
+        let authURL = legacyHome.appendingPathComponent("auth.json")
+        let originalAuth = Data("not valid JSON".utf8)
+        if credentialState != .missingHome {
+            try FileManager.default.createDirectory(at: legacyHome, withIntermediateDirectories: true)
+        }
+        if credentialState == .unreadable || credentialState == .malformed {
+            try originalAuth.write(to: authURL)
+        }
+        if credentialState == .unreadable {
+            try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: authURL.path)
+        }
+        defer {
+            if credentialState == .unreadable {
+                try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: authURL.path)
+            }
+        }
+
+        #expect(CodexCredentialFileAccess.permits(authURL))
+        if credentialState != .malformed {
+            do {
+                _ = try CodexCredentialFileAccess.read(at: authURL)
+                Issue.record("Expected the fixture credential read to fail")
+            } catch let error as CocoaError {
+                #expect(error.code == (credentialState == .unreadable ? .fileReadNoPermission : .fileReadNoSuchFile))
+            }
+        }
+
+        let legacyAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "shared@example.com",
+            managedHomePath: legacyHome.path,
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        let storeURL = root.appendingPathComponent("managed.json")
+        let store = FileManagedCodexAccountStore(fileURL: storeURL)
+        let original = ManagedCodexAccountSet(
+            version: FileManagedCodexAccountStore.currentVersion, accounts: [legacyAccount])
+        try store.storeAccounts(original)
+        let originalRegistry = try Data(contentsOf: storeURL)
+        let service = ManagedCodexAccountService(
+            store: store,
+            homeFactory: TestManagedCodexHomeFactory(root: root),
+            loginRunner: StubManagedCodexLoginRunner.success,
+            identityReader: StubManagedCodexIdentityReader.emails([legacyAccount.email]),
+            workspaceResolver: StubManagedCodexWorkspaceResolver())
+
+        switch credentialState {
+        case .missingHome, .missingAuth:
+            let account = try await service.authenticateManagedAccount(existingAccountID: legacyAccount.id)
+            #expect(account.id == legacyAccount.id)
+            #expect(try store.loadAccounts().accounts.map(\.id) == [account.id])
+            #expect(try store.loadAccounts().account(id: account.id)?.managedHomePath == account.managedHomePath)
+            #expect(!FileManager.default.fileExists(atPath: legacyHome.path))
+            #expect(FileManager.default.fileExists(atPath: account.managedHomePath))
+        case .unreadable, .malformed:
+            await #expect(throws: ManagedCodexAccountServiceError.savedAccountConflict) {
+                try await service.authenticateManagedAccount(existingAccountID: legacyAccount.id)
+            }
+            #expect(try Data(contentsOf: storeURL) == originalRegistry)
+            #expect(FileManager.default.fileExists(atPath: authURL.path))
+            #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("accounts/account-1").path))
+            if credentialState == .unreadable {
+                try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: authURL.path)
+            }
+            #expect(try Data(contentsOf: authURL) == originalAuth)
+        }
+    }
+}
+
+extension ManagedCodexAccountServiceTests {
+    @Test(arguments: [true, false])
+    func `matching workspace replaces legacy credentials only when the saved owner matches`(
+        _ sameOwner: Bool) async throws
+    {
+        let root = CodexCredentialFixtures.root
+        let legacyHome = root.appendingPathComponent("accounts/legacy", isDirectory: true)
+        try FileManager.default.createDirectory(at: legacyHome, withIntermediateDirectories: true)
+        let legacyAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "shared@example.com",
+            managedHomePath: legacyHome.path,
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        let savedEmail = sameOwner ? legacyAccount.email : "another@example.com"
+        let payload = try JSONSerialization.data(withJSONObject: ["email": savedEmail]).base64EncodedString()
+        try CodexOAuthCredentialsStore.save(
+            CodexOAuthCredentials(
+                accessToken: "synthetic-access",
+                refreshToken: "synthetic-refresh",
+                idToken: "e30.\(payload).",
+                accountId: "workspace-shared",
+                lastRefresh: nil),
+            env: ["CODEX_HOME": legacyHome.path])
+        let authURL = legacyHome.appendingPathComponent("auth.json")
+        let originalAuth = try Data(contentsOf: authURL)
+        let store = FileManagedCodexAccountStore(fileURL: root.appendingPathComponent("managed.json"))
+        try store.storeAccounts(.init(version: FileManagedCodexAccountStore.currentVersion, accounts: [legacyAccount]))
+        let service = ManagedCodexAccountService(
+            store: store,
+            homeFactory: TestManagedCodexHomeFactory(root: root),
+            loginRunner: StubManagedCodexLoginRunner.success,
+            identityReader: StubManagedCodexIdentityReader.accounts([
+                .init(identity: .providerAccount(id: "workspace-shared"), email: legacyAccount.email, plan: "Pro"),
+            ]),
+            workspaceResolver: StubManagedCodexWorkspaceResolver())
+
+        let added = try await service.authenticateManagedAccount()
+        let snapshot = try store.loadAccounts()
+        #expect(snapshot.accounts.count == (sameOwner ? 1 : 2))
+        #expect((added.id == legacyAccount.id) == sameOwner)
+        if sameOwner {
+            #expect(!FileManager.default.fileExists(atPath: legacyHome.path))
+        } else {
+            #expect(snapshot.account(id: legacyAccount.id)?.managedHomePath == legacyHome.path)
+            #expect(try Data(contentsOf: authURL) == originalAuth)
+        }
+    }
+}
+
 private final class InMemoryManagedCodexAccountStore: ManagedCodexAccountStoring, @unchecked Sendable {
     var snapshot: ManagedCodexAccountSet
 
