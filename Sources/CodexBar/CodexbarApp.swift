@@ -27,6 +27,16 @@ enum CodexBarEntryPoint {
         if CodexBarCoreResourceSmoke.isRequested() {
             exit(CodexBarCoreResourceSmoke.run())
         }
+        // A separate cold process exercises real maintenance, outside the test-process safety guard.
+        if ProcessInfo.processInfo.environment["CODEXBAR_WEBKIT_SMOKE"] == "1" {
+            Task { @MainActor in
+                guard await OpenAIDashboardWebsiteDataStore.clearNetworkCaches() == 1 else { exit(1) }
+                print("CODEXBAR_WEBKIT_SMOKE_OK")
+                exit(0)
+            }
+            RunLoop.main.run()
+            return
+        }
         #if DEBUG
         if MenuBarLayoutNativeProof.runIfRequested() {
             return
