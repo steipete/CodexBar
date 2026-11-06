@@ -2786,3 +2786,22 @@
 "Leave blank to use the default name." = "留空以使用默认名称。";
 "Rewards" = "奖励";
 "Reward expiry" = "奖励到期日期";
+"China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "默认是中国区（人民币）。国际账号使用 https://api.siliconflow.com（美元）。";
+"https://api.siliconflow.cn" = "https://api.siliconflow.cn";
+"SiliconFlow API origin must be https://api.siliconflow.cn or https://api.siliconflow.com." = "SiliconFlow API 源必须是 https://api.siliconflow.cn 或 https://api.siliconflow.com。";
+"SiliconFlow refused the balance query. Check the balance in the SiliconFlow console." = "SiliconFlow 拒绝了余额查询。请在 SiliconFlow 控制台中查看余额。";
+
+"SiliconFlow" = "SiliconFlow";
+"Show SiliconFlow usage" = "显示 SiliconFlow 用量";
+"SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow 正在限制请求频率。请稍后重试。";
+"SiliconFlow request failed. Try refreshing later." = "SiliconFlow 请求失败。请稍后尝试刷新。";
+"SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow 返回了无法识别的响应。请更新 CodexBar 后重试。";
+"Claude Platform session validated and saved." = "已验证并保存 Claude Platform 会话。";
+"Use %@ or %@." = "请使用 %@ 或 %@。";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "请登录 %@。将包含 sessionKey 的 Cookie 请求头私密地传给 %@，然后运行 %@。";
+"Read cookie header from stdin" = "从 stdin 读取 Cookie 请求头";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "选填。粘贴与 Cookie 来自同一请求的 User-Agent 值。";
+"Paste the WorkBuddy User-Agent as a single request header value." = "将 WorkBuddy 的 User-Agent 粘贴为单个请求标头值。";
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "无法读取 TypeSafe 账单概览。请打开 https://console.typesafe.ai/billing 检查访问权限；如果页面可以打开，请报告集成故障。";
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "未找到 TypeSafe 会话 Cookie。请在 console.typesafe.ai/billing 登录或粘贴 Cookie 请求头。";

@@ -228,12 +228,14 @@ extension StatusItemController {
     }
 
     private func checkStartupStatusItemVisibility(appLaunchedAt: Date, now: Date = Date()) {
-        self.traceStatusItems("startup-check")
-        guard let metadata = self.startupRecoveryMetadata(appLaunchedAt: appLaunchedAt, now: now) else { return }
+        guard let metadata = self.startupRecoveryMetadata(
+            appLaunchedAt: appLaunchedAt, now: now, stage: "startup-check") else { return }
         self.menuLogger.error(
             "Status item failed to materialize or remained detached; recreating status items", metadata: metadata)
         self.recreateStatusItemsForVisibilityRecovery()
-        guard let recovered = self.startupRecoveryMetadata(appLaunchedAt: appLaunchedAt, now: now) else {
+        guard let recovered = self.startupRecoveryMetadata(
+            appLaunchedAt: appLaunchedAt, now: now, stage: "startup-recovery-check")
+        else {
             self.menuLogger.info(
                 "Status item materialized after recreation",
                 metadata: self.statusItemVisibilityMetadata())
@@ -246,17 +248,21 @@ extension StatusItemController {
         MenuBarVisibilityWatcher.presentGuidance(defaults: self.settings.userDefaults, now: now)
     }
 
-    private func startupRecoveryMetadata(appLaunchedAt: Date, now: Date) -> [String: String]? {
+    private func startupRecoveryMetadata(appLaunchedAt: Date, now: Date, stage: String) -> [String: String]? {
         let evidence = self.startupStatusItemVisibilityEvidence()
         let windowSnapshots = self.statusItemWindowSnapshots()
-        guard MenuBarVisibilityWatcher.shouldAttemptStartupRecovery(
+        let recoveryEligible = MenuBarVisibilityWatcher.shouldAttemptStartupRecovery(
             appLaunchedAt: appLaunchedAt,
             now: now,
             snapshots: evidence.map(\.snapshot),
             evidence: evidence,
             windowSnapshots: windowSnapshots,
             detectTahoeBlockedStatusItem: self.canDetectTahoeBlockedStatusItem)
-        else { return nil }
+        self.traceStatusItems(stage, context: [
+            "startupAge": String(now.timeIntervalSince(appLaunchedAt)),
+            "recoveryEligible": String(recoveryEligible),
+        ])
+        guard recoveryEligible else { return nil }
         return [
             "snapshots": evidence.map(\.snapshot.description).joined(separator: " | "),
             "evidence": evidence.map(\.description).joined(separator: " | "),
@@ -301,10 +307,10 @@ extension StatusItemController {
         ]
     }
 
-    private func traceStatusItems(_ stage: String) {
+    private func traceStatusItems(_ stage: String, context: [String: String] = [:]) {
         guard MenuBarStatusItemWindowProbe.diagnosticsEnabled else { return }
         for (item, evidence) in zip(self.startupVisibilityStatusItems, self.startupStatusItemVisibilityEvidence()) {
-            MenuBarStatusItemWindowProbe.trace(stage, item: item, evidence: evidence.description)
+            MenuBarStatusItemWindowProbe.trace(stage, item: item, evidence: evidence.description, context: context)
         }
     }
 

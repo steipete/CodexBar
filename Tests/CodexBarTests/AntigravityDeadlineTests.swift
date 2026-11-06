@@ -209,3 +209,24 @@ final class AntigravityDeadlineClock: @unchecked Sendable {
         self.lock.withLock { self.date.addTimeInterval(interval) }
     }
 }
+
+struct AntigravityIdentitySessionTests {
+    @Test
+    func `full identity budgets share a stateless pool while shorter deadlines stay private`() {
+        let first = AntigravityScopedAgyStaging.identitySession(timeout: 15)
+        let second = AntigravityScopedAgyStaging.identitySession(timeout: 15)
+        #expect(first === second)
+        #expect(first.configuration.timeoutIntervalForRequest == 15)
+        #expect(first.configuration.timeoutIntervalForResource == 15)
+        #expect(first.configuration.httpCookieStorage == nil)
+        #expect(first.configuration.urlCredentialStorage == nil)
+        #expect(first.configuration.urlCache == nil)
+        #expect(first.delegate is ProviderHTTPRedirectGuardDelegate)
+        let short = AntigravityScopedAgyStaging.identitySession(timeout: 2)
+        let anotherShort = AntigravityScopedAgyStaging.identitySession(timeout: 2)
+        defer { short.invalidateAndCancel(); anotherShort.invalidateAndCancel() }
+        #expect(short !== first && short !== anotherShort)
+        #expect(short.configuration.timeoutIntervalForRequest == 2)
+        #expect(short.configuration.timeoutIntervalForResource == 2)
+    }
+}
