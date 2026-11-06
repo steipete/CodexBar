@@ -18,7 +18,12 @@ struct KimiLocalStorageTests {
             try FileManager.default.createDirectory(at: storage, withIntermediateDirectories: true)
             try Self.writeLog(origin: "https://www.kimi.ai", value: Self.token, to: storage)
         }
-        try Data(#"{"profile":{"info_cache":{"Default":{"name":"Personal"}}}}"#.utf8)
+        try Data(#"""
+        {"profile":{"info_cache":{
+          "Default":{"name":"Saved profile","gaia_given_name":"Personal"},
+          "Profile 2":{"name":"Saved work","gaia_given_name":" "}
+        }}}
+        """#.utf8)
             .write(to: root.url.appendingPathComponent("Local State"))
         let detection = BrowserDetection(homeDirectory: home.path)
         let api = BrowserLocalStorageAPI { origin, browsers, _, logger in
@@ -38,6 +43,7 @@ struct KimiLocalStorageTests {
         #expect(Set(profiles.map(\.id)) ==
             Set(["Default", "Profile 2", "user-work"].map { "\(browser.rawValue):\($0)" }))
         #expect(profiles.contains { $0.label == "\(root.labelPrefix) — Personal" })
+        #expect(profiles.contains { $0.label == "\(root.labelPrefix) Profile 2" })
         #expect(KimiCookieImporter.localStorageTokens(
             region: .international, browserDetection: detection, localStorage: api, now: Self.now) == [Self.token])
         #expect(KimiCookieImporter.localStorageTokens(

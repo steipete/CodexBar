@@ -23,7 +23,7 @@ struct ClaudeCredentialQuotaWarningTests {
     }
 
     @Test(arguments: [true, false])
-    func `weekly OAuth fallback does not notify or rearm the session lane`(weeklyOnly: Bool) throws {
+    func `weekly-only OAuth payload does not notify or rearm the session lane`(weeklyOnly: Bool) throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("ClaudeWeeklyQuotaWarningTests-\(UUID())", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -46,7 +46,9 @@ struct ClaudeCredentialQuotaWarningTests {
             payload["five_hour"] = used.map { ["utilization": $0] }
             let usage = try ClaudeUsageFetcher._mapOAuthUsageForTesting(JSONSerialization.data(withJSONObject: payload))
             let snapshot = ClaudeOAuthFetchStrategy._snapshotForTesting(from: usage)
-            #expect(snapshot.primary?.windowMinutes == (used == nil ? 10080 : 300))
+            // No `five_hour` window means no session lane; the weekly window stays in the weekly slot.
+            #expect(snapshot.primary?.windowMinutes == used.map { _ in 300 })
+            #expect(snapshot.secondary?.windowMinutes == 10080)
             store.handleQuotaWarningTransitions(
                 provider: .claude, snapshot: snapshot, accountDiscriminator: "fixture-account-a")
         }
