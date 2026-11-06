@@ -1574,7 +1574,7 @@
 "7-day usage" = "7 günlük kullanım";
 "Total usage" = "Toplam kullanım";
 "claude_oauth_keychain_access_disabled" = "Keychain erişimi devre dışı olduğundan CodexBar, Claude oturum açma bilgilerini okuyamıyor.";
-"claude_oauth_keychain_access_revoked" = "Claude Anahtar Zinciri erişimi, Claude Code'un token yenilemesi nedeniyle iptal edildi. Erişimi yeniden vermek için Yenile'ye tıklayın veya Claude kullanım kaynağını CLI/Web olarak değiştirin.";
+"claude_oauth_keychain_access_revoked" = "CodexBar şu anda Claude OAuth kimlik bilgilerine erişemiyor. Erişimi yeniden denemek için Yenile'ye tıklayın veya Claude kullanım kaynağını CLI/Web olarak değiştirin.";
 "claude_showing_last_known_usage" = "Bilinen son kullanım gösteriliyor (yakalanma zamanı: %@).";
 "claude_limited_usage_detail" = "Kullanım ayrıntıları sınırlı";
 /* Spend dashboard cost analysis */

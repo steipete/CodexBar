@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Claude: describe unavailable OAuth credentials without attributing the failure to token rotation, and clarify the background CLI cache policy (#3798, #4651).
 - Tests: isolate launch-time WebKit cache maintenance and initialize AppKit independently in app delegate checks (#4955).
 - Claude: restore local cost history and source detection through symlinked project roots without counting shared roots twice.
 - Langdock: show saved Edge and Chrome profile names without translating custom names, and preserve the selected profile after renaming (#4911). Thanks @dYn36!
