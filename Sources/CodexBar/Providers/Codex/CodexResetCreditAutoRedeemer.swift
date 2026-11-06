@@ -12,7 +12,7 @@ final class CodexResetCreditAutoRedeemer {
     }
 
     private(set) var plan: Plan?
-    private var task: Task<Void, Never>?
+    private(set) var task: Task<Void, Never>?
     private var requestIDs: [String: UUID] = [:]
     private var lastAttempts: [String: Date] = [:]
     private var redeemed: Set<String> = []

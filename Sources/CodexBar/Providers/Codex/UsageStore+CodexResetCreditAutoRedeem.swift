@@ -63,7 +63,8 @@ extension UsageStore {
                         identifier: "codex-reset-credit-auto-redeem:\(owner.rawValue)",
                         isCurrent: authorized)
                 }
-                await self.refreshProvider(.codex, coalesceIfRefreshing: true)
+                // Replace any pre-redemption request so the published limits are fetched after consumption.
+                await self.refreshProvider(.codex)
             })
     }
 }

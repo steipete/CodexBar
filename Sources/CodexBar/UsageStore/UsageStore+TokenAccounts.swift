@@ -1411,6 +1411,7 @@ extension UsageStore {
                 self.lastCreditsSource = publishedCredits == nil ? .none : .api
             }
             self.handleCodexResetCreditNotifications(snapshot: snapshot)
+            self.scheduleCodexResetCreditAutoRedeem(snapshot: snapshot, expectedGuard: publicationGuard)
             self.handleQuotaWarningTransitions(
                 provider: .codex,
                 snapshot: snapshot,

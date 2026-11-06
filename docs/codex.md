@@ -72,6 +72,8 @@ Usage source picker:
 - Settings → Providers → Codex → **Auto-use expiring reset credits** is off by default and local to this Mac
   (not synced or exported). While CodexBar is running and the Mac is awake, it schedules the current account's
   earliest expiring available credit for five minutes before expiry, independently of the normal refresh interval.
+  These are Codex quota reset cards (`reset_type: codex_rate_limits`), separate from purchased or monthly credits.
+  Redemption calls `POST /wham/rate-limit-reset-credits/consume` with the selected card's ID.
   It requires fresh native Codex OAuth credentials and the official `https://chatgpt.com` endpoint. Other visible
   accounts, external OAuth files, and PAT-only sign-ins are not used for automatic redemption.
   Before each POST, it re-reads inventory with the same account, resolves the opaque provider ID in memory,

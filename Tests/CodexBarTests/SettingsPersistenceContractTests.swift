@@ -6,6 +6,24 @@ import Testing
 @MainActor
 struct SettingsPersistenceContractTests {
     @Test
+    func `upgrading existing settings preserves reset card reminders without enabling automatic spending`() {
+        let receipts = [String(repeating: "a", count: 64)]
+        let defaults = InMemoryUserDefaults(values: [
+            "providerDetectionCompleted": true,
+            "showOptionalCreditsAndExtraUsage": false,
+            "codexResetCreditExpiryNotificationsEnabled": true,
+            "codexResetCreditExpirySummaryFingerprints": receipts,
+        ])
+        let settings = testSettingsStore(suiteName: #function, userDefaults: defaults)
+
+        #expect(!settings.codexResetCreditAutoRedeemEnabled)
+        #expect(defaults.object(forKey: "codexResetCreditAutoRedeemEnabled") == nil)
+        #expect(settings.codexResetCreditExpiryNotificationsEnabled)
+        #expect(!settings.showOptionalCreditsAndExtraUsage)
+        #expect(defaults.stringArray(forKey: "codexResetCreditExpirySummaryFingerprints") == receipts)
+    }
+
+    @Test
     func `automatic reset credit spending defaults off persists locally and does not travel with preferences`() throws {
         let defaults = InMemoryUserDefaults()
         let settings = testSettingsStore(suiteName: #function, userDefaults: defaults)
