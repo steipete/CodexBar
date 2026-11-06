@@ -2803,3 +2803,12 @@
 "SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow está a limitar as solicitudes. Téntao de novo máis tarde.";
 "SiliconFlow request failed. Try refreshing later." = "Fallou a solicitude a SiliconFlow. Tenta actualizar máis tarde.";
 "SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow devolveu unha resposta descoñecida. Actualiza CodexBar e téntao de novo.";
+"Claude Platform session validated and saved." = "Validouse e gardouse a sesión de Claude Platform.";
+"Use %@ or %@." = "Usa %@ ou %@.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Inicia sesión en %@. Proporciona de forma privada a súa cabeceira Cookie con sessionKey a %@. Despois executa %@.";
+"Read cookie header from stdin" = "Ler a cabeceira de cookies de stdin";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "Opcional. Pega o valor de User-Agent da mesma solicitude que a cabeceira Cookie.";
+"Paste the WorkBuddy User-Agent as a single request header value." = "Pega o User-Agent de WorkBuddy como un único valor de cabeceira da solicitude.";
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "Non se puido ler o resumo de facturación de TypeSafe. Abre https://console.typesafe.ai/billing para comprobar o acceso; se a páxina se abre, informa do fallo de integración.";
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "Non se atoparon cookies de sesión de TypeSafe. Inicia sesión en console.typesafe.ai/billing ou pega unha cabeceira Cookie.";

@@ -42,9 +42,11 @@ expose the generated token (1.1.28, 1.2.0, and 1.2.1 answer the same request wit
 executable reports 1.2.2 or later, CodexBar still spends its bounded warm-reuse check but does not spawn a
 managed session or wait for its readiness deadline. Unknown versions keep the managed spawn.
 The legacy gate and ambient or account-scoped print fallback share one `agy --version` result per refresh,
-including unknown versions and probe failures. Each later refresh probes again; successful warm reuse needs
-no version subprocess. On the CSRF-gated fallback, CLI launches drop from three to two: one version check
-and one usage report, without caching across accounts or refreshes.
+including unknown versions and probe failures. A known version is also reused across refreshes in the same
+CodexBar process while the resolved executable's path, size, modification time, and file identity are unchanged.
+Only the most recently used executable is retained; no account or usage data is cached with it. Unknown versions
+and failures are retried on the next refresh. Successful warm reuse needs no version subprocess. On the
+CSRF-gated fallback, later refreshes launch only the usage report; a new CLI process still checks the version.
 
 For `agy` 1.2.2 and later, a failed legacy HTTPS fetch can fall back to
 `agy -p /usage --output-format json`. CodexBar checks that the same executable reports version 1.1.11
@@ -86,6 +88,8 @@ fallback; cancellation stops the pipeline. Linux keeps its existing OAuth fallba
 
 Scoped runs share the ambient runner's three-second version check, 90-second command limit, 1 MiB output
 limit, and descendant cleanup. Identity verification has a 15-second request and resource deadline.
+Checks with the full 15-second budget reuse a connection pool without cookie, credential, or response storage;
+checks with less time remaining use a private session with that shorter resource deadline.
 The existing menu account model caps a refresh at six accounts; CLI `--all-accounts` refreshes sequentially.
 Grouped weekly-only Starter quotas use the same parser as the other sources.
 

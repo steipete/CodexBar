@@ -2807,3 +2807,12 @@
 "SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow istek sıklığını sınırlıyor. Daha sonra tekrar deneyin.";
 "SiliconFlow request failed. Try refreshing later." = "SiliconFlow isteği başarısız oldu. Daha sonra yeniden yenileyin.";
 "SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow tanınmayan bir yanıt döndürdü. CodexBar’ı güncelleyip tekrar deneyin.";
+"Claude Platform session validated and saved." = "Claude Platform oturumu doğrulandı ve kaydedildi.";
+"Use %@ or %@." = "%@ veya %@ kullanın.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "%@ adresinde oturum açın. sessionKey içeren Cookie başlığını gizli olarak %@ komutuna iletin. Ardından %@ komutunu çalıştırın.";
+"Read cookie header from stdin" = "Çerez başlığını stdin üzerinden oku";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "İsteğe bağlı. User-Agent değerini Cookie başlığıyla aynı istekten kopyalayıp yapıştırın.";
+"Paste the WorkBuddy User-Agent as a single request header value." = "WorkBuddy User-Agent değerini tek bir istek üst bilgisi değeri olarak yapıştırın.";
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "TypeSafe faturalandırma özeti okunamadı. Erişimi kontrol etmek için https://console.typesafe.ai/billing adresini açın. Sayfa açılıyorsa entegrasyon hatasını bildirin.";
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "TypeSafe oturum çerezleri bulunamadı. console.typesafe.ai/billing adresinde oturum açın veya bir Cookie başlığı yapıştırın.";

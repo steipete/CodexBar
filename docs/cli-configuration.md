@@ -63,6 +63,29 @@ Failures after argument parsing emit `{"status":"failed","error":"..."}` and exi
 mode prints the access token or device code used for polling. This is an interactive setup command;
 `usage` and `serve` never start login automatically. `CODEXBAR_CONFIG` also applies to login.
 
+## Claude Platform session import
+
+Pipe a single-line Console Cookie request header containing `sessionKey` privately into:
+
+```bash
+codexbar config login --provider claudeplatform --stdin --json
+```
+
+The `claude-platform` alias is also supported. Obtain the header by signing in normally at
+<https://platform.claude.com>. The command validates only this candidate using the existing bundled provider;
+it never reads a browser store, falls back to another credential, or opens a login page. It uses the first API
+organization whose balance is readable, accepts zero balances, and tolerates optional spend failures.
+
+Only successful validation saves the manual cookie and enables the provider. Config is published privately with
+0600 permissions; unrelated settings and accounts are preserved. A rejected candidate, cancellation, concurrent
+config change, or storage failure retains the current config and never emits `authorized`. JSON uses the same
+`authorized`/`failed` event shape as Copilot; malformed input uses the CLI argument-error envelope. No credential
+or upstream response body is printed. Follow with `codexbar usage --provider claudeplatform --source web --json`.
+
+Repeat this command with a fresh header to reauthenticate. Console cookies have no supported refresh-token
+exchange here, so another human sign-in may be required. See [Claude Platform](claudeplatform.md) for organization
+selection, billing permissions, and recovery details. `config set-cookie` still stores input without validating it.
+
 ## API keys
 
 API keys are stored under the provider entry in config:

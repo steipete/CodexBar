@@ -2809,3 +2809,12 @@
 "SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow is rate limiting requests. Try again later.";
 "SiliconFlow request failed. Try refreshing later." = "SiliconFlow request failed. Try refreshing later.";
 "SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow returned an unrecognized response. Update CodexBar and try again.";
+"Claude Platform session validated and saved." = "Claude Platform session validated and saved.";
+"Use %@ or %@." = "Use %@ or %@.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@.";
+"Read cookie header from stdin" = "Read cookie header from stdin";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "Optional. Paste the User-Agent value from the same request as the Cookie.";
+"Paste the WorkBuddy User-Agent as a single request header value." = "Paste the WorkBuddy User-Agent as a single request header value.";
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure.";
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header.";

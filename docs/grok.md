@@ -161,13 +161,15 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
      above. This keeps billing visible when
      `grok agent stdio` returns `Method not found`.
 5) **Local session signals** (informational fallback)
-   - Quota fetches scan `~/.grok/sessions/<encoded-cwd>/<session-id>/signals.json` for the last 30 local calendar days,
-     including today. Files dated outside that window are excluded so daily buckets and aggregate totals agree.
-   - Discovery stops at each session directory and reads only its direct `signals.json`; artifact subtrees are not
-     traversed, and nested signal files do not count as sessions. Quota enrichment and billing-failure fallback share
-     this bounded scan.
-   - Aggregates `totalTokensBeforeCompaction`, `contextTokensUsed`, `modelsUsed`,
-     and the most recent session timestamp.
+   - Quota fetches scan `~/.grok/sessions/<encoded-cwd>/<session-id>/` for the last 30 local calendar days,
+     including today. Turns and files dated outside that window are excluded so daily buckets and aggregate totals agree.
+   - Discovery stops at each session directory and reads only its direct `usage.json` and `signals.json`; artifact
+     subtrees are not traversed, and nested files do not count as sessions. Quota enrichment and billing-failure
+     fallback share this bounded scan.
+   - `usage.json` is preferred because it records every turn: each turn's `totalTokens` and models count on the day
+     of its `endedAt`. Its `costUsdTicks` is not read, so Grok still shows no dollars.
+   - Without a readable `usage.json`, the session falls back to `signals.json`: `totalTokensBeforeCompaction`,
+     `contextTokensUsed`, `modelsUsed`, and its modification time. That figure undercounts sessions that compacted.
 
 ## OAuth credentials
 

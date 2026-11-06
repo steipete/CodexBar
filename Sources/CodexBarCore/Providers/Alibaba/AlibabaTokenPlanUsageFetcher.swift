@@ -39,8 +39,10 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         let region: AlibabaTokenPlanAPIRegion
         @ProcessEnvironment private(set) var environment: [String: String]
         let now: Date
-        let session: URLSession
+        let session: any ProviderHTTPTransport
     }
+
+    static let usageSession = URLSession(configuration: .default)
 
     private static let log = CodexBarLog.logger("alibaba-token-plan")
     private static let bssServiceCode = "BssOpenAPI-V3"
@@ -115,30 +117,13 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
 
         let url = self.resolveQuotaURL(region: region, environment: environment)
         let apiRedirectDiagnostics = RedirectDiagnostics(cookieHeader: normalizedAPIHeader)
-        let dashboardRedirectDiagnostics: RedirectDiagnostics?
-        let apiSession: URLSession
-        let dashboardSession: URLSession
-        if let overrideSession {
-            apiSession = overrideSession
-            dashboardSession = overrideSession
-            dashboardRedirectDiagnostics = nil
-        } else {
-            let dashboardDiagnostics = RedirectDiagnostics(cookieHeader: normalizedDashboardHeader)
-            apiSession = URLSession(
-                configuration: .default,
-                delegate: apiRedirectDiagnostics,
-                delegateQueue: nil)
-            dashboardSession = URLSession(
-                configuration: .default,
-                delegate: dashboardDiagnostics,
-                delegateQueue: nil)
-            dashboardRedirectDiagnostics = dashboardDiagnostics
+        let dashboardRedirectDiagnostics = RedirectDiagnostics(cookieHeader: normalizedDashboardHeader)
+        let session = overrideSession ?? Self.usageSession
+        let apiSession = ProviderHTTPTransportHandler { request in
+            try await session.data(for: request, delegate: apiRedirectDiagnostics)
         }
-        defer {
-            if overrideSession == nil {
-                apiSession.invalidateAndCancel()
-                dashboardSession.invalidateAndCancel()
-            }
+        let dashboardSession = ProviderHTTPTransportHandler { request in
+            try await session.data(for: request, delegate: dashboardRedirectDiagnostics)
         }
 
         if region.usesPersonalTokenPlanAPI {
@@ -212,7 +197,7 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
                 ])
             throw AlibabaTokenPlanUsageError.networkError(error.localizedDescription)
         }
-        if let dashboardRedirectDiagnostics, !dashboardRedirectDiagnostics.redirects.isEmpty {
+        if !dashboardRedirectDiagnostics.redirects.isEmpty {
             Self.log.info(
                 "Alibaba Token Plan dashboard redirects",
                 metadata: [
@@ -551,7 +536,7 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         apiCookieHeader: String,
         region: AlibabaTokenPlanAPIRegion,
         environment: [String: String],
-        session: URLSession) async -> String?
+        session: any ProviderHTTPTransport) async -> String?
     {
         let cookieSECToken = self.extractCookieValue(name: "sec_token", from: dashboardCookieHeader) ??
             self.extractCookieValue(name: "sec_token", from: apiCookieHeader)
@@ -617,7 +602,7 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         cookieHeader: String,
         region: AlibabaTokenPlanAPIRegion,
         environment: [String: String],
-        session: URLSession) async -> String?
+        session: any ProviderHTTPTransport) async -> String?
     {
         let baseURL = self.consoleBaseURL(region: region, environment: environment)
         let userInfoURL = baseURL.appendingPathComponent("tool/user/info.json")
