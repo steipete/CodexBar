@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Claude: release decoded local-history rows after publishing cost reports while keeping unchanged refreshes fast (#4803, #3323).
 - Codex: preserve legacy saved accounts whose credentials identify another workspace and reject ambiguous same-email replacements (#4499).
 - Keychain: keep shared provider credential reads noninteractive and recover unavailable legacy credentials through one gated read on explicit Refresh (#2562).
 - Claude: describe unavailable OAuth credentials without attributing the failure to token rotation, and clarify the background CLI cache policy (#3798, #4651).
