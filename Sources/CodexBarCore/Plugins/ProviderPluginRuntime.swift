@@ -265,8 +265,8 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
                     cookieResolver: cookieResolver,
                     instanceCookieResolver: instanceCookieResolver,
                     completion: finish)
-                Task.detached {
-                    try? await Task.sleep(for: .seconds(self.timeout))
+                Task.detached { [timeout = self.timeout] in
+                    try? await Task.sleep(for: .seconds(timeout))
                     finish(.failure(ProviderPluginError.timedOut))
                 }
             }
