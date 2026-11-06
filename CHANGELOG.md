@@ -21,6 +21,7 @@
 
 - Settings: find panes by title alongside provider names in sidebar search, with an empty state covering both (#4875). Thanks @elijahfriedman!
 
+- OpenCode Go: reduce local-history refresh memory by aggregating requests incrementally and selecting billed parts and message fallbacks in one pass.
 - Plugins: reduce transient memory use by releasing retired runtimes when their fetches finish (#4486, #4512).
 - CLI: prune expired `serve` response variants during forced refreshes so configuration changes cannot retain obsolete snapshots indefinitely.
 - Codex: reduce CPU and SQLite reads during cost refreshes by reusing warm history through unchanged retention passes, including above the cache budget (#4620).
