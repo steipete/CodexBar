@@ -53,9 +53,9 @@ enum ProviderBrandIcon {
 
     /// The plugin's validated SVG as a template image, or nil when it has none or it does not decode.
     static func image(for plugin: UserProviderPlugin) -> NSImage? {
-        if let cached = self.pluginCache[plugin.sourceHash] { return cached }
-        guard let svg = plugin.manifest.icon.svg,
-              let source = NSImage(data: Data(svg.utf8)),
+        guard let svg = plugin.manifest.icon.svg else { return nil }
+        if let cached = self.pluginCache[svg] { return cached }
+        guard let source = NSImage(data: Data(svg.utf8)),
               source.size.width.isFinite, source.size.height.isFinite,
               source.size.width > 0, source.size.height > 0,
               source.size.width <= CGFloat(ProviderPluginIconSVG.maximumCanvasDimension),
@@ -90,9 +90,9 @@ enum ProviderBrandIcon {
         let image = NSImage(size: bitmap.size)
         image.addRepresentation(bitmap)
         image.isTemplate = true
-        // Every plugin raster is a fixed 16pt/32px template; source changes invalidate its key.
+        // Every plugin raster is a fixed 16pt/32px template; key the evaluated SVG, which may vary by engine.
         if self.pluginCache.count >= 64 { self.pluginCache.removeAll(keepingCapacity: true) }
-        self.pluginCache[plugin.sourceHash] = image
+        self.pluginCache[svg] = image
         return image
     }
 

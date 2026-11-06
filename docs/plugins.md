@@ -173,7 +173,7 @@ defineProvider({
   ignored and the monogram is shown. The host rasterizes accepted icons into a 32×32 bitmap before display;
   canvas sizes are checked before native decoding and limited to 4096×4096. Include a finite `viewBox` or paired
   positive `width`/`height` (numbers or `px`); partial dimensions and other canvas units fall back to the monogram.
-  Menu and card renders share a bounded cache of 64 source revisions; editing the plugin source refreshes its icon.
+  Menu and card renders share a bounded cache of 64 SVG sources; changes to the evaluated SVG refresh its icon.
   Text-only provider switchers skip icon loading. File icons are not supported.
 - `topLevel` (optional, default `true`): gives an enabled plugin its own provider-switcher tab when Merge Icons is on. Set to `false` to keep an appended card.
   Plugin tabs show a quota gauge using the [menu-bar percentage preference](#menu-bar-percentage). With Auto, they
