@@ -343,7 +343,10 @@ so portable third-party plugins must use the host helpers below instead of ECMA-
 - `ctx.date.now()`, `iso(text)`, `unixSeconds(number)`, and `unixMillis(number)` create JavaScript dates. `now()` uses
   the host refresh clock.
 - `ctx.date.nowMillis()` returns the host refresh clock as Unix epoch milliseconds for deterministic arithmetic.
-- `ctx.date.nextDailyReset(timeZoneIdentifier, hour)` returns the next wall-clock reset in an IANA time zone.
+- `ctx.date.nextDailyReset(timeZoneIdentifier, hour)` returns the next wall-clock reset strictly after the fetch
+  clock in an IANA time zone. The hour must be an integer from 0 through 23. Resets stay at that local hour across
+  daylight-saving changes. A skipped hour moves forward through the gap; a repeated hour uses its first occurrence,
+  with at most one reset per local day.
 - `ctx.date.addMonths(date, months, timeZoneIdentifier)` adds an integer number of Gregorian calendar months to a
   valid JavaScript `Date`; use negative months to subtract. Both engines call Foundation Calendar with the specified
   IANA time zone, preserving local wall-clock time across DST and clamping month ends (January 31 plus one month is

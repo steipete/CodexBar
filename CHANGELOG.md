@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Plugins: keep daily resets at the requested local hour across daylight-saving changes, including half-hour shifts (#4984). Thanks @vincent-peng!
 - OpenAI: pause Live Usage display clocks while its window is closed.
 - Menu: stop updating cached cards after the last menu closes, and resume live values when reopened.
 - OpenCode Go: reuse bounded daily totals for unchanged large local histories while keeping moving quota windows and source changes current.
