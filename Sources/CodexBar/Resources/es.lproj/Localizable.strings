@@ -2817,3 +2817,4 @@
 "Tripo is rate limiting requests. Try again later." = "Tripo está limitando las solicitudes. Inténtalo más tarde.";
 "Tripo request failed. Try refreshing later." = "La solicitud a Tripo ha fallado. Intenta actualizar más tarde.";
 "Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo ha devuelto una respuesta desconocida. Actualiza CodexBar e inténtalo de nuevo.";
+"Mistral session expired or invalid." = "La sesión de Mistral ha caducado o no es válida.";

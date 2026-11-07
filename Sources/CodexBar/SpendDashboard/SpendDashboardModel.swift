@@ -250,11 +250,6 @@ struct SpendDashboardModel: Equatable, Sendable {
         }
     }
 
-    enum ModelHistoryCompleteness: Equatable, Sendable {
-        case complete
-        case incomplete
-    }
-
     struct CurrencyGroup: Identifiable, Equatable, Sendable {
         let currencyCode: String
         let providers: [ProviderRow]
@@ -266,6 +261,7 @@ struct SpendDashboardModel: Equatable, Sendable {
         let coveredDayCount: Int
         let chartDomain: ClosedRange<Date>
         let modelHistoryCompleteness: ModelHistoryCompleteness
+        let modelTokenAttributionCompleteness: ModelHistoryCompleteness
         let incompleteModelProviders: Set<UsageProvider>
         let tokenMix: CostUsageTokenMix
         let coverageAccumulator: CostUsageCoverageAccumulator
@@ -313,6 +309,7 @@ struct SpendDashboardModel: Equatable, Sendable {
             coveredDayCount: Int,
             chartDomain: ClosedRange<Date>,
             modelHistoryCompleteness: ModelHistoryCompleteness,
+            modelTokenAttributionCompleteness: ModelHistoryCompleteness = .incomplete,
             incompleteModelProviders: Set<UsageProvider> = [],
             tokenMix: CostUsageTokenMix = CostUsageTokenMix(),
             coverageAccumulator: CostUsageCoverageAccumulator = CostUsageCoverageAccumulator(),
@@ -333,6 +330,7 @@ struct SpendDashboardModel: Equatable, Sendable {
             self.coveredDayCount = coveredDayCount
             self.chartDomain = chartDomain
             self.modelHistoryCompleteness = modelHistoryCompleteness
+            self.modelTokenAttributionCompleteness = modelTokenAttributionCompleteness
             self.incompleteModelProviders = incompleteModelProviders
             self.tokenMix = tokenMix
             self.coverageAccumulator = coverageAccumulator
@@ -629,6 +627,7 @@ struct SpendDashboardModel: Equatable, Sendable {
             modelSummary.completeness == .complete && !scopedSummaries.contains(where: \.historyScanIsPartial)
             ? ModelHistoryCompleteness.complete
             : ModelHistoryCompleteness.incomplete
+        let tokenCompleteness = modelSummary.tokenCompleteness(retained: modelSummaries.count, scoped: scopedSummaries)
         let dailyPoints = Self.dailyPoints(summaries: summaries)
         var tokenMix = CostUsageTokenMix()
         var coverage = CostUsageCoverageAccumulator()
@@ -699,6 +698,7 @@ struct SpendDashboardModel: Equatable, Sendable {
             coveredDayCount: Self.dayCount(in: Self.commonCoverageInterval(summaries: summaries), calendar: calendar),
             chartDomain: Self.chartDomain(bounds: bounds, calendar: calendar),
             modelHistoryCompleteness: modelHistoryCompleteness,
+            modelTokenAttributionCompleteness: tokenCompleteness,
             incompleteModelProviders: incompleteModelProviders,
             tokenMix: tokenMix,
             coverageAccumulator: coverage,
@@ -1415,12 +1415,11 @@ struct SpendDashboardModel: Equatable, Sendable {
               let year = Int(parts[0]),
               let month = Int(parts[1]),
               let day = Int(parts[2]),
-              let date = bucketCalendar.date(from: DateComponents(year: year, month: month, day: day))
-        else { return nil }
-        guard bucketCalendar.dateComponents([.year, .month, .day], from: date) == DateComponents(
-            year: year,
-            month: month,
-            day: day)
+              let date = bucketCalendar.date(from: DateComponents(year: year, month: month, day: day)),
+              bucketCalendar.dateComponents([.year, .month, .day], from: date) == DateComponents(
+                  year: year,
+                  month: month,
+                  day: day)
         else { return nil }
         return displayCalendar.startOfDay(for: date)
     }
