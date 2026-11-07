@@ -9,6 +9,7 @@ read_when:
 # Widgets
 
 ## Snapshot pipeline
+- Provider headers use bundled vector logos with a monogram fallback. Low-quota bars use red in full-color widgets and strong neutral ink in tinted or clear appearances, where a red luminance mask would weaken the warning.
 - Quota headlines follow the menu layout: `Weekly 93% left` and `Resets in 1 minute` above the bar. Reset text moves below the headline when the tile is too narrow.
 - On macOS 15+, snapshot ages and reset references use live SwiftUI date text with minute precision; WidgetKit advances the text without requesting extra timeline reloads. Reset references use the native calendar wording for distant dates, reach `now` at expiration, and identify elapsed resets afterward. macOS 14 retains native relative-date text for compatibility.
 - `WidgetSnapshotStore` writes compact JSON snapshots to the app-group container.

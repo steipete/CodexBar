@@ -16,9 +16,7 @@ struct ShareStatsCardView: View {
         providers.firstIndex { $0.provider == model.provider }
     }
 
-    private let background = Color(red: 0.078, green: 0.067, blue: 0.063)
-    private let primary = Color(red: 0.96, green: 0.94, blue: 0.91)
-    private let secondary = Color(red: 0.70, green: 0.66, blue: 0.62)
+    @Environment(\.colorScheme) private var colorScheme
     private let accent = Color(red: 0.93, green: 0.56, blue: 0.36)
 
     var body: some View {
@@ -27,7 +25,7 @@ struct ShareStatsCardView: View {
             self.hero
                 .padding(.top, 16)
             Rectangle()
-                .fill(self.secondary.opacity(0.22))
+                .fill(Color.secondary.opacity(0.22))
                 .frame(height: 1)
                 .padding(.vertical, 17)
             self.rankings
@@ -38,9 +36,8 @@ struct ShareStatsCardView: View {
         .padding(.horizontal, 52)
         .padding(.vertical, 34)
         .frame(width: Self.size.width, height: Self.size.height, alignment: .topLeading)
-        .background(self.background)
-        .foregroundStyle(self.primary)
-        .environment(\.colorScheme, .dark)
+        .background(self.colorScheme == .dark ? Color(white: 0x17 / 255) : .white)
+        .foregroundStyle(.primary)
     }
 
     private var header: some View {
@@ -55,12 +52,12 @@ struct ShareStatsCardView: View {
             Text(L("LOCAL SNAPSHOT"))
                 .font(.system(size: 14, weight: .semibold, design: .rounded))
                 .tracking(1.8)
-                .foregroundStyle(self.secondary)
+                .foregroundStyle(.secondary)
                 .padding(.horizontal, 15)
                 .padding(.vertical, 9)
                 .overlay {
                     RoundedRectangle(cornerRadius: 12)
-                        .stroke(self.secondary.opacity(0.45), lineWidth: 1)
+                        .stroke(Color.secondary.opacity(0.45), lineWidth: 1)
                 }
         }
     }
@@ -71,7 +68,7 @@ struct ShareStatsCardView: View {
                 Text(L("TRACKED TOKENS · %@", String(describing: self.periodLabel)))
                     .font(.system(size: 20, weight: .semibold, design: .rounded))
                     .tracking(1.8)
-                    .foregroundStyle(self.secondary)
+                    .foregroundStyle(.secondary)
                 Text(self.trackedTokensText)
                     .font(.system(size: 104, weight: .semibold, design: .rounded))
                     .monospacedDigit()
@@ -84,12 +81,12 @@ struct ShareStatsCardView: View {
                 Text(L("EST. %@", String(describing: self.spendLabel)))
                     .font(.system(size: 18, weight: .semibold, design: .rounded))
                     .tracking(1.2)
-                    .foregroundStyle(self.secondary)
+                    .foregroundStyle(.secondary)
                 ForEach(self.payload.currencies.prefix(2)) { currency in
                     HStack(alignment: .firstTextBaseline) {
                         Text("\(currency.currencyCode) · \(currency.coveredDayCount)/\(self.coverageDenominator)")
                             .font(.system(size: 17, weight: .semibold, design: .rounded))
-                            .foregroundStyle(self.secondary)
+                            .foregroundStyle(.secondary)
                         Spacer()
                         Text(self.spendText(for: currency))
                             .font(.system(size: 32, weight: .semibold, design: .rounded))
@@ -100,7 +97,7 @@ struct ShareStatsCardView: View {
                 }
                 Text(self.currencySummary)
                     .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .foregroundStyle(self.secondary)
+                    .foregroundStyle(.secondary)
             }
             .frame(width: 390, alignment: .leading)
         }
@@ -134,7 +131,7 @@ struct ShareStatsCardView: View {
                         "+%@ more configured",
                         String(describing: self.payload.providers.count - self.providerDisplayLimit)))
                         .font(.system(size: 16, weight: .medium, design: .rounded))
-                        .foregroundStyle(self.secondary)
+                        .foregroundStyle(.secondary)
                         .padding(.leading, 20)
                 }
             }
@@ -146,7 +143,7 @@ struct ShareStatsCardView: View {
                     if self.payload.topModels.isEmpty {
                         Text(L("No model-level history in this local snapshot"))
                             .font(.system(size: 18, weight: .medium, design: .rounded))
-                            .foregroundStyle(self.secondary)
+                            .foregroundStyle(.secondary)
                             .padding(.top, 4)
                     } else {
                         ForEach(
@@ -162,7 +159,7 @@ struct ShareStatsCardView: View {
                 }
                 Text(L("Only aggregate usage, plan tier, and estimated spend are included."))
                     .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .foregroundStyle(self.secondary)
+                    .foregroundStyle(.secondary)
                     .padding(.top, 18)
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -203,7 +200,7 @@ struct ShareStatsCardView: View {
 
     private func color(for model: ShareStatsModelPayload) -> Color {
         guard let index = Self.providerPaletteIndex(for: model, providers: self.payload.providers) else {
-            return self.secondary
+            return .secondary
         }
         return ShareStatsPalette.color(at: index)
     }
@@ -218,7 +215,7 @@ struct ShareStatsCardView: View {
                 .font(.system(size: 16, weight: .semibold, design: .rounded))
                 .tracking(1.0)
         }
-        .foregroundStyle(self.secondary)
+        .foregroundStyle(.secondary)
     }
 
     private var footer: some View {
@@ -229,7 +226,7 @@ struct ShareStatsCardView: View {
         }
         .font(.system(size: 14, weight: .medium, design: .rounded))
         .tracking(0.7)
-        .foregroundStyle(self.secondary)
+        .foregroundStyle(.secondary)
     }
 }
 
@@ -246,7 +243,7 @@ private struct ShareStatsModelRow: View {
             Text(self.rank.map { String(format: "%02d", $0) } ?? "·")
                 .font(.system(size: 17, weight: .bold, design: .rounded))
                 .monospacedDigit()
-                .foregroundStyle(Color(red: 0.70, green: 0.66, blue: 0.62))
+                .foregroundStyle(.secondary)
                 .frame(width: 27, alignment: .leading)
             VStack(alignment: .leading, spacing: 1) {
                 Text(self.model.modelName)
@@ -255,22 +252,22 @@ private struct ShareStatsModelRow: View {
                     .minimumScaleFactor(0.82)
                 Text(self.model.providerName)
                     .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .foregroundStyle(Color(red: 0.70, green: 0.66, blue: 0.62))
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
             Spacer(minLength: 10)
             Text(self.detail)
                 .font(.system(size: 17, weight: .medium, design: .rounded))
                 .monospacedDigit()
-                .foregroundStyle(Color(red: 0.78, green: 0.74, blue: 0.69))
+                .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
         .padding(.horizontal, 9)
         .frame(height: 48)
-        .background(Color.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 9))
+        .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 9))
         .overlay {
             RoundedRectangle(cornerRadius: 9)
-                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                .stroke(Color.primary.opacity(0.10), lineWidth: 1)
         }
     }
 
@@ -296,7 +293,7 @@ private struct ShareStatsProviderRow: View {
             Text(String(format: "%02d", self.rank))
                 .font(.system(size: 17, weight: .bold, design: .rounded))
                 .monospacedDigit()
-                .foregroundStyle(Color(red: 0.70, green: 0.66, blue: 0.62))
+                .foregroundStyle(.secondary)
                 .frame(width: 27, alignment: .leading)
             HStack(spacing: 8) {
                 Text(self.provider.providerName)
@@ -306,7 +303,7 @@ private struct ShareStatsProviderRow: View {
                 if let subscriptionName = self.provider.subscriptionName {
                     Text("· \(subscriptionName)")
                         .font(.system(size: 17, weight: .medium, design: .rounded))
-                        .foregroundStyle(Color(red: 0.70, green: 0.66, blue: 0.62))
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
             }
@@ -314,16 +311,16 @@ private struct ShareStatsProviderRow: View {
             Text(self.detail)
                 .font(.system(size: 18, weight: .medium, design: .rounded))
                 .monospacedDigit()
-                .foregroundStyle(Color(red: 0.78, green: 0.74, blue: 0.69))
+                .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
         }
         .padding(.horizontal, 9)
         .frame(height: 44)
-        .background(Color.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 9))
+        .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 9))
         .overlay {
             RoundedRectangle(cornerRadius: 9)
-                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                .stroke(Color.primary.opacity(0.10), lineWidth: 1)
         }
     }
 

@@ -197,6 +197,8 @@ public struct UsageSnapshot: Codable, Sendable {
     public let mistralUsage: MistralUsageSnapshot?
     /// Retains an observed zero when a metered Copilot seat has no visible credit row.
     public let copilotMeteredZeroCredits: Bool
+    /// Cursor API explicitly designated the primary window as the unified weekly pool.
+    public let cursorHasUnifiedWeeklyPool: Bool
     /// Live-only marker for optional Command Code subscription lookup failure.
     public let commandCodeSubscriptionEnrichmentUnavailable: Bool
     /// Live-only marker that Command Code returned a recognized subscription plan.
@@ -228,6 +230,7 @@ public struct UsageSnapshot: Codable, Sendable {
         case codexResetCredits
         case mistralUsage
         case copilotMeteredZeroCredits
+        case cursorHasUnifiedWeeklyPool
         case subscriptionExpiresAt
         case subscriptionRenewsAt
         case subscriptionRenewsAtIsDateOnly
@@ -263,6 +266,7 @@ public struct UsageSnapshot: Codable, Sendable {
         claudeResetCredits: ClaudeRateLimitResetCreditsSnapshot? = nil,
         mistralUsage: MistralUsageSnapshot? = nil,
         copilotMeteredZeroCredits: Bool = false,
+        cursorHasUnifiedWeeklyPool: Bool = false,
         commandCodeSubscriptionEnrichmentUnavailable: Bool = false,
         commandCodeHasSubscriptionPlan: Bool = false,
         commandCodeMonthlyGrantDepleted: Bool = false,
@@ -300,6 +304,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.claudeResetCredits = claudeResetCredits
         self.mistralUsage = mistralUsage
         self.copilotMeteredZeroCredits = copilotMeteredZeroCredits
+        self.cursorHasUnifiedWeeklyPool = cursorHasUnifiedWeeklyPool
         self.commandCodeSubscriptionEnrichmentUnavailable = commandCodeSubscriptionEnrichmentUnavailable
         self.commandCodeHasSubscriptionPlan = commandCodeHasSubscriptionPlan
         self.commandCodeMonthlyGrantDepleted = commandCodeMonthlyGrantDepleted
@@ -419,6 +424,8 @@ public struct UsageSnapshot: Codable, Sendable {
         self.mistralUsage = try container.decodeIfPresent(MistralUsageSnapshot.self, forKey: .mistralUsage)
         self.copilotMeteredZeroCredits = try container
             .decodeIfPresent(Bool.self, forKey: .copilotMeteredZeroCredits) ?? false
+        self.cursorHasUnifiedWeeklyPool = try container
+            .decodeIfPresent(Bool.self, forKey: .cursorHasUnifiedWeeklyPool) ?? false
         self.commandCodeSubscriptionEnrichmentUnavailable = false // Live-only fetch state
         self.commandCodeHasSubscriptionPlan = false // Live-only fetch state
         self.commandCodeMonthlyGrantDepleted = false // Live-only fetch state
@@ -462,6 +469,9 @@ public struct UsageSnapshot: Codable, Sendable {
         try container.encodeIfPresent(self.mistralUsage, forKey: .mistralUsage)
         if self.copilotMeteredZeroCredits {
             try container.encode(true, forKey: .copilotMeteredZeroCredits)
+        }
+        if self.cursorHasUnifiedWeeklyPool {
+            try container.encode(true, forKey: .cursorHasUnifiedWeeklyPool)
         }
         try container.encodeIfPresent(self.subscriptionExpiresAt, forKey: .subscriptionExpiresAt)
         try container.encodeIfPresent(self.subscriptionRenewsAt, forKey: .subscriptionRenewsAt)
@@ -551,8 +561,7 @@ public struct UsageSnapshot: Codable, Sendable {
     }
 
     public func backfillingResetTimes(from cached: UsageSnapshot?, now: Date = .init()) -> UsageSnapshot {
-        guard let cached else { return self }
-        guard Self.identitiesMatch(self.identity, cached.identity) else { return self }
+        guard let cached, Self.identitiesMatch(self.identity, cached.identity) else { return self }
         func eligibleCachedReset(_ candidate: RateWindow?, for current: RateWindow?) -> RateWindow? {
             // Provider-specific by design: z.ai's five-hour Coding Plan must not regain an impossible reset.
             guard self.identity?.providerID == .zai,
@@ -672,6 +681,7 @@ public struct UsageSnapshot: Codable, Sendable {
             claudeResetCredits: self.claudeResetCredits,
             mistralUsage: self.mistralUsage,
             copilotMeteredZeroCredits: self.copilotMeteredZeroCredits,
+            cursorHasUnifiedWeeklyPool: self.cursorHasUnifiedWeeklyPool,
             commandCodeSubscriptionEnrichmentUnavailable: self.commandCodeSubscriptionEnrichmentUnavailable,
             commandCodeHasSubscriptionPlan: self.commandCodeHasSubscriptionPlan,
             commandCodeMonthlyGrantDepleted: self.commandCodeMonthlyGrantDepleted,
@@ -1421,8 +1431,8 @@ public struct UsageFetcher: Sendable {
         from snapshot: RPCRateLimitSnapshot,
         updatedAt: Date) -> CodexCreditLimitSnapshot?
     {
-        guard let individualLimit = snapshot.individualLimit else { return nil }
-        guard let limit = individualLimit.limit, limit > 0 else { return nil }
+        guard let individualLimit = snapshot.individualLimit, let limit = individualLimit.limit,
+              limit > 0 else { return nil }
         let used: Double = if let used = individualLimit.used {
             used
         } else if let remainingPercent = individualLimit.remainingPercent {
@@ -1497,15 +1507,15 @@ public struct UsageFetcher: Sendable {
     }
 
     private static func recoverCreditsFromRPCError(_ error: Error) -> CreditsSnapshot? {
-        guard let credits = self.decodeRateLimitsErrorBody(from: error)?.credits else { return nil }
-        guard let remaining = credits.balance else { return nil }
+        guard let credits = self.decodeRateLimitsErrorBody(from: error)?.credits,
+              let remaining = credits.balance else { return nil }
         return CreditsSnapshot(remaining: remaining, events: [], updatedAt: Date())
     }
 
     private static func decodeRateLimitsErrorBody(from error: Error) -> RPCRateLimitsErrorBody? {
-        guard case let RPCWireError.requestFailed(message) = error else { return nil }
-        guard let json = self.extractJSONObject(after: "body=", in: message) else { return nil }
-        guard let data = json.data(using: .utf8) else { return nil }
+        guard case let RPCWireError.requestFailed(message) = error, let json = self.extractJSONObject(
+            after: "body=",
+            in: message), let data = json.data(using: .utf8) else { return nil }
         return try? JSONDecoder().decode(RPCRateLimitsErrorBody.self, from: data)
     }
 
@@ -1568,8 +1578,8 @@ public struct UsageFetcher: Sendable {
         while padded.count % 4 != 0 {
             padded.append("=")
         }
-        guard let data = Data(base64Encoded: padded) else { return nil }
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        guard let data = Data(base64Encoded: padded),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         return json
     }
 }

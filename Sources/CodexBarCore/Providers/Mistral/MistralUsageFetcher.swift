@@ -5,6 +5,8 @@ import FoundationNetworking
 
 public enum MistralUsageFetcher {
     private static let baseURL = URL(string: "https://admin.mistral.ai")!
+    private static let loginHost = "auth.mistral.ai"
+    private static let loginPath = "/self-service/login"
 
     public struct MistralVibeUsageResult: Equatable, Sendable {
         public let usagePercentage: Double
@@ -43,19 +45,8 @@ public enum MistralUsageFetcher {
         }
 
         let response = try await transport.response(for: request)
-        let data = response.data
-
-        switch response.statusCode {
-        case 200:
-            break
-        case 401, 403:
-            throw MistralUsageError.invalidCredentials
-        default:
-            let body = String(data: data.prefix(200), encoding: .utf8) ?? ""
-            throw MistralUsageError.apiError("HTTP \(response.statusCode): \(body)")
-        }
-
-        return try Self.parseResponse(data: data, updatedAt: now)
+        try Self.requireSuccess(response)
+        return try Self.parseResponse(data: response.data, updatedAt: now)
     }
 
     public static func fetchVibeUsage(
@@ -81,19 +72,8 @@ public enum MistralUsageFetcher {
         request.setValue(validatedCSRFToken, forHTTPHeaderField: "X-CSRFToken")
 
         let response = try await transport.response(for: request)
-        let data = response.data
-
-        switch response.statusCode {
-        case 200:
-            break
-        case 401, 403:
-            throw MistralUsageError.invalidCredentials
-        default:
-            let body = String(data: data.prefix(200), encoding: .utf8) ?? ""
-            throw MistralUsageError.apiError("HTTP \(response.statusCode): \(body)")
-        }
-
-        return try Self.parseVibeUsage(data: data)
+        try Self.requireSuccess(response)
+        return try Self.parseVibeUsage(data: response.data)
     }
 
     static func fetchSubscriptionBudgets(
@@ -110,15 +90,7 @@ public enum MistralUsageFetcher {
         request.setValue(url.absoluteString, forHTTPHeaderField: "Referer")
 
         let response = try await transport.response(for: request)
-        switch response.statusCode {
-        case 200:
-            break
-        case 401, 403:
-            throw MistralUsageError.invalidCredentials
-        default:
-            let body = String(data: response.data.prefix(200), encoding: .utf8) ?? ""
-            throw MistralUsageError.apiError("HTTP \(response.statusCode): \(body)")
-        }
+        try Self.requireSuccess(response)
         guard response.response.url?.scheme?.lowercased() == "https",
               response.response.url?.host?.lowercased() == self.baseURL.host,
               let html = String(data: response.data, encoding: .utf8),
@@ -150,19 +122,37 @@ public enum MistralUsageFetcher {
         }
 
         let response = try await transport.response(for: request)
-        let data = response.data
+        try Self.requireSuccess(response)
+        return try Self.parseCredits(data: response.data)
+    }
 
+    /// Mistral answers a missing or expired `ory_session_*` cookie with a redirect to its login flow
+    /// (`https://auth.mistral.ai/self-service/login/browser?return_to=…`). The shared client declines that
+    /// cross-origin redirect, so the 3xx arrives here: it means the session is invalid, not that the API failed.
+    private static func isLoginRedirect(_ response: HTTPURLResponse) -> Bool {
+        guard (300...399).contains(response.statusCode),
+              let location = response.value(forHTTPHeaderField: "Location"),
+              let target = URL(string: location, relativeTo: response.url)?.absoluteURL
+        else {
+            return false
+        }
+        return target.scheme?.lowercased() == "https"
+            && target.host?.lowercased() == self.loginHost
+            && (target.path == self.loginPath || target.path.hasPrefix(self.loginPath + "/"))
+    }
+
+    private static func requireSuccess(_ response: ProviderHTTPResponse) throws {
         switch response.statusCode {
         case 200:
-            break
+            return
         case 401, 403:
             throw MistralUsageError.invalidCredentials
+        case 300...399 where self.isLoginRedirect(response.response):
+            throw MistralUsageError.invalidCredentials
         default:
-            let body = String(data: data.prefix(200), encoding: .utf8) ?? ""
+            let body = String(data: response.data.prefix(200), encoding: .utf8) ?? ""
             throw MistralUsageError.apiError("HTTP \(response.statusCode): \(body)")
         }
-
-        return try Self.parseCredits(data: data)
     }
 
     static func parseVibeUsage(data: Data) throws -> MistralVibeUsageResult {

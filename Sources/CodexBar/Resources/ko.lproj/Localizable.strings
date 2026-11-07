@@ -2797,3 +2797,4 @@
 "Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints." = "조직 비용과 사용량에는 조직 Admin API 키를 사용하세요. 프로젝트 및 서비스 계정 키로는 해당 엔드포인트를 읽을 수 없습니다.";
 "A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "일반 API 키는 이전 잔액 조회를 대체 수단으로만 지원하며 성공은 보장되지 않습니다. 조직 사용량은 지원하지 않습니다. 프로젝트 범위가 설정된 키는 이 대체 수단을 사용하지 않습니다.";
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "키, HTTPS 리소스 엔드포인트 및 배포 이름을 입력하세요. API 버전은 선택 사항입니다. 새로 고침은 사용 기록 조회가 아니라 요금이 부과될 수 있는 검증 요청을 보냅니다.";
+"Mistral session expired or invalid." = "Mistral 세션이 만료되었거나 유효하지 않습니다.";
