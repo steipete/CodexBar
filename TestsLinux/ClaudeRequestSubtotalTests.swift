@@ -9,31 +9,33 @@ struct ClaudeRequestSubtotalTests {
 
     @Test
     func `valid Claude sources can exceed one source limit in union`() throws {
-        func source(_ ids: Range<Int>) -> ClaudeRequestLedger {
-            var ledger = ClaudeRequestLedger(startUnixMs: Self.start, endUnixMs: Self.end)
-            ledger.records = ids.map { id in
-                ClaudeRequestRecord(
-                    id: String(format: "%064x", id),
-                    timestampUnixMs: Self.end,
-                    model: nil,
-                    missingModel: true,
-                    inputTokens: 1,
-                    cacheReadTokens: 0,
-                    cacheCreationTokens: 0,
-                    cacheCreationOneHourTokens: 0,
-                    outputTokens: 0,
-                    accountingState: .terminal)
+        try IdentifiedRequestLimits.$current.withValue(.init(records: 3)) {
+            func source(_ ids: Range<Int>) -> ClaudeRequestLedger {
+                var ledger = ClaudeRequestLedger(startUnixMs: Self.start, endUnixMs: Self.end)
+                ledger.records = ids.map { id in
+                    ClaudeRequestRecord(
+                        id: String(format: "%064x", id),
+                        timestampUnixMs: Self.end,
+                        model: nil,
+                        missingModel: true,
+                        inputTokens: 1,
+                        cacheReadTokens: 0,
+                        cacheCreationTokens: 0,
+                        cacheCreationOneHourTokens: 0,
+                        outputTokens: 0,
+                        accountingState: .terminal)
+                }
+                return ledger
             }
-            return ledger
+            let first = source(0..<2)
+            let second = source(2..<4)
+            try first.validate(startUnixMs: Self.start, endUnixMs: Self.end)
+            try second.validate(startUnixMs: Self.start, endUnixMs: Self.end)
+            let subtotal = try Self.subtotal([first, second])
+            #expect(subtotal.requestCount == 4)
+            #expect(subtotal.totalTokens == 4)
+            #expect(subtotal.unpricedRequestCount == 4)
         }
-        let first = source(0..<25000)
-        let second = source(25000..<50001)
-        try first.validate(startUnixMs: Self.start, endUnixMs: Self.end)
-        try second.validate(startUnixMs: Self.start, endUnixMs: Self.end)
-        let subtotal = try Self.subtotal([first, second])
-        #expect(subtotal.requestCount == 50001)
-        #expect(subtotal.totalTokens == 50001)
-        #expect(subtotal.unpricedRequestCount == 50001)
     }
 
     static func line(
@@ -358,36 +360,38 @@ struct ClaudeRequestSubtotalTests {
 
     @Test
     func `wire schema state window digest and limits are validated`() throws {
-        let good = try Self.load([Self.line()])
-        var json = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(good)) as? [String: Any])
-        for (key, value) in [("provider", "codex" as Any), ("schemaVersion", 2), ("startUnixMs", Self.start + 1)] {
-            var bad = json
-            bad[key] = value
-            let ledger = try JSONDecoder().decode(
-                ClaudeRequestLedger.self,
-                from: JSONSerialization.data(withJSONObject: bad))
-            #expect { try Self.subtotal([ledger]) } throws: { error in
+        try IdentifiedRequestLimits.$current.withValue(.init(records: 3)) {
+            let good = try Self.load([Self.line()])
+            var json = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(good)) as? [String: Any])
+            for (key, value) in [("provider", "codex" as Any), ("schemaVersion", 2), ("startUnixMs", Self.start + 1)] {
+                var bad = json
+                bad[key] = value
+                let ledger = try JSONDecoder().decode(
+                    ClaudeRequestLedger.self,
+                    from: JSONSerialization.data(withJSONObject: bad))
+                #expect { try Self.subtotal([ledger]) } throws: { error in
+                    guard case RemoteCodexCostError.invalidReport = error else { return false }
+                    return true
+                }
+            }
+            var rows = try #require(json["records"] as? [[String: Any]])
+            rows[0].removeValue(forKey: "accountingState")
+            json["records"] = rows
+            #expect(throws: DecodingError.self) {
+                try JSONDecoder().decode(ClaudeRequestLedger.self, from: JSONSerialization.data(withJSONObject: json))
+            }
+            var bad = good
+            bad.conflictingIDs = ["not-a-digest"]
+            #expect { try Self.subtotal([bad]) } throws: { error in
                 guard case RemoteCodexCostError.invalidReport = error else { return false }
                 return true
             }
-        }
-        var rows = try #require(json["records"] as? [[String: Any]])
-        rows[0].removeValue(forKey: "accountingState")
-        json["records"] = rows
-        #expect(throws: DecodingError.self) {
-            try JSONDecoder().decode(ClaudeRequestLedger.self, from: JSONSerialization.data(withJSONObject: json))
-        }
-        var bad = good
-        bad.conflictingIDs = ["not-a-digest"]
-        #expect { try Self.subtotal([bad]) } throws: { error in
-            guard case RemoteCodexCostError.invalidReport = error else { return false }
-            return true
-        }
-        bad = good
-        bad.records = Array(repeating: good.records[0], count: CodexRequestLedger.maximumRecords + 1)
-        #expect { try Self.subtotal([bad]) } throws: { error in
-            guard case RemoteCodexCostError.invalidReport = error else { return false }
-            return true
+            bad = good
+            bad.records = Array(repeating: good.records[0], count: CodexRequestLedger.maximumRecords + 1)
+            #expect { try Self.subtotal([bad]) } throws: { error in
+                guard case RemoteCodexCostError.invalidReport = error else { return false }
+                return true
+            }
         }
     }
 
@@ -430,22 +434,24 @@ struct ClaudeRequestSubtotalTests {
 
     @Test
     func `retained model bytes reject an oversized source`() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
-        let file = root.appendingPathComponent("large.jsonl")
-        let model = String(repeating: "x", count: 500_000)
-        let rows = (0..<70).map { index in
-            Self.line(
-                model: ",\"model\":\"\(model)\"",
-                identity: "\"requestId\":\"request-\(index)\",")
-        }
-        try Data((rows.joined(separator: "\n") + "\n").utf8).write(to: file)
-        var options = CostUsageScanner.Options()
-        options.claudeProjectsRoots = [root]
-        #expect(throws: RemoteCodexCostError.self) {
-            try ClaudeRequestLedger.load(
-                startUnixMs: Self.start, endUnixMs: Self.end, options: options, checkCancellation: {})
+        try IdentifiedRequestLimits.$current.withValue(.init(outputBytes: 4096)) {
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: root) }
+            let file = root.appendingPathComponent("large.jsonl")
+            let model = String(repeating: "x", count: 600)
+            let rows = (0..<8).map { index in
+                Self.line(
+                    model: ",\"model\":\"\(model)\"",
+                    identity: "\"requestId\":\"request-\(index)\",")
+            }
+            try Data((rows.joined(separator: "\n") + "\n").utf8).write(to: file)
+            var options = CostUsageScanner.Options()
+            options.claudeProjectsRoots = [root]
+            #expect(throws: RemoteCodexCostError.self) {
+                try ClaudeRequestLedger.load(
+                    startUnixMs: Self.start, endUnixMs: Self.end, options: options, checkCancellation: {})
+            }
         }
     }
 

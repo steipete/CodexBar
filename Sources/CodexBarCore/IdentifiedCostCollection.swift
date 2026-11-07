@@ -12,14 +12,25 @@ package protocol IdentifiedRequestLedger: Codable, Sendable {
     var conflictingIDs: [String] { get }
     var excludedCount: Int { get }
     func validate(startUnixMs: Int64, endUnixMs: Int64) throws
-    static func makeMerger() -> ([Self]) throws -> CodexRequestSubtotal
+    static func makeMerger() -> @Sendable ([Self]) throws -> CodexRequestSubtotal
 }
 
-package enum IdentifiedRequestLimits {
-    package static let maximumRecords = 50000
-    package static let maximumOutputBytes = 32 * 1024 * 1024
+package struct IdentifiedRequestLimits: Sendable {
+    package var records = 50000
+    package var outputBytes = 32 * 1024 * 1024
+    package var collectionBytes = 128 * 1024 * 1024
+
+    // Keep boundary fixtures small without changing shipping limits or another concurrent test.
+    @TaskLocal package static var current = Self()
+    package static var maximumRecords: Int {
+        self.current.records
+    }
+
+    package static var maximumOutputBytes: Int {
+        self.current.outputBytes
+    }
+
     package static let maximumSources = 16
-    package static let maximumCollectionBytes = 128 * 1024 * 1024
 }
 
 extension IdentifiedRequestLedger {
@@ -96,21 +107,32 @@ package enum IdentifiedCostCollection {
         var subtotal: CodexRequestSubtotal?
         var localLedgerJSON: String?
         var retainedBytes = 0
-        let merge = remotes.isEmpty ? nil : Ledger.makeMerger()
+        let merge = try await CostUsageScanExecutor.run { _ in
+            remotes.isEmpty ? nil : Ledger.makeMerger()
+        }
         for (index, host) in (["local"] + remotes).enumerated() {
             try Task.checkCancellation()
             do {
                 let ledger = try await (index == 0 ? local() : fetchRemote(host))
                 try Task.checkCancellation()
-                try ledger.validate(startUnixMs: startUnixMs, endUnixMs: endUnixMs)
-                let encoder = JSONEncoder()
-                encoder.outputFormatting = pretty ? [.prettyPrinted, .sortedKeys] : []
-                let data = try encoder.encode(ledger)
-                // Remote byte limits apply to received JSON; re-encoding can expand escaping.
-                guard index != 0 || data.count < IdentifiedRequestLimits.maximumOutputBytes,
-                      retainedBytes + data.count <= IdentifiedRequestLimits.maximumCollectionBytes
-                else { throw RemoteCodexCostError.invalidReport }
-                if let merge { subtotal = try merge(reports.compactMap(\.ledger) + [ledger]) }
+                let ledgers = reports.compactMap(\.ledger) + [ledger]
+                let previousBytes = retainedBytes
+                let limits = IdentifiedRequestLimits.current
+                let (data, merged) = try await CostUsageScanExecutor.run { checkCancellation in
+                    try IdentifiedRequestLimits.$current.withValue(limits) {
+                        try ledger.validate(startUnixMs: startUnixMs, endUnixMs: endUnixMs)
+                        let encoder = JSONEncoder()
+                        encoder.outputFormatting = pretty ? [.prettyPrinted, .sortedKeys] : []
+                        let data = try encoder.encode(ledger)
+                        // Remote byte limits apply to received JSON; re-encoding can expand escaping.
+                        guard index != 0 || data.count < limits.outputBytes,
+                              previousBytes + data.count <= limits.collectionBytes
+                        else { throw RemoteCodexCostError.invalidReport }
+                        try checkCancellation()
+                        return try (data, merge?(ledgers))
+                    }
+                }
+                subtotal = merged
                 retainedBytes += data.count
                 if index == 0, remotes.isEmpty { localLedgerJSON = String(data: data, encoding: .utf8) }
                 reports.append(.init(

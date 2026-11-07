@@ -84,7 +84,7 @@ public struct PiRequestLedger: Codable, Sendable {
         }
     }
 
-    package static func makeMerger() -> ([Self]) throws -> CodexRequestSubtotal {
+    package static func makeMerger() -> @Sendable ([Self]) throws -> CodexRequestSubtotal {
         { try Self.merge($0) }
     }
 

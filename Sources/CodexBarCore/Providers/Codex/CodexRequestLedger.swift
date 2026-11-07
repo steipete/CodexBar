@@ -56,8 +56,14 @@ public struct CodexRequestRecord: Codable, Sendable, Equatable {
 
 /// One exact inclusive UTC window. This identifies requests, without claiming account-wide usage.
 public struct CodexRequestLedger: Codable, Sendable {
-    public static let maximumRecords = IdentifiedRequestLimits.maximumRecords
-    public static let maximumOutputBytes = IdentifiedRequestLimits.maximumOutputBytes
+    public static var maximumRecords: Int {
+        IdentifiedRequestLimits.maximumRecords
+    }
+
+    public static var maximumOutputBytes: Int {
+        IdentifiedRequestLimits.maximumOutputBytes
+    }
+
     public var schemaVersion = 2
     public var provider = "codex"
     public var startUnixMs: Int64
@@ -329,7 +335,7 @@ public struct CodexRequestLedger: Codable, Sendable {
     }
 
     /// Capture once so a multi-host collection cannot mix catalog or custom-rate revisions.
-    package static func makeMerger() -> ([Self]) throws -> CodexRequestSubtotal {
+    package static func makeMerger() -> @Sendable ([Self]) throws -> CodexRequestSubtotal {
         let catalog = CostUsagePricing.modelsDevCatalog() ?? ModelsDevCatalog(providers: [:])
         let customPricing = CostUsagePricing.customPricingOverlay()
         return { try self.merge($0, catalog: catalog, customPricing: customPricing) }

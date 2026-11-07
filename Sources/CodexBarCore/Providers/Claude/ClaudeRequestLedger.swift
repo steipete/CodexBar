@@ -218,10 +218,10 @@ public struct ClaudeRequestLedger: IdentifiedRequestLedger {
     }
 
     /// Freeze once before collection; reuse for every incremental union, never producer prices.
-    public static func makeMerger() -> ([Self]) throws -> CodexRequestSubtotal {
+    public static func makeMerger() -> @Sendable ([Self]) throws -> CodexRequestSubtotal {
         let resolver = CostUsagePricing.ClaudeResolver(now: Date(), cacheRoot: nil)
-        resolver.prepareCatalog()
-        return { try Self.merge($0, resolver: resolver) }
+        let catalog = resolver.prepareCatalog()
+        return { try Self.merge($0, resolver: CostUsagePricing.ClaudeResolver(catalog: catalog)) }
     }
 
     static func merge(_ ledgers: [Self], resolver: CostUsagePricing.ClaudeResolver) throws -> CodexRequestSubtotal {

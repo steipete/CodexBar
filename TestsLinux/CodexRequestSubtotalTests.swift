@@ -57,71 +57,75 @@ struct CodexRequestSubtotalTests {
 
     @Test
     func `local identified export enforces the emitted byte limit`() async throws {
-        let ledger = try Self.ledger(outputBytes: CodexRequestLedger.maximumOutputBytes, pretty: true)
-        let remote = Self.source([Self.accountingRow(id: "b")])
-        let accepted = try await IdentifiedCostCollection.collect(
-            remotes: [],
-            startUnixMs: Self.start,
-            endUnixMs: Self.end,
-            pretty: true,
-            local: { ledger },
-            fetchRemote: { _ in remote })
-        #expect(accepted.reports.count == 1)
-        #expect(accepted.reports[0].ledger?.records.count == 1)
-        #expect(accepted.allSourcesAvailable)
-        #expect(accepted.localLedgerJSON.map { $0.utf8.count + 1 } == CodexRequestLedger.maximumOutputBytes)
+        try await IdentifiedRequestLimits.$current.withValue(.init(outputBytes: 4096)) {
+            let ledger = try Self.ledger(outputBytes: CodexRequestLedger.maximumOutputBytes, pretty: true)
+            let remote = Self.source([Self.accountingRow(id: "b")])
+            let accepted = try await IdentifiedCostCollection.collect(
+                remotes: [],
+                startUnixMs: Self.start,
+                endUnixMs: Self.end,
+                pretty: true,
+                local: { ledger },
+                fetchRemote: { _ in remote })
+            #expect(accepted.reports.count == 1)
+            #expect(accepted.reports[0].ledger?.records.count == 1)
+            #expect(accepted.allSourcesAvailable)
+            #expect(accepted.localLedgerJSON.map { $0.utf8.count + 1 } == CodexRequestLedger.maximumOutputBytes)
 
-        let oversized = try Self.ledger(outputBytes: CodexRequestLedger.maximumOutputBytes + 1, pretty: true)
-        let rejected = try await IdentifiedCostCollection.collect(
-            remotes: ["fixture-host"],
-            startUnixMs: Self.start,
-            endUnixMs: Self.end,
-            pretty: true,
-            local: { oversized },
-            fetchRemote: { _ in remote })
-        #expect(rejected.reports.count == 2)
-        #expect(rejected.reports[0].ledger == nil && rejected.localLedgerJSON == nil)
-        #expect(rejected.reports[1].ledger?.records.count == 1)
-        #expect(rejected.subtotal?.totalTokens == 110)
-        #expect(!rejected.allSourcesAvailable && rejected.partial)
+            let oversized = try Self.ledger(outputBytes: CodexRequestLedger.maximumOutputBytes + 1, pretty: true)
+            let rejected = try await IdentifiedCostCollection.collect(
+                remotes: ["fixture-host"],
+                startUnixMs: Self.start,
+                endUnixMs: Self.end,
+                pretty: true,
+                local: { oversized },
+                fetchRemote: { _ in remote })
+            #expect(rejected.reports.count == 2)
+            #expect(rejected.reports[0].ledger == nil && rejected.localLedgerJSON == nil)
+            #expect(rejected.reports[1].ledger?.records.count == 1)
+            #expect(rejected.subtotal?.totalTokens == 110)
+            #expect(!rejected.allSourcesAvailable && rejected.partial)
+        }
     }
 
     @Test(arguments: [false, true], [
-        CodexRequestLedger.maximumOutputBytes - 1,
-        CodexRequestLedger.maximumOutputBytes,
-        CodexRequestLedger.maximumOutputBytes + 1,
+        4095, 4096, 4097,
     ])
     func `identified ledger encoding bounds selected formatting and its newline`(
         pretty: Bool, outputBytes: Int) throws
     {
-        let ledger = try Self.ledger(outputBytes: outputBytes, pretty: pretty)
-        let json = CodexBarCLI.encodeJSON(ledger, pretty: pretty)
-        let emittedBytes = json.map { $0.utf8.count + 1 } ?? 0
+        try IdentifiedRequestLimits.$current.withValue(.init(outputBytes: 4096)) {
+            let ledger = try Self.ledger(outputBytes: outputBytes, pretty: pretty)
+            let json = CodexBarCLI.encodeJSON(ledger, pretty: pretty)
+            let emittedBytes = json.map { $0.utf8.count + 1 } ?? 0
 
-        #expect(emittedBytes == (outputBytes <= CodexRequestLedger.maximumOutputBytes ? outputBytes : 0))
+            #expect(emittedBytes == (outputBytes <= CodexRequestLedger.maximumOutputBytes ? outputBytes : 0))
+        }
     }
 
     @Test
     func `remote byte bound applies to received JSON rather than reencoding`() async throws {
-        let remote = Self.source([Self.accountingRow(
-            id: "b", model: String(repeating: "/", count: CodexRequestLedger.maximumOutputBytes / 2), mode: nil)])
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.withoutEscapingSlashes]
-        let wire = try #require(String(data: encoder.encode(remote), encoding: .utf8))
-        #expect(wire.utf8.count < CodexRequestLedger.maximumOutputBytes)
-        let fetcher = RemoteCodexCostFetcher(runner: { _, _ in wire })
-        let report = try await IdentifiedCostCollection.collect(
-            remotes: ["fixture-host"],
-            startUnixMs: Self.start,
-            endUnixMs: Self.end,
-            local: { Self.ledger() },
-            fetchRemote: { host in
-                try await fetcher.fetchIdentifiedUsage(
-                    host: host, historyDays: 1, startUnixMs: Self.start, endUnixMs: Self.end)
-            })
-        #expect(report.allSourcesAvailable && !report.partial)
-        #expect(report.subtotal?.requestCount == 2)
-        #expect(report.subtotal?.totalTokens == 220)
+        try await IdentifiedRequestLimits.$current.withValue(.init(outputBytes: 4096)) {
+            let remote = Self.source([Self.accountingRow(
+                id: "b", model: String(repeating: "/", count: CodexRequestLedger.maximumOutputBytes / 2), mode: nil)])
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.withoutEscapingSlashes]
+            let wire = try #require(String(data: encoder.encode(remote), encoding: .utf8))
+            #expect(wire.utf8.count < CodexRequestLedger.maximumOutputBytes)
+            let fetcher = RemoteCodexCostFetcher(runner: { _, _ in wire })
+            let report = try await IdentifiedCostCollection.collect(
+                remotes: ["fixture-host"],
+                startUnixMs: Self.start,
+                endUnixMs: Self.end,
+                local: { Self.ledger() },
+                fetchRemote: { host in
+                    try await fetcher.fetchIdentifiedUsage(
+                        host: host, historyDays: 1, startUnixMs: Self.start, endUnixMs: Self.end)
+                })
+            #expect(report.allSourcesAvailable && !report.partial)
+            #expect(report.subtotal?.requestCount == 2)
+            #expect(report.subtotal?.totalTokens == 220)
+        }
     }
 
     @Test

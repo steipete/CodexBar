@@ -151,29 +151,31 @@ struct PiRequestSubtotalTests {
 
     @Test
     func `Pi SSH uses fixed provider and rejects oversized output`() async throws {
-        let ledger = try self.scan([self.header + self.row()])
-        let wire = try #require(String(bytes: JSONEncoder().encode(ledger), encoding: .utf8))
-        let fetcher = RemoteCodexCostFetcher { arguments, _ in
-            #expect(arguments.last?.contains("--provider pi") == true)
-            return wire
-        }
-        _ = try await fetcher.fetchIdentifiedUsage(
-            host: "fixture",
-            historyDays: 1,
-            startUnixMs: Self.start,
-            endUnixMs: Self.end,
-            ledgerType: PiRequestLedger.self)
-        let padded = wire + String(
-            repeating: " ",
-            count: IdentifiedRequestLimits.maximumOutputBytes + 1 - wire.utf8.count)
-        let oversized = RemoteCodexCostFetcher { _, _ in padded }
-        await #expect(throws: RemoteCodexCostError.self) {
-            _ = try await oversized.fetchIdentifiedUsage(
+        try await IdentifiedRequestLimits.$current.withValue(.init(outputBytes: 4096)) {
+            let ledger = try self.scan([self.header + self.row()])
+            let wire = try #require(String(bytes: JSONEncoder().encode(ledger), encoding: .utf8))
+            let fetcher = RemoteCodexCostFetcher { arguments, _ in
+                #expect(arguments.last?.contains("--provider pi") == true)
+                return wire
+            }
+            _ = try await fetcher.fetchIdentifiedUsage(
                 host: "fixture",
                 historyDays: 1,
                 startUnixMs: Self.start,
                 endUnixMs: Self.end,
                 ledgerType: PiRequestLedger.self)
+            let padded = wire + String(
+                repeating: " ",
+                count: IdentifiedRequestLimits.maximumOutputBytes + 1 - wire.utf8.count)
+            let oversized = RemoteCodexCostFetcher { _, _ in padded }
+            await #expect(throws: RemoteCodexCostError.self) {
+                _ = try await oversized.fetchIdentifiedUsage(
+                    host: "fixture",
+                    historyDays: 1,
+                    startUnixMs: Self.start,
+                    endUnixMs: Self.end,
+                    ledgerType: PiRequestLedger.self)
+            }
         }
     }
 }
@@ -260,11 +262,13 @@ extension PiRequestSubtotalTests {
 
     @Test
     func `distinct observations exceeding the bound before a header reject the source`() throws {
-        var lines = ""
-        for index in 0...IdentifiedRequestLimits.maximumRecords {
-            lines += self.row("entry-\(index)")
+        try IdentifiedRequestLimits.$current.withValue(.init(records: 3)) {
+            var lines = ""
+            for index in 0...IdentifiedRequestLimits.maximumRecords {
+                lines += self.row("entry-\(index)")
+            }
+            #expect(throws: RemoteCodexCostError.self) { _ = try self.scan([lines]) }
         }
-        #expect(throws: RemoteCodexCostError.self) { _ = try self.scan([lines]) }
     }
 
     @Test
@@ -291,9 +295,9 @@ extension PiRequestSubtotalTests {
 
 extension PiRequestSubtotalTests {
     @Test
-    func `record limit fits actual compact and pretty stdout`() throws {
+    func `record limit fits compact and pretty stdout without materializing every record`() throws {
         var ledger = PiRequestLedger(startUnixMs: Self.start, endUnixMs: Self.end)
-        ledger.records = (0..<IdentifiedRequestLimits.maximumRecords).map { index in
+        ledger.records = (0..<2).map { index in
             let suffix = String(index, radix: 16)
             return PiRequestRecord(
                 id: String(repeating: "0", count: 64 - suffix.count) + suffix,
@@ -307,9 +311,15 @@ extension PiRequestSubtotalTests {
                     totalTokens: 1))
         }
         try ledger.validate(startUnixMs: Self.start, endUnixMs: Self.end)
+        var single = ledger
+        single.records.removeLast()
         for pretty in [false, true] {
+            let one = try #require(CodexBarCLI.encodeJSON(single, pretty: pretty))
             let output = try #require(CodexBarCLI.encodeJSON(ledger, pretty: pretty))
-            #expect(output.utf8.count + 1 <= IdentifiedRequestLimits.maximumOutputBytes)
+            // Every record has the same encoded width, including its fixed-width digest.
+            let recordBytes = output.utf8.count - one.utf8.count
+            let fullBytes = one.utf8.count + (IdentifiedRequestLimits.maximumRecords - 1) * recordBytes + 1
+            #expect(fullBytes <= IdentifiedRequestLimits.maximumOutputBytes)
         }
     }
 
@@ -396,35 +406,37 @@ extension PiRequestSubtotalTests {
 extension PiRequestSubtotalTests {
     @Test(arguments: [false, true])
     func `valid sources can exceed the source cardinality limit in union`(conflicted: Bool) throws {
-        func source(_ values: Range<Int>) -> PiRequestLedger {
-            var ledger = PiRequestLedger(startUnixMs: Self.start, endUnixMs: Self.end)
-            ledger.partial = conflicted
-            for value in values {
-                let id = String(format: "%064x", value)
-                if conflicted {
-                    ledger.conflictingIDs.append(id)
-                } else {
-                    ledger.records.append(.init(
-                        id: id,
-                        timestampUnixMs: Self.end,
-                        accounting: .init(
-                            inputTokens: 1,
-                            outputTokens: 0,
-                            cacheReadTokens: 0,
-                            cacheWriteTokens: 0,
-                            cacheWrite1hTokens: 0,
-                            totalTokens: 1)))
+        try IdentifiedRequestLimits.$current.withValue(.init(records: 3)) {
+            func source(_ values: Range<Int>) -> PiRequestLedger {
+                var ledger = PiRequestLedger(startUnixMs: Self.start, endUnixMs: Self.end)
+                ledger.partial = conflicted
+                for value in values {
+                    let id = String(format: "%064x", value)
+                    if conflicted {
+                        ledger.conflictingIDs.append(id)
+                    } else {
+                        ledger.records.append(.init(
+                            id: id,
+                            timestampUnixMs: Self.end,
+                            accounting: .init(
+                                inputTokens: 1,
+                                outputTokens: 0,
+                                cacheReadTokens: 0,
+                                cacheWriteTokens: 0,
+                                cacheWrite1hTokens: 0,
+                                totalTokens: 1)))
+                    }
                 }
+                return ledger
             }
-            return ledger
+            let local = source(0..<2)
+            let remote = source(2..<4)
+            try local.validate(startUnixMs: Self.start, endUnixMs: Self.end)
+            try remote.validate(startUnixMs: Self.start, endUnixMs: Self.end)
+            let subtotal = try PiRequestLedger.merge([local, remote])
+            #expect(subtotal.requestCount == (conflicted ? 0 : 4))
+            #expect(subtotal.conflictCount == (conflicted ? 4 : 0))
+            #expect(subtotal.totalTokens == (conflicted ? 0 : 4))
         }
-        let local = source(0..<25000)
-        let remote = source(25000..<50001)
-        try local.validate(startUnixMs: Self.start, endUnixMs: Self.end)
-        try remote.validate(startUnixMs: Self.start, endUnixMs: Self.end)
-        let subtotal = try PiRequestLedger.merge([local, remote])
-        #expect(subtotal.requestCount == (conflicted ? 0 : 50001))
-        #expect(subtotal.conflictCount == (conflicted ? 50001 : 0))
-        #expect(subtotal.totalTokens == (conflicted ? 0 : 50001))
     }
 }

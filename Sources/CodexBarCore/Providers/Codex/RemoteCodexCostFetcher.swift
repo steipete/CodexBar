@@ -217,10 +217,15 @@ public struct RemoteCodexCostFetcher: Sendable {
             arguments: Self.arguments(host: host, options: options),
             maximumOutputBytes: CodexRequestLedger.maximumOutputBytes,
             environment: environment)
-        guard let ledger = try? JSONDecoder().decode(Ledger.self, from: Data(output.utf8))
-        else { throw RemoteCodexCostError.invalidReport }
-        try ledger.validate(startUnixMs: startUnixMs, endUnixMs: endUnixMs)
-        return ledger
+        let limits = IdentifiedRequestLimits.current
+        return try await CostUsageScanExecutor.run { _ in
+            try IdentifiedRequestLimits.$current.withValue(limits) {
+                guard let ledger = try? JSONDecoder().decode(Ledger.self, from: Data(output.utf8))
+                else { throw RemoteCodexCostError.invalidReport }
+                try ledger.validate(startUnixMs: startUnixMs, endUnixMs: endUnixMs)
+                return ledger
+            }
+        }
     }
 
     private func output(
