@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.84.1 — Unreleased
+
+### Fixed
+
+- Ollama: support legacy API session and weekly balances while preserving monthly credits. (#5005, #5006) Thanks @Colafornia!
+- Mistral: recover from expired sessions that redirect to sign-in instead of returning HTTP 401/403. (#5000, #5002) Thanks @enieuwy!
+- Cursor: keep Manual credentials and local cost history account-scoped, preserve explicit unified-pool evidence, and use the current login route. (#4998) Thanks @Chipagosfinest!
+- Claude: show Enterprise extra-usage limits in the provider switcher while preserving provider identity boundaries. (#4989) Thanks @jey3dayo!
+- Alibaba: read Team CLI seat quotas, retain browser fallback for unavailable credits, and recognize mainland Qwen aliases. (#5008) Thanks @yinjialu!
+
 ## 0.84.0 — 2026-11-06
 
 ### Highlights
