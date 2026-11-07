@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Dropdown: Overview's 30-day spend chart stacks each day by provider, in a hue anchored to that provider's brand, with model effort as lightness inside the hue. A legend with official logos shows each provider's share; hovering a day shows that day. Past eight providers, the smallest fold into Other.
+
 ## 0.84.0 — 2026-11-06
 
 ### Highlights

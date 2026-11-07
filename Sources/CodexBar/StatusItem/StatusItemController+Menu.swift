@@ -573,10 +573,12 @@ extension StatusItemController {
                 providerCount: spendProviderCount,
                 knownCostProviderCount: knownCounts.cost,
                 knownTokenProviderCount: knownCounts.tokens)
+            let daily = OverviewDailySpend.make(model: spendModel)
             let summaryItem = self.makeMenuCardItem(
                 OverviewSpendSummaryCardView(
                     summary: spendSummary,
                     days: spendModel.requestedDays,
+                    daily: daily,
                     width: menuWidth),
                 id: "overviewSpendSummary",
                 width: menuWidth,
@@ -588,7 +590,9 @@ extension StatusItemController {
                     spendSummary.historyCoverageText,
                     spendSummary.pricingCoverageText,
                     spendSummary.provenanceText,
-                ].joined(separator: "|"))
+                    "legend=\(daily?.legend.map(\.id) ?? [])",
+                ].joined(separator: "|"),
+                containsInteractiveControls: daily != nil)
             menu.addItem(summaryItem)
             if let shareItem = self.makeOverviewShareStatsMenuItem(model: spendModel) {
                 menu.addItem(shareItem)

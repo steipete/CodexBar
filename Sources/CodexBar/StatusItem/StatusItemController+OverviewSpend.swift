@@ -94,9 +94,52 @@ struct OverviewSpendSummary: Equatable {
 struct OverviewSpendSummaryCardView: View {
     let summary: OverviewSpendSummary
     let days: Int
+    var daily: OverviewDailySpend?
     let width: CGFloat
 
     var body: some View {
+        if let daily {
+            self.chartBody(daily)
+        } else {
+            self.textBody
+        }
+    }
+
+    /// The number stays on top; the coverage lines give their height to the chart and move to the tooltip.
+    private func chartBody(_ daily: OverviewDailySpend) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(self.summary.primarySpendText)
+                    .font(.system(.title2, design: .rounded, weight: .bold))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .layoutPriority(1)
+                Text(spendDashboardDayRangeText(self.days))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 4)
+                if let tokenText = self.summary.tokenText {
+                    Text(tokenText)
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            OverviewStackedSpendChart(daily: daily)
+        }
+        .help([
+            self.summary.providerCoverageText,
+            "\(self.summary.historyCoverageText) · \(self.summary.provenanceText)",
+            self.summary.pricingCoverageText,
+        ].joined(separator: "\n"))
+        .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
+        .padding(.vertical, 6)
+        .frame(width: self.width, alignment: .leading)
+    }
+
+    private var textBody: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 6) {
                 Text(L("Usage & Spend"))

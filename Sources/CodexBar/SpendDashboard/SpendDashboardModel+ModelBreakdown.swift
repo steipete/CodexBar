@@ -23,6 +23,35 @@ extension SpendDashboardModel {
         var overflowedCost = false
     }
 
+    /// One model's spend in one provider's day, which is what lets a daily bar split by model.
+    struct DailyModelCost: Equatable, Sendable {
+        let modelName: String
+        let cost: Double
+    }
+
+    static func validCost(_ value: Double?) -> Double? {
+        guard let value, value.isFinite, value >= 0 else { return nil }
+        return value
+    }
+
+    static func dailyModelCosts(summary: InputSummary, entries: [WindowEntry]) -> [DailyModelCost] {
+        // Provider-specific by design: Codex retains unpriced routing rows only when its priced rows
+        // reconcile to the known daily subtotal (#2643); malformed costs still fail closed.
+        guard entries.allSatisfy({
+            Self.hasCompleteModelCostCoverage($0.entry) ||
+                (summary.input.provider == .codex && Self.hasRetainablePartialCodexModelCostCoverage($0.entry))
+        }) else { return [] }
+        var costs: [String: Double] = [:]
+        for breakdown in entries.flatMap({ $0.entry.modelBreakdowns ?? [] }) {
+            guard let cost = Self.validCost(breakdown.costUSD) else { continue }
+            let name = breakdown.modelName.trimmingCharacters(in: .whitespacesAndNewlines)
+            costs[name, default: 0] += cost * summary.costMultiplier
+        }
+        return costs
+            .map { DailyModelCost(modelName: $0.key, cost: $0.value) }
+            .sorted { ($0.cost, $1.modelName) > ($1.cost, $0.modelName) }
+    }
+
     struct ModelSummary {
         let rows: [ModelRow]
         let completeness: ModelHistoryCompleteness

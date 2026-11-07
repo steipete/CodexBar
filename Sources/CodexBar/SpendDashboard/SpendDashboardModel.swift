@@ -175,6 +175,7 @@ struct SpendDashboardModel: Equatable, Sendable {
     }
 
     struct DailyProviderRow: Identifiable, Equatable, Sendable {
+        var modelCosts: [DailyModelCost] = []
         var incompleteRequestCount: Int = 0
         var costIsLowerBound = false
         var countsAreLowerBound = false
@@ -1121,6 +1122,7 @@ struct SpendDashboardModel: Equatable, Sendable {
         let totalCost = summary.hasInvalidCostHistory ? nil : entries.isEmpty ? emptyCost : Self.completeCostSum(costs)
 
         return DailyProviderRow(
+            modelCosts: Self.dailyModelCosts(summary: summary, entries: entries),
             incompleteRequestCount: CostUsageIncompleteRequests.sum(entries.map(\.entry.incompleteRequestCount)),
             costIsLowerBound: entries.contains { ($0.entry.unpricedRequestCount ?? 0) > 0 }
                 || summary.historyScanIsPartial,
@@ -1436,11 +1438,6 @@ struct SpendDashboardModel: Equatable, Sendable {
     private static func currencyCode(_ rawValue: String) -> String? {
         let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         return value.isEmpty || value == "XXX" ? nil : value
-    }
-
-    static func validCost(_ value: Double?) -> Double? {
-        guard let value, value.isFinite, value >= 0 else { return nil }
-        return value
     }
 
     static func nonnegative(_ value: Int?) -> Int? {

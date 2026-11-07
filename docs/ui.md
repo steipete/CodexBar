@@ -80,6 +80,7 @@ Stacked rows with leading window labels align their values and meters after the 
   a valid previous position. Valid new positions remain untouched; unrelated defaults are never repaired by this path.
 - When Overview has selected providers, the switcher includes an Overview tab that renders up to 6 provider rows.
 - Overview row order follows provider order; selecting a row jumps to that provider detail card.
+- Overview's 30-day spend chart stacks each day by provider in a brand-anchored hue, with model effort as lightness; the legend uses official logos and hovering a day shows that day.
 - Overview uses native vertical scrolling when its menu exceeds the visible height. Fitted menus retain coarse-wheel provider highlighting; precise input and row submenus keep their native scrolling behavior. Scrolling after Command-R still prevents a pending refresh from resetting the viewport.
 - Menu → Overview layout offers Detailed (default) and Compact. Compact keeps provider/account headers and labeled quota bars, omits their reset/detail lines and supplemental sections, and retains detail-only providers. Select a provider for its full card. Visibility choices and the shared Usage & Spend summary continue to apply.
 - Menu-card wrappers use standard non-vibrant view behavior so white GPU-tinted Overview content remains visible on macOS 15. Overview selection stays outside the SwiftUI graph, with native submenu click and drag tracking retained.
