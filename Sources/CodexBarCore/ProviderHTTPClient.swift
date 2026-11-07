@@ -117,6 +117,12 @@ public struct ProviderHTTPTransportHandler: ProviderHTTPTransport {
     }
 }
 
+enum ProviderHTTPRetryTiming {
+    @TaskLocal static var sleep: @Sendable (TimeInterval) async throws -> Void = {
+        try await Task.sleep(nanoseconds: UInt64($0 * 1_000_000_000))
+    }
+}
+
 extension ProviderHTTPTransport {
     public func response(for request: URLRequest) async throws -> ProviderHTTPResponse {
         try await self.response(for: request, retryPolicy: .disabled)
@@ -161,7 +167,7 @@ extension ProviderHTTPTransport {
     {
         let delay = policy.delaySeconds(attempt: attempt, response: response)
         guard delay > 0 else { return }
-        try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+        try await ProviderHTTPRetryTiming.sleep(delay)
     }
 }
 

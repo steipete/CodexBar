@@ -37,13 +37,13 @@ public final class ScriptFetchStrategy: ProviderFetchStrategy, @unchecked Sendab
     private let bundledPlugin: String
     private let sourceLabel: String
     private let secretKey: String?
-    private let resolveValues: ValuesResolver
+    let resolveValues: ValuesResolver
     private let validateContext: ContextValidator
     private let isEnabled: EnabledResolver
     private let transport: any ProviderHTTPTransport
-    private let timeout: TimeInterval
+    let timeout: TimeInterval
     private let lock = NSLock()
-    private var runtime: ProviderPluginRuntime?
+    private(set) var runtime: ProviderPluginRuntime?
     private var runtimeInUse = false
 
     public init(
