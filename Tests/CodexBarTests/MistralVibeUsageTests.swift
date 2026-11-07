@@ -1,9 +1,9 @@
 import Foundation
+import Testing
+@testable import CodexBarCore
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import Testing
-@testable import CodexBarCore
 
 private final class MistralRequestCapture: @unchecked Sendable {
     private let lock = NSLock()
@@ -102,6 +102,39 @@ struct MistralVibeUsageTests {
             "ory_session_chrome=stale",
             "ory_session_firefox=stale",
             "ory_session_safari=valid",
+        ])
+    }
+
+    @Test
+    func `tries later browser sessions after a login redirect`() async throws {
+        let headerLog = MistralCookieHeaderLog()
+        let usageData = Data(Self.billingUsageResponseJSON.utf8)
+        let sessions = try [
+            Self.session(cookieName: "ory_session_cached", value: "expired", sourceLabel: "Chrome"),
+            Self.session(cookieName: "ory_session_firefox", value: "valid", sourceLabel: "Firefox"),
+        ]
+        let transport = ProviderHTTPTransportHandler { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            if url.host == "admin.mistral.ai", url.path == "/api/billing/v2/usage" {
+                headerLog.record(request)
+                let cookieHeader = request.value(forHTTPHeaderField: "Cookie") ?? ""
+                if cookieHeader.contains("ory_session_firefox=valid") {
+                    return try (usageData, Self.response(url: url, statusCode: 200))
+                }
+                return try (Data(), Self.response(url: url, statusCode: 302, location: Self.loginLocation))
+            }
+            return try (Data(), Self.response(url: url, statusCode: 404))
+        }
+
+        let (_, session) = try await MistralWebFetchStrategy.fetchUsageFromSessions(
+            sessions,
+            timeout: 2,
+            transport: transport)
+
+        #expect(session.sourceLabel == "Firefox")
+        #expect(headerLog.headers == [
+            "ory_session_cached=expired",
+            "ory_session_firefox=valid",
         ])
     }
     #endif
@@ -205,6 +238,93 @@ struct MistralVibeUsageTests {
             transport: transport)
 
         #expect(result == nil)
+    }
+
+    @Test(arguments: [301, 302, 303, 307, 308])
+    func `login redirect from billing usage is invalid credentials`(statusCode: Int) async throws {
+        let transport = ProviderHTTPTransportHandler { request in
+            let url = try #require(request.url)
+            return try (Data(), Self.response(url: url, statusCode: statusCode, location: Self.loginLocation))
+        }
+
+        await #expect {
+            _ = try await MistralUsageFetcher.fetchUsage(
+                cookieHeader: "ory_session_x=expired",
+                csrfToken: nil,
+                timeout: 2,
+                transport: transport)
+        } throws: { error in
+            guard case MistralUsageError.invalidCredentials = error else { return false }
+            return true
+        }
+    }
+
+    @Test(arguments: [
+        nil,
+        "",
+        "not a url \u{0}",
+        "/organization/usage",
+        "https://admin.mistral.ai/self-service/login/browser",
+        "https://auth.mistral.ai/self-service/registration/browser",
+        "https://auth.mistral.ai/self-service/loginx",
+        "http://auth.mistral.ai/self-service/login/browser",
+        "https://auth.mistral.ai.example.com/self-service/login/browser",
+    ])
+    func `other redirects stay API errors`(location: String?) async throws {
+        let transport = ProviderHTTPTransportHandler { request in
+            let url = try #require(request.url)
+            return try (Data(), Self.response(url: url, statusCode: 302, location: location))
+        }
+
+        await #expect {
+            _ = try await MistralUsageFetcher.fetchUsage(
+                cookieHeader: "ory_session_x=expired",
+                csrfToken: nil,
+                timeout: 2,
+                transport: transport)
+        } throws: { error in
+            guard case let MistralUsageError.apiError(message) = error else { return false }
+            return message.hasPrefix("HTTP 302")
+        }
+    }
+
+    @Test
+    func `login redirect on the console Vibe request is invalid credentials`() async throws {
+        let transport = ProviderHTTPTransportHandler { request in
+            let url = try #require(request.url)
+            return try (Data(), Self.response(url: url, statusCode: 302, location: Self.loginLocation))
+        }
+
+        await #expect {
+            _ = try await MistralUsageFetcher.fetchVibeUsage(
+                csrfToken: "csrf-value",
+                timeout: 2,
+                transport: transport)
+        } throws: { error in
+            guard case MistralUsageError.invalidCredentials = error else { return false }
+            return true
+        }
+    }
+
+    @Test
+    func `optional requests stay best effort after a login redirect`() async throws {
+        let transport = ProviderHTTPTransportHandler { request in
+            let url = try #require(request.url)
+            return try (Data(), Self.response(url: url, statusCode: 302, location: Self.loginLocation))
+        }
+
+        let budgets = try await MistralWebFetchStrategy.fetchOptionalSubscriptionBudgets(
+            cookieHeader: "ory_session_x=expired",
+            timeout: 2,
+            transport: transport)
+        let credits = try await MistralWebFetchStrategy.fetchOptionalCredits(
+            cookieHeader: "ory_session_x=expired",
+            csrfToken: nil,
+            timeout: 2,
+            transport: transport)
+
+        #expect(budgets == nil)
+        #expect(credits == nil)
     }
 
     @Test
@@ -383,11 +503,14 @@ struct MistralVibeUsageTests {
         """
     }
 
-    private static func response(url: URL, statusCode: Int) throws -> HTTPURLResponse {
+    private static let loginLocation =
+        "https://auth.mistral.ai/self-service/login/browser?return_to=https%3A%2F%2Fadmin.mistral.ai%2Fapi"
+
+    private static func response(url: URL, statusCode: Int, location: String? = nil) throws -> HTTPURLResponse {
         try #require(HTTPURLResponse(
             url: url,
             statusCode: statusCode,
             httpVersion: nil,
-            headerFields: nil))
+            headerFields: location.map { ["Location": $0] }))
     }
 }
