@@ -281,6 +281,7 @@ struct SpendProviderIcon: View {
     var sourceKind: SpendDashboardModel.SourceKind = .native
     var style: ProviderBrandIcon.Style = .brand
     var size: CGFloat = 20
+    var foreground: Color = .primary
 
     var body: some View {
         Group {
@@ -300,7 +301,7 @@ struct SpendProviderIcon: View {
                     .resizable().scaledToFit()
             }
         }
-        .foregroundStyle(.primary)
+        .foregroundStyle(self.foreground)
         .frame(width: self.size, height: self.size)
         .accessibilityHidden(true)
     }

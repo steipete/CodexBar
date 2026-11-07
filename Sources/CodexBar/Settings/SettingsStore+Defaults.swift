@@ -916,7 +916,7 @@ extension SettingsStore {
     }
 
     var mergedOverviewLayout: MergedOverviewLayout {
-        get { MergedOverviewLayout(rawValue: self.defaultsState.mergedOverviewLayoutRaw) ?? .detailed }
+        get { MergedOverviewLayout(rawValue: self.defaultsState.mergedOverviewLayoutRaw) ?? .compact }
         set { self.setDefault(\.mergedOverviewLayoutRaw, newValue.rawValue, key: "mergedOverviewLayout") }
     }
 
@@ -1036,7 +1036,7 @@ extension SettingsStore {
         guard self.hasMergedOverviewSelectionPreference else {
             return Array(normalizedActive.prefix(maxVisibleProviders))
         }
-        if normalizedActive.count <= maxVisibleProviders,
+        if normalizedActive.count <= min(maxVisibleProviders, Self.mergedOverviewSavedSelectionThreshold),
            !self.mergedOverviewSelectionApplies(to: normalizedActive)
         {
             return normalizedActive
@@ -1062,7 +1062,8 @@ extension SettingsStore {
             return []
         }
 
-        let shouldPersistResolvedSelection = normalizedActive.count > maxVisibleProviders ||
+        let shouldPersistResolvedSelection =
+            normalizedActive.count > min(maxVisibleProviders, Self.mergedOverviewSavedSelectionThreshold) ||
             self.mergedOverviewSelectionApplies(to: normalizedActive)
 
         if self.hasMergedOverviewSelectionPreference, shouldPersistResolvedSelection {

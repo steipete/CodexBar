@@ -684,7 +684,7 @@ extension StatusMenuTests {
     }
 
     @Test
-    func `overview keeps six visible providers while accounting for all seven connected providers`() throws {
+    func `overview keeps twelve visible providers while accounting for all thirteen connected providers`() throws {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -702,6 +702,12 @@ extension StatusMenuTests {
             .openrouter,
             .grok,
             .codex,
+            .copilot,
+            .warp,
+            .kimi,
+            .factory,
+            .windsurf,
+            .perplexity,
         ]
         enableTestProviders(Set(connected), settings: settings)
 
@@ -774,12 +780,12 @@ extension StatusMenuTests {
         let ids = menu.items.compactMap { $0.representedObject as? String }
         let overviewRows = ids.filter { $0.hasPrefix("overviewRow-") }
 
-        #expect(scopes.visible.count == 6)
+        #expect(scopes.visible.count == 12)
         #expect(!scopes.visible.contains(hiddenProvider.instanceID))
         #expect(scopes.spend == enabledRoster)
         #expect(duplicateScopes.spend == enabledRoster)
         #expect(Set(overviewRows) == Set(scopes.visible.map { "overviewRow-\($0.rawValue)" }))
-        #expect(overviewRows.count == 6)
+        #expect(overviewRows.count == 12)
         #expect(ids.contains("overviewSpendSummary"))
         #expect(ids.contains("overviewShareStats"))
         let shareItem = try #require(menu.items.first {
@@ -791,7 +797,7 @@ extension StatusMenuTests {
         #expect(Set(model.groups.first?.providers.map(\.provider) ?? []) == Set(pricedProviders))
         #expect(abs((model.groups.first?.totalCost ?? -1) - 85) < 1e-9)
         #expect(summary.primarySpendText == "~$85.00")
-        #expect(summary.providerCoverageText == "3 of 7 subscriptions have spend")
+        #expect(summary.providerCoverageText == "3 of 13 subscriptions have spend")
         #expect(summary.isPartial)
     }
 

@@ -7,6 +7,15 @@ final class MenuCardMenuItem: NSMenuItem {
     override var isHighlighted: Bool {
         false
     }
+
+    /// AppKit closes the menu on an accessibility press of an item that hosts a view, without sending its action.
+    override func accessibilityPerformPress() -> Bool {
+        guard self.submenu == nil, let action = self.action, let target = self.target as? NSObject else {
+            return super.accessibilityPerformPress()
+        }
+        _ = target.perform(action, with: self)
+        return true
+    }
 }
 
 extension StatusItemController {
@@ -38,6 +47,7 @@ extension StatusItemController {
         submenu: NSMenu? = nil,
         submenuIndicatorAlignment: Alignment = .topTrailing,
         submenuIndicatorTopPadding: CGFloat = 8,
+        showsSubmenuIndicator: Bool = true,
         containsInteractiveControls: Bool = false,
         usesGPUSelection: Bool = false,
         onClick: (() -> Void)? = nil) -> NSMenuItem
@@ -72,7 +82,7 @@ extension StatusItemController {
             content: AnyView(view
                 .environment(\.providerMenuChartSettings, self.settings)
                 .environment(\.providerCardAction, cardAction)),
-            showsSubmenuIndicator: submenu != nil,
+            showsSubmenuIndicator: showsSubmenuIndicator && submenu != nil,
             submenuIndicatorAlignment: submenuIndicatorAlignment,
             submenuIndicatorTopPadding: submenuIndicatorTopPadding,
             allowsMenuHighlight: allowsMenuHighlight,

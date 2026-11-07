@@ -1561,7 +1561,8 @@ extension StatusMenuTests {
         let ids = self.representedIDs(in: menu)
         let overviewRows = ids.filter { $0.hasPrefix("overviewRow-") }
         #expect(Set(overviewRows) == Set(enabledProviders.map { "overviewRow-\($0.rawValue)" }))
-        #expect(menu.items.count(where: \.isSeparatorItem) == overviewRows.count + 1)
+        // Compact rows are separated by spacing: one rule under the switcher, one above the footer.
+        #expect(menu.items.count(where: \.isSeparatorItem) == 2)
     }
 
     @Test

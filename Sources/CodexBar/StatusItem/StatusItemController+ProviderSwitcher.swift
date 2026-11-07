@@ -312,7 +312,8 @@ extension StatusItemController {
     func handleProviderSwitcherTrackingEvent(_ event: NSEvent, menu: NSMenu) -> Bool {
         switch event.type {
         case .keyDown:
-            return self.handleProviderSwitcherShortcut(event, menu: menu)
+            return self.handleProviderSwitcherShortcut(event, menu: menu) ||
+                self.activateHighlightedOverviewRow(event, menu: menu)
         case .leftMouseDown:
             guard let switcher = menu.items.first?.view as? ProviderSwitcherView else { return false }
             self.beginProviderSwitcherPointerInteraction(in: menu)

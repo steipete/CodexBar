@@ -8,11 +8,11 @@ import Testing
 @MainActor
 struct CompactOverviewTests {
     @Test
-    func `layout defaults to detailed and unknown values fail back to detailed`() {
+    func `layout defaults to compact and unknown values fail back to compact`() {
         let defaults = InMemoryUserDefaults()
-        #expect(Self.settings(defaults).mergedOverviewLayout == .detailed)
+        #expect(Self.settings(defaults).mergedOverviewLayout == .compact)
         defaults.set("unsupported-layout", forKey: "mergedOverviewLayout")
-        #expect(Self.settings(defaults).mergedOverviewLayout == .detailed)
+        #expect(Self.settings(defaults).mergedOverviewLayout == .compact)
     }
 
     @Test

@@ -93,6 +93,21 @@ struct PaceVisibilityTests {
         #expect(primary.detailRightText == nil)
     }
 
+    @Test
+    func `the primary metric carries the forecast only while pace is visible`() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.claude])
+        let visible = UsageMenuCardView.Model.make(
+            Self.offPaceInput(now: now, metadata: metadata, paceVisible: true))
+        let eta = try #require(visible.metrics.first { $0.id == "primary" }?.exhaustionETASeconds)
+        #expect(eta <= UsageMenuCardView.Model.Metric.imminentExhaustionSeconds)
+
+        let hidden = UsageMenuCardView.Model.make(
+            Self.offPaceInput(now: now, metadata: metadata, paceVisible: false))
+        #expect(!hidden.metrics.isEmpty)
+        #expect(hidden.metrics.allSatisfy { $0.exhaustionETASeconds == nil })
+    }
+
     /// Guards the interaction with `redactedMetrics`, which rebuilds every
     /// metric field by field when personal info is hidden.
     @Test

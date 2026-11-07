@@ -48,16 +48,21 @@ struct UserPluginQuotaPresentationTests {
 
     @MainActor
     @Test
-    func `plugin selection shares the six provider budget`() throws {
+    func `plugin selection shares the overview provider budget`() throws {
         let settings = testSettingsStore(suiteName: "plugin-overview-limit", userDefaults: InMemoryUserDefaults())
         let plugin = try #require(ProviderInstanceID(rawValue: "fixture-meter"))
-        let active: [ProviderInstanceID] = [.codex, .claude, .cursor, .warp, .gemini, .opencode, plugin]
+        let firstParty: [ProviderInstanceID] = [
+            .codex, .claude, .cursor, .warp, .gemini, .opencode,
+            .grok, .copilot, .kimi, .factory, .windsurf, .perplexity,
+        ]
+        #expect(firstParty.count == SettingsStore.mergedOverviewProviderLimit)
+        let active = firstParty + [plugin]
         #expect(settings.setMergedOverviewProviderSelection(
-            provider: plugin, isSelected: true, activeProviders: active) == Array(active.prefix(6)))
+            provider: plugin, isSelected: true, activeProviders: active) == firstParty)
         _ = settings.setMergedOverviewProviderSelection(provider: .claude, isSelected: false, activeProviders: active)
         let selected = settings.setMergedOverviewProviderSelection(
             provider: plugin, isSelected: true, activeProviders: active)
-        #expect(selected == [.codex, .cursor, .warp, .gemini, .opencode, plugin])
+        #expect(selected == firstParty.filter { $0 != .claude } + [plugin])
         #expect(settings.userDefaults.stringArray(forKey: "mergedOverviewSelectedProviders") == selected
             .map(\.rawValue))
         #expect(settings.resolvedMergedOverviewProviders(activeProviders: active) == selected)

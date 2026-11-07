@@ -44,6 +44,8 @@ struct UsageMenuCardView: View {
             var pacePercent: Double?
             /// True when detailLeftText/detailRightText came from a pace forecast.
             let detailIsPaceDerived: Bool
+            /// Seconds until a pace forecast expects this limit to run out before its reset; nil when it lasts.
+            var exhaustionETASeconds: TimeInterval?
             let paceOnTop: Bool
             let warningMarkerPercents: [Double]
             let workdayMarkerPercents: [Double]
@@ -66,6 +68,7 @@ struct UsageMenuCardView: View {
                 detailRightText: String?,
                 pacePercent: Double?,
                 detailIsPaceDerived: Bool = false,
+                exhaustionETASeconds: TimeInterval? = nil,
                 paceOnTop: Bool,
                 warningMarkerPercents: [Double] = [],
                 workdayMarkerPercents: [Double] = [],
@@ -86,6 +89,7 @@ struct UsageMenuCardView: View {
                 self.detailRightText = detailRightText
                 self.pacePercent = pacePercent
                 self.detailIsPaceDerived = detailIsPaceDerived
+                self.exhaustionETASeconds = exhaustionETASeconds
                 self.paceOnTop = paceOnTop
                 self.warningMarkerPercents = warningMarkerPercents
                 self.workdayMarkerPercents = workdayMarkerPercents
@@ -1286,6 +1290,7 @@ extension UsageMenuCardView.Model {
                 detailRightText: tertiaryPaceDetail?.rightLabel,
                 pacePercent: tertiaryPaceDetail?.pacePercent,
                 detailIsPaceDerived: tertiaryPaceDetail?.isPaceDerived ?? false,
+                exhaustionETASeconds: tertiaryPaceDetail?.exhaustionETASeconds,
                 paceOnTop: tertiaryPaceDetail?.paceOnTop ?? true,
                 warningMarkerPercents: Self.warningMarkerPercents(
                     thresholds: input.quotaWarningThresholds[.weekly],
@@ -1380,6 +1385,7 @@ extension UsageMenuCardView.Model {
             detailRightText: presentation.detailRight,
             pacePercent: presentation.pacePercent,
             detailIsPaceDerived: presentation.detailIsPaceDerived,
+            exhaustionETASeconds: presentation.exhaustionETASeconds,
             paceOnTop: presentation.paceOnTop,
             warningMarkerPercents: Self.warningMarkerPercents(
                 thresholds: input.quotaWarningThresholds[
@@ -1502,6 +1508,7 @@ extension UsageMenuCardView.Model {
             detailRightText: paceDetail?.rightLabel,
             pacePercent: paceDetail?.pacePercent,
             detailIsPaceDerived: paceDetail?.isPaceDerived ?? false,
+            exhaustionETASeconds: paceDetail?.exhaustionETASeconds,
             paceOnTop: paceDetail?.paceOnTop ?? true,
             warningMarkerPercents: Self.warningMarkerPercents(
                 thresholds: input.quotaWarningThresholds[.weekly],

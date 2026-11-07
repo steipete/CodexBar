@@ -245,7 +245,9 @@ struct SettingsStoreKeychainAccessPolicy {
 @Observable
 final class SettingsStore {
     static let sharedDefaults = SettingsStore.resolveSharedDefaults()
-    static let mergedOverviewProviderLimit = 6
+    static let mergedOverviewProviderLimit = 12
+    /// Selections saved before one-line rows, when the limit was 6, stay honored past that roster size.
+    static let mergedOverviewSavedSelectionThreshold = 6
     static let productionCodexAccountReconciliationSnapshotCacheInterval: TimeInterval = 2
     static let isRunningTests = TestProcessSafety.isRunning
 
@@ -712,7 +714,7 @@ extension SettingsStore {
             jetbrainsIDEBasePath: userDefaults.string(forKey: "jetbrainsIDEBasePath") ?? "",
             mergeIcons: userDefaults.object(forKey: "mergeIcons") as? Bool ?? true,
             mergedOverviewLayoutRaw: userDefaults.string(forKey: "mergedOverviewLayout")
-                ?? MergedOverviewLayout.detailed.rawValue,
+                ?? MergedOverviewLayout.compact.rawValue,
             mergedOverviewAllAccounts: userDefaults.bool(forKey: "mergedOverviewAllAccounts"),
             switcherShowsIcons: userDefaults.object(forKey: "switcherShowsIcons") as? Bool ?? true,
             mergeIconsStacked: userDefaults.object(forKey: "mergeIconsStacked") as? Bool ?? false,

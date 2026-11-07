@@ -72,6 +72,7 @@ extension UsageMenuCardView.Model {
                 detailRightText: paceDetail?.rightLabel,
                 pacePercent: paceDetail?.pacePercent,
                 detailIsPaceDerived: paceDetail?.isPaceDerived ?? false,
+                exhaustionETASeconds: paceDetail?.exhaustionETASeconds,
                 paceOnTop: paceDetail?.paceOnTop ?? true,
                 warningMarkerPercents: Self.warningMarkerPercents(
                     thresholds: lane.quotaWarningWindow.flatMap { input.quotaWarningThresholds[$0] },

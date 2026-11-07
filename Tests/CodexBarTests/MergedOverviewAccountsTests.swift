@@ -16,7 +16,7 @@ struct MergedOverviewAccountsTests {
         settings.mergedOverviewAllAccounts = true
         #expect(ProviderUsageItemVisibilityTests.settings(defaults: defaults, configStore: config)
             .mergedOverviewAllAccounts)
-        #expect(before.count == SettingsStore.mergedOverviewProviderLimit)
+        #expect(before.count == providers.count)
         #expect(settings.resolvedMergedOverviewProviders(activeProviders: providers) == before)
         settings.setMergedOverviewProviderSelection(provider: .codex, isSelected: false, activeProviders: providers)
         #expect(!settings.resolvedMergedOverviewProviders(activeProviders: providers).contains(.codex))

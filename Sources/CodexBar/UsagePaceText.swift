@@ -7,6 +7,7 @@ enum UsagePaceText {
         let rightLabel: String?
         let expectedUsedPercent: Double
         let stage: UsagePace.Stage
+        var exhaustionETASeconds: TimeInterval?
     }
 
     struct SessionEquivalentDetail: Equatable {
@@ -55,7 +56,8 @@ enum UsagePaceText {
             leftLabel: self.detailLeftLabel(for: pace),
             rightLabel: self.detailRightLabel(for: pace, provider: provider, context: .weekly, now: now),
             expectedUsedPercent: pace.expectedUsedPercent,
-            stage: pace.stage)
+            stage: pace.stage,
+            exhaustionETASeconds: pace.willLastToReset ? nil : pace.etaSeconds)
     }
 
     static func sessionEquivalentDetail(forecast: SessionEquivalentForecast) -> SessionEquivalentDetail {
@@ -156,7 +158,7 @@ enum UsagePaceText {
         return L("1.5× headroom")
     }
 
-    private static func durationText(seconds: TimeInterval, now: Date) -> String {
+    static func durationText(seconds: TimeInterval, now: Date) -> String {
         UsageFormatter.resetCountdownDuration(from: now.addingTimeInterval(seconds), now: now)
     }
 
@@ -181,7 +183,8 @@ enum UsagePaceText {
             leftLabel: Self.detailLeftLabel(for: pace),
             rightLabel: Self.detailRightLabel(for: pace, provider: provider, context: .session, now: now),
             expectedUsedPercent: pace.expectedUsedPercent,
-            stage: pace.stage)
+            stage: pace.stage,
+            exhaustionETASeconds: pace.willLastToReset ? nil : pace.etaSeconds)
     }
 
     static func sessionSummary(provider: UsageProvider, window: RateWindow, now: Date = .init()) -> String? {
