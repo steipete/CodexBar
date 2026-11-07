@@ -2824,4 +2824,14 @@
 "Tripo is rate limiting requests. Try again later." = "Tripo is rate limiting requests. Try again later.";
 "Tripo request failed. Try refreshing later." = "Tripo request failed. Try refreshing later.";
 "Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo returned an unrecognized response. Update CodexBar and try again.";
+
+/* Provider setup guidance. */
+"Authorize GitHub's device code to save a Copilot token account." = "Authorize GitHub's device code to save a Copilot token account.";
+"Supply a GitHub token accepted by the Copilot usage API." = "Supply a GitHub token accepted by the Copilot usage API.";
+"Optional, best-effort budgets for public github.com only. Enable Budget extras in the macOS app; the browser session must match the token account. Quota usage does not need cookies." = "Optional, best-effort budgets for public github.com only. Enable Budget extras in the macOS app; the browser session must match the token account. Quota usage does not need cookies.";
+"In the macOS app, select manual cookie source and supply the matching GitHub Cookie header." = "In the macOS app, select manual cookie source and supply the matching GitHub Cookie header.";
+"Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app." = "Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app.";
+"Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints." = "Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints.";
+"A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback.";
+"Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query.";
 "Mistral session expired or invalid." = "Mistral session expired or invalid.";

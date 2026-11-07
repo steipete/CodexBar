@@ -2822,4 +2822,14 @@
 "Tripo is rate limiting requests. Try again later." = "Tripo istek sıklığını sınırlıyor. Daha sonra tekrar deneyin.";
 "Tripo request failed. Try refreshing later." = "Tripo isteği başarısız oldu. Daha sonra yeniden yenileyin.";
 "Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo tanınmayan bir yanıt döndürdü. CodexBar’ı güncelleyip tekrar deneyin.";
+
+/* Provider setup guidance. */
+"Authorize GitHub's device code to save a Copilot token account." = "Bir Copilot belirteç hesabı kaydetmek için GitHub cihaz kodunu onaylayın.";
+"Supply a GitHub token accepted by the Copilot usage API." = "Copilot kullanım API’sinin kabul ettiği bir GitHub belirteci sağlayın.";
+"Optional, best-effort budgets for public github.com only. Enable Budget extras in the macOS app; the browser session must match the token account. Quota usage does not need cookies." = "Yalnızca herkese açık github.com için isteğe bağlı, garantisiz bütçeler. macOS uygulamasında bütçe eklerini etkinleştirin; tarayıcı oturumu belirteç hesabıyla eşleşmelidir. Kotalar için çerez gerekmez.";
+"In the macOS app, select manual cookie source and supply the matching GitHub Cookie header." = "macOS uygulamasında elle çerez kaynağını seçin ve eşleşen GitHub Cookie başlığını sağlayın.";
+"Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app." = "Desteklenen bir tarayıcıda GitHub’a giriş yapın ve macOS uygulamasında otomatik çerez içe aktarmayı seçin.";
+"Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints." = "Kuruluş maliyetleri ve kullanımı için kuruluş Admin API anahtarı kullanın. Proje ve hizmet hesabı anahtarları bu uç noktaları okuyamaz.";
+"A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "Normal bir API anahtarı yalnızca garantisiz eski bakiye yedeğini destekler, kuruluş kullanımını değil. Proje kapsamlı yapılandırılmış anahtarlar bu yedeği kullanmaz.";
+"Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Anahtar, HTTPS kaynak uç noktası ve dağıtım adı sağlayın. API sürümü isteğe bağlıdır. Yenileme, kullanım geçmişi sorgusu yerine ücret doğurabilecek bir doğrulama isteği gönderir.";
 "Mistral session expired or invalid." = "Mistral oturumunun süresi doldu veya oturum geçersiz.";
