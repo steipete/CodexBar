@@ -24,4 +24,28 @@ struct ProviderBrowsingSearchTests {
         #expect(ProvidersPane.filteredProviders(
             [.codex, .alibaba], query: "  ", displayName: displayName) == [.codex, .alibaba])
     }
+
+    @Test
+    func `Qwen search includes mainland Token Plan and international Qwen Cloud`() {
+        let matches = ProvidersPane.filteredProviders(
+            [.codex, .alibabatokenplan, .qwencloud],
+            query: "Qwen",
+            displayName: { ProviderDescriptorRegistry.descriptor(for: $0).metadata.displayName })
+        #expect(matches == [.alibabatokenplan, .qwencloud])
+    }
+
+    @Test(arguments: ["qwen-cn", "qianwen", "qianwenai"])
+    func `mainland Qwen aliases find Alibaba Token Plan`(alias: String) {
+        #expect(ProvidersPane.filteredProviders(
+            [.codex, .alibabatokenplan, .qwencloud],
+            query: alias,
+            displayName: { ProviderDescriptorRegistry.descriptor(for: $0).metadata.displayName }) ==
+            [.alibabatokenplan])
+        #expect(ProviderDescriptorRegistry.cliNameMap[alias] == .alibabatokenplan)
+    }
+
+    @Test(arguments: ["qwen", "qwencloud", "qwen-cloud", "qwen-token-plan"])
+    func `existing Qwen CLI names still select international Qwen Cloud`(name: String) {
+        #expect(ProviderDescriptorRegistry.cliNameMap[name] == .qwencloud)
+    }
 }

@@ -2787,3 +2787,4 @@
 "Tripo is rate limiting requests. Try again later." = "Tripo가 요청 빈도를 제한하고 있습니다. 나중에 다시 시도하세요.";
 "Tripo request failed. Try refreshing later." = "Tripo 요청에 실패했습니다. 나중에 다시 새로 고침하세요.";
 "Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo가 알 수 없는 응답을 반환했습니다. CodexBar를 업데이트하고 다시 시도하세요.";
+"Mistral session expired or invalid." = "Mistral 세션이 만료되었거나 유효하지 않습니다.";
