@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Widgets: large usage tiles list the provider's top three models with their share of its local history when that history has a complete model split (#4890).
+
 ## 0.84.0 — 2026-11-06
 
 ### Highlights

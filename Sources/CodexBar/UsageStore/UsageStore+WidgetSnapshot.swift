@@ -358,7 +358,67 @@ extension UsageStore {
             providerCost: providerCost,
             quotaOwnerKey: snapshot != nil ? claudeQuotaOwnerKey : preservedClaudeUsage?.quotaOwnerKey,
             balanceText: balanceText,
-            details: snapshot.flatMap { $0.details.isEmpty ? nil : $0.details })
+            details: snapshot.flatMap { $0.details.isEmpty ? nil : $0.details },
+            topModels: Self.widgetTopModels(from: tokenSnapshot))
+    }
+
+    /// The provider's own leading models over its local cost history, so the widget can name them
+    /// without reading another provider's data.
+    nonisolated static func widgetTopModels(from snapshot: CostUsageTokenSnapshot?) -> [WidgetSnapshot.ModelShare]? {
+        guard let snapshot, snapshot.historyIsFullyScanned else { return nil }
+        var order: [String] = []
+        var tokens: [String: [Int?]] = [:]
+        var costs: [String: [Double?]] = [:]
+        for entry in snapshot.daily {
+            // A day with usage but no model split would make every share overstate its model. Unmetered
+            // or incomplete requests are missing from the totals, so no basis can cover them.
+            let hasUsage = (entry.totalTokens ?? 0) > 0 || (entry.costUSD ?? 0) > 0 ||
+                (entry.requestCount ?? 0) > 0 || (entry.unpricedRequestCount ?? 0) > 0
+            if (entry.unmeteredRequestCount ?? 0) > 0 || entry.incompleteRequestCount > 0 ||
+                (hasUsage && entry.modelBreakdowns?.isEmpty ?? true)
+            {
+                return nil
+            }
+            // Validate only named rows: unnamed usage is omitted from the widget's denominator.
+            // Coverage must hold on every day, so overcounts cannot cancel another day's missing usage.
+            let named = (entry.modelBreakdowns ?? []).filter {
+                !$0.modelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
+            guard named.count == (entry.modelBreakdowns?.count ?? 0) else { return nil }
+            let dayCosts = named.compactMap(\.costUSD)
+            let costTotal = dayCosts.reduce(0, +)
+            let spendIsComplete = (entry.unpricedRequestCount ?? 0) == 0 &&
+                dayCosts.count == named.count && dayCosts.allSatisfy { $0.isFinite && $0 >= 0 } &&
+                costTotal.isFinite && (entry.costUSD.map {
+                    $0.isFinite && $0 >= 0 && abs(costTotal - $0) <= max(1, abs($0)) * 1e-9
+                } ?? true)
+            let dayTokens = named.compactMap(\.totalTokens)
+            let tokenTotal = CheckedSum.integers(dayTokens)
+            let tokensAreComplete = dayTokens.count == named.count && dayTokens.allSatisfy { $0 >= 0 } &&
+                tokenTotal != nil && (entry.totalTokens.map { $0 >= 0 && tokenTotal == $0 } ?? true)
+            // An invalid basis on even one day must remain unavailable across the whole history.
+            guard spendIsComplete || tokensAreComplete else { return nil }
+            for breakdown in named {
+                let name = breakdown.modelName.trimmingCharacters(in: .whitespacesAndNewlines)
+                if tokens[name] == nil, costs[name] == nil {
+                    order.append(name)
+                }
+                tokens[name, default: []].append(tokensAreComplete ? breakdown.totalTokens : nil)
+                costs[name, default: []].append(spendIsComplete ? breakdown.costUSD : nil)
+            }
+        }
+        let inputs = order.map { name in
+            let modelCosts = costs[name] ?? []
+            // A day without a count makes the total unknown rather than a silent partial sum.
+            let modelTokens = tokens[name] ?? []
+            let summedTokens = modelTokens.contains(where: { $0 == nil })
+                ? nil : CheckedSum.integers(modelTokens.compactMap(\.self))
+            return WidgetSnapshot.ModelShareInput(
+                modelName: name,
+                totalTokens: summedTokens,
+                costUSD: modelCosts.contains(where: { $0 == nil }) ? nil : modelCosts.compactMap(\.self).reduce(0, +))
+        }
+        return WidgetSnapshot.ModelShare.leading(inputs)
     }
 
     private func claudeWidgetQuotaOwnerKey() -> String {

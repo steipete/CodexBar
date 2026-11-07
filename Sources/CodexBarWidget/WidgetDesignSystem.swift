@@ -424,6 +424,42 @@ struct HeroBlock: View {
     }
 }
 
+// MARK: - Top models
+
+/// A provider's leading models: name, share of the provider's usage, and a bar for that share.
+struct WidgetTopModels: View {
+    let models: [WidgetSnapshot.ModelShare]
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            WidgetSeparator()
+            Text(W("Models"))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            ForEach(Array(self.models.enumerated()), id: \.offset) { _, model in
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text(model.modelName)
+                            .font(.caption)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer(minLength: 4)
+                        Text(WidgetTopModels.shareText(model.share))
+                            .font(.caption.weight(.semibold))
+                            .monospacedDigit()
+                    }
+                    QuotaBar(percent: model.share * 100, color: self.color, height: 4)
+                }
+            }
+        }
+    }
+
+    static func shareText(_ share: Double) -> String {
+        share.formatted(.percent.precision(.fractionLength(share > 0 && share < 0.01 ? 1 : 0)))
+    }
+}
+
 // MARK: - Value rows
 
 /// A right-aligned figure with a muted label, used for cost and credit rows.

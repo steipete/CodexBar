@@ -32,6 +32,9 @@ public struct WidgetSnapshot: Codable, Sendable {
         public let quotaOwnerKey: String?
         public let balanceText: String?
         public let details: [ProviderDetailSection]?
+        /// This provider's leading models over its local cost history. `nil` when the history has no
+        /// model breakdown or no metric covers every model.
+        public let topModels: [ModelShare]?
 
         public init(
             instanceID: ProviderInstanceID,
@@ -47,7 +50,8 @@ public struct WidgetSnapshot: Codable, Sendable {
             providerCost: ProviderCostSnapshot? = nil,
             quotaOwnerKey: String? = nil,
             balanceText: String? = nil,
-            details: [ProviderDetailSection]? = nil)
+            details: [ProviderDetailSection]? = nil,
+            topModels: [ModelShare]? = nil)
         {
             self.provider = instanceID
             self.updatedAt = updatedAt
@@ -63,6 +67,7 @@ public struct WidgetSnapshot: Codable, Sendable {
             self.quotaOwnerKey = quotaOwnerKey
             self.balanceText = balanceText
             self.details = details
+            self.topModels = topModels
         }
 
         public init(
@@ -79,7 +84,8 @@ public struct WidgetSnapshot: Codable, Sendable {
             providerCost: ProviderCostSnapshot? = nil,
             quotaOwnerKey: String? = nil,
             balanceText: String? = nil,
-            details: [ProviderDetailSection]? = nil)
+            details: [ProviderDetailSection]? = nil,
+            topModels: [ModelShare]? = nil)
         {
             self.init(
                 instanceID: provider.instanceID,
@@ -95,7 +101,68 @@ public struct WidgetSnapshot: Codable, Sendable {
                 providerCost: providerCost,
                 quotaOwnerKey: quotaOwnerKey,
                 balanceText: balanceText,
-                details: details)
+                details: details,
+                topModels: topModels)
+        }
+    }
+
+    /// One model's share of a provider's local usage. The share's basis is spend when every model in
+    /// the history is priced, otherwise tokens; it always divides by all models, not only the listed ones.
+    public struct ModelShare: Codable, Sendable, Equatable {
+        public let modelName: String
+        public let share: Double
+        public let totalTokens: Int?
+        public let costUSD: Double?
+
+        public init(modelName: String, share: Double, totalTokens: Int?, costUSD: Double?) {
+            self.modelName = modelName
+            self.share = share
+            self.totalTokens = totalTokens
+            self.costUSD = costUSD
+        }
+
+        /// Ranks a provider's models and keeps the leading `limit`, each with its share of the whole.
+        public static func leading(_ models: [ModelShareInput], limit: Int = 3) -> [ModelShare]? {
+            guard !models.isEmpty else { return nil }
+            let costs = models.map { $0.costUSD.flatMap { $0.isFinite && $0 >= 0 ? $0 : nil } }
+            let tokens = models.map { $0.totalTokens.flatMap { $0 >= 0 ? Double($0) : nil } }
+            let costTotal = costs.compactMap(\.self).reduce(0, +)
+            let tokenTotal = tokens.compactMap(\.self).reduce(0, +)
+            let basis: [Double?]
+            let total: Double
+            if !costs.contains(where: { $0 == nil }), costTotal > 0, costTotal.isFinite {
+                (basis, total) = (costs, costTotal)
+            } else if !tokens.contains(where: { $0 == nil }), tokenTotal > 0, tokenTotal.isFinite {
+                (basis, total) = (tokens, tokenTotal)
+            } else {
+                return nil
+            }
+            return zip(models, basis).enumerated()
+                .sorted { lhs, rhs in
+                    let left = lhs.element.1 ?? 0
+                    let right = rhs.element.1 ?? 0
+                    return left == right ? lhs.offset < rhs.offset : left > right
+                }
+                .prefix(max(0, limit))
+                .map { _, pair in
+                    ModelShare(
+                        modelName: pair.0.modelName,
+                        share: (pair.1 ?? 0) / total,
+                        totalTokens: pair.0.totalTokens,
+                        costUSD: pair.0.costUSD)
+                }
+        }
+    }
+
+    public struct ModelShareInput: Sendable, Equatable {
+        public let modelName: String
+        public let totalTokens: Int?
+        public let costUSD: Double?
+
+        public init(modelName: String, totalTokens: Int?, costUSD: Double?) {
+            self.modelName = modelName
+            self.totalTokens = totalTokens
+            self.costUSD = costUSD
         }
     }
 

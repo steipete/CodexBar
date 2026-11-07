@@ -77,7 +77,10 @@ struct UsageTile<Header: View>: View {
         let displayLanes = self.laneLimit == nil
             ? allLanes
             : WidgetTileLane.lanes(for: self.entry, limit: self.laneLimit)
-        let hasChart = self.size.showsChart(
+        // Large tiles name the provider's leading models when the history has them; the History widget
+        // keeps the daily chart.
+        let topModels = self.size == .large ? Array((self.entry.topModels ?? []).prefix(3)) : []
+        let hasChart = topModels.isEmpty && self.size.showsChart(
             laneCount: allLanes.count,
             hasHistory: !self.entry.dailyUsage.isEmpty)
         let fallback = allLanes.contains(where: \.isHeadlineCandidate) ? nil : WidgetFallbackHero.make(for: self.entry)
@@ -91,7 +94,7 @@ struct UsageTile<Header: View>: View {
             displayCandidates: displayLanes,
             maxSecondaryLanes: self.size.secondaryLaneCapacity(
                 hasMetrics: !metrics.isEmpty,
-                hasChart: hasChart),
+                hasChart: hasChart || !topModels.isEmpty),
             reservesOverflowRow: self.size != .large)
 
         if self.size == .small {
@@ -146,7 +149,10 @@ struct UsageTile<Header: View>: View {
                         self.lanes(plan: plan, color: color)
                     }
                     self.metrics(metrics)
-                    if hasChart {
+                    if !topModels.isEmpty {
+                        WidgetTopModels(models: topModels, color: color)
+                        Spacer(minLength: 0)
+                    } else if hasChart {
                         UsageHistoryChart(
                             points: self.entry.dailyUsage,
                             color: color,
