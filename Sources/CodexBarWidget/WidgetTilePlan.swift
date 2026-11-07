@@ -56,7 +56,17 @@ struct WidgetTilePlan: Equatable {
         if reservesOverflowRow, listed + (overflows ? 1 : 0) > maxSecondaryLanes {
             capacity = max(0, capacity - 1)
         }
-        let shown = Array(remainder.prefix(capacity))
+        // When the cap folds lanes into "+N more", a low lane must not be the one that disappears:
+        // stable-partition low lanes ahead of the rest, then restore provider order among those shown.
+        let shown: [WidgetTileLane]
+        if remainder.count > capacity {
+            let low = remainder.filter { QuotaSeverity.isLow(remaining: $0.remainingPercent) }
+            let rest = remainder.filter { !QuotaSeverity.isLow(remaining: $0.remainingPercent) }
+            let kept = Set((low + rest).prefix(capacity).map(\.id))
+            shown = remainder.filter { kept.contains($0.id) }
+        } else {
+            shown = remainder
+        }
         // Counted against every lane the provider reports, not just the curated subset, so a lane
         // dropped by the cap is still surfaced.
         return WidgetTilePlan(

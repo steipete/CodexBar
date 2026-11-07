@@ -10,9 +10,9 @@ enum WidgetTileSize {
 
     var heroNumberSize: CGFloat {
         switch self {
-        case .small: 24
-        case .medium: 34
-        case .large: 42
+        case .small: 34
+        case .medium: 40
+        case .large: 46
         }
     }
 
@@ -70,7 +70,7 @@ struct UsageTile<Header: View>: View {
     @ViewBuilder let header: () -> Header
 
     var body: some View {
-        let color = WidgetColors.color(for: self.entry.provider)
+        let color = WidgetInk.data
         // The provider's compact row cap curates what a tile may LIST; it must not decide which
         // lane is binding. Headline and overflow are computed against the full set.
         let allLanes = WidgetTileLane.lanes(for: self.entry)
@@ -120,41 +120,43 @@ struct UsageTile<Header: View>: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else if self.size == .medium, !plan.lanes.isEmpty {
+            // Medium splits into columns only when there are lanes to fill the right one. A
+            // single-lane provider in two columns leaves a void beside the headline; down one
+            // column it gets the full width for its bar instead.
+            // Cost lines follow the lanes in the right column. When they do not fit, the tile drops
+            // them one at a time (regaining their lane capacity) rather than shrinking the headline.
+            let planWithoutMetrics = WidgetTilePlan.make(
+                lanes: allLanes,
+                displayCandidates: displayLanes,
+                maxSecondaryLanes: self.size.secondaryLaneCapacity(hasMetrics: false, hasChart: hasChart),
+                reservesOverflowRow: true)
+            ViewThatFits(in: .vertical) {
+                ForEach(Array(stride(from: metrics.count, through: 0, by: -1)), id: \.self) { count in
+                    self.mediumColumnsContent(
+                        plan: count > 0 ? plan : planWithoutMetrics,
+                        fallback: fallback,
+                        color: color,
+                        metrics: Array(metrics.prefix(count)))
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         } else {
             VStack(alignment: .leading, spacing: WidgetLayout.sectionSpacing) {
                 self.header()
-                // Medium splits into columns only when there are lanes to fill the right one. A
-                // single-lane provider in two columns leaves a void beside the headline; down one
-                // column it gets the full width for its bar instead.
-                if self.size == .medium, !plan.lanes.isEmpty {
-                    HStack(alignment: .top, spacing: 14) {
-                        self.hero(plan: plan, fallback: fallback, color: color, spreads: !metrics.isEmpty)
-                            .frame(width: 104, alignment: .leading)
-                        VStack(alignment: .leading, spacing: WidgetLayout.laneSpacing) {
-                            self.lanes(plan: plan, color: color)
-                            if !metrics.isEmpty {
-                                Spacer(minLength: 2)
-                                self.metrics(metrics)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                    }
-                    .frame(maxHeight: .infinity)
+                self.hero(plan: plan, fallback: fallback, color: color)
+                VStack(alignment: .leading, spacing: self.size.laneSpacing) {
+                    self.lanes(plan: plan, color: color)
+                }
+                self.metrics(metrics)
+                if hasChart {
+                    UsageHistoryChart(
+                        points: self.entry.dailyUsage,
+                        color: color,
+                        currencyCode: self.entry.tokenUsage?.currencyCode)
+                        .frame(minHeight: 66, maxHeight: .infinity)
                 } else {
-                    self.hero(plan: plan, fallback: fallback, color: color, spreads: false)
-                    VStack(alignment: .leading, spacing: self.size.laneSpacing) {
-                        self.lanes(plan: plan, color: color)
-                    }
-                    self.metrics(metrics)
-                    if hasChart {
-                        UsageHistoryChart(
-                            points: self.entry.dailyUsage,
-                            color: color,
-                            currencyCode: self.entry.tokenUsage?.currencyCode)
-                            .frame(minHeight: 66, maxHeight: .infinity)
-                    } else {
-                        Spacer(minLength: 0)
-                    }
+                    Spacer(minLength: 0)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -179,11 +181,37 @@ struct UsageTile<Header: View>: View {
     {
         VStack(alignment: .leading, spacing: 4) {
             self.header()
-            self.hero(plan: plan, fallback: fallback, color: color, spreads: false)
+            self.hero(plan: plan, fallback: fallback, color: color)
             VStack(alignment: .leading, spacing: 3) {
                 self.lanes(plan: plan, color: color)
             }
             self.metrics(metrics)
+        }
+    }
+
+    private func mediumColumnsContent(
+        plan: WidgetTilePlan,
+        fallback: WidgetFallbackHeroContent?,
+        color: Color,
+        metrics: [WidgetMetricRow]) -> some View
+    {
+        // The hero's bar stays under its own number. Cost lines sit at the foot of the lane column,
+        // which the taller headline column leaves free.
+        VStack(alignment: .leading, spacing: WidgetLayout.sectionSpacing) {
+            self.header()
+            HStack(alignment: .top, spacing: 14) {
+                self.hero(plan: plan, fallback: fallback, color: color)
+                    .frame(width: 120, alignment: .leading)
+                VStack(alignment: .leading, spacing: WidgetLayout.laneSpacing) {
+                    self.lanes(plan: plan, color: color)
+                    if !metrics.isEmpty {
+                        Spacer(minLength: 2)
+                        self.metrics(metrics)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
+            Spacer(minLength: 0)
         }
     }
 
@@ -193,15 +221,11 @@ struct UsageTile<Header: View>: View {
     private func hero(
         plan: WidgetTilePlan,
         fallback: WidgetFallbackHeroContent?,
-        color: Color,
-        spreads: Bool) -> some View
+        color: Color) -> some View
     {
         if let lane = plan.hero {
             let displayed = WidgetUsageDisplay.percent(
                 fromRemaining: lane.remainingPercent,
-                showUsed: self.showsUsed)
-            let title = WidgetLaneCopy.caption(
-                title: W("%@ %@", W(lane.title), WidgetFormat.percent(displayed)),
                 showUsed: self.showsUsed)
             HeroBlock(
                 value: WidgetFormat.percent(displayed),
@@ -211,9 +235,9 @@ struct UsageTile<Header: View>: View {
                 isLow: QuotaSeverity.isLow(remaining: lane.remainingPercent),
                 color: color,
                 numberSize: self.size.heroNumberSize,
-                spreads: spreads,
-                compact: self.size == .small,
-                inlineQuotaTitle: title)
+                // Small tiles keep the figure large but put its caption beside it, leaving room for
+                // the other windows so a low one is never folded into "+N more".
+                compact: self.size == .small)
         } else if let fallback {
             HeroBlock(
                 value: fallback.value,

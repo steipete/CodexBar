@@ -1,3 +1,4 @@
+import AppKit
 import CodexBarCore
 import Foundation
 import SwiftUI
@@ -82,8 +83,8 @@ enum WidgetLayout {
     static let laneSpacing: CGFloat = 7
     static let barHeight: CGFloat = 7
     static let heroBarHeight: CGFloat = 9
-    static let markSizeSmall: CGFloat = 20
-    static let markSizeRegular: CGFloat = 23
+    static let markSizeSmall: CGFloat = 24
+    static let markSizeRegular: CGFloat = 30
     static let separatorOpacity: Double = 0.12
 
     /// The single-metric tile has no lanes to fit around, so its figure runs larger.
@@ -143,26 +144,6 @@ enum ProviderMonogram {
 
 // MARK: - Contrast
 
-enum WidgetContrast {
-    /// Black-vs-white crossover for WCAG relative luminance: below this a white label wins, above
-    /// it a black label wins. Solving 1.05/(L+0.05) = (L+0.05)/0.05 gives L ≈ 0.1791.
-    private static let crossoverLuminance: Double = 0.1791
-
-    /// Highest-contrast label colour for text drawn on `color`. Brand palettes span very light
-    /// (Gemini lilac) to mid (Claude terracotta); picking per colour keeps every mark legible.
-    static func label(on color: ProviderColor) -> Color {
-        self.relativeLuminance(of: color) > self.crossoverLuminance ? .black : .white
-    }
-
-    static func relativeLuminance(of color: ProviderColor) -> Double {
-        func linear(_ value: Double) -> Double {
-            let clamped = min(1, max(0, value))
-            return clamped <= 0.03928 ? clamped / 12.92 : pow((clamped + 0.055) / 1.055, 2.4)
-        }
-        return 0.2126 * linear(color.red) + 0.7152 * linear(color.green) + 0.0722 * linear(color.blue)
-    }
-}
-
 // MARK: - Provider mark
 
 struct ProviderMark: View {
@@ -174,21 +155,78 @@ struct ProviderMark: View {
     @Environment(\.widgetRenderingModeOverride) private var renderingModeOverride
 
     var body: some View {
+        let mode = self.renderingModeOverride ?? self.renderingMode
         let style = ProviderMarkStyle.resolve(
-            renderingMode: self.renderingModeOverride ?? self.renderingMode,
+            renderingMode: mode,
             provider: self.provider,
             isSelected: self.isSelected)
-        Text(ProviderMonogram.text(for: self.provider))
-            .font(.system(size: self.size * 0.44, weight: .bold, design: .rounded))
-            .kerning(-0.3)
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
-            .foregroundStyle(style.foreground)
-            .frame(width: self.size, height: self.size)
-            .background(
-                RoundedRectangle(cornerRadius: self.size * 0.3, style: .continuous)
-                    .fill(style.background))
-            .accessibilityLabel(Text(ProviderMarkLabel.text(for: self.provider, isSelected: self.isSelected)))
+        let image = WidgetProviderMarkAsset.image(for: self.provider, fullColor: mode == .fullColor && self.isSelected)
+        ZStack {
+            RoundedRectangle(cornerRadius: self.size * 0.28, style: .continuous)
+                .fill(style.background)
+            RoundedRectangle(cornerRadius: self.size * 0.28, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
+            if let image {
+                Image(nsImage: image)
+                    .resizable()
+                    .renderingMode(image.isTemplate ? .template : .original)
+                    .scaledToFit()
+                    .foregroundStyle(style.foreground)
+                    .padding(self.size * 0.2)
+                    .widgetAccentable()
+            } else {
+                Text(ProviderMonogram.text(for: self.provider))
+                    .font(.system(size: self.size * 0.44, weight: .bold, design: .rounded))
+                    .kerning(-0.3)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .foregroundStyle(style.foreground)
+            }
+        }
+        .frame(width: self.size, height: self.size)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(ProviderMarkLabel.text(for: self.provider, isSelected: self.isSelected)))
+    }
+}
+
+/// The provider's real mark, bundled for the curated widget providers.
+///
+/// The files are copies of the app's own `ProviderIcon-*` and `Brand-ProviderIcon-*` resources (a test keeps
+/// them byte-identical); providers without a bundled mark keep their monogram.
+@MainActor
+enum WidgetProviderMarkAsset {
+    /// Same normalization as the app's `ProviderBrandIcon`: several marks (Kimi, MiniMax) are `1em`
+    /// SVGs that NSImage reads as 1x1 points, which rasterizes them into a smudge before SwiftUI scales.
+    static let size = NSSize(width: 18, height: 18)
+    private static var cache: [String: NSImage] = [:]
+
+    static func image(for provider: UsageProvider, fullColor: Bool) -> NSImage? {
+        let template = ProviderDescriptorRegistry.descriptor(for: provider).branding.iconResourceName
+        let names = fullColor
+            ? ["Brand-ProviderIcon-" + provider.rawValue, template]
+            : [template]
+        for name in names {
+            if let image = self.load(name, isTemplate: name == template) {
+                return image
+            }
+        }
+        return nil
+    }
+
+    private static func load(_ name: String, isTemplate: Bool) -> NSImage? {
+        if let cached = self.cache[name] {
+            return cached
+        }
+        let bundle = WidgetLocalization.resourceBundle
+        let url = ["svg", "png"].lazy.compactMap { fileExtension in
+            bundle.url(forResource: name, withExtension: fileExtension)
+                ?? bundle.url(forResource: name, withExtension: fileExtension, subdirectory: "ProviderMarks")
+        }.first
+        guard let url, let image = NSImage(contentsOf: url) else { return nil }
+        image.size = self.size
+        image.isTemplate = isTemplate
+        self.cache[name] = image
+        return image
     }
 }
 
@@ -197,9 +235,12 @@ struct ProviderMarkStyle {
     let background: Color
 
     /// Desktop widgets in tinted and clear appearances render through a luminance mask, so a brand
-    /// fill carrying a dark label collapses to an empty white square — the monogram disappears
-    /// entirely. Outside full colour the mark inverts: a faint plate with a bright label, which
-    /// survives the mask.
+    /// fill would collapse into a solid square. Outside full colour the mark is a bright template glyph
+    /// on a faint plate, which survives the mask.
+    ///
+    /// In full colour the brand tint only washes the plate; it never carries the glyph's contrast. The
+    /// glyph is the curated full-colour mark or the template mark in ink, so a pale tint (Gemini) or a
+    /// mid tone (Codex) cannot leave a low-contrast logo.
     static func resolve(
         renderingMode: WidgetRenderingMode,
         provider: UsageProvider,
@@ -215,10 +256,9 @@ struct ProviderMarkStyle {
                 foreground: .primary.opacity(0.62),
                 background: .primary.opacity(0.08))
         }
-        let brand = ProviderBrandColor.resolve(for: provider.instanceID)
         return ProviderMarkStyle(
-            foreground: brand.map(WidgetContrast.label(on:)) ?? .white,
-            background: WidgetColors.color(for: provider.instanceID))
+            foreground: .primary,
+            background: WidgetColors.color(for: provider.instanceID).opacity(0.16))
     }
 }
 
@@ -235,12 +275,18 @@ enum ProviderMarkLabel {
     }
 }
 
-enum ProviderBrandColor {
-    /// The raw brand colour behind `WidgetColors.color(for:)`, needed for contrast maths.
-    static func resolve(for instanceID: ProviderInstanceID) -> ProviderColor? {
-        guard let provider = instanceID.firstPartyProvider else { return nil }
-        return ProviderAccentColors.sharedOverride(for: instanceID)
-            ?? ProviderDescriptorRegistry.descriptor(for: provider).branding.widgetColor
+// MARK: - Ink
+
+/// Data marks (bars, history) are drawn in ink. Colour is reserved for one meaning: a limit that is
+/// running low. Provider identity lives in the mark, not in the bars.
+enum WidgetInk {
+    static let data = Color.primary.opacity(0.82)
+
+    /// Fill for a bar whose limit is running low. Full colour shows red. Tinted and clear widgets
+    /// render through a luminance mask where red reads dimmer than ink, which would invert the
+    /// warning, so there the low fill keeps full ink strength and joins the accent group instead.
+    static func lowBar(renderingMode: WidgetRenderingMode) -> Color {
+        renderingMode == .fullColor ? .red : .primary
     }
 }
 
@@ -249,7 +295,12 @@ enum ProviderBrandColor {
 struct QuotaBar: View {
     let percent: Double?
     let color: Color
+    /// A low limit replaces `color` with the rendering-mode-aware warning fill.
+    var isLow: Bool = false
     var height: CGFloat = WidgetLayout.barHeight
+
+    @Environment(\.widgetRenderingMode) private var renderingMode
+    @Environment(\.widgetRenderingModeOverride) private var renderingModeOverride
 
     var body: some View {
         GeometryReader { proxy in
@@ -260,7 +311,10 @@ struct QuotaBar: View {
                     // Floor the fill at the bar's own height so a nearly-exhausted lane reads as a
                     // visible nub instead of a sliver indistinguishable from an empty track.
                     Capsule()
-                        .fill(self.color)
+                        .fill(self.isLow
+                            ? WidgetInk.lowBar(renderingMode: self.renderingModeOverride ?? self.renderingMode)
+                            : self.color)
+                        .widgetAccentable(self.isLow)
                         .frame(width: max(self.height, fraction * proxy.size.width))
                 }
             }
@@ -268,7 +322,7 @@ struct QuotaBar: View {
         .frame(height: self.height)
     }
 
-    static func fillFraction(_ percent: Double?) -> Double {
+    nonisolated static func fillFraction(_ percent: Double?) -> Double {
         guard let percent else { return 0 }
         return min(1, max(0, percent / 100))
     }
@@ -301,7 +355,10 @@ struct QuotaLaneView: View {
                     .lineLimit(1)
             }
             if self.showsBar {
-                QuotaBar(percent: self.percent, color: self.color)
+                QuotaBar(
+                    percent: self.percent,
+                    color: self.color,
+                    isLow: QuotaSeverity.isLow(remaining: self.remainingPercent))
             }
         }
     }
@@ -328,9 +385,6 @@ struct HeroBlock: View {
     var isLow: Bool = false
     var color: Color = .secondary
     var numberSize: CGFloat = 34
-    /// Pushes the bar to the bottom of the available height so a column tile has no dead space
-    /// under the headline.
-    var spreads: Bool = false
     var compact: Bool = false
     var inlineQuotaTitle: String?
 
@@ -399,14 +453,12 @@ struct HeroBlock: View {
                     .minimumScaleFactor(0.75)
             }
             if let barPercent = self.barPercent {
-                if self.spreads {
-                    Spacer(minLength: 5)
-                }
                 QuotaBar(
                     percent: barPercent,
                     color: self.color,
+                    isLow: self.isLow,
                     height: self.compact ? 6 : WidgetLayout.heroBarHeight)
-                    .padding(.top, self.spreads ? 0 : self.compact ? 2 : 5)
+                    .padding(.top, self.compact ? 2 : 5)
             }
         }
     }
@@ -470,22 +522,27 @@ struct TileHeader: View {
     var size: WidgetTileSize = .medium
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 7) {
-                if let provider = self.provider.firstPartyProvider {
-                    ProviderMark(provider: provider, isSelected: true, size: WidgetLayout.markSizeSmall)
-                }
+        HStack(spacing: 7) {
+            if let provider = self.provider.firstPartyProvider {
+                ProviderMark(
+                    provider: provider,
+                    isSelected: true,
+                    size: self.size == .small ? WidgetLayout.markSizeSmall : WidgetLayout.markSizeRegular)
+            }
+            // Small tiles stack freshness under the name, beside the mark, which leaves room for the
+            // quota lanes below the headline.
+            VStack(alignment: .leading, spacing: 0) {
                 Text(self.displayName)
                     .font(.subheadline.weight(.semibold))
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.85)
-                    .layoutPriority(1)
-                Spacer(minLength: 0)
-                if self.size != .small {
+                    .lineLimit(self.size == .small ? 1 : 2)
+                    .minimumScaleFactor(self.size == .small ? 0.7 : 0.85)
+                if self.size == .small {
                     FreshnessLabel(updatedAt: self.updatedAt)
                 }
             }
-            if self.size == .small {
+            .layoutPriority(1)
+            Spacer(minLength: 0)
+            if self.size != .small {
                 FreshnessLabel(updatedAt: self.updatedAt)
             }
         }
