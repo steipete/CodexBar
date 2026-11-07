@@ -1716,7 +1716,7 @@
 "Automatic imports longcat.chat cookies from your browser." = "브라우저에서 longcat.chat cookies를 자동으로 가져옵니다.";
 "Automatically imports browser cookies for budget extras." = "예산 추가를 위해 브라우저 cookies를 자동으로 가져옵니다.";
 "Automatically imports browser cookies for github.com budget extras." = "github.com 예산 추가를 위해 브라우저 cookies를 자동으로 가져옵니다.";
-"Automatically imports the app.devin.ai session from Chromium browsers." = "Chromium 브라우저에서 app.devin.ai 세션을 자동으로 가져옵니다.";
+"Automatically imports the app.devin.ai session from the Devin app or Chromium browsers." = "Devin 앱 또는 Chromium 브라우저에서 app.devin.ai 세션을 자동으로 가져옵니다.";
 "Automatically imports the browser session cookie." = "브라우저 세션 cookie를 자동으로 가져옵니다.";
 "Automatically signs in using your ZoomMate session cookies from Chrome." = "Chrome에서 ZoomMate 세션 cookies를 사용하여 자동으로 로그인합니다.";
 "BY USAGE" = "사용량에 따른 순위";

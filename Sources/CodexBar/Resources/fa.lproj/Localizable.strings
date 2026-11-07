@@ -1751,7 +1751,7 @@
 "Automatic imports longcat.chat cookies from your browser." = "واردات خودکار longcat.chat cookies از مرورگر شما.";
 "Automatically imports browser cookies for budget extras." = "به طور خودکار مرورگر cookies را برای بودجه اضافی وارد می کند.";
 "Automatically imports browser cookies for github.com budget extras." = "مرورگر cookies را به صورت خودکار برای بودجه اضافی github.com وارد می کند.";
-"Automatically imports the app.devin.ai session from Chromium browsers." = "به طور خودکار جلسه app.devin.ai را از مرورگرهای Chromium وارد می کند.";
+"Automatically imports the app.devin.ai session from the Devin app or Chromium browsers." = "به طور خودکار جلسه app.devin.ai را از برنامه Devin یا مرورگرهای Chromium وارد می کند.";
 "Automatically imports the browser session cookie." = "به طور خودکار جلسه مرورگر cookie را وارد می کند.";
 "Automatically signs in using your ZoomMate session cookies from Chrome." = "به طور خودکار با استفاده از جلسه ZoomMate cookies از Chrome وارد سیستم می شود.";
 "BY USAGE" = "رتبه بندی بر اساس استفاده";
