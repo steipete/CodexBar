@@ -425,6 +425,8 @@ prepaid-balance caption. Accounts with quota windows keep their separate Extra u
 menu-card-sections layout. Uncapped balances keep their compact Credits row; Admin API spend is unchanged.
 Extra usage still follows its existing visibility choice and the global optional-usage switch. Pace follows the
 existing pace setting, independently of redeemable Limit Reset Credits.
+The provider switcher also uses this cap when normal quotas are unavailable; a real session or weekly quota
+keeps priority. Snapshots from other providers never supply this Claude cap.
 
 Claude does not report the cap reset. CodexBar infers midnight UTC on the first of the next month from the cost
 observation, applying [Anthropic's documented spend-limit period](https://platform.claude.com/docs/en/manage-claude/spend-limits-api)
@@ -679,6 +681,7 @@ mode. The additive field is omitted after recovery and from shell rows.
   - GPT usage recorded through Claude Code uses the bundled OpenAI model's long-context boundary (272K for supported models), while retaining catalog rates. Uncached input and cache-read/create tokens all contribute to the prompt length. Saved reports are recalculated after pricing corrections without discarding retained Codex history.
   - Native provider cache: `~/Library/Caches/CodexBar/cost-usage/claude-v6.json`. This is a small manifest; its sibling `claude-v6.json.fragments` directory holds immutable JSON shards grouped by transcript project/directory, including source identities and empty-file parse offsets.
   - Report memo: `~/Library/Caches/CodexBar/cost-usage/claude-v6.report-memo.json` stores the daily report and references project shards for source stamps. It is reused only while transcript inventory, cache/pricing artifacts, requested window, and report-semantics revision still match.
+  - Reports from the same source and pricing scope share exact-event storage only when every event value and completeness flag matches. Requested windows, daily totals, and window certificates remain independent. After loading a persisted report, the report memo owns its decoded values; the fragment cache keeps the metadata needed for unchanged saves without retaining a second decoded header.
   - Publishing a report releases its decoded transcript rows from memory. The completed report stays warm for unchanged refreshes; a changed source reloads its disk shards and retains them through the next update before releasing them again.
   - An unreadable transcript root or directory fails the refresh without replacing the last valid cache or report memo. Restoring access allows the next refresh to reuse that history; genuinely missing paths still count as removed sources.
   - A pricing catalog replacement during a refresh preserves certification of the parsed transcript window. The next refresh applies the replacement prices to cached rows without reparsing unchanged transcripts, including after a restart. Externally replaced transcript caches still require window certification again.
@@ -710,3 +713,21 @@ Limit Reset Credits** to hide them. **Extra usage** and **Cloud credits** have i
 also require the global optional billing switch. A prepaid balance without a monthly cap uses the same
 Extra usage choice, labeled **Credits** while that balance is reported. **Plan renewal / expiry** is independent and appears
 below Session/Weekly, before saved resets. These controls affect presentation only.
+
+## Identified request history
+
+`codexbar cost --provider claude --identified-only --format json --remote build-a` manually combines native
+Claude accounting from this machine and the named SSH host. Omit `--remote` for a bare local ledger.
+The shared collector validates the same inclusive UTC window, source size limits, and host spelling for every
+provider. The remote CLI reads local transcript files only; it does not fetch credentials or account quota.
+
+The schema-1 ledger exports hashed message/request identities (or session/message fallback), timestamps,
+model names and token counters, never prompts, raw IDs, account identity or paths. Copied requests count once.
+Streaming output snapshots reconcile with terminal counts; conflicting fixed counters or terminal evidence
+quarantine the identity. Preliminary proxy estimates never override authoritative accounting. Missing model
+information keeps pricing unknown, even if another copy includes a model. One collector pricing snapshot
+prices all accepted requests, including disjoint input, cache-read, cache-write and output counters.
+
+Ordinary Claude history and identified exports share the same decoded accounting observation. Vertex AI
+history stays outside this native Claude export. Source failures retain successful sources and exit nonzero;
+unknown prices remain null with an explicit unpriced count. Collection runs only for this manual CLI command.

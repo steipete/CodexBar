@@ -230,9 +230,7 @@ struct ProviderPluginOptionalRequestTests {
         engine: ProviderPluginEngineKind,
         optionalURL: String = "https://example.test/optional",
         limit: Int = 1024,
-        contextOptions: ProviderPluginContextOptions = .init(
-            optionalRequestTimeoutSeconds: nil,
-            optionalCollectionBudget: .seconds(3)),
+        contextOptions: ProviderPluginContextOptions = BundledPluginTestSupport.contextOptions,
         handler: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse)) throws -> ProviderPluginRuntime
     {
         try ProviderPluginRuntime(
@@ -248,6 +246,7 @@ struct ProviderPluginOptionalRequestTests {
             """,
             resourceBundle: CodexBarCoreResources.bundle,
             transport: ProviderHTTPTransportHandler(handler),
+            timeout: BundledPluginTestSupport.timeout,
             responseSizeLimit: limit,
             enforcesUserResponsePolicy: true,
             allowsDynamicID: true,

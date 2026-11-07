@@ -1,16 +1,74 @@
 import Commander
 import Foundation
-#if os(macOS)
-import Security
-#endif
 import Testing
 @testable import CodexBarCLI
 @testable import CodexBarCore
+#if os(macOS)
+import Security
+#endif
 
 struct CLIUsageCacheTests {
     private static let fetchedAt = Date(timeIntervalSince1970: 1_800_000_000)
     private static let now = fetchedAt.addingTimeInterval(90)
     private static let enabledConfig = CodexBarConfig(providers: [], shareUsageWithCLI: true)
+
+    @Test(arguments: [false, true])
+    func `private Cursor cache renders authoritative allowance labels`(isUnified: Bool) throws {
+        let formatter = ISO8601DateFormatter()
+        let live = CursorStatusSnapshot(
+            planPercentUsed: 20,
+            planUsedUSD: 4,
+            planLimitUSD: 20,
+            onDemandUsedUSD: 0,
+            onDemandLimitUSD: nil,
+            teamOnDemandUsedUSD: nil,
+            teamOnDemandLimitUSD: nil,
+            billingCycleStart: Self.fetchedAt.addingTimeInterval(-3 * 86400),
+            billingCycleEnd: Self.fetchedAt.addingTimeInterval(4 * 86400),
+            membershipType: "unified",
+            accountEmail: "private-cursor@example.test",
+            accountID: "private-cursor-account-id",
+            accountName: nil,
+            rawJSON: nil,
+            sandUsage: CursorSandUsageStatus(
+                currentPeriodStart: formatter.string(from: Self.fetchedAt.addingTimeInterval(-86400)),
+                nextResetTimestampUtc: formatter.string(from: Self.fetchedAt.addingTimeInterval(6 * 86400)),
+                usagePercent: 80,
+                hasAvailableUsage: true,
+                includedLimitZero: false,
+                isUnified: isUnified)).toUsageSnapshot(now: Self.fetchedAt)
+        let root = try Self.makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("cursor-cache/usage.json")
+        try CLIUsageCache.write(Self.cache(.cursor, live), to: url)
+        let hit = try #require(CLIUsageCache.load(from: url)?.hit(for: .cursor, now: Self.now))
+        #expect(hit.entry.usage.identity == nil)
+        // The fallback's production call scopes this private snapshot before rendering it.
+        let snapshot = hit.entry.usage.scoped(to: .cursor)
+        let output = CLIRenderer.renderCardBodyLines(
+            provider: .cursor,
+            snapshot: snapshot,
+            credits: nil,
+            context: RenderContext(
+                header: "Cursor (codexbar-app)",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown),
+            includeIdentity: false,
+            now: Self.now).joined(separator: "\n")
+        #expect(!output.contains("private-cursor"))
+        if isUnified {
+            #expect(snapshot.primary?.usedPercent == 80)
+            #expect(output.contains("Weekly: 20% left"))
+            #expect(!output.contains("Total:"))
+        } else {
+            #expect(snapshot.primary?.usedPercent == 20)
+            #expect(snapshot.extraRateWindows?.first?.window.usedPercent == 80)
+            #expect(output.contains("Total: 80% left"))
+            #expect(output.contains("Grok Bot: 20% left"))
+            #expect(!output.contains("Weekly:"))
+        }
+    }
 
     @Test
     func `round trip is private and carries windows only`() throws {

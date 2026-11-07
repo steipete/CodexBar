@@ -188,13 +188,19 @@ struct ProviderPluginCookieJarTests {
         engine: ProviderPluginEngineKind, script: String,
         transport: any ProviderHTTPTransport) throws -> ProviderPluginRuntime
     {
-        try ProviderPluginRuntime(source: """
-        defineProvider({id: "longcat", name: "Fixture", settings: [], endpoints: ["https://example.test", "https://other.test", "https://example.test:444"],
-          capabilities: ["browser-cookies", "http-status"], cookieDomains: ["example.test"],
-          cookiePolicy: {selection: "request-url", cache: "nonpersistent"},
-          async fetchUsage(ctx) { \(script) }
-        });
-        """, transport: transport, engine: engine)
+        try ProviderPluginRuntime(
+            source: """
+            defineProvider({id: "longcat", name: "Fixture", settings: [], endpoints: ["https://example.test", "https://other.test", "https://example.test:444"],
+              capabilities: ["browser-cookies", "http-status"], cookieDomains: ["example.test"],
+              cookiePolicy: {selection: "request-url", cache: "nonpersistent"},
+              async fetchUsage(ctx) { \(script) }
+            });
+            """,
+            resourceBundle: CodexBarCoreResources.bundle,
+            transport: transport,
+            timeout: BundledPluginTestSupport.timeout,
+            contextOptions: BundledPluginTestSupport.contextOptions,
+            engine: engine)
     }
 
     @Test(arguments: [

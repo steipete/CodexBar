@@ -45,7 +45,10 @@ extension CursorStatusProbe {
         async throws -> Value
     {
         let log: (String) -> Void = { msg in logger?("[cursor] \(msg)") }
-        if let override = CookieHeaderNormalizer.normalize(cookieHeaderOverride) {
+        if let cookieHeaderOverride {
+            guard let override = CookieHeaderNormalizer.normalize(cookieHeaderOverride) else {
+                throw CursorStatusProbeError.noSessionCookie
+            }
             log("Using manual cookie header")
             return try await perform(override, nil)
         }

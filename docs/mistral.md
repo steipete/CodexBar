@@ -103,6 +103,12 @@ Sign in to [Mistral Admin](https://admin.mistral.ai/organization/usage) in a sup
 In manual mode, paste a full `Cookie:` header from an `admin.mistral.ai` request. The header must include an
 `ory_session_*` cookie.
 
+### "Mistral session expired or invalid"
+
+Mistral answers an expired `ory_session_*` cookie with a redirect to `auth.mistral.ai/self-service/login`. CodexBar
+treats that redirect like HTTP 401/403: in Automatic mode it clears the cached cookie and tries the browser sessions
+again. If every browser session is expired too, sign in to Mistral Admin again.
+
 ### Included allowance, credits, or Vibe plan usage are missing
 
 The billing usage request is required. Subscription allowances, credits, and Vibe usage are best-effort; if an

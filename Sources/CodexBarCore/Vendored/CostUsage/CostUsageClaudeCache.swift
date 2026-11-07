@@ -186,18 +186,18 @@ final class CostUsageClaudeReportMemo: @unchecked Sendable {
         guard let persisted = Self.loadPersisted(canonicalCachePath: canonicalCachePath) else { return nil }
         return self.lock.withLock {
             if let memory = self.entries.first(where: { $0.key == key })?.entry { return memory }
-            self.installUnlocked(key: key, entry: persisted)
-            return persisted
+            return self.installUnlocked(key: key, entry: persisted)
         }
     }
 
+    @discardableResult
     func store(
         provider: UsageProvider,
         canonicalCachePath: String,
         sourceInventory: [String: CostUsageClaudeFileStamp],
         reportKey: CostUsageClaudeReportMemoKey,
         report: CostUsageDailyReport,
-        hasWindowScopedRows: Bool = false)
+        hasWindowScopedRows: Bool = false) -> CostUsageDailyReport
     {
         let key = "\(provider.rawValue)|\(canonicalCachePath)"
         let entry = Entry(
@@ -205,9 +205,10 @@ final class CostUsageClaudeReportMemo: @unchecked Sendable {
             reportKey: reportKey,
             report: report,
             hasWindowScopedRows: hasWindowScopedRows)
-        self.lock.withLock { self.installUnlocked(key: key, entry: entry) }
-        Self.persist(entry, canonicalCachePath: canonicalCachePath)
+        let shared = self.lock.withLock { self.installUnlocked(key: key, entry: entry) }
+        Self.persist(shared, canonicalCachePath: canonicalCachePath)
         CostUsageClaudeFragments.shared.evict(at: URL(fileURLWithPath: canonicalCachePath))
+        return shared.report
     }
 
     #if DEBUG
@@ -218,10 +219,33 @@ final class CostUsageClaudeReportMemo: @unchecked Sendable {
 
     #endif
 
-    private func installUnlocked(key: String, entry: Entry) {
+    private func installUnlocked(key: String, entry: Entry) -> Entry {
+        var shared = entry
+        if !entry.report.quotaSlices.isEmpty, let prior = self.entries.last(where: {
+            // Reports retain their own window certificates; only identical event sequences share storage.
+            $0.entry.reportKey.scanConfiguration == entry.reportKey.scanConfiguration
+                && $0.entry.reportKey.pricingArtifactStamp == entry.reportKey.pricingArtifactStamp
+                && $0.entry.sourceInventory == entry.sourceInventory
+                && $0.entry.report.quotaSlices == entry.report.quotaSlices
+                && zip($0.entry.report.quotaSlices, entry.report.quotaSlices).allSatisfy { lhs, rhs in
+                    lhs.timestamp.timeIntervalSince1970.bitPattern == rhs.timestamp.timeIntervalSince1970.bitPattern
+                        && lhs.costUSD?.bitPattern == rhs.costUSD?.bitPattern
+                }
+        })?.entry {
+            shared = Entry(
+                sourceInventory: entry.sourceInventory,
+                reportKey: entry.reportKey,
+                report: CostUsageDailyReport(
+                    data: entry.report.data,
+                    summary: entry.report.summary,
+                    hourly: entry.report.hourly,
+                    quotaSlices: prior.report.quotaSlices),
+                hasWindowScopedRows: entry.hasWindowScopedRows)
+        }
         self.entries.removeAll { $0.key == key }
-        self.entries.append((key: key, entry: entry))
+        self.entries.append((key: key, entry: shared))
         if self.entries.count > self.capacity { self.entries.removeFirst() }
+        return shared
     }
 
     static func reportMemoFileURL(cacheFileURL: URL) -> URL {
@@ -236,6 +260,7 @@ final class CostUsageClaudeReportMemo: @unchecked Sendable {
             envelope.sourceInventory = [:]
             return (envelope, inventory)
         }) else { return nil }
+        defer { CostUsageClaudeFragments.shared.discardDecodedHeader(at: url) }
         var envelope: PersistedEnvelope = loaded.0
         envelope.sourceInventory = loaded.1
         guard envelope.version == Self.persistedVersion,

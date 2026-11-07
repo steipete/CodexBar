@@ -1746,7 +1746,7 @@
 "Automatic imports longcat.chat cookies from your browser." = "Automatisk import av longcat.chat cookies från din webbläsare.";
 "Automatically imports browser cookies for budget extras." = "Importerar automatiskt webbläsaren cookies för budgettillägg.";
 "Automatically imports browser cookies for github.com budget extras." = "Importerar automatiskt webbläsaren cookies för github.com budgettillägg.";
-"Automatically imports the app.devin.ai session from Chromium browsers." = "Importerar automatiskt app.devin.ai-sessionen från Chromium-webbläsare.";
+"Automatically imports the app.devin.ai session from the Devin app or Chromium browsers." = "Importerar automatiskt app.devin.ai-sessionen från Devin-appen eller Chromium-webbläsare.";
 "Automatically imports the browser session cookie." = "Importerar automatiskt webbläsarsessionen cookie.";
 "Automatically signs in using your ZoomMate session cookies from Chrome." = "Loggar in automatiskt med din ZoomMate-session cookies från Chrome.";
 "BY USAGE" = "Rangordnat efter användning";
@@ -2818,3 +2818,14 @@
 "Tripo is rate limiting requests. Try again later." = "Tripo begränsar antalet förfrågningar. Försök igen senare.";
 "Tripo request failed. Try refreshing later." = "Tripo-förfrågan misslyckades. Försök uppdatera senare.";
 "Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo returnerade ett okänt svar. Uppdatera CodexBar och försök igen.";
+
+/* Provider setup guidance. */
+"Authorize GitHub's device code to save a Copilot token account." = "Godkänn GitHubs enhetskod för att spara ett Copilot-tokenkonto.";
+"Supply a GitHub token accepted by the Copilot usage API." = "Ange en GitHub-token som accepteras av Copilots användnings-API.";
+"Optional, best-effort budgets for public github.com only. Enable Budget extras in the macOS app; the browser session must match the token account. Quota usage does not need cookies." = "Valfria budgetar utan garanti, endast för offentliga github.com. Aktivera budgettillägg i macOS-appen; webbläsarsessionen måste matcha tokenkontot. Kvoter kräver inga kakor.";
+"In the macOS app, select manual cookie source and supply the matching GitHub Cookie header." = "Välj manuell kakkälla i macOS-appen och ange motsvarande GitHub-Cookie-header.";
+"Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app." = "Logga in på GitHub i en webbläsare som stöds och välj automatisk kakimport i macOS-appen.";
+"Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints." = "Använd en Admin-API-nyckel för organisationens kostnader och användning. Projekt- och tjänstekontonycklar kan inte läsa dessa slutpunkter.";
+"A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "En vanlig API-nyckel stöder endast äldre saldo som reservlösning utan garanti, inte organisationsanvändning. Konfigurerade nycklar med projektavgränsning använder inte denna reservlösning.";
+"Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Ange en nyckel, HTTPS-resursslutpunkt och distributionsnamn. API-version är valfri. Uppdatering skickar en potentiellt debiterbar valideringsbegäran, inte en fråga om användningshistorik.";
+"Mistral session expired or invalid." = "Mistral-sessionen har gått ut eller är ogiltig.";

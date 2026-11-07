@@ -1716,7 +1716,7 @@
 "Automatic imports longcat.chat cookies from your browser." = "브라우저에서 longcat.chat cookies를 자동으로 가져옵니다.";
 "Automatically imports browser cookies for budget extras." = "예산 추가를 위해 브라우저 cookies를 자동으로 가져옵니다.";
 "Automatically imports browser cookies for github.com budget extras." = "github.com 예산 추가를 위해 브라우저 cookies를 자동으로 가져옵니다.";
-"Automatically imports the app.devin.ai session from Chromium browsers." = "Chromium 브라우저에서 app.devin.ai 세션을 자동으로 가져옵니다.";
+"Automatically imports the app.devin.ai session from the Devin app or Chromium browsers." = "Devin 앱 또는 Chromium 브라우저에서 app.devin.ai 세션을 자동으로 가져옵니다.";
 "Automatically imports the browser session cookie." = "브라우저 세션 cookie를 자동으로 가져옵니다.";
 "Automatically signs in using your ZoomMate session cookies from Chrome." = "Chrome에서 ZoomMate 세션 cookies를 사용하여 자동으로 로그인합니다.";
 "BY USAGE" = "사용량에 따른 순위";
@@ -2787,3 +2787,14 @@
 "Tripo is rate limiting requests. Try again later." = "Tripo가 요청 빈도를 제한하고 있습니다. 나중에 다시 시도하세요.";
 "Tripo request failed. Try refreshing later." = "Tripo 요청에 실패했습니다. 나중에 다시 새로 고침하세요.";
 "Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo가 알 수 없는 응답을 반환했습니다. CodexBar를 업데이트하고 다시 시도하세요.";
+
+/* Provider setup guidance. */
+"Authorize GitHub's device code to save a Copilot token account." = "GitHub 기기 코드를 승인하여 Copilot 토큰 계정을 저장하세요.";
+"Supply a GitHub token accepted by the Copilot usage API." = "Copilot 사용량 API에서 허용하는 GitHub 토큰을 입력하세요.";
+"Optional, best-effort budgets for public github.com only. Enable Budget extras in the macOS app; the browser session must match the token account. Quota usage does not need cookies." = "공개 github.com 전용 선택적 예산 조회이며 성공은 보장되지 않습니다. macOS 앱에서 예산 추가 정보를 켜고 브라우저 세션과 토큰 계정을 일치시키세요. 할당량 조회에는 쿠키가 필요 없습니다.";
+"In the macOS app, select manual cookie source and supply the matching GitHub Cookie header." = "macOS 앱에서 수동 쿠키 소스를 선택하고 해당 GitHub Cookie 헤더를 입력하세요.";
+"Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app." = "지원되는 브라우저에서 GitHub에 로그인하고 macOS 앱에서 자동 쿠키 가져오기를 선택하세요.";
+"Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints." = "조직 비용과 사용량에는 조직 Admin API 키를 사용하세요. 프로젝트 및 서비스 계정 키로는 해당 엔드포인트를 읽을 수 없습니다.";
+"A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "일반 API 키는 이전 잔액 조회를 대체 수단으로만 지원하며 성공은 보장되지 않습니다. 조직 사용량은 지원하지 않습니다. 프로젝트 범위가 설정된 키는 이 대체 수단을 사용하지 않습니다.";
+"Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "키, HTTPS 리소스 엔드포인트 및 배포 이름을 입력하세요. API 버전은 선택 사항입니다. 새로 고침은 사용 기록 조회가 아니라 요금이 부과될 수 있는 검증 요청을 보냅니다.";
+"Mistral session expired or invalid." = "Mistral 세션이 만료되었거나 유효하지 않습니다.";
