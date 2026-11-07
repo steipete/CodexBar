@@ -868,7 +868,7 @@ struct StatusMenuSwitcherClickTests {
 
     @Test
     func `multi-row switcher uses compact height and stays inside bounds`() {
-        // 14 providers + Overview forces the four-row path and includes multi-word titles.
+        // 14 providers + Overview: logos only, wrapping once labels are gone so targets stay comfortable.
         let view = ProviderSwitcherView(
             providers: [
                 .codex,
@@ -910,8 +910,8 @@ struct StatusMenuSwitcherClickTests {
             #expect(trackFrame.maxY <= buttonFrame.maxY)
         }
 
-        #expect(view._test_rowCount() == 4)
-        #expect(view._test_rowHeight() == 39)
-        #expect(view.bounds.height == 168)
+        #expect(view._test_rowCount() == 2)
+        #expect(view._test_rowHeight() == 28)
+        #expect(view.bounds.height == 60)
     }
 }

@@ -34,6 +34,11 @@ final class ProviderSwitcherView: NSView {
     private let selectedTextColor = NSColor.white
     private let unselectedTextColor = NSColor.secondaryLabelColor
     private let stackedIcons: Bool
+    /// Past this many segments labels would wrap and truncate, so the row shows only native logos.
+    static let labeledSegmentLimit = 5
+    private let logosOnly: Bool
+    /// Remaining share below which the logo row shows a quota track.
+    private static let logoRowTrackRemainingPercent: Double = 10
     private let rowCount: Int
     private let rowSpacing: CGFloat
     private let rowHeight: CGFloat
@@ -91,6 +96,7 @@ final class ProviderSwitcherView: NSView {
         self.showsIcons = showsIcons
         self.weeklyRemainingProvider = weeklyRemainingProvider
         self.stackedIcons = showsIcons && self.segments.count > 3
+        self.logosOnly = showsIcons && self.segments.count > Self.labeledSegmentLimit
         let initialOuterPadding = Self.switcherOuterPadding(
             for: width,
             count: self.segments.count,
@@ -104,9 +110,11 @@ final class ProviderSwitcherView: NSView {
             width: width,
             count: self.segments.count,
             maxAllowedSegmentWidth: initialMaxAllowedSegmentWidth,
-            stackedIcons: self.stackedIcons)
+            stackedIcons: self.stackedIcons,
+            logosOnly: self.logosOnly)
         self.rowSpacing = self.stackedIcons ? 4 : 2
-        self.rowHeight = Self.switcherButtonHeight(stackedIcons: self.stackedIcons, rowCount: self.rowCount)
+        self.rowHeight = self.logosOnly ? Self.logoRowHeight
+            : Self.switcherButtonHeight(stackedIcons: self.stackedIcons, rowCount: self.rowCount)
         let height: CGFloat = self.rowHeight * CGFloat(self.rowCount)
             + self.rowSpacing * CGFloat(max(0, self.rowCount - 1))
         self.preferredWidth = width
@@ -118,15 +126,7 @@ final class ProviderSwitcherView: NSView {
         func makeButton(index: Int, segment: Segment) -> NSButton {
             let button: NSButton
             if self.stackedIcons, let image = segment.image {
-                let stacked = StackedToggleButton(
-                    title: segment.title,
-                    image: image,
-                    target: self,
-                    action: #selector(self.handleSelection(_:)))
-                if self.rowCount >= 4 {
-                    stacked.setTitleFontSize(NSFont.smallSystemFontSize - 3)
-                }
-                button = stacked
+                button = self.makeStackedButton(for: segment, image: image)
             } else if let image = segment.image {
                 let inline = InlineIconToggleButton(
                     title: segment.title,
@@ -156,7 +156,7 @@ final class ProviderSwitcherView: NSView {
             button.wantsLayer = true
             button.layer?.cornerRadius = 6
             button.state = (selected == segment.selection) ? .on : .off
-            button.toolTip = nil
+            button.toolTip = self.logosOnly ? segment.title : nil
             button.translatesAutoresizingMaskIntoConstraints = false
             button.heightAnchor.constraint(equalToConstant: self.rowHeight).isActive = true
             self.buttons.append(button)
@@ -186,7 +186,7 @@ final class ProviderSwitcherView: NSView {
             requiredSegmentWidth: requiredUniformWidth)
 
         let uniformWidth: CGFloat
-        if self.rowCount > 1 || !self.stackedIcons {
+        if self.rowCount > 1 || !self.stackedIcons || self.logosOnly {
             uniformWidth = self.applyUniformSegmentWidth(maxAllowedWidth: layoutMetrics.maxAllowedSegmentWidth)
             if uniformWidth > 0 {
                 self.segmentWidths = Array(repeating: uniformWidth, count: self.buttons.count)
@@ -517,13 +517,14 @@ final class ProviderSwitcherView: NSView {
         width: CGFloat,
         count: Int,
         maxAllowedSegmentWidth: CGFloat,
-        stackedIcons: Bool) -> Int
+        stackedIcons: Bool,
+        logosOnly: Bool = false) -> Int
     {
         guard count > 1 else { return 1 }
         let maxRows = min(4, count)
         let fourRowThreshold = 15
-        let minimumComfortableAverage: CGFloat = stackedIcons ? 50 : 54
-        if count >= fourRowThreshold { return maxRows }
+        let minimumComfortableAverage: CGFloat = logosOnly ? 24 : (stackedIcons ? 50 : 54)
+        if count >= fourRowThreshold, !logosOnly { return maxRows }
         if maxAllowedSegmentWidth >= minimumComfortableAverage { return 1 }
 
         for rows in 2...maxRows {
@@ -562,6 +563,21 @@ final class ProviderSwitcherView: NSView {
             start = end
         }
         return rows
+    }
+
+    private static let logoRowHeight: CGFloat = 28
+
+    private func makeStackedButton(for segment: Segment, image: NSImage) -> StackedToggleButton {
+        let stacked = StackedToggleButton(
+            title: segment.title,
+            image: image,
+            target: self,
+            action: #selector(self.handleSelection(_:)))
+        if self.rowCount >= 4 {
+            stacked.setTitleFontSize(NSFont.smallSystemFontSize - 3)
+        }
+        stacked.hidesTitle = self.logosOnly
+        return stacked
     }
 
     private static func switcherButtonHeight(stackedIcons: Bool, rowCount: Int) -> CGFloat {
@@ -676,7 +692,10 @@ final class ProviderSwitcherView: NSView {
     private func remainingPercent(for selection: ProviderSwitcherSelection) -> Double? {
         switch selection {
         case let .provider(instanceID):
-            self.weeklyRemainingProvider(instanceID)
+            self.weeklyRemainingProvider(instanceID).flatMap { remaining in
+                // In the logo row a track only marks a limit that is close; the list below carries the rest.
+                !self.logosOnly || remaining <= Self.logoRowTrackRemainingPercent ? remaining : nil
+            }
         case .overview:
             nil
         }
@@ -759,8 +778,10 @@ final class ProviderSwitcherView: NSView {
         desiredWidths.reserveCapacity(self.buttons.count)
 
         for (index, button) in self.buttons.enumerated() {
-            if self.stackedIcons,
-               self.segments.indices.contains(index)
+            if self.logosOnly {
+                desiredWidths.append(maxAllowedWidth)
+            } else if self.stackedIcons,
+                      self.segments.indices.contains(index)
             {
                 let font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
                 let titleWidth = ceil(
@@ -968,9 +989,9 @@ extension ProviderSwitcherView {
     /// Simulates the parent-view event path used while NSMenu owns mouse tracking.
     @discardableResult
     func _test_simulateRuntimeClick(buttonTag: Int) -> Bool {
-        guard self._test_simulateMouseDown(buttonTag: buttonTag) else { return false }
-        guard let event = self._test_mouseUpEvent(buttonTag: buttonTag) else { return false }
-        guard self.handleMenuTrackingMouseUp(event) else { return false }
+        guard self._test_simulateMouseDown(buttonTag: buttonTag),
+              let event = self._test_mouseUpEvent(buttonTag: buttonTag),
+              self.handleMenuTrackingMouseUp(event) else { return false }
         return self.selectedSegmentIndex == buttonTag
     }
 

@@ -281,6 +281,16 @@ func enableTestProviders(_ enabledProviders: Set<UsageProvider>, settings: Setti
 }
 
 #if os(macOS)
+extension Sequence<NSMenuItem> {
+    /// Reference links live one level down in the More submenu, so title lookups search there as well.
+    @MainActor
+    func firstIncludingSubmenus(title: String) -> NSMenuItem? {
+        let items = Array(self)
+        return items.first { $0.title == title }
+            ?? items.lazy.compactMap { $0.submenu?.items.firstIncludingSubmenus(title: title) }.first
+    }
+}
+
 @MainActor
 func testStatusBar() -> NSStatusBar {
     // Standalone NSStatusBar instances can crash during swiftpm-testing-helper teardown.

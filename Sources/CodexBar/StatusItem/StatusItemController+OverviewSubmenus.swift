@@ -42,7 +42,7 @@ extension StatusItemController {
         }
         let rawProvider = String(represented.dropFirst(Self.overviewRowIdentifierPrefix.count))
         guard let provider = MergedOverviewRow.providerID(from: rawProvider),
-              let menu = sender.menu
+              let menu = sender.menu?.supermenu ?? sender.menu
         else {
             return
         }

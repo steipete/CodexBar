@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Dropdown: a shorter footer. More than 5 tabs become a single row of logos, Share Usage Snapshot moves to the compact Overview footer, secondary actions move under More, and Overview rows past 12 go into a More submenu.
+
 ## 0.84.0 — 2026-11-06
 
 ### Highlights

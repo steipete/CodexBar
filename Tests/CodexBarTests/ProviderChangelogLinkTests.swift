@@ -71,9 +71,12 @@ struct ProviderChangelogLinkTests {
     private func actionTitles(from descriptor: MenuDescriptor) -> [String] {
         descriptor.sections
             .flatMap(\.entries)
-            .compactMap { entry -> String? in
-                guard case let .action(title, _) = entry else { return nil }
-                return title
+            .flatMap { entry -> [String] in
+                switch entry {
+                case let .action(title, _): [title]
+                case let .submenu(_, _, items): items.map(\.title)
+                default: []
+                }
             }
     }
 }

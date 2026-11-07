@@ -179,7 +179,10 @@ struct MenuDescriptor {
             availableUpdateVersion: availableUpdateVersion,
             isInstallingUpdate: isInstallingUpdate,
             canCheckForUpdates: canCheckForUpdates,
-            versionText: versionText))
+            versionText: versionText,
+            contextualMoreItems: includeContextualActions
+                ? Self.contextualMoreItems(for: provider, store: store)
+                : []))
 
         return MenuDescriptor(sections: sections)
     }
@@ -606,13 +609,6 @@ struct MenuDescriptor {
         if metadata?.dashboardURL != nil {
             entries.append(.action(L("Usage Dashboard"), .dashboard))
         }
-        if metadata?.statusPageURL != nil || metadata?.statusLinkURL != nil {
-            entries.append(.action(L("Status Page"), .statusPage))
-        }
-        if store.settings.providerChangelogLinksEnabled, metadata?.changelogURL != nil {
-            entries.append(.action(L("Changelog"), .changelog))
-        }
-
         if let statusLine = self.statusLine(for: provider, store: store) {
             entries.append(.text(statusLine, .secondary))
         }
@@ -620,14 +616,30 @@ struct MenuDescriptor {
         return Section(entries: entries)
     }
 
+    /// Reference links stay one level down; account recovery and the dashboard stay on top.
+    private static func contextualMoreItems(for provider: UsageProvider?, store: UsageStore) -> [SubmenuItem] {
+        guard let target = provider ?? store.enabledFirstPartyProviders().first else { return [] }
+        let metadata = store.metadata(for: target)
+        var items: [SubmenuItem] = []
+        if metadata.statusPageURL != nil || metadata.statusLinkURL != nil {
+            items.append(SubmenuItem(title: L("Status Page"), action: .statusPage))
+        }
+        if store.settings.providerChangelogLinksEnabled, metadata.changelogURL != nil {
+            items.append(SubmenuItem(title: L("Changelog"), action: .changelog))
+        }
+        return items
+    }
+
     static func metaSection(
         updateReady: Bool,
         availableUpdateVersion: String? = nil,
         isInstallingUpdate: Bool = false,
         canCheckForUpdates: Bool = false,
-        versionText: String = AppVersion.shortVersion) -> Section
+        versionText: String = AppVersion.shortVersion,
+        contextualMoreItems: [SubmenuItem] = []) -> Section
     {
         var entries: [Entry] = []
+        var moreItems = contextualMoreItems
         if updateReady {
             entries.append(.action(L("Update ready, restart now?"), .installUpdate))
         } else if isInstallingUpdate {
@@ -635,13 +647,14 @@ struct MenuDescriptor {
         } else if let availableUpdateVersion {
             entries.append(.action(String(format: L("Update to %@"), availableUpdateVersion), .installUpdate))
         } else if canCheckForUpdates {
-            entries.append(.action(L("Check for Updates…"), .checkForUpdates))
+            moreItems.append(SubmenuItem(title: L("Check for Updates…"), action: .checkForUpdates))
         }
         let aboutLabel = L("About CodexBar") + (versionText.isEmpty ? "" : " (v\(versionText))")
+        moreItems.append(SubmenuItem(title: aboutLabel, action: .about))
         entries.append(contentsOf: [
             .action(L("Refresh"), .refresh),
             .action(L("Settings..."), .settings),
-            .action(aboutLabel, .about),
+            .submenu(L("More"), "ellipsis.circle", moreItems),
             .action(L("Quit"), .quit),
         ])
         return Section(entries: entries)

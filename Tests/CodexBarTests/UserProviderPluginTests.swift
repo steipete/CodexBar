@@ -941,6 +941,38 @@ extension UserProviderPluginTests {
 
 extension UserProviderPluginTests {
     @MainActor
+    @Test
+    func `overflow keeps a card for plugins that have no tab and a tab action for those that do`() throws {
+        let wasEnabled = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer { StatusItemController.menuCardRenderingEnabled = wasEnabled }
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        _ = try fixture.write(name: "card.js", source: Self.menuPlugin(id: "card-m", name: "Card", topLevel: false))
+        _ = try fixture.write(name: "tab.js", source: Self.menuPlugin(id: "tab-m", name: "Tab Meter", topLevel: true))
+        let plugins = UserProviderPluginRegistry.refresh(
+            loader: fixture.loader(transport: RecordingTransport(responseJSON: "{}"))).compactMap(\.plugin)
+        let card = try #require(plugins.first { !$0.manifest.topLevel })
+        let tab = try #require(plugins.first { $0.manifest.topLevel })
+        let (controller, _, _) = Self.makePluginMenuController(
+            suiteName: "UserProviderPluginTests.overflow",
+            selectedPluginID: .codex,
+            enabledPluginIDs: [card.manifest.id, tab.manifest.id],
+            approvalStore: fixture.approvals)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let item = controller.makeOverviewOverflowItem(
+            [card.manifest.id, tab.manifest.id].map { MergedOverviewRow(provider: $0, accountID: nil, model: nil) },
+            menuWidth: 310)
+        let children = try #require(item.submenu?.items)
+        #expect(children.count == 2)
+        #expect(children[0].view != nil)
+        #expect(children[0].action == nil)
+        #expect(children[1].title == "Tab Meter")
+        #expect(children[1].action == #selector(StatusItemController.selectOverviewProvider(_:)))
+    }
+
+    @MainActor
     @Test(arguments: [nil, true, false] as [Bool?])
     func `plugin placement respects default explicit override and unmerged menus`(topLevel: Bool?) throws {
         let fixture = try Fixture()

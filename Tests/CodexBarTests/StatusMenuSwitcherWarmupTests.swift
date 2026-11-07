@@ -112,7 +112,7 @@ final class StatusMenuSwitcherWarmupTests: XCTestCase {
                 controller.warmMergedSwitcherSiblingContent(in: menu)
                 let caches = try XCTUnwrap(controller.mergedSwitcherContentCaches[ObjectIdentifier(menu)])
                 let cached = try XCTUnwrap(caches[.provider(provider.instanceID)])
-                let cachedStatus = try XCTUnwrap(cached.items.first { $0.title == L("Status Page") })
+                let cachedStatus = try XCTUnwrap(cached.items.firstIncludingSubmenus(title: L("Status Page")))
                 try self.assertStatusProvider(provider, item: cachedStatus, controller: controller)
 
                 controller.preservingMergedSwitcherContentCachesDuringInvalidation {
@@ -133,7 +133,7 @@ final class StatusMenuSwitcherWarmupTests: XCTestCase {
                         tokenAccountDisplay: nil,
                         openAIContext: controller.openAIWebContext(currentProvider: provider, showAllAccounts: false),
                         descriptor: controller.makeMenuDescriptor(provider: provider, includeContextualActions: true)))
-                let liveStatus = try XCTUnwrap(menu.items.first { $0.title == L("Status Page") })
+                let liveStatus = try XCTUnwrap(menu.items.firstIncludingSubmenus(title: L("Status Page")))
                 XCTAssertTrue(liveStatus.submenu === cachedStatus.submenu)
                 try self.assertStatusProvider(provider, item: liveStatus, controller: controller)
 
@@ -141,7 +141,7 @@ final class StatusMenuSwitcherWarmupTests: XCTestCase {
                 controller.menuWillOpen(menu)
                 try self.assertStatusProvider(
                     provider,
-                    item: XCTUnwrap(menu.items.first { $0.title == L("Status Page") }),
+                    item: XCTUnwrap(menu.items.firstIncludingSubmenus(title: L("Status Page"))),
                     controller: controller)
             }
         }

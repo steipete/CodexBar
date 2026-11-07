@@ -138,15 +138,43 @@ extension StatusItemController {
         let cardID = "pluginCard:\(instanceID.rawValue)"
         // Plugin cards capture snapshots, so their visible payload needs the guarded rebuild path.
         let overviewID = "\(Self.overviewRowIdentifierPrefix)\(instanceID.rawValue)"
+        func containsPluginCard(_ menu: NSMenu) -> Bool {
+            menu.items.contains { item in
+                let id = item.representedObject as? String
+                if id == cardID || id == overviewID { return true }
+                if let submenu = item.submenu { return containsPluginCard(submenu) }
+                return false
+            }
+        }
         for menu in self.openMenus.values {
             (menu.items.first?.view as? ProviderSwitcherView)?.updateQuotaIndicators()
-            if menu.items.contains(where: {
-                let id = $0.representedObject as? String
-                return id == cardID || id == overviewID
-            }) {
+            self.refreshOverviewOverflowPluginCard(in: menu, instanceID: instanceID)
+            if containsPluginCard(menu) {
                 self.scheduleOpenMenuRebuildIfStillVisible(menu, provider: self.menuProvider(for: menu))
             }
         }
+    }
+
+    private func refreshOverviewOverflowPluginCard(in menu: NSMenu, instanceID: ProviderInstanceID) {
+        guard self.settings.isPluginEnabled(instanceID),
+              let overflow = menu.items.first(where: {
+                  ($0.representedObject as? String) == "overviewOverflow"
+              })?.submenu,
+              let index = overflow.items.firstIndex(where: {
+                  ($0.representedObject as? String) == "pluginCard:\(instanceID.rawValue)"
+              }),
+              let plugin = UserProviderPluginRegistry.plugin(for: instanceID)
+        else { return }
+        // More is a native highlighted parent: rebuilding the root must remain deferred.
+        // Replace only its captured plugin leaf, retaining the parent and submenu navigation.
+        let oldCard = overflow.items[index]
+        let freshCard = self.makeUserPluginMenuCardItem(plugin, width: self.renderedMenuWidth(for: menu))
+        overflow.insertItem(freshCard, at: index)
+        overflow.removeItem(oldCard)
+        self.flushHostedMenuRowRendering(in: overflow)
+        #if DEBUG
+        self._test_openMenuRebuildObserver?(overflow)
+        #endif
     }
 
     static func userPluginsForMenu(

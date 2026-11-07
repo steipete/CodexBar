@@ -246,7 +246,7 @@ struct StatusMenuPersistentRefreshTests {
         #expect(updateItem.action != nil)
         #expect(updateItem.target === controller)
 
-        for (title, key) in [("Settings...", ","), ("About CodexBar", ""), ("Quit", "q")] {
+        for (title, key) in [("Settings...", ","), ("Quit", "q")] {
             let item = try #require(menu.items.first { $0.title == title })
             #expect(item.view == nil)
             #expect(item.action != nil)

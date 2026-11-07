@@ -776,7 +776,7 @@ struct StatusMenuTests {
         #expect(!titles.contains("Status Page"))
         #expect(titles.contains("Refresh"))
         #expect(titles.contains("Settings..."))
-        #expect(titles.contains("About CodexBar"))
+        #expect(titles.contains("More"))
         #expect(titles.contains("Quit"))
 
         let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })

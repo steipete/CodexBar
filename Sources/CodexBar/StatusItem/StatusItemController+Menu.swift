@@ -590,13 +590,11 @@ extension StatusItemController {
                     spendSummary.provenanceText,
                 ].joined(separator: "|"))
             menu.addItem(summaryItem)
-            if let shareItem = self.makeOverviewShareStatsMenuItem(model: spendModel) {
-                menu.addItem(shareItem)
-            }
+            self.addOverviewInlineShareItemIfDetailed(to: menu, model: spendModel)
             menu.addItem(.separator())
         }
 
-        for (index, row) in rows.enumerated() {
+        for (index, row) in rows.prefix(Self.overviewInlineRowLimit).enumerated() {
             let instanceID = row.provider
             if index > 0 { menu.addItem(.separator()) }
             let identifier = "\(Self.overviewRowIdentifierPrefix)\(row.id)"
@@ -654,6 +652,7 @@ extension StatusItemController {
             }
             menu.addItem(item)
         }
+        self.addOverviewOverflowItemIfNeeded(rows, to: menu, menuWidth: menuWidth)
         return true
     }
 
@@ -830,7 +829,7 @@ extension StatusItemController {
                 menuWidth: context.menuWidth,
                 captureMenu: captureMenu)
             {
-                menu.addItem(.separator())
+                self.addOverviewRowsFooter(to: menu, enabledProviders: enabledProviders)
             } else {
                 self.addOverviewEmptyState(to: menu, enabledProviders: enabledProviders)
                 menu.addItem(.separator())
@@ -953,6 +952,8 @@ extension StatusItemController {
                             child.action = selector
                             child.target = self
                             child.representedObject = represented
+                            self.attachStatusComponentsSubmenuIfNeeded(
+                                to: child, action: action, provider: provider, width: width)
                         }
                         submenu.addItem(child)
                     }

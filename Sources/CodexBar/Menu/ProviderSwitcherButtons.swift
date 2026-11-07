@@ -195,6 +195,15 @@ final class StackedToggleButton: NSButton {
         self.titleField.font = NSFont.systemFont(ofSize: size)
     }
 
+    /// Keeps the accessibility label and tooltip while the row shows only the logo.
+    var hidesTitle = false {
+        didSet {
+            self.titleField.isHidden = self.hidesTitle
+            // Some marks run past their 16pt box; with no label to align to, fit them instead of clipping.
+            self.iconView.imageScaling = self.hidesTitle ? .scaleProportionallyDown : .scaleNone
+        }
+    }
+
     override var intrinsicContentSize: NSSize {
         let size = self.stack.fittingSize
         return NSSize(

@@ -232,7 +232,7 @@ final class StatusMenuProviderNativeProofTests: XCTestCase {
             ($0.representedObject as? String) == "overviewRow-codex"
         }?.view as? MenuRowContainerView
         let contentHost = overviewRow?.subviews.last
-        let statusItem = menu.items.first { $0.title == L("Status Page") }
+        let statusItem = menu.items.firstIncludingSubmenus(title: L("Status Page"))
         let submenu = statusItem?.submenu
         return [
             "outerVibrancy": String(overviewRow?.allowsVibrancy ?? false),

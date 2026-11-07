@@ -1,4 +1,5 @@
 import AppKit
+import CodexBarCore
 import Testing
 @testable import CodexBar
 
@@ -103,7 +104,7 @@ struct StatusMenuSwitcherLayoutTests {
         view.updateConstraintsForSubtreeIfNeeded()
         view.layoutSubtreeIfNeeded()
 
-        #expect(view._test_rowCount() == 3)
+        #expect(view._test_rowCount() == 2)
         let commandIndex = try #require(view._test_segmentTitles().firstIndex(of: "Command Code"))
         let buttonFrame = view._test_buttonFrames()[commandIndex]
         let contentFrames = view._test_buttonContentFrames()
@@ -113,6 +114,41 @@ struct StatusMenuSwitcherLayoutTests {
         #expect(contentFrame.maxY <= buttonFrame.height + 0.01)
         #expect(abs(contentFrame.height - referenceFrame.height) < 0.01)
         #expect(abs(contentFrame.midY - referenceFrame.midY) < 0.01)
+    }
+
+    @Test
+    func `labels stay while they fit and logos take over before the row would wrap`() {
+        func switcher(_ providers: [UsageProvider]) -> ProviderSwitcherView {
+            let view = ProviderSwitcherView(
+                providers: providers,
+                selected: .overview,
+                includesOverview: true,
+                width: 310,
+                showsIcons: true,
+                iconProvider: { _ in NSImage(size: NSSize(width: 16, height: 16)) },
+                weeklyRemainingProvider: { _ in nil },
+                onSelect: { _ in })
+            view.updateConstraintsForSubtreeIfNeeded()
+            view.layoutSubtreeIfNeeded()
+            return view
+        }
+        let labeled = switcher([.codex, .claude, .cursor, .gemini])
+        #expect(labeled._test_rowCount() == 1)
+        #expect(labeled._test_rowHeight() == 36)
+
+        let logos = switcher([.codex, .claude, .cursor, .gemini, .copilot, .factory, .windsurf, .kimi])
+        #expect(logos._test_rowCount() == 1)
+        #expect(logos._test_rowHeight() == 28)
+        #expect(logos.bounds.height == 28)
+        #expect(logos._test_segmentTitles().contains("Copilot"))
+        // With no visible label the tooltip is the only way to name an unfamiliar logo.
+        let toolTips = logos.subviews.compactMap { ($0 as? NSButton)?.toolTip }
+        #expect(Set(toolTips) == Set(logos._test_segmentTitles()))
+        let labeledToolTips = labeled.subviews.compactMap { ($0 as? NSButton)?.toolTip }
+        #expect(labeledToolTips.isEmpty)
+        for frame in logos._test_buttonFrames() {
+            #expect(frame.maxX <= logos.bounds.maxX + 0.5)
+        }
     }
 
     @Test

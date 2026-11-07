@@ -7,9 +7,12 @@ struct MenuDescriptorUpdateAndVersionTests {
     @Test(arguments: [false, true], [false, true])
     func `update availability and readiness select exactly one action`(available: Bool, ready: Bool) {
         let descriptor = self.descriptor(available: available, ready: ready, version: "1.2.3")
-        let actions = descriptor.sections.flatMap(\.entries).compactMap { entry -> MenuDescriptor.MenuAction? in
-            guard case let .action(_, action) = entry else { return nil }
-            return action
+        let actions = descriptor.sections.flatMap(\.entries).flatMap { entry -> [MenuDescriptor.MenuAction] in
+            switch entry {
+            case let .action(_, action): [action]
+            case let .submenu(_, _, items): items.compactMap(\.action)
+            default: []
+            }
         }
 
         #expect(actions.contains(.installUpdate) == ready)
@@ -23,9 +26,9 @@ struct MenuDescriptorUpdateAndVersionTests {
     @Test(arguments: ["", "1.2.3", "1.2.3beta4"])
     func `about label includes only a known short version`(version: String) {
         let descriptor = self.descriptor(available: false, ready: false, version: version)
-        let labels = descriptor.sections.flatMap(\.entries).compactMap { entry -> String? in
-            guard case let .action(label, .about) = entry else { return nil }
-            return label
+        let labels = descriptor.sections.flatMap(\.entries).flatMap { entry -> [String] in
+            guard case let .submenu(_, _, items) = entry else { return [] }
+            return items.filter { $0.action == .about }.map(\.title)
         }
 
         #expect(labels == [L("About CodexBar") + (version.isEmpty ? "" : " (v\(version))")])
