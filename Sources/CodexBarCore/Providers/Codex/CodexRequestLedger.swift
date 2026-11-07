@@ -1,4 +1,3 @@
-import Crypto
 import Foundation
 
 /// A provider-owned request; input includes cached input, while reasoning is part of output.
@@ -57,8 +56,8 @@ public struct CodexRequestRecord: Codable, Sendable, Equatable {
 
 /// One exact inclusive UTC window. This identifies requests, without claiming account-wide usage.
 public struct CodexRequestLedger: Codable, Sendable {
-    public static let maximumRecords = 50000
-    public static let maximumOutputBytes = 32 * 1024 * 1024
+    public static let maximumRecords = IdentifiedRequestLimits.maximumRecords
+    public static let maximumOutputBytes = IdentifiedRequestLimits.maximumOutputBytes
     public var schemaVersion = 2
     public var provider = "codex"
     public var startUnixMs: Int64
@@ -69,14 +68,7 @@ public struct CodexRequestLedger: Codable, Sendable {
     public var partial = false
 
     public func validate(startUnixMs: Int64, endUnixMs: Int64) throws {
-        guard self.schemaVersion == 2, self.provider == "codex",
-              self.startUnixMs == startUnixMs, self.endUnixMs == endUnixMs,
-              startUnixMs >= 0, endUnixMs <= 253_402_300_799_999, endUnixMs >= startUnixMs,
-              startUnixMs % 86_400_000 == 0, endUnixMs - startUnixMs < 365 * 86_400_000,
-              self.records.count <= Self.maximumRecords, self.conflictingIDs.count <= Self.maximumRecords,
-              self.excludedCount >= 0, Set(self.conflictingIDs).count == self.conflictingIDs.count,
-              self.conflictingIDs.allSatisfy(Self.isDigest)
-        else { throw RemoteCodexCostError.invalidReport }
+        try self.validateEnvelope(startUnixMs: startUnixMs, endUnixMs: endUnixMs, recordCount: self.records.count)
         var total = 0
         for record in self.records {
             guard Self.isDigest(record.id), (startUnixMs...endUnixMs).contains(record.timestampUnixMs),
@@ -337,7 +329,7 @@ public struct CodexRequestLedger: Codable, Sendable {
     }
 
     /// Capture once so a multi-host collection cannot mix catalog or custom-rate revisions.
-    package static func makeMerger() -> @Sendable ([Self]) throws -> CodexRequestSubtotal {
+    package static func makeMerger() -> ([Self]) throws -> CodexRequestSubtotal {
         let catalog = CostUsagePricing.modelsDevCatalog() ?? ModelsDevCatalog(providers: [:])
         let customPricing = CostUsagePricing.customPricingOverlay()
         return { try self.merge($0, catalog: catalog, customPricing: customPricing) }
@@ -424,15 +416,6 @@ public struct CodexRequestLedger: Codable, Sendable {
             pricingDate: date,
             customPricing: customPricing,
             pricingResolver: resolver)
-    }
-
-    private static func isDigest(_ value: String) -> Bool {
-        value.utf8.count == 64 && value.utf8.allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
-    }
-
-    private static func digest(_ components: [String]) -> String {
-        let framed = components.map { "\($0.utf8.count):\($0)" }.joined()
-        return SHA256.hash(data: Data(framed.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 }
 
