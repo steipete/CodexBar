@@ -36,6 +36,7 @@
 - Kiro: preserve the `+` in CLI-reported plan names so Pro+ subscriptions are shown as Kiro Pro+. (#4928) Thanks @jeanroloff!
 ### Changed
 
+- Codex: reduce cost-refresh CPU and temporary allocations for projects with many sessions by accumulating their reports in place (#4978).
 - Widgets: reload only Switcher widgets when paging providers, avoiding reload requests for unrelated widget kinds.
 
 - Widgets: reduce timeline decoding work by reading only the configured provider's payload while preserving snapshot freshness and account ownership checks.

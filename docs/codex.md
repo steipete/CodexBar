@@ -755,6 +755,8 @@ dashboard labels its values as local estimates and keeps currencies separate.
 Cost refreshes and cached dashboard loads share each file report between session and project views. Daily and
 project totals retain their own pricing evidence scopes. All preparation is local to one call, so later loads use
 their current rows, prices, roots, dates, and time zone without retaining another report cache.
+Project accumulation updates its file and report collections in place, avoiding repeated copies as session counts
+grow. Native caches from the previous parser fingerprint retain their rows, checkpoints, and report totals.
 
 ## Upcoming weekly reset warnings
 
