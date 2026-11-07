@@ -9,10 +9,7 @@ final class CloudSyncCoordinator {
 
     private let settings: SettingsStore
     private let engine: CloudSyncEngine
-    private var configObserver: NSObjectProtocol?
-    private var localFileConfigObserver: NSObjectProtocol?
-    private var snapshotObserver: NSObjectProtocol?
-    private var accountObserver: NSObjectProtocol?
+    private var observers: [NSObjectProtocol] = []
     private var preferencesImportObserver: NSObjectProtocol?
     private var resumeTask: Task<Void, Never>?
     private var observedEnabled: Bool
@@ -45,25 +42,16 @@ final class CloudSyncCoordinator {
             MainActor.assumeIsolated { self?.settings.consumePendingPreferencesImport() }
         }
         self.settings.consumePendingPreferencesImport()
-        self.configObserver = NotificationCenter.default.addObserver(
-            forName: .codexbarProviderConfigDidChange,
-            object: self.settings,
-            queue: .main)
-        { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.configurationDidChangeLocally()
-            }
+        let configNotifications: [Notification.Name] = [
+            .codexbarProviderConfigDidChange, .codexbarLocalConfigFileDidChange,
+        ]
+        self.observers = configNotifications.map { name in
+            NotificationCenter.default
+                .addObserver(forName: name, object: self.settings, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.configurationDidChangeLocally() }
+                }
         }
-        self.localFileConfigObserver = NotificationCenter.default.addObserver(
-            forName: .codexbarLocalConfigFileDidChange,
-            object: self.settings,
-            queue: .main)
-        { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.configurationDidChangeLocally()
-            }
-        }
-        self.snapshotObserver = NotificationCenter.default.addObserver(
+        self.observers.append(NotificationCenter.default.addObserver(
             forName: .codexbarUsageSnapshotsDidChange,
             object: nil,
             queue: .main)
@@ -73,8 +61,8 @@ final class CloudSyncCoordinator {
                 guard let self else { return }
                 await self.engine.queueSnapshots(event.snapshots)
             }
-        }
-        self.accountObserver = NotificationCenter.default.addObserver(
+        })
+        self.observers.append(NotificationCenter.default.addObserver(
             forName: NSNotification.Name.CKAccountChanged,
             object: nil,
             queue: .main)
@@ -82,12 +70,26 @@ final class CloudSyncCoordinator {
             MainActor.assumeIsolated {
                 self?.scheduleResume(debounce: true)
             }
-        }
+        })
         Task { await self.engine.start(enabled: self.settings.iCloudSyncEnabled) }
     }
 
     func applicationDidBecomeActive() {
         self.scheduleResume(debounce: false)
+    }
+
+    func didReceiveRemoteNotification(_ userInfo: [String: Any]) {
+        Self.routeRemoteNotification(userInfo, enabled: self.settings.iCloudSyncEnabled) {
+            self.scheduleResume(debounce: false)
+        }
+    }
+
+    static func routeRemoteNotification(_ userInfo: [String: Any], enabled: Bool, fetch: () -> Void) {
+        guard enabled,
+              let notification = CKNotification(fromRemoteNotificationDictionary: userInfo) as? CKDatabaseNotification,
+              notification.containerIdentifier == CloudSyncEngine.containerIdentifier,
+              notification.databaseScope == .private else { return }
+        fetch()
     }
 
     private func configurationDidChangeLocally() {
@@ -103,23 +105,9 @@ final class CloudSyncCoordinator {
             DistributedNotificationCenter.default().removeObserver(preferencesImportObserver)
             self.preferencesImportObserver = nil
         }
-        if let configObserver {
-            NotificationCenter.default.removeObserver(configObserver)
-        }
-        if let localFileConfigObserver {
-            NotificationCenter.default.removeObserver(localFileConfigObserver)
-        }
-        if let snapshotObserver {
-            NotificationCenter.default.removeObserver(snapshotObserver)
-        }
-        if let accountObserver {
-            NotificationCenter.default.removeObserver(accountObserver)
-        }
+        self.observers.forEach(NotificationCenter.default.removeObserver)
+        self.observers.removeAll()
         self.resumeTask?.cancel()
-        self.configObserver = nil
-        self.localFileConfigObserver = nil
-        self.snapshotObserver = nil
-        self.accountObserver = nil
         self.resumeTask = nil
         Task { await self.engine.stop() }
     }
