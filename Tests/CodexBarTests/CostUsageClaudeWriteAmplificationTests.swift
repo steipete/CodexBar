@@ -647,7 +647,7 @@ extension CostUsageClaudeWriteAmplificationTests {
 
         let work = CostUsageScanner.ClaudeScanWorkRecorder()
         CostUsageScanner.withClaudeScanWorkRecorderForTesting(work) {
-            CostUsageClaudeReportMemo.shared.store(
+            _ = CostUsageClaudeReportMemo.shared.store(
                 provider: .claude,
                 canonicalCachePath: url.path,
                 sourceInventory: memo.sourceInventory,
@@ -665,7 +665,7 @@ extension CostUsageClaudeWriteAmplificationTests {
         #expect(cached.hourly == initial.hourly)
         #expect(cached.quotaSlices == initial.quotaSlices)
         CostUsageScanner.withClaudeScanWorkRecorderForTesting(work) {
-            CostUsageClaudeReportMemo.shared.store(
+            _ = CostUsageClaudeReportMemo.shared.store(
                 provider: .claude,
                 canonicalCachePath: url.path,
                 sourceInventory: memo.sourceInventory,
