@@ -11,9 +11,24 @@ struct MetricRow: View {
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
     /// Synthetic credit lanes refresh independently of quota measurements.
+    /// Retained (stale) bars stay neutral; a live quota window with at most 10% left uses the same low-quota
+    /// signal as the widgets and compact account rows.
     var barTint: Color {
-        (self.metric.retainedMeasurementOverride ?? (self.isRetainedMeasurement && !self.metric.isSyntheticCreditLane))
-            ? UsageMenuCardView.Model.staleProgressColor : self.progressColor
+        if self.showsRetainedTint { return UsageMenuCardView.Model.staleProgressColor }
+        return self.isLowQuota ? Self.lowQuotaTint : self.progressColor
+    }
+
+    private var showsRetainedTint: Bool {
+        self.metric.retainedMeasurementOverride ??
+            (self.isRetainedMeasurement && !self.metric.isSyntheticCreditLane)
+    }
+
+    static let lowQuotaTint = Color(nsColor: .systemRed)
+
+    private var isLowQuota: Bool {
+        guard !self.metric.isSyntheticCreditLane, self.metric.statusText == nil else { return false }
+        let remaining = self.metric.percentStyle == .used ? 100 - self.metric.percent : self.metric.percent
+        return AccountMenuLayoutPlanner.severity(forHeadroom: remaining) == .critical
     }
 
     var body: some View {
