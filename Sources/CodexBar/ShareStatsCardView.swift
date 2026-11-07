@@ -9,13 +9,6 @@ struct ShareStatsCardView: View {
         providerCount > 5 ? 4 : min(providerCount, 5)
     }
 
-    static func providerPaletteIndex(
-        for model: ShareStatsModelPayload,
-        providers: [ShareStatsProviderPayload]) -> Int?
-    {
-        providers.firstIndex { $0.provider == model.provider }
-    }
-
     @Environment(\.colorScheme) private var colorScheme
     private let accent = Color(red: 0.93, green: 0.56, blue: 0.36)
 
@@ -123,8 +116,7 @@ struct ShareStatsCardView: View {
                     ShareStatsProviderRow(
                         rank: index + 1,
                         provider: provider,
-                        days: self.payload.days,
-                        color: ShareStatsPalette.color(at: index))
+                        days: self.payload.days)
                 }
                 if self.payload.providers.count > self.providerDisplayLimit {
                     Text(L(
@@ -152,8 +144,7 @@ struct ShareStatsCardView: View {
                         { index, model in
                             ShareStatsModelRow(
                                 rank: self.payload.hasPartialModels ? nil : index + 1,
-                                model: model,
-                                color: self.color(for: model))
+                                model: model)
                         }
                     }
                 }
@@ -198,13 +189,6 @@ struct ShareStatsCardView: View {
         return currency.isPartial ? "~\(formatted)" : formatted
     }
 
-    private func color(for model: ShareStatsModelPayload) -> Color {
-        guard let index = Self.providerPaletteIndex(for: model, providers: self.payload.providers) else {
-            return .secondary
-        }
-        return ShareStatsPalette.color(at: index)
-    }
-
     private func sectionHeader(_ title: String, detail: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(title)
@@ -233,13 +217,10 @@ struct ShareStatsCardView: View {
 private struct ShareStatsModelRow: View {
     let rank: Int?
     let model: ShareStatsModelPayload
-    let color: Color
 
     var body: some View {
         HStack(spacing: 9) {
-            Capsule()
-                .fill(self.color)
-                .frame(width: 5, height: 34)
+            SpendProviderIcon(provider: self.model.provider, size: 24)
             Text(self.rank.map { String(format: "%02d", $0) } ?? "·")
                 .font(.system(size: 17, weight: .bold, design: .rounded))
                 .monospacedDigit()
@@ -283,13 +264,10 @@ private struct ShareStatsProviderRow: View {
     let rank: Int
     let provider: ShareStatsProviderPayload
     let days: Int
-    let color: Color
 
     var body: some View {
         HStack(spacing: 9) {
-            Capsule()
-                .fill(self.color)
-                .frame(width: 6, height: 30)
+            SpendProviderIcon(provider: self.provider.provider, size: 24)
             Text(String(format: "%02d", self.rank))
                 .font(.system(size: 17, weight: .bold, design: .rounded))
                 .monospacedDigit()
@@ -338,21 +316,6 @@ private struct ShareStatsProviderRow: View {
             metrics.append(L("Spend unavailable"))
         }
         return metrics.isEmpty ? L("connected") : metrics.joined(separator: " · ")
-    }
-}
-
-private enum ShareStatsPalette {
-    static let colors = [
-        Color(red: 1.00, green: 0.60, blue: 0.38),
-        Color(red: 0.60, green: 0.66, blue: 1.00),
-        Color(red: 0.38, green: 0.84, blue: 0.72),
-        Color(red: 0.95, green: 0.79, blue: 0.41),
-        Color(red: 0.44, green: 0.77, blue: 0.96),
-        Color(red: 0.95, green: 0.55, blue: 0.67),
-    ]
-
-    static func color(at index: Int) -> Color {
-        self.colors[index % self.colors.count]
     }
 }
 

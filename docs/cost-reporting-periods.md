@@ -9,6 +9,8 @@ unpriced models from different providers are not compared by token share.
 
 Share-card previews and exported images follow the app's current light or dark appearance. Their
 subscription amounts, coverage, separate currencies, and aggregate-only content are unchanged.
+Subscription and model rows identify each provider by its bundled mark, which stays legible on
+both the light and dark card.
 
 ## Conversation usage details
 
