@@ -273,7 +273,7 @@ and stable account numbers distinguish rows while usable workspace labels remain
 - Preferences → Providers → Codex → OpenAI cookies (Automatic or Manual).
 - URL: `https://chatgpt.com/codex/cloud/settings/analytics#usage`.
 - Uses an off-screen `WKWebView` with a per-account `WKWebsiteDataStore`.
-- Clears disposable WebKit disk/memory caches at launch and at most daily after background use, preserving cookies and session storage. Removing a managed account attempts to remove only its matching scoped store; unknown historical mappings retain sessions. See [WebKit storage and cleanup](webkit.md#persistent-data-and-cache-maintenance).
+- Clears disposable WebKit disk/memory caches in existing named stores at most daily across launches and after background use, preserving cookies and session storage. Launches without named stores skip WebKit initialization. Removing a managed account attempts to remove only its matching scoped store; unknown historical mappings retain sessions. See [WebKit storage and cleanup](webkit.md#persistent-data-and-cache-maintenance).
   - Store key: deterministic UUID from the normalized email.
 - WebKit store can hold multiple accounts concurrently.
 - Active page preparation and JavaScript evaluations share the refresh deadline. Expired pages are terminated and discarded; verified API usage remains available. Timeout diagnostics do not start new JavaScript after the deadline.
