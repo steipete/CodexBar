@@ -425,6 +425,8 @@ prepaid-balance caption. Accounts with quota windows keep their separate Extra u
 menu-card-sections layout. Uncapped balances keep their compact Credits row; Admin API spend is unchanged.
 Extra usage still follows its existing visibility choice and the global optional-usage switch. Pace follows the
 existing pace setting, independently of redeemable Limit Reset Credits.
+The provider switcher also uses this cap when normal quotas are unavailable; a real session or weekly quota
+keeps priority. Snapshots from other providers never supply this Claude cap.
 
 Claude does not report the cap reset. CodexBar infers midnight UTC on the first of the next month from the cost
 observation, applying [Anthropic's documented spend-limit period](https://platform.claude.com/docs/en/manage-claude/spend-limits-api)

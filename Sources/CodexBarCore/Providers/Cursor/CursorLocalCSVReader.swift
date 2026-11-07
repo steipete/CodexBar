@@ -4,10 +4,16 @@ import Foundation
 
 enum CursorLocalCSVReader {
     #if DEBUG
+    @TaskLocal static var cacheHomeForTesting: URL?
     @TaskLocal static var observeBufferedLineBytesForTesting: (@Sendable (Int) -> Void)?
     #endif
 
     static func cachedCSVPaths(home: URL? = nil) -> [URL] {
+        #if DEBUG
+        if home == nil, let cacheHomeForTesting {
+            return self.cachedCSVPaths(home: cacheHomeForTesting)
+        }
+        #endif
         let base: URL = if let home {
             home.appendingPathComponent(".config/tokscale/cursor-cache", isDirectory: true)
         } else if let dir = ProcessInfo.processInfo.environment["TOKSCALE_CONFIG_DIR"] {

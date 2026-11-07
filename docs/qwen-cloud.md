@@ -11,6 +11,13 @@ read_when:
 The Qwen Cloud provider tracks **Team and Individual Token Plan** subscription credits from the
 Qwen Cloud console (`home.qwencloud.com`), including plans that grant hosted Claude model access.
 
+For mainland Qwen / Qianwen at `platform.qianwenai.com`, see
+[Alibaba Token Plan's mainland setup](alibaba-token-plan.md#mainland-qwen--qianwen-accounts). Team subscriptions
+also visible in the same account's Bailian console use its **China mainland — Team** variant, with Bailian browser
+cookies or Team CLI credentials.
+This Qwen Cloud provider does not import `qianwenai.com` sessions. The existing `qwen` and `qwen-token-plan`
+CLI aliases continue to select this international provider; use `qwen-cn` to select Alibaba Token Plan.
+
 ## Features
 
 - **Team credit pool**: Shows used and remaining credits, assigned seats, and the next credit-cycle reset. A valid Team

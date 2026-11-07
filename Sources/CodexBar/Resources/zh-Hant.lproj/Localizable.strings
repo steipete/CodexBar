@@ -2797,3 +2797,4 @@
 "Tripo is rate limiting requests. Try again later." = "Tripo 正在限制請求頻率。請稍後再試。";
 "Tripo request failed. Try refreshing later." = "Tripo 請求失敗。請稍後嘗試重新整理。";
 "Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo 傳回了無法辨識的回應。請更新 CodexBar 後再試。";
+"Mistral session expired or invalid." = "Mistral 工作階段已過期或無效。";
