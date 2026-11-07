@@ -425,6 +425,8 @@ prepaid-balance caption. Accounts with quota windows keep their separate Extra u
 menu-card-sections layout. Uncapped balances keep their compact Credits row; Admin API spend is unchanged.
 Extra usage still follows its existing visibility choice and the global optional-usage switch. Pace follows the
 existing pace setting, independently of redeemable Limit Reset Credits.
+The provider switcher also uses this cap when normal quotas are unavailable; a real session or weekly quota
+keeps priority. Snapshots from other providers never supply this Claude cap.
 
 Claude does not report the cap reset. CodexBar infers midnight UTC on the first of the next month from the cost
 observation, applying [Anthropic's documented spend-limit period](https://platform.claude.com/docs/en/manage-claude/spend-limits-api)
@@ -711,3 +713,21 @@ Limit Reset Credits** to hide them. **Extra usage** and **Cloud credits** have i
 also require the global optional billing switch. A prepaid balance without a monthly cap uses the same
 Extra usage choice, labeled **Credits** while that balance is reported. **Plan renewal / expiry** is independent and appears
 below Session/Weekly, before saved resets. These controls affect presentation only.
+
+## Identified request history
+
+`codexbar cost --provider claude --identified-only --format json --remote build-a` manually combines native
+Claude accounting from this machine and the named SSH host. Omit `--remote` for a bare local ledger.
+The shared collector validates the same inclusive UTC window, source size limits, and host spelling for every
+provider. The remote CLI reads local transcript files only; it does not fetch credentials or account quota.
+
+The schema-1 ledger exports hashed message/request identities (or session/message fallback), timestamps,
+model names and token counters, never prompts, raw IDs, account identity or paths. Copied requests count once.
+Streaming output snapshots reconcile with terminal counts; conflicting fixed counters or terminal evidence
+quarantine the identity. Preliminary proxy estimates never override authoritative accounting. Missing model
+information keeps pricing unknown, even if another copy includes a model. One collector pricing snapshot
+prices all accepted requests, including disjoint input, cache-read, cache-write and output counters.
+
+Ordinary Claude history and identified exports share the same decoded accounting observation. Vertex AI
+history stays outside this native Claude export. Source failures retain successful sources and exit nonzero;
+unknown prices remain null with an explicit unpriced count. Collection runs only for this manual CLI command.

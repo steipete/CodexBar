@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		0972D036B563954337344F35 /* CodexBarWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E5C7D39315A8DA5DC9D18A /* CodexBarWidgetBundle.swift */; };
 		1318F3B98C1103A136997F08 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 140DCD0BF126397855B6FA71 /* Localizable.strings */; };
+		C0DEBA12A1B2C3D4E5F60718 /* ProviderMarks in Resources */ = {isa = PBXBuildFile; fileRef = C0DEBA12A1B2C3D4E5F60719 /* ProviderMarks */; };
 		272038F061362C98F89CA872 /* WidgetTilePlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D122E6214A1AA991810D7AB /* WidgetTilePlan.swift */; };
 		49DB3749D8E8748409CDC4FE /* CodexBarWidgetProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 549C61629C144C190B18EAD9 /* CodexBarWidgetProvider.swift */; };
 		5034CBBD03D8421698E0A343 /* WidgetDesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73AC2E28F780BB0CE6B6A42E /* WidgetDesignSystem.swift */; };
@@ -65,6 +66,7 @@
 		F3AEAC3959EE7A8CF962EF27 /* vi */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = vi; path = vi.lproj/Localizable.strings; sourceTree = "<group>"; };
 		F660CA270A83A7FB48F37E28 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		F6F266867F255030458E505E /* es */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = es; path = es.lproj/Localizable.strings; sourceTree = "<group>"; };
+		C0DEBA12A1B2C3D4E5F60719 /* ProviderMarks */ = {isa = PBXFileReference; lastKnownFileType = folder; path = ProviderMarks; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -85,6 +87,7 @@
 			isa = PBXGroup;
 			children = (
 				140DCD0BF126397855B6FA71 /* Localizable.strings */,
+				C0DEBA12A1B2C3D4E5F60719 /* ProviderMarks */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -229,6 +232,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1318F3B98C1103A136997F08 /* Localizable.strings in Resources */,
+				C0DEBA12A1B2C3D4E5F60718 /* ProviderMarks in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
