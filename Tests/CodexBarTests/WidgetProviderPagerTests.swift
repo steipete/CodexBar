@@ -183,26 +183,12 @@ struct WidgetProviderPagerTests {
     }
 
     @Test
-    func `full colour keeps the brand fill and its contrast picked label`() {
+    func `full colour washes the plate with the brand tint and keeps the glyph in ink`() {
         let style = ProviderMarkStyle.resolve(renderingMode: .fullColor, provider: .claude, isSelected: true)
 
-        #expect(style.background == WidgetColors.color(for: ProviderInstanceID.claude))
-        #expect(style.foreground == .black)
-    }
-
-    // MARK: - Contrast
-
-    @Test
-    func `every provider mark label is the higher contrast choice`() {
-        for provider in UsageProvider.allCases {
-            guard let color = ProviderBrandColor.resolve(for: provider.instanceID) else { continue }
-            let luminance = WidgetContrast.relativeLuminance(of: color)
-            let whiteContrast = 1.05 / (luminance + 0.05)
-            let blackContrast = (luminance + 0.05) / 0.05
-            let expected = blackContrast >= whiteContrast ? "black" : "white"
-            let actual = WidgetContrast.label(on: color) == .black ? "black" : "white"
-
-            #expect(actual == expected, "\(provider.rawValue) picked \(actual)")
-        }
+        // The brand tint identifies the provider without replacing the plate, so the real mark keeps its own
+        // colours and contrast instead of sitting on an opaque brand fill with a picked label.
+        #expect(style.background != WidgetColors.color(for: ProviderInstanceID.claude))
+        #expect(style.foreground != .black && style.foreground != .white)
     }
 }

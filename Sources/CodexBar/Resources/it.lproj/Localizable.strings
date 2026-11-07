@@ -2823,3 +2823,14 @@
 "Tripo is rate limiting requests. Try again later." = "Tripo sta limitando la frequenza delle richieste. Riprova più tardi.";
 "Tripo request failed. Try refreshing later." = "La richiesta a Tripo non è riuscita. Riprova ad aggiornare più tardi.";
 "Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo ha restituito una risposta sconosciuta. Aggiorna CodexBar e riprova.";
+
+/* Provider setup guidance. */
+"Authorize GitHub's device code to save a Copilot token account." = "Autorizza il codice dispositivo di GitHub per salvare un account con token Copilot.";
+"Supply a GitHub token accepted by the Copilot usage API." = "Fornisci un token GitHub accettato dall’API di utilizzo di Copilot.";
+"Optional, best-effort budgets for public github.com only. Enable Budget extras in the macOS app; the browser session must match the token account. Quota usage does not need cookies." = "Budget facoltativi, senza garanzia, solo per github.com pubblico. Abilita gli extra del budget nell’app macOS; la sessione del browser deve corrispondere all’account del token. Le quote non richiedono cookie.";
+"In the macOS app, select manual cookie source and supply the matching GitHub Cookie header." = "Nell’app macOS, seleziona la fonte cookie manuale e fornisci l’intestazione Cookie GitHub corrispondente.";
+"Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app." = "Accedi a GitHub in un browser supportato e seleziona l’importazione automatica dei cookie nell’app macOS.";
+"Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints." = "Usa una chiave API Admin dell’organizzazione per costi e utilizzo dell’organizzazione. Le chiavi di progetto o account di servizio non possono leggere questi endpoint.";
+"A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "Una normale chiave API supporta solo il recupero alternativo del saldo precedente, senza garanzia, non l’utilizzo dell’organizzazione. Le chiavi configurate con ambito di progetto non usano questa alternativa.";
+"Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Fornisci una chiave, un endpoint di risorsa HTTPS e un nome di distribuzione. La versione API è facoltativa. L’aggiornamento invia una richiesta di convalida potenzialmente a pagamento, non una query della cronologia di utilizzo.";
+"Mistral session expired or invalid." = "La sessione Mistral è scaduta o non è valida.";

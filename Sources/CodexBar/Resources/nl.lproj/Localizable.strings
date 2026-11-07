@@ -2816,3 +2816,14 @@
 "Tripo is rate limiting requests. Try again later." = "Tripo beperkt het aantal verzoeken. Probeer het later opnieuw.";
 "Tripo request failed. Try refreshing later." = "Het Tripo-verzoek is mislukt. Probeer later opnieuw te vernieuwen.";
 "Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo heeft een onbekend antwoord teruggegeven. Werk CodexBar bij en probeer het opnieuw.";
+
+/* Provider setup guidance. */
+"Authorize GitHub's device code to save a Copilot token account." = "Autoriseer de apparaatcode van GitHub om een Copilot-tokenaccount op te slaan.";
+"Supply a GitHub token accepted by the Copilot usage API." = "Geef een GitHub-token op dat de Copilot-gebruiks-API accepteert.";
+"Optional, best-effort budgets for public github.com only. Enable Budget extras in the macOS app; the browser session must match the token account. Quota usage does not need cookies." = "Optionele budgetten zonder garantie, alleen voor openbaar github.com. Schakel budgetextra’s in de macOS-app in; de browsersessie moet overeenkomen met het tokenaccount. Voor quota zijn geen cookies nodig.";
+"In the macOS app, select manual cookie source and supply the matching GitHub Cookie header." = "Selecteer in de macOS-app de handmatige cookiebron en geef de bijbehorende GitHub-Cookie-header op.";
+"Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app." = "Log in bij GitHub in een ondersteunde browser en selecteer automatische cookie-import in de macOS-app.";
+"Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints." = "Gebruik een Admin-API-sleutel van de organisatie voor organisatiekosten en -gebruik. Project- en serviceaccountsleutels kunnen deze endpoints niet lezen.";
+"A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "Een gewone API-sleutel ondersteunt alleen het oude saldo als terugval zonder garantie, niet het organisatiegebruik. Geconfigureerde sleutels met projectbereik gebruiken deze terugval niet.";
+"Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Geef een sleutel, HTTPS-resource-endpoint en implementatienaam op. De API-versie is optioneel. Vernieuwen verstuurt een mogelijk betaalde validatieaanvraag, geen aanvraag van de gebruiksgeschiedenis.";
+"Mistral session expired or invalid." = "De Mistral-sessie is verlopen of ongeldig.";

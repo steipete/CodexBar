@@ -69,6 +69,29 @@ describe fetching, not authentication methods, and cookie support can be optiona
 not declared by the descriptor are not enumerated. User-plugin entries currently omit this metadata. Listing it
 does not read credentials, launch login flows, import cookies, or contact providers; `enabled` keeps its existing meaning.
 
+`setup` separately describes provider-owned setup routes. Copilot declares device login and token routes,
+OpenAI API distinguishes Admin access from legacy balance access, and Azure OpenAI requires a key, endpoint,
+and deployment. Other providers and user plugins report `status: "unknown"`, which means guidance has not
+been declared, not that credentials are unnecessary or unsupported. Existing `authentication` fields stay unchanged.
+
+Routes are alternatives; all `requiredInputs` in one route are required together. Each input lists alternative
+config fields and environment variable names, never values or precedence. Config paths are relative to a provider
+entry; `tokenAccounts.accounts[].token` denotes a selected token account. `platforms` describes where the route
+works and is not filtered by the machine printing the inventory. Optional `command` describes an existing action;
+listing a route never executes it. An interactive route can obtain its credential during that action.
+
+`optionalCapabilities` describes enrichment, not requirements for primary usage. Copilot budgets require an explicit
+opt-in in the macOS app, a matching public GitHub browser account, and cookies; quota usage needs no cookies.
+OpenAI organization usage needs an Admin API key, whereas ordinary keys provide only best-effort legacy balance;
+configured project scoping suppresses that fallback. Azure refresh performs a potentially billable deployment
+validation, not a usage-history query. Hints describe these constraints; they are not readiness checks.
+
+For example, an undeclared provider returns:
+
+```json
+{"status":"unknown","routes":[],"optionalCapabilities":[]}
+```
+
 For Claude Platform setup or renewal, pipe a Console Cookie header containing `sessionKey` privately into
 `codexbar config login --provider claudeplatform --stdin --json` (`claude-platform` also works). It validates the
 candidate before replacing a saved cookie. See [validated session import](cli-configuration.md#claude-platform-session-import).

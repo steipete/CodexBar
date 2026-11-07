@@ -2820,3 +2820,14 @@
 "Tripo is rate limiting requests. Try again later." = "Tripo ограничивает частоту запросов. Повторите попытку позже.";
 "Tripo request failed. Try refreshing later." = "Запрос к Tripo не выполнен. Попробуйте обновить позже.";
 "Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo вернул неизвестный ответ. Обновите CodexBar и повторите попытку.";
+
+/* Provider setup guidance. */
+"Authorize GitHub's device code to save a Copilot token account." = "Подтвердите код устройства GitHub, чтобы сохранить учётную запись с токеном Copilot.";
+"Supply a GitHub token accepted by the Copilot usage API." = "Укажите токен GitHub, принимаемый API использования Copilot.";
+"Optional, best-effort budgets for public github.com only. Enable Budget extras in the macOS app; the browser session must match the token account. Quota usage does not need cookies." = "Необязательные бюджеты без гарантий, только для публичного github.com. Включите дополнения бюджета в приложении macOS; сеанс браузера должен соответствовать учётной записи токена. Для квот cookie не нужны.";
+"In the macOS app, select manual cookie source and supply the matching GitHub Cookie header." = "В приложении macOS выберите ручной источник cookie и укажите соответствующий заголовок Cookie GitHub.";
+"Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app." = "Войдите в GitHub в поддерживаемом браузере и выберите автоматический импорт cookie в приложении macOS.";
+"Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints." = "Используйте ключ Admin API организации для её расходов и использования. Ключи проектов и служебных учётных записей не могут читать эти конечные точки.";
+"A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "Обычный ключ API поддерживает лишь резервное получение прежнего баланса без гарантий, но не использования организации. Настроенные ключи с ограничением по проекту не используют этот вариант.";
+"Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Укажите ключ, HTTPS-адрес ресурса и имя развёртывания. Версия API необязательна. Обновление отправляет потенциально платный запрос проверки, а не запрос истории использования.";
+"Mistral session expired or invalid." = "Срок действия сеанса Mistral истёк или сеанс недействителен.";
