@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Usage & Spend: add a Models lens that ranks models across providers by estimated spend, falling back to token shares only within one provider and withholding shares when model history is partial (#4889).
+
 ## 0.84.0 — 2026-11-06
 
 ### Highlights

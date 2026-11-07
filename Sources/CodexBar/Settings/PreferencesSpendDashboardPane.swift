@@ -593,6 +593,7 @@ struct SpendDashboardEmptyState: Equatable {
 
 enum SpendDashboardDetailSection: Hashable, Identifiable {
     case providers
+    case models
     case projects
     case chats
     case sessions
@@ -604,6 +605,7 @@ enum SpendDashboardDetailSection: Hashable, Identifiable {
     var title: String {
         switch self {
         case .providers: L("Providers")
+        case .models: L("Models")
         case .projects: L("Projects")
         case .chats: L("Independent chats")
         case .sessions: L("Sessions")
@@ -624,9 +626,13 @@ func spendDashboardAvailableDetailSections(
     hasProjects: Bool,
     hasSessions: Bool,
     hasChats: Bool = false,
+    hasModels: Bool = false,
     supportsCodexDetails: Bool = false) -> [SpendDashboardDetailSection]
 {
     var sections: [SpendDashboardDetailSection] = [.providers]
+    if hasModels {
+        sections.append(.models)
+    }
     if supportsCodexDetails || hasProjects {
         sections.append(.projects)
     }
@@ -771,7 +777,7 @@ private struct SpendDashboardDetailPanel: View {
                 }
 
                 self.detailContent
-                if self.activeSection != .providers {
+                if self.activeSection != .providers, self.activeSection != .models {
                     if self.group.projects.isEmpty, self.group.sessions.isEmpty {
                         Text(L("No usage breakdown data available."))
                             .font(.caption).foregroundStyle(.secondary)
@@ -796,6 +802,7 @@ private struct SpendDashboardDetailPanel: View {
             hasProjects: self.group.projects.contains { !$0.isProjectless },
             hasSessions: !self.group.sessions.isEmpty,
             hasChats: self.group.projects.contains(where: \.isProjectless),
+            hasModels: !self.group.models.isEmpty,
             supportsCodexDetails: self.supportsCodexDetails)
     }
 
@@ -814,6 +821,8 @@ private struct SpendDashboardDetailPanel: View {
         switch self.activeSection {
         case .providers:
             SpendProviderBreakdownRows(group: self.group)
+        case .models:
+            SpendModelRankingRows(group: self.group)
         case .projects:
             SpendProjectRows(group: self.group, hidePersonalInfo: self.hidePersonalInfo, isProjectless: false)
         case .chats:
@@ -890,7 +899,8 @@ private struct SpendProjectRows: View {
     }
 }
 
-private struct SpendPanelExpandButton: View {
+/// Shared by the Projects/Chats rows here and the Models lens in `SpendDashboardModelRanking.swift`.
+struct SpendPanelExpandButton: View {
     let rowCount: Int
     let collapsedRowCount: Int
     @Binding var showsAllRows: Bool
