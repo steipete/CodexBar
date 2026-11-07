@@ -1295,7 +1295,8 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\nまたは session_id の値のみを貼り付けてください";
 "Clear" = "消去";
 "No matching providers" = "一致するプロバイダがありません";
-"Search providers" = "プロバイダを検索";
+"No matching settings or providers" = "一致する設定またはプロバイダがありません";
+"Search settings" = "設定を検索";
 
 "language_vietnamese" = "ベトナム語";
 "language_turkish" = "トルコ語";
@@ -1572,7 +1573,7 @@
 "7-day usage" = "7日間の使用量";
 "Total usage" = "合計使用量";
 "claude_oauth_keychain_access_disabled" = "Keychain へのアクセスが無効になっているため、CodexBar は Claude のサインイン情報を読み取れません。";
-"claude_oauth_keychain_access_revoked" = "Claude Code のトークン更新により、Claude キーチェーンへのアクセスが取り消されました。「更新」をクリックしてアクセスを再許可するか、Claude の使用量の取得元を CLI/Web に切り替えてください。";
+"claude_oauth_keychain_access_revoked" = "現在、CodexBar は Claude の OAuth 認証情報にアクセスできません。「更新」をクリックしてアクセスを再試行するか、Claude の使用量の取得元を CLI/Web に切り替えてください。";
 "claude_showing_last_known_usage" = "最後に取得した既知の使用量を表示しています（取得: %@）。";
 "claude_limited_usage_detail" = "使用量の詳細情報は限られています";
 /* Spend dashboard cost analysis */
@@ -2793,3 +2794,38 @@
 "Leave blank to use the default name." = "空欄にするとデフォルトの名前を使用します。";
 "Rewards" = "報酬";
 "Reward expiry" = "報酬の有効期限";
+"China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "既定は中国（CNY）です。海外アカウントは https://api.siliconflow.com（USD）を使います。";
+"https://api.siliconflow.cn" = "https://api.siliconflow.cn";
+"SiliconFlow API origin must be https://api.siliconflow.cn or https://api.siliconflow.com." = "SiliconFlow API のオリジンは https://api.siliconflow.cn または https://api.siliconflow.com である必要があります。";
+"SiliconFlow refused the balance query. Check the balance in the SiliconFlow console." = "SiliconFlow が残高の照会を拒否しました。SiliconFlow コンソールで残高を確認してください。";
+
+"SiliconFlow" = "SiliconFlow";
+"Show SiliconFlow usage" = "SiliconFlow の使用状況を表示";
+"SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow がリクエストの頻度を制限しています。後でもう一度お試しください。";
+"SiliconFlow request failed. Try refreshing later." = "SiliconFlow へのリクエストに失敗しました。後でもう一度更新してください。";
+"SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow から認識できない応答が返されました。CodexBar を更新して、もう一度お試しください。";
+"Claude Platform session validated and saved." = "Claude Platform のセッションを検証して保存しました。";
+"Use %@ or %@." = "%@ または %@ を使用してください。";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "%@ にサインインしてください。sessionKey を含む Cookie ヘッダーを %@ に非公開で渡してください。その後、%@ を実行してください。";
+"Read cookie header from stdin" = "stdin から Cookie ヘッダーを読み取る";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "任意。Cookie ヘッダーと同じリクエストの User-Agent 値を貼り付けてください。";
+"Paste the WorkBuddy User-Agent as a single request header value." = "WorkBuddy の User-Agent を単一のリクエストヘッダー値として貼り付けてください。";
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "TypeSafeの請求概要を読み取れませんでした。https://console.typesafe.ai/billing を開いてアクセスを確認してください。ページが開く場合は、連携の不具合を報告してください。";
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "TypeSafeのセッションCookieが見つかりません。console.typesafe.ai/billing にサインインするか、Cookieヘッダーを貼り付けてください。";
+
+"Tripo" = "Tripo";
+"Show Tripo usage" = "Tripo の使用状況を表示";
+"Tripo is rate limiting requests. Try again later." = "Tripo がリクエストの頻度を制限しています。後でもう一度お試しください。";
+"Tripo request failed. Try refreshing later." = "Tripo へのリクエストに失敗しました。後でもう一度更新してください。";
+"Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo から認識できない応答が返されました。CodexBar を更新して、もう一度お試しください。";
+
+/* Provider setup guidance. */
+"Authorize GitHub's device code to save a Copilot token account." = "GitHubのデバイスコードを承認して、Copilotトークンアカウントを保存します。";
+"Supply a GitHub token accepted by the Copilot usage API." = "Copilotの使用量APIで受け付けられるGitHubトークンを指定してください。";
+"Optional, best-effort budgets for public github.com only. Enable Budget extras in the macOS app; the browser session must match the token account. Quota usage does not need cookies." = "公開のgithub.com専用の任意の予算取得です。取得は保証されません。macOSアプリで予算の追加情報を有効にし、ブラウザのセッションとトークンのアカウントを一致させてください。利用枠の取得にCookieは不要です。";
+"In the macOS app, select manual cookie source and supply the matching GitHub Cookie header." = "macOSアプリで手動のCookieソースを選び、対応するGitHubのCookieヘッダーを指定してください。";
+"Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app." = "対応ブラウザでGitHubにサインインし、macOSアプリでCookieの自動インポートを選択してください。";
+"Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints." = "組織のコストと使用量には、組織のAdmin APIキーを使用してください。プロジェクトやサービスアカウントのキーではこれらのエンドポイントを読み取れません。";
+"A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "通常のAPIキーでは、従来の残高を代替手段として取得できる場合があります。組織の使用量には対応しません。プロジェクト範囲を設定したキーでは、この代替手段は使われません。";
+"Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "キー、HTTPSリソースエンドポイント、デプロイ名を指定してください。APIバージョンは任意です。更新では使用履歴の照会ではなく、課金される可能性がある検証リクエストを送信します。";

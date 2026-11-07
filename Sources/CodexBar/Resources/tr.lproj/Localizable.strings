@@ -1306,7 +1306,8 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\nveya yalnızca session_id değerini yapıştırın";
 "Clear" = "Temizle";
 "No matching providers" = "Eşleşen sağlayıcı yok";
-"Search providers" = "Sağlayıcı ara";
+"No matching settings or providers" = "Eşleşen ayar veya sağlayıcı yok";
+"Search settings" = "Ayarlarda ara";
 "Re-login at claude.ai" = "claude.ai'da yeniden oturum aç";
 "Request quota: %@ / %@" = "İstek kotası: %@ / %@";
 "display_mode_reset_time" = "Sıfırlama zamanı";
@@ -1573,7 +1574,7 @@
 "7-day usage" = "7 günlük kullanım";
 "Total usage" = "Toplam kullanım";
 "claude_oauth_keychain_access_disabled" = "Keychain erişimi devre dışı olduğundan CodexBar, Claude oturum açma bilgilerini okuyamıyor.";
-"claude_oauth_keychain_access_revoked" = "Claude Anahtar Zinciri erişimi, Claude Code'un token yenilemesi nedeniyle iptal edildi. Erişimi yeniden vermek için Yenile'ye tıklayın veya Claude kullanım kaynağını CLI/Web olarak değiştirin.";
+"claude_oauth_keychain_access_revoked" = "CodexBar şu anda Claude OAuth kimlik bilgilerine erişemiyor. Erişimi yeniden denemek için Yenile'ye tıklayın veya Claude kullanım kaynağını CLI/Web olarak değiştirin.";
 "claude_showing_last_known_usage" = "Bilinen son kullanım gösteriliyor (yakalanma zamanı: %@).";
 "claude_limited_usage_detail" = "Kullanım ayrıntıları sınırlı";
 /* Spend dashboard cost analysis */
@@ -2796,3 +2797,38 @@
 "Leave blank to use the default name." = "Varsayılan adı kullanmak için boş bırakın.";
 "Rewards" = "Ödüller";
 "Reward expiry" = "Ödüllerin son kullanma tarihi";
+"China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "Varsayılan Çin'dir (CNY). Uluslararası hesaplar https://api.siliconflow.com (USD) kullanır.";
+"https://api.siliconflow.cn" = "https://api.siliconflow.cn";
+"SiliconFlow API origin must be https://api.siliconflow.cn or https://api.siliconflow.com." = "SiliconFlow API kaynağı https://api.siliconflow.cn veya https://api.siliconflow.com olmalıdır.";
+"SiliconFlow refused the balance query. Check the balance in the SiliconFlow console." = "SiliconFlow bakiye sorgusunu reddetti. Bakiyeyi SiliconFlow konsolundan kontrol edin.";
+
+"SiliconFlow" = "SiliconFlow";
+"Show SiliconFlow usage" = "SiliconFlow kullanımını göster";
+"SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow istek sıklığını sınırlıyor. Daha sonra tekrar deneyin.";
+"SiliconFlow request failed. Try refreshing later." = "SiliconFlow isteği başarısız oldu. Daha sonra yeniden yenileyin.";
+"SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow tanınmayan bir yanıt döndürdü. CodexBar’ı güncelleyip tekrar deneyin.";
+"Claude Platform session validated and saved." = "Claude Platform oturumu doğrulandı ve kaydedildi.";
+"Use %@ or %@." = "%@ veya %@ kullanın.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "%@ adresinde oturum açın. sessionKey içeren Cookie başlığını gizli olarak %@ komutuna iletin. Ardından %@ komutunu çalıştırın.";
+"Read cookie header from stdin" = "Çerez başlığını stdin üzerinden oku";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "İsteğe bağlı. User-Agent değerini Cookie başlığıyla aynı istekten kopyalayıp yapıştırın.";
+"Paste the WorkBuddy User-Agent as a single request header value." = "WorkBuddy User-Agent değerini tek bir istek üst bilgisi değeri olarak yapıştırın.";
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "TypeSafe faturalandırma özeti okunamadı. Erişimi kontrol etmek için https://console.typesafe.ai/billing adresini açın. Sayfa açılıyorsa entegrasyon hatasını bildirin.";
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "TypeSafe oturum çerezleri bulunamadı. console.typesafe.ai/billing adresinde oturum açın veya bir Cookie başlığı yapıştırın.";
+
+"Tripo" = "Tripo";
+"Show Tripo usage" = "Tripo kullanımını göster";
+"Tripo is rate limiting requests. Try again later." = "Tripo istek sıklığını sınırlıyor. Daha sonra tekrar deneyin.";
+"Tripo request failed. Try refreshing later." = "Tripo isteği başarısız oldu. Daha sonra yeniden yenileyin.";
+"Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo tanınmayan bir yanıt döndürdü. CodexBar’ı güncelleyip tekrar deneyin.";
+
+/* Provider setup guidance. */
+"Authorize GitHub's device code to save a Copilot token account." = "Bir Copilot belirteç hesabı kaydetmek için GitHub cihaz kodunu onaylayın.";
+"Supply a GitHub token accepted by the Copilot usage API." = "Copilot kullanım API’sinin kabul ettiği bir GitHub belirteci sağlayın.";
+"Optional, best-effort budgets for public github.com only. Enable Budget extras in the macOS app; the browser session must match the token account. Quota usage does not need cookies." = "Yalnızca herkese açık github.com için isteğe bağlı, garantisiz bütçeler. macOS uygulamasında bütçe eklerini etkinleştirin; tarayıcı oturumu belirteç hesabıyla eşleşmelidir. Kotalar için çerez gerekmez.";
+"In the macOS app, select manual cookie source and supply the matching GitHub Cookie header." = "macOS uygulamasında elle çerez kaynağını seçin ve eşleşen GitHub Cookie başlığını sağlayın.";
+"Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app." = "Desteklenen bir tarayıcıda GitHub’a giriş yapın ve macOS uygulamasında otomatik çerez içe aktarmayı seçin.";
+"Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints." = "Kuruluş maliyetleri ve kullanımı için kuruluş Admin API anahtarı kullanın. Proje ve hizmet hesabı anahtarları bu uç noktaları okuyamaz.";
+"A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "Normal bir API anahtarı yalnızca garantisiz eski bakiye yedeğini destekler, kuruluş kullanımını değil. Proje kapsamlı yapılandırılmış anahtarlar bu yedeği kullanmaz.";
+"Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Anahtar, HTTPS kaynak uç noktası ve dağıtım adı sağlayın. API sürümü isteğe bağlıdır. Yenileme, kullanım geçmişi sorgusu yerine ücret doğurabilecek bir doğrulama isteği gönderir.";

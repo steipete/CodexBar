@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Menu-backed settings selector that avoids disabled `Picker` items on macOS 27 when built with the macOS 26 SDK.
+/// Native pop-up settings selector shared by settings rows.
+/// Older Xcode builds keep the SDK 26 workaround for disabled `Picker` rows on macOS 27 (#1904).
 struct SettingsMenuPicker<Value: Hashable, Label: View, OptionLabel: View>: View {
     @Binding private var selection: Value
     private let options: [Value]
@@ -19,7 +20,23 @@ struct SettingsMenuPicker<Value: Hashable, Label: View, OptionLabel: View>: View
         self.optionLabel = optionLabel
     }
 
+    private var displayedOptions: [Value] {
+        SettingsMenuPickerOptions.displayed(self.options, selection: self.selection)
+    }
+
     var body: some View {
+        // Official Xcode 27 builds pair Swift 6.4 with SDK 27; older Xcode builds retain the workaround.
+        #if compiler(>=6.4)
+        Picker(selection: self.$selection) {
+            ForEach(self.displayedOptions, id: \.self) { option in
+                self.optionLabel(option)
+                    .tag(option)
+            }
+        } label: {
+            self.label()
+        }
+        .pickerStyle(.menu)
+        #else
         LabeledContent {
             Menu {
                 ForEach(self.options, id: \.self) { option in
@@ -44,6 +61,14 @@ struct SettingsMenuPicker<Value: Hashable, Label: View, OptionLabel: View>: View
         } label: {
             self.label()
         }
+        #endif
+    }
+}
+
+enum SettingsMenuPickerOptions {
+    /// Native `Picker` only shows a selection with a matching tag, so keep imported off-list values visible.
+    static func displayed<Value: Hashable>(_ options: [Value], selection: Value) -> [Value] {
+        options.contains(selection) ? options : options + [selection]
     }
 }
 

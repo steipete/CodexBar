@@ -32,6 +32,7 @@ struct TypeSafeProviderImplementation: ProviderImplementation {
                 ProviderCookieRefreshAction.trailingText(
                     provider: .typesafe,
                     cookieSource: context.settings.typesafeCookieSource,
+                    scope: .typesafeBilling,
                     context: context)
             },
             trailingActions: [
@@ -54,7 +55,7 @@ struct TypeSafeProviderImplementation: ProviderImplementation {
             actions: [.openURL(
                 id: "typesafe-open-billing",
                 title: "Open TypeSafe Billing",
-                url: URL(string: "https://console.typesafe.ai/settings/billing"))],
+                url: URL(string: "https://console.typesafe.ai/billing"))],
             isVisible: { context.settings.typesafeCookieSource == .manual })]
     }
 }

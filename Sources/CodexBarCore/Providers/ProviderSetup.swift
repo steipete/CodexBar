@@ -55,7 +55,7 @@ public struct ProviderSetup: Encodable, Equatable, Sendable {
             self.platforms = platforms
             self.requiredInputs = requiredInputs
             self.command = command
-            self.hint = hint
+            self.hint = UsageFormatter.localized(hint)
         }
     }
 
@@ -67,7 +67,7 @@ public struct ProviderSetup: Encodable, Equatable, Sendable {
 
         public init(id: String, hint: String, routes: [Route]) {
             self.id = id
-            self.hint = hint
+            self.hint = UsageFormatter.localized(hint)
             self.routes = routes
         }
     }

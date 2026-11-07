@@ -1298,7 +1298,8 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\nof plak alleen de session_id-waarde";
 "Clear" = "Duidelijk";
 "No matching providers" = "Geen overeenkomende aanbieders";
-"Search providers" = "Zoekaanbieders";
+"No matching settings or providers" = "Geen overeenkomende instellingen of aanbieders";
+"Search settings" = "Instellingen zoeken";
 "language_arabic" = "العربية";
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
@@ -1571,7 +1572,7 @@
 "7-day usage" = "7-dagengebruik";
 "Total usage" = "Totaal gebruik";
 "claude_oauth_keychain_access_disabled" = "Toegang tot Keychain is uitgeschakeld, waardoor CodexBar de aanmeldgegevens van Claude niet kan lezen.";
-"claude_oauth_keychain_access_revoked" = "De toegang tot de Claude-sleutelhanger is ingetrokken door de tokenrotatie van Claude Code. Klik op Vernieuwen om opnieuw toegang te verlenen of zet de Claude-gebruiksbron op CLI/Web.";
+"claude_oauth_keychain_access_revoked" = "CodexBar heeft momenteel geen toegang tot de OAuth-inloggegevens van Claude. Klik op Vernieuwen om opnieuw te proberen toegang te krijgen of zet de Claude-gebruiksbron op CLI/Web.";
 "claude_showing_last_known_usage" = "De laatst bekende gebruiksgegevens worden weergegeven (vastgelegd: %@).";
 "claude_limited_usage_detail" = "Beperkte gebruiksdetails";
 /* Spend dashboard cost analysis */
@@ -2790,3 +2791,38 @@
 "Leave blank to use the default name." = "Laat dit veld leeg om de standaardnaam te gebruiken.";
 "Rewards" = "Beloningen";
 "Reward expiry" = "Vervaldatum beloningen";
+"China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "China (CNY) is de standaard. Internationale accounts gebruiken https://api.siliconflow.com (USD).";
+"https://api.siliconflow.cn" = "https://api.siliconflow.cn";
+"SiliconFlow API origin must be https://api.siliconflow.cn or https://api.siliconflow.com." = "De API-oorsprong van SiliconFlow moet https://api.siliconflow.cn of https://api.siliconflow.com zijn.";
+"SiliconFlow refused the balance query. Check the balance in the SiliconFlow console." = "SiliconFlow heeft de saldoaanvraag geweigerd. Controleer het saldo in de SiliconFlow-console.";
+
+"SiliconFlow" = "SiliconFlow";
+"Show SiliconFlow usage" = "SiliconFlow-gebruik tonen";
+"SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow beperkt het aantal verzoeken. Probeer het later opnieuw.";
+"SiliconFlow request failed. Try refreshing later." = "Het SiliconFlow-verzoek is mislukt. Probeer later opnieuw te vernieuwen.";
+"SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow heeft een onbekend antwoord teruggegeven. Werk CodexBar bij en probeer het opnieuw.";
+"Claude Platform session validated and saved." = "Claude Platform-sessie gevalideerd en opgeslagen.";
+"Use %@ or %@." = "Gebruik %@ of %@.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Log in op %@. Geef de Cookie-header met sessionKey vertrouwelijk door aan %@. Voer vervolgens %@ uit.";
+"Read cookie header from stdin" = "Cookie-header lezen uit stdin";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "Optioneel. Plak de User-Agent-waarde uit hetzelfde verzoek als de Cookie-header.";
+"Paste the WorkBuddy User-Agent as a single request header value." = "Plak de User-Agent van WorkBuddy als één waarde voor de aanvraagheader.";
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "Het factureringsoverzicht van TypeSafe kon niet worden gelezen. Open https://console.typesafe.ai/billing om de toegang te controleren. Als de pagina opent, meld dan de integratiefout.";
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "Geen TypeSafe-sessiecookies gevonden. Meld je aan op console.typesafe.ai/billing of plak een Cookie-header.";
+
+"Tripo" = "Tripo";
+"Show Tripo usage" = "Tripo-gebruik tonen";
+"Tripo is rate limiting requests. Try again later." = "Tripo beperkt het aantal verzoeken. Probeer het later opnieuw.";
+"Tripo request failed. Try refreshing later." = "Het Tripo-verzoek is mislukt. Probeer later opnieuw te vernieuwen.";
+"Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo heeft een onbekend antwoord teruggegeven. Werk CodexBar bij en probeer het opnieuw.";
+
+/* Provider setup guidance. */
+"Authorize GitHub's device code to save a Copilot token account." = "Autoriseer de apparaatcode van GitHub om een Copilot-tokenaccount op te slaan.";
+"Supply a GitHub token accepted by the Copilot usage API." = "Geef een GitHub-token op dat de Copilot-gebruiks-API accepteert.";
+"Optional, best-effort budgets for public github.com only. Enable Budget extras in the macOS app; the browser session must match the token account. Quota usage does not need cookies." = "Optionele budgetten zonder garantie, alleen voor openbaar github.com. Schakel budgetextra’s in de macOS-app in; de browsersessie moet overeenkomen met het tokenaccount. Voor quota zijn geen cookies nodig.";
+"In the macOS app, select manual cookie source and supply the matching GitHub Cookie header." = "Selecteer in de macOS-app de handmatige cookiebron en geef de bijbehorende GitHub-Cookie-header op.";
+"Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app." = "Log in bij GitHub in een ondersteunde browser en selecteer automatische cookie-import in de macOS-app.";
+"Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints." = "Gebruik een Admin-API-sleutel van de organisatie voor organisatiekosten en -gebruik. Project- en serviceaccountsleutels kunnen deze endpoints niet lezen.";
+"A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "Een gewone API-sleutel ondersteunt alleen het oude saldo als terugval zonder garantie, niet het organisatiegebruik. Geconfigureerde sleutels met projectbereik gebruiken deze terugval niet.";
+"Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Geef een sleutel, HTTPS-resource-endpoint en implementatienaam op. De API-versie is optioneel. Vernieuwen verstuurt een mogelijk betaalde validatieaanvraag, geen aanvraag van de gebruiksgeschiedenis.";

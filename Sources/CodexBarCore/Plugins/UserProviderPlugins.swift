@@ -412,7 +412,24 @@ public final class UserProviderPluginLoader: @unchecked Sendable {
             try QuickJSProviderPluginEngine.transpileTypeScript(source: source, sucraseSource: sucraseSource)
         }
         try Data(output.utf8).write(to: cacheURL, options: .atomic)
+        // Runtimes own their source strings; no running fetch reopens these cache files.
+        try? Self.removeCachedRevisions(sourceFileURL: sourceFileURL, directory: self.cacheDirectory, keeping: cacheURL)
         return (output, cacheURL, false)
+    }
+
+    static func removeCachedRevisions(sourceFileURL: URL, directory: URL, keeping current: URL? = nil) throws {
+        guard FileManager.default.fileExists(atPath: directory.path) else { return }
+        let name = NSRegularExpression.escapedPattern(for: sourceFileURL.deletingPathExtension().lastPathComponent)
+        let pattern = "^" + name + #"-[a-f0-9]{64}-sucrase-[0-9.]+\.js$"#
+        let artifacts = try FileManager.default.contentsOfDirectory(
+            at: directory, includingPropertiesForKeys: [.isRegularFileKey])
+        for artifact in artifacts where artifact.lastPathComponent != current?.lastPathComponent &&
+            artifact.lastPathComponent.range(of: pattern, options: .regularExpression) != nil
+        {
+            if try artifact.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true {
+                try FileManager.default.removeItem(at: artifact)
+            }
+        }
     }
 
     private static func transpileTypeScriptWithJavaScriptCore(
@@ -495,16 +512,7 @@ public enum UserProviderPluginManager {
         }
         let directory = plugin.transpiledCacheURL?.deletingLastPathComponent()
             ?? UserProviderPluginLoader.defaultCacheDirectory
-        if FileManager.default.fileExists(atPath: directory.path) {
-            let prefix = plugin.fileURL.deletingPathExtension().lastPathComponent + "-"
-            let artifacts = try FileManager.default.contentsOfDirectory(
-                at: directory,
-                includingPropertiesForKeys: [.isRegularFileKey])
-                .filter { $0.lastPathComponent.hasPrefix(prefix) && $0.pathExtension == "js" }
-            for artifact in artifacts {
-                try FileManager.default.removeItem(at: artifact)
-            }
-        }
+        try UserProviderPluginLoader.removeCachedRevisions(sourceFileURL: plugin.fileURL, directory: directory)
         try approvalStore.remove(instanceID: plugin.manifest.id)
         config.removeProviderConfig(for: plugin.manifest.id)
         if let historyDirectory {
@@ -516,38 +524,30 @@ public enum UserProviderPluginManager {
     }
 }
 
-final class UserProviderPluginHTTPClient: NSObject, ProviderHTTPTransport, URLSessionDataDelegate,
-    @unchecked Sendable
-{
-    private struct RequestState {
+final class UserProviderPluginHTTPClient: ProviderHTTPTransport, Sendable {
+    private typealias Continuation = CheckedContinuation<(Data, URLResponse), Error>
+
+    private final class RequestState: @unchecked Sendable {
+        let maximumResponseBytes: Int
         var data = Data()
         var response: URLResponse?
-        let continuation: CheckedContinuation<(Data, URLResponse), Error>
-    }
+        var task: URLSessionDataTask?
+        var continuation: Continuation?
+        var finished = false
 
-    private let maximumResponseBytes: Int
-    private let lock = NSLock()
-    private var states: [ObjectIdentifier: RequestState] = [:]
-
-    init(maximumResponseBytes: Int) {
-        self.maximumResponseBytes = maximumResponseBytes
-    }
-
-    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
-        let session = self.makeSession()
-        defer { session.finishTasksAndInvalidate() }
-        return try await withCheckedThrowingContinuation { continuation in
-            let task = session.dataTask(with: request)
-            self.lock.withLock {
-                self.states[ObjectIdentifier(task)] = RequestState(continuation: continuation)
-            }
-            task.resume()
+        init(maximumResponseBytes: Int) {
+            self.maximumResponseBytes = maximumResponseBytes
         }
     }
 
-    /// URLSession retains its delegate until finishTasksAndInvalidate(). A stored
-    /// session would pin this client after the plugin runtime released it.
-    private func makeSession() -> URLSession {
+    private final class Requests: @unchecked Sendable {
+        let lock = NSLock()
+        var states: [Int: RequestState] = [:]
+    }
+
+    private static let requests = Requests()
+    /// The delegate owns no plugin/client state. Only active tasks retain their request state.
+    static let session: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.httpCookieStorage = nil
         configuration.httpShouldSetCookies = false
@@ -556,78 +556,143 @@ final class UserProviderPluginHTTPClient: NSObject, ProviderHTTPTransport, URLSe
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         configuration.timeoutIntervalForRequest = 15
         configuration.timeoutIntervalForResource = 15
-        return URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+        return URLSession(configuration: configuration, delegate: Delegate(), delegateQueue: nil)
+    }()
+
+    static var activeRequestCount: Int {
+        self.requests.lock.withLock { self.requests.states.count }
     }
 
-    func urlSession(
-        _: URLSession,
-        task _: URLSessionTask,
-        willPerformHTTPRedirection _: HTTPURLResponse,
-        newRequest _: URLRequest,
-        completionHandler: @escaping @Sendable (URLRequest?) -> Void)
-    {
-        completionHandler(nil)
+    private let maximumResponseBytes: Int
+
+    init(maximumResponseBytes: Int) {
+        self.maximumResponseBytes = maximumResponseBytes
     }
 
-    func urlSession(
-        _: URLSession,
-        dataTask: URLSessionDataTask,
-        didReceive response: URLResponse,
-        completionHandler: @escaping @Sendable (URLSession.ResponseDisposition) -> Void)
-    {
-        self.lock.withLock { self.states[ObjectIdentifier(dataTask)]?.response = response }
-        completionHandler(.allow)
-    }
-
-    func urlSession(_: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-        let exceeded = self.lock.withLock {
-            guard var state = self.states[ObjectIdentifier(dataTask)] else { return false }
-            guard state.data.count + data.count <= self.maximumResponseBytes else { return true }
-            state.data.append(data)
-            self.states[ObjectIdentifier(dataTask)] = state
-            return false
-        }
-        guard exceeded else { return }
-        dataTask.cancel()
-        self.finish(
-            task: dataTask,
-            result: .failure(ProviderPluginError.http("response exceeded the 1048576-byte limit")))
-    }
-
-    func urlSession(_: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        if let error {
-            self.finish(task: task, result: .failure(error))
-            return
-        }
-        let result: Result<(Data, URLResponse), Error> = self.lock.withLock {
-            guard let state = self.states[ObjectIdentifier(task)], let response = state.response else {
-                return .failure(URLError(.badServerResponse))
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        try Task.checkCancellation()
+        let state = RequestState(maximumResponseBytes: self.maximumResponseBytes)
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let pending = Self.requests.lock.withLock {
+                    guard !state.finished else { return false }
+                    state.continuation = continuation
+                    return true
+                }
+                guard pending else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+                DispatchQueue.global().async {
+                    guard Self.requests.lock.withLock({ !state.finished }) else { return }
+                    let task = Self.session.dataTask(with: request)
+                    let registered = Self.requests.lock.withLock {
+                        guard !state.finished else { return false }
+                        state.task = task
+                        Self.requests.states[task.taskIdentifier] = state
+                        return true
+                    }
+                    if registered { task.resume() } else { task.cancel() }
+                }
             }
-            return .success((state.data, response))
+        } onCancel: {
+            Self.finish(state, error: CancellationError(), cancelTask: true)
         }
-        self.finish(task: task, result: result)
     }
 
-    func urlSession(
-        _: URLSession,
-        task _: URLSessionTask,
-        didReceive challenge: URLAuthenticationChallenge,
-        completionHandler: @escaping @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void)
-    {
-        #if canImport(Darwin)
-        if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust {
-            completionHandler(.performDefaultHandling, nil)
-        } else {
-            completionHandler(.cancelAuthenticationChallenge, nil)
-        }
-        #else
-        _ = challenge
-        completionHandler(.performDefaultHandling, nil)
-        #endif
+    private static func state(for task: URLSessionTask) -> RequestState? {
+        self.requests.lock.withLock { self.requests.states[task.taskIdentifier] }
     }
 
-    private func finish(task: URLSessionTask, result: Result<(Data, URLResponse), Error>) {
-        let continuation = self.lock.withLock { self.states.removeValue(forKey: ObjectIdentifier(task))?.continuation }
+    private static func finish(_ state: RequestState, error: Error?, cancelTask: Bool = false) {
+        let completion = self.requests.lock.withLock { () -> (
+            Continuation?, Result<(Data, URLResponse), Error>, URLSessionDataTask?)? in
+            guard !state.finished else { return nil }
+            state.finished = true
+            let task = state.task
+            if let task { self.requests.states.removeValue(forKey: task.taskIdentifier) }
+            let result: Result<(Data, URLResponse), Error> = if let error {
+                .failure(error)
+            } else if let response = state.response {
+                .success((state.data, response))
+            } else {
+                .failure(URLError(.badServerResponse))
+            }
+            defer {
+                state.task = nil
+                state.continuation = nil
+                state.data = Data()
+                state.response = nil
+            }
+            return (state.continuation, result, task)
+        }
+        guard let (continuation, result, task) = completion else { return }
         continuation?.resume(with: result)
+        // URLSession cancellation can block; release state and the caller before requesting it.
+        if cancelTask, let task { DispatchQueue.global().async { task.cancel() } }
+    }
+
+    final class Delegate: NSObject, URLSessionDataDelegate, Sendable {
+        func urlSession(
+            _: URLSession,
+            task _: URLSessionTask,
+            willPerformHTTPRedirection _: HTTPURLResponse,
+            newRequest _: URLRequest,
+            completionHandler: @escaping @Sendable (URLRequest?) -> Void)
+        {
+            completionHandler(nil)
+        }
+
+        func urlSession(
+            _: URLSession,
+            dataTask: URLSessionDataTask,
+            didReceive response: URLResponse,
+            completionHandler: @escaping @Sendable (URLSession.ResponseDisposition) -> Void)
+        {
+            UserProviderPluginHTTPClient.requests.lock.withLock {
+                UserProviderPluginHTTPClient.requests.states[dataTask.taskIdentifier]?.response = response
+            }
+            completionHandler(.allow)
+        }
+
+        func urlSession(_: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+            let exceeded = UserProviderPluginHTTPClient.requests.lock.withLock { () -> RequestState? in
+                guard let state = UserProviderPluginHTTPClient.requests.states[dataTask.taskIdentifier] else {
+                    return nil
+                }
+                guard state.data.count + data.count <= state.maximumResponseBytes else { return state }
+                state.data.append(data)
+                return nil
+            }
+            if let exceeded {
+                UserProviderPluginHTTPClient.finish(
+                    exceeded,
+                    error: ProviderPluginError.http("response exceeded the 1048576-byte limit"),
+                    cancelTask: true)
+            }
+        }
+
+        func urlSession(_: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+            guard let state = UserProviderPluginHTTPClient.state(for: task) else { return }
+            UserProviderPluginHTTPClient.finish(state, error: error)
+        }
+
+        func urlSession(
+            _: URLSession,
+            task _: URLSessionTask,
+            didReceive challenge: URLAuthenticationChallenge,
+            completionHandler: @escaping @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void)
+        {
+            #if canImport(Darwin)
+            if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust {
+                completionHandler(.performDefaultHandling, nil)
+            } else {
+                completionHandler(.cancelAuthenticationChallenge, nil)
+            }
+            #else
+            _ = challenge
+            completionHandler(.performDefaultHandling, nil)
+            #endif
+        }
     }
 }

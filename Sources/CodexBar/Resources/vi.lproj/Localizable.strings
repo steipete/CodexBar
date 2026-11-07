@@ -1294,7 +1294,8 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\nhoặc chỉ dán giá trị session_id";
 "Clear" = "Xóa";
 "No matching providers" = "Không có nhà cung cấp phù hợp";
-"Search providers" = "Tìm kiếm nhà cung cấp";
+"No matching settings or providers" = "Không có cài đặt hoặc nhà cung cấp phù hợp";
+"Search settings" = "Tìm kiếm cài đặt";
 
 "language_vietnamese" = "Tiếng Việt";
 "language_turkish" = "Türkçe";
@@ -1572,7 +1573,7 @@
 "7-day usage" = "Mức sử dụng 7 ngày";
 "Total usage" = "Tổng mức sử dụng";
 "claude_oauth_keychain_access_disabled" = "Quyền truy cập Keychain bị tắt nên CodexBar không thể đọc thông tin đăng nhập Claude.";
-"claude_oauth_keychain_access_revoked" = "Quyền truy cập Chuỗi khóa Claude đã bị thu hồi do Claude Code xoay vòng mã thông báo. Nhấp vào Làm mới để cấp lại quyền truy cập hoặc chuyển nguồn sử dụng Claude sang CLI/Web.";
+"claude_oauth_keychain_access_revoked" = "CodexBar hiện không thể truy cập thông tin xác thực OAuth của Claude. Nhấp vào Làm mới để thử truy cập lại hoặc chuyển nguồn sử dụng Claude sang CLI/Web.";
 "claude_showing_last_known_usage" = "Đang hiển thị mức sử dụng đã biết gần nhất, được ghi nhận %@.";
 "claude_limited_usage_detail" = "Thông tin sử dụng ít chi tiết";
 /* Spend dashboard cost analysis */
@@ -2794,3 +2795,38 @@
 "Leave blank to use the default name." = "Để trống để dùng tên mặc định.";
 "Rewards" = "Phần thưởng";
 "Reward expiry" = "Ngày hết hạn phần thưởng";
+"China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "Mặc định là Trung Quốc (CNY). Tài khoản quốc tế dùng https://api.siliconflow.com (USD).";
+"https://api.siliconflow.cn" = "https://api.siliconflow.cn";
+"SiliconFlow API origin must be https://api.siliconflow.cn or https://api.siliconflow.com." = "Nguồn gốc API SiliconFlow phải là https://api.siliconflow.cn hoặc https://api.siliconflow.com.";
+"SiliconFlow refused the balance query. Check the balance in the SiliconFlow console." = "SiliconFlow đã từ chối truy vấn số dư. Hãy kiểm tra số dư trong bảng điều khiển SiliconFlow.";
+
+"SiliconFlow" = "SiliconFlow";
+"Show SiliconFlow usage" = "Hiển thị mức sử dụng SiliconFlow";
+"SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow đang giới hạn tần suất yêu cầu. Hãy thử lại sau.";
+"SiliconFlow request failed. Try refreshing later." = "Yêu cầu SiliconFlow không thành công. Hãy thử làm mới sau.";
+"SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow trả về phản hồi không nhận dạng được. Hãy cập nhật CodexBar rồi thử lại.";
+"Claude Platform session validated and saved." = "Đã xác thực và lưu phiên Claude Platform.";
+"Use %@ or %@." = "Dùng %@ hoặc %@.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Đăng nhập tại %@. Cung cấp riêng tư tiêu đề Cookie chứa sessionKey cho %@. Sau đó chạy %@.";
+"Read cookie header from stdin" = "Đọc tiêu đề cookie từ stdin";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "Không bắt buộc. Dán giá trị User-Agent từ cùng yêu cầu chứa tiêu đề Cookie.";
+"Paste the WorkBuddy User-Agent as a single request header value." = "Dán User-Agent của WorkBuddy dưới dạng một giá trị tiêu đề yêu cầu duy nhất.";
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "Không thể đọc tổng quan thanh toán TypeSafe. Mở https://console.typesafe.ai/billing để kiểm tra quyền truy cập; nếu trang mở được, hãy báo cáo lỗi tích hợp.";
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "Không tìm thấy cookie phiên TypeSafe. Đăng nhập tại console.typesafe.ai/billing hoặc dán tiêu đề Cookie.";
+
+"Tripo" = "Tripo";
+"Show Tripo usage" = "Hiển thị mức sử dụng Tripo";
+"Tripo is rate limiting requests. Try again later." = "Tripo đang giới hạn tần suất yêu cầu. Hãy thử lại sau.";
+"Tripo request failed. Try refreshing later." = "Yêu cầu Tripo không thành công. Hãy thử làm mới sau.";
+"Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo trả về phản hồi không nhận dạng được. Hãy cập nhật CodexBar rồi thử lại.";
+
+/* Provider setup guidance. */
+"Authorize GitHub's device code to save a Copilot token account." = "Ủy quyền mã thiết bị GitHub để lưu tài khoản mã thông báo Copilot.";
+"Supply a GitHub token accepted by the Copilot usage API." = "Cung cấp mã thông báo GitHub được API mức sử dụng Copilot chấp nhận.";
+"Optional, best-effort budgets for public github.com only. Enable Budget extras in the macOS app; the browser session must match the token account. Quota usage does not need cookies." = "Ngân sách tùy chọn, không bảo đảm thành công, chỉ cho github.com công khai. Bật phần bổ sung ngân sách trong ứng dụng macOS; phiên trình duyệt phải khớp với tài khoản của mã thông báo. Hạn mức không cần cookie.";
+"In the macOS app, select manual cookie source and supply the matching GitHub Cookie header." = "Trong ứng dụng macOS, chọn nguồn cookie thủ công và cung cấp tiêu đề Cookie GitHub tương ứng.";
+"Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app." = "Đăng nhập GitHub trong trình duyệt được hỗ trợ và chọn nhập cookie tự động trong ứng dụng macOS.";
+"Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints." = "Dùng khóa API Admin của tổ chức để xem chi phí và mức sử dụng của tổ chức. Khóa dự án hoặc tài khoản dịch vụ không thể đọc các điểm cuối này.";
+"A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "Khóa API thông thường chỉ hỗ trợ truy vấn số dư cũ dự phòng, không bảo đảm thành công, không hỗ trợ mức sử dụng của tổ chức. Khóa đã cấu hình phạm vi dự án không dùng cách dự phòng này.";
+"Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Cung cấp khóa, điểm cuối tài nguyên HTTPS và tên triển khai. Phiên bản API là tùy chọn. Làm mới gửi yêu cầu xác thực có thể tính phí, không phải truy vấn lịch sử sử dụng.";

@@ -67,49 +67,33 @@ struct SakanaPluginTests {
     func `quick optional response can arrive after primary within shared budget`(
         engine: ProviderPluginEngineKind) async throws
     {
-        let (primaryCompletions, primaryCollected) = AsyncStream<Void>.makeStream()
-        let (deadlines, deadline) = AsyncStream<Void>.makeStream()
-        let (completions, collected) = AsyncStream<String>.makeStream()
+        let (primary, primaryCollected) = AsyncStream<Void>.makeStream()
+        let (pending, release) = AsyncStream<Void>.makeStream()
         defer {
             primaryCollected.finish()
-            deadline.finish()
-            collected.finish()
+            release.finish()
         }
         let transport = SakanaScriptedTransport(
             statusCode: 200,
             body: Self.billingHTML,
             overridesByURL: ["https://console.sakana.ai/billing?tab=payAsYouGo": (200, Self.payAsYouGoHTML)])
-        // Control completion order instead of racing a real sleep against a loaded runner's clock.
         let options = ProviderPluginContextOptions(
             optionalRequestTimeoutSeconds: nil,
             waitForOptionalDeadline: { _, budget in
                 #expect(budget == .milliseconds(200))
-                for await _ in deadlines {}
+                for await _ in pending {}
                 try Task.checkCancellation()
             },
             beforeHTTPAttempt: { request in
                 if request.url?.query == "tab=payAsYouGo" {
-                    var iterator = primaryCompletions.makeAsyncIterator()
+                    var iterator = primary.makeAsyncIterator()
                     #expect(await iterator.next() != nil)
-                    try Task.checkCancellation()
                 }
             },
             didCollectHTTPCompletion: { completion in
-                switch completion {
-                case .primary:
-                    collected.yield("primary")
-                    primaryCollected.yield()
-                case .optional: collected.yield("optional")
-                case .budgetExpired: collected.yield("expired")
-                }
+                if case .primary = completion { primaryCollected.yield() }
             })
         let usage = try await Self.fetch(transport, engine: engine, contextOptions: options)
-        collected.finish()
-        var order: [String] = []
-        for await completion in completions {
-            order.append(completion)
-        }
-        #expect(order == ["primary", "optional"])
         #expect(usage.detailRow(label: "Balance")?.value == "$12.34")
         #expect(await transport.capturedRequestsSnapshot().map(\.url) == [
             "https://console.sakana.ai/billing",

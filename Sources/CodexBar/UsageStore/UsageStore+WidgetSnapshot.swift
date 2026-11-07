@@ -1,4 +1,5 @@
 import CodexBarCore
+import CryptoKit
 import Foundation
 #if canImport(WidgetKit)
 import WidgetKit
@@ -53,30 +54,50 @@ extension UsageStore {
                 return
             }
 
-            await Self.saveWidgetSnapshot(
+            self.lastPublishedWidgetSnapshot = await Self.saveWidgetSnapshot(
                 snapshot,
                 to: self.widgetSnapshotURL,
+                previousPublication: self.lastPublishedWidgetSnapshot,
                 isRunningTests: SettingsStore.isRunningTests,
                 reloadTimelines: self.widgetTimelineReloader)
         }
     }
 
+    struct WidgetSnapshotPublication: Sendable {
+        let contentHash: SHA256.Digest
+        let fileHash: SHA256.Digest
+    }
+
+    @discardableResult
     static func saveWidgetSnapshot(
         _ snapshot: WidgetSnapshot,
         to url: URL?,
+        previousPublication: WidgetSnapshotPublication? = nil,
         isRunningTests: Bool,
-        reloadTimelines: @MainActor () -> Void) async
+        reloadTimelines: @MainActor () -> Void) async -> WidgetSnapshotPublication?
     {
-        await Task.detached(priority: .utility) {
-            if let url {
-                WidgetSnapshotStore.save(snapshot, to: url)
-            } else {
-                WidgetSnapshotStore.save(snapshot)
+        let (publication, shouldReload) = await Task.detached(priority: .utility) {
+            () -> (WidgetSnapshotPublication?, Bool) in
+            // Use the writer's canonical encoding so every field except generation time participates.
+            var comparable = snapshot
+            comparable.generatedAt = Date(timeIntervalSince1970: 0)
+            guard let contentHash = try? SHA256.hash(data: WidgetSnapshotStore.encodedData(comparable))
+            else { return (nil, true) }
+            if let previousPublication, previousPublication.contentHash == contentHash,
+               let savedData = WidgetSnapshotStore.loadData(from: url),
+               SHA256.hash(data: savedData) == previousPublication.fileHash
+            {
+                return (previousPublication, false)
             }
+            guard let data = try? WidgetSnapshotStore.encodedData(snapshot),
+                  WidgetSnapshotStore.save(data: data, to: url)
+            else { return (nil, true) }
+            return (WidgetSnapshotPublication(contentHash: contentHash, fileHash: SHA256.hash(data: data)), true)
         }.value
+        // Failed attempts keep the existing reload behavior but cannot suppress the next write.
         // Opting into file persistence in tests never opts into WidgetKit side effects.
-        guard !isRunningTests else { return }
-        reloadTimelines()
+        if shouldReload, !isRunningTests { reloadTimelines() }
+        return publication
     }
 
     static func reloadWidgetTimelines() {
@@ -180,7 +201,7 @@ extension UsageStore {
             }
             hasDefaultCodexSnapshot = snapshotKeys.contains(AccountSnapshotSyncPayload.accountKey(for: nil))
         }
-        if identities.isEmpty || hasDefaultCodexSnapshot {
+        if (identities.isEmpty && self.metadata(for: provider).usesAccountFallback) || hasDefaultCodexSnapshot {
             let fallback = self.accountInfo(for: provider)
             insert(fallback.email)
         }
