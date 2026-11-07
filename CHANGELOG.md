@@ -41,6 +41,8 @@
 
 - Widgets: reduce timeline decoding work by reading only the configured provider's payload while preserving snapshot freshness and account ownership checks.
 
+- Widgets: skip duplicate snapshot writes and reload requests while preserving fresh measurement timestamps, account changes, and write recovery (#4999).
+
 - App: reduce allocator-retained memory after large cost-history refreshes on recent macOS versions, without passing the policy to provider CLIs or helpers (#4803, #4486).
 - Menu: reduce CPU work when opening idle provider menus by skipping unnecessary Refresh-row target resolution.
 - Plugins: reuse SVG icon rasters across menu reopenings and skip icon work in text-only provider switchers.

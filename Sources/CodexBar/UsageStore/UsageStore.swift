@@ -328,6 +328,7 @@ final class UsageStore {
         TimeInterval) async throws -> Void)?
     @ObservationIgnored var widgetSnapshotPersistTask: Task<Void, Never>?
     @ObservationIgnored var lastQueuedWidgetSnapshot: WidgetSnapshot?
+    @ObservationIgnored var lastPublishedWidgetSnapshot: WidgetSnapshotPublication?
     @ObservationIgnored var invalidatedQueuedWidgetProviders: Set<ProviderInstanceID> = []
     @ObservationIgnored var lastWidgetSourceSnapshots: [ProviderInstanceID: UsageSnapshot] = [:]
     @ObservationIgnored let widgetSnapshotURL: URL?
