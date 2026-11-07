@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Dropdown: hovering a row in the compact Overview opens the provider's full card in a flyout beside the menu, with its chart one level further in. A click still opens the provider's tab, and the parent menu does not move.
+
 ## 0.84.0 — 2026-11-06
 
 ### Highlights

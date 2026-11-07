@@ -39,6 +39,8 @@ struct OverviewMenuCardRowView: View {
     let storageText: String?
     let width: CGFloat
     var layout: MergedOverviewLayout = .detailed
+    /// The Overview row's flyout: the provider's whole card, since the row above it is only a summary.
+    var showsFullCard = false
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
     var body: some View {
@@ -82,7 +84,7 @@ struct OverviewMenuCardRowView: View {
     }
 
     var usesFullCard: Bool {
-        self.layout == .compact && self.model.metrics.isEmpty
+        self.showsFullCard || (self.layout == .compact && self.model.metrics.isEmpty)
     }
 }
 

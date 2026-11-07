@@ -207,7 +207,9 @@ extension StatusItemController {
             self.highlightedMenuItems.removeValue(forKey: key)
         }
 
-        if previousWasNative, !self.isNativeMenuItemHighlighted(in: menu) {
+        // Mouse-up activates the item and closes the menu. A rebuild now would only detach that item before AppKit
+        // sends its action; the next open rebuilds anyway.
+        if previousWasNative, eventType != .leftMouseUp, !self.isNativeMenuItemHighlighted(in: menu) {
             self.resumeMenuRebuildDeferredForNativeHighlightIfNeeded(menu)
         }
     }

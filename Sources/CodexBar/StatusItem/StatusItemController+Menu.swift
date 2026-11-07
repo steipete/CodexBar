@@ -621,10 +621,13 @@ extension StatusItemController {
                 continue
             }
             let storageText = row.accountID == nil ? self.store.storageFootprintText(for: provider) : nil
-            let submenu = row.accountID == nil ? self.makeOverviewRowSubmenu(
-                provider: provider,
-                model: model,
-                width: menuWidth) : nil
+            let submenu: NSMenu? = if row.accountID != nil {
+                nil
+            } else if self.settings.mergedOverviewLayout == .compact {
+                self.makeOverviewLineSubmenu(provider: provider, width: menuWidth)
+            } else {
+                self.makeOverviewRowSubmenu(provider: provider, model: model, width: menuWidth)
+            }
             let item = self.makeMenuCardItem(
                 OverviewMenuCardRowView(
                     model: model,

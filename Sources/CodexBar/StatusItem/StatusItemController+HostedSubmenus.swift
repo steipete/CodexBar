@@ -62,7 +62,9 @@ extension StatusItemController {
             Self.usageHistoryChartID,
             Self.storageBreakdownID,
             Self.statusComponentsID,
+            Self.overviewProviderDetailID,
         ]
+        if menu is OverviewProviderDetailMenu { return true }
         return menu.items.contains { item in
             guard let id = item.representedObject as? String else { return false }
             return ids.contains(id)
@@ -145,6 +147,10 @@ extension StatusItemController {
             } else {
                 false
             }
+        case Self.overviewProviderDetailID:
+            identity.provider.map {
+                self.appendOverviewProviderDetail(to: menu, provider: $0, width: width)
+            } ?? false
         default:
             false
         }
@@ -208,6 +214,10 @@ extension StatusItemController {
             } else {
                 false
             }
+        case Self.overviewProviderDetailID:
+            identity.provider.map {
+                self.appendOverviewProviderDetail(to: menu, provider: $0, width: width)
+            } ?? false
         default:
             false
         }
@@ -226,6 +236,13 @@ extension StatusItemController {
 
     private func hostedSubviewIdentity(for menu: NSMenu)
     -> HostedSubviewIdentity? {
+        // Its rows are built with the flyout, and "Show details" carries a row ID rather than a chart ID.
+        if let provider = (menu as? OverviewProviderDetailMenu)?.provider {
+            return HostedSubviewIdentity(
+                chartID: Self.overviewProviderDetailID,
+                provider: provider,
+                providerRawValue: provider.rawValue)
+        }
         for item in menu.items {
             guard let chartID = item.representedObject as? String else { continue }
             let providerRawValue = self.hostedSubviewProviderRawValue(for: item)
@@ -279,6 +296,8 @@ extension StatusItemController {
             .text(identity.provider.map(self.storageBreakdownRenderSignature(for:)) ?? "missing-provider")
         case Self.statusComponentsID:
             .text(identity.provider.map(self.statusComponentsRenderSignature(for:)) ?? "missing-provider")
+        case Self.overviewProviderDetailID:
+            .text(identity.provider.map { self.overviewProviderDetailRenderSignature(for: $0) } ?? "missing-provider")
         default:
             .text("unknown")
         }
@@ -325,6 +344,15 @@ extension StatusItemController {
             snapshot?.secondary == nil ? "0" : "1",
             snapshot?.tertiary == nil ? "0" : "1",
         ].joined(separator: "|")
+    }
+
+    /// The flyout shows the whole card, so any change to its model is a change to what it should show. The model is
+    /// read at the start of the minute because a running window's pace moves with the clock: at the current instant,
+    /// every reopen would look like new data.
+    func overviewProviderDetailRenderSignature(for provider: UsageProvider, now: Date = Date()) -> String {
+        let minute = Date(timeIntervalSince1970: (now.timeIntervalSince1970 / 60).rounded(.down) * 60)
+        return String(describing: self.store.menuCardModel(for: provider, now: minute))
+            + String(describing: self.store.storageFootprintText(for: provider))
     }
 
     func statusComponentsRenderSignature(for provider: UsageProvider) -> String {
