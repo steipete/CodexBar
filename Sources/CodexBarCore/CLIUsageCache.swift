@@ -19,28 +19,32 @@ public struct CLIUsageCache: Codable, Sendable {
     public struct Entry: Codable, Sendable {
         /// `UsageProvider.rawValue`; a string so providers unknown to an older CLI don't break decoding.
         public let provider: String
-        /// Allowlisted fields only: windows and `updatedAt` (this provider's fetch time).
+        /// Allowlisted fields only: windows, Cursor pool classification and this provider's fetch time.
         public let usage: UsageSnapshot
 
         /// Nil when there is no rate window to show.
         public init?(provider: UsageProvider, usage: UsageSnapshot) {
             guard usage.hasRateLimitWindows else { return nil }
             self.provider = provider.rawValue
-            self.usage = Self.figures(usage)
+            self.usage = Self.figures(usage, provider: provider.rawValue)
         }
 
         public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             self.provider = try container.decode(String.self, forKey: .provider)
-            self.usage = try Self.figures(container.decode(UsageSnapshot.self, forKey: .usage))
+            self.usage = try Self.figures(container.decode(UsageSnapshot.self, forKey: .usage), provider: self.provider)
         }
 
-        private static func figures(_ usage: UsageSnapshot) -> UsageSnapshot {
+        private static func figures(_ usage: UsageSnapshot, provider: String) -> UsageSnapshot {
             UsageSnapshot(
                 primary: usage.primary,
                 secondary: usage.secondary,
                 tertiary: usage.tertiary,
                 extraRateWindows: usage.extraRateWindows,
+                // Provider-specific by design: Only Cursor entries keep confirmed pool evidence after identity
+                // redaction.
+                cursorHasUnifiedWeeklyPool: provider == UsageProvider.cursor.rawValue &&
+                    CursorProviderDescriptor.sharedWeeklyPool(snapshot: usage) != nil,
                 updatedAt: usage.updatedAt)
         }
     }
