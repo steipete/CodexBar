@@ -85,7 +85,7 @@ public enum AlibabaTokenPlanProviderDescriptor {
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "alibaba-token-plan",
-                aliases: ["alibaba-token", "bailian-token-plan"],
+                aliases: ["alibaba-token", "bailian-token-plan", "qwen-cn", "qianwen", "qianwenai"],
                 versionDetector: nil,
                 browserSupportExemption: { sourceMode, _, settings in
                     if sourceMode == .auto || sourceMode == .cli {
