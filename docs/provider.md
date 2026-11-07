@@ -139,6 +139,14 @@ competing quotas. The shared app resolver ranks those windows by depletion forec
 Return `.resolved` for authoritative selections such as ordered credit pools or product-specific fallback;
 `.unhandled` lets Auto rank the standard lanes. Keep optional/model-only exclusions inside the descriptor.
 
+## Setup declarations
+
+`ProviderDescriptor.setup` owns static CLI setup guidance beside the provider. The default is `.unknown`;
+do not infer required inputs from fetch modes or supported credential types. Declare alternative routes with stable
+provider-local IDs, supported platforms, required inputs, and localized hints. Optional enrichment belongs in
+`optionalCapabilities`. Declarations contain names only and must never resolve secrets, inspect authentication,
+import browser data, start login, or fetch usage. See [the CLI setup contract](cli.md#configuration).
+
 ## Fetch strategies
 
 A provider declares a pipeline of strategies, in priority order. Each strategy:

@@ -347,6 +347,7 @@ public struct ProviderDescriptor: Sendable {
     public let menuBarMetrics: ProviderMenuBarMetricCapabilities
     public let fetchPlan: ProviderFetchPlan
     public let cli: ProviderCLIConfig
+    public let setup: ProviderSetup
     public let nativeAppBundleIdentifiers: Set<String>
     private let configNormalizer: @Sendable (inout ProviderConfig) -> Void
 
@@ -365,6 +366,7 @@ public struct ProviderDescriptor: Sendable {
         presentation: ProviderUsagePresentation = ProviderUsagePresentation(),
         fetchPlan: ProviderFetchPlan,
         cli: ProviderCLIConfig,
+        setup: ProviderSetup = .unknown,
         nativeAppBundleIdentifiers: Set<String> = [],
         configNormalizer: @escaping @Sendable (inout ProviderConfig) -> Void = { _ in })
     {
@@ -382,6 +384,7 @@ public struct ProviderDescriptor: Sendable {
         self.menuBarMetrics = menuBarMetrics ?? (metadata.balanceOnly ? .automaticOnly : .standard)
         self.fetchPlan = fetchPlan
         self.cli = cli
+        self.setup = setup
         self.nativeAppBundleIdentifiers = nativeAppBundleIdentifiers
         self.configNormalizer = configNormalizer
     }

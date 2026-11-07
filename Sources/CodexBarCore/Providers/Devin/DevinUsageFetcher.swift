@@ -30,10 +30,23 @@ public struct DevinUsageFetcher: Sendable {
     }
 
     public let browserDetection: BrowserDetection
+    #if os(macOS)
+    private let devinAppImporter: DevinAppSessionImporter
+    #endif
 
     public init(browserDetection: BrowserDetection) {
         self.browserDetection = browserDetection
+        #if os(macOS)
+        self.devinAppImporter = DevinAppSessionImporter()
+        #endif
     }
+
+    #if DEBUG && os(macOS)
+    init(browserDetection: BrowserDetection, devinAppImporter: DevinAppSessionImporter) {
+        self.browserDetection = browserDetection
+        self.devinAppImporter = devinAppImporter
+    }
+    #endif
 
     public func fetch(
         bearerTokenOverride: String? = nil,
@@ -43,26 +56,49 @@ public struct DevinUsageFetcher: Sendable {
         now: Date = Date(),
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> DevinUsageSnapshot
     {
-        let auths = try self.resolveAuths(
-            bearerTokenOverride: bearerTokenOverride,
-            organizationOverride: organizationOverride,
-            logger: logger)
         var lastError: Error?
-        for auth in auths {
-            do {
-                return try await Self.fetchQuotaUsage(
-                    auth: auth,
-                    organizationOverride: organizationOverride,
-                    timeout: timeout,
-                    logger: logger,
-                    now: now,
-                    transport: transport)
-            } catch {
-                lastError = error
-                logger?("[devin] Session from \(auth.sourceLabel) failed: \(error.localizedDescription)")
-                if auth.sourceLabel == "manual" || !Self.shouldTryNextSession(after: error) {
-                    throw error
+        let auths: [RequestAuth]
+        do {
+            auths = try self.resolveAuths(
+                bearerTokenOverride: bearerTokenOverride,
+                organizationOverride: organizationOverride,
+                logger: logger)
+        } catch {
+            // An unreadable browser store still surfaces when no Devin app session can take over.
+            auths = []
+            lastError = error
+        }
+        // Defer the desktop secret read until all browser candidates have been tried.
+        let authStages: [() -> [RequestAuth]] = [
+            { auths },
+            { self.appSessionAuths(organizationOverride: organizationOverride, logger: logger) },
+        ]
+        for (index, stage) in authStages.enumerated() {
+            let candidates = stage()
+            for auth in candidates {
+                do {
+                    return try await Self.fetchQuotaUsage(
+                        auth: auth,
+                        organizationOverride: organizationOverride,
+                        timeout: timeout,
+                        logger: logger,
+                        now: now,
+                        transport: transport)
+                } catch {
+                    lastError = error
+                    logger?("[devin] Session from \(auth.sourceLabel) failed: \(error.localizedDescription)")
+                    if auth.sourceLabel == "manual" || !Self.shouldTryNextSession(after: error) {
+                        throw error
+                    }
                 }
+            }
+            // A service error cannot be resolved by reading another credential.
+            if index < authStages.count - 1,
+               !candidates.isEmpty,
+               let lastError,
+               !Self.shouldTryDevinAppSession(after: lastError)
+            {
+                throw lastError
             }
         }
         throw lastError ?? DevinUsageError.noSession
@@ -143,9 +179,6 @@ public struct DevinUsageFetcher: Sendable {
             browserDetection: self.browserDetection,
             organizationOverride: normalizedOrganizationOverride,
             logger: logger)
-        guard !sessions.isEmpty else {
-            throw DevinUsageError.noSession
-        }
         logger?("[devin] Found \(sessions.count) browser session(s)")
         return sessions.map { session in
             RequestAuth(
@@ -159,9 +192,41 @@ public struct DevinUsageFetcher: Sendable {
         #endif
     }
 
+    private func appSessionAuths(
+        organizationOverride: String?,
+        logger: ((String) -> Void)?) -> [RequestAuth]
+    {
+        #if os(macOS)
+        let normalizedOrganizationOverride = Self.normalizedOrganization(organizationOverride)
+        logger?("[devin] Trying the Devin app session")
+        return self.devinAppImporter
+            .importSessions(organizationOverride: normalizedOrganizationOverride, logger: logger)
+            .map { session in
+                RequestAuth(
+                    bearerToken: session.accessToken,
+                    organization: normalizedOrganizationOverride ?? Self.normalizedOrganization(session.organization),
+                    internalOrganizationID: session.internalOrganizationID,
+                    sourceLabel: session.sourceLabel)
+            }
+        #else
+        []
+        #endif
+    }
+
     static func shouldTryNextSession(after error: Error) -> Bool {
         switch error {
         case DevinUsageError.invalidCredentials, DevinUsageError.apiError, DevinUsageError.missingOrganization:
+            true
+        default:
+            false
+        }
+    }
+
+    /// Whether a browser-stage failure justifies consulting the Keychain-gated Devin app source:
+    /// only rejections an alternate credential can resolve — not service-side errors.
+    static func shouldTryDevinAppSession(after error: Error) -> Bool {
+        switch error {
+        case DevinUsageError.invalidCredentials, DevinUsageError.missingOrganization:
             true
         default:
             false

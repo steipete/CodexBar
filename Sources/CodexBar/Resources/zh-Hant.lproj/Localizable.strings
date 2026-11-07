@@ -1776,7 +1776,7 @@
 "Automatic imports longcat.chat cookies from your browser." = "自動從瀏覽器匯入 longcat.chat cookies。";
 "Automatically imports browser cookies for budget extras." = "自動導入瀏覽器 Cookie，以讀取預算附加信息。";
 "Automatically imports browser cookies for github.com budget extras." = "自動導入 github.com 的瀏覽器 Cookie，以讀取預算附加信息。";
-"Automatically imports the app.devin.ai session from Chromium browsers." = "自動從 Chromium 瀏覽器匯入 app.devin.ai 會話。";
+"Automatically imports the app.devin.ai session from the Devin app or Chromium browsers." = "自動從 Devin 應用程式或 Chromium 瀏覽器匯入 app.devin.ai 會話。";
 "Automatically imports the browser session cookie." = "自動匯入瀏覽器會話 cookie。";
 "Automatically signs in using your ZoomMate session cookies from Chrome." = "使用 Chrome 中的 ZoomMate 會話 cookies 自動登入。";
 "BY USAGE" = "按用量排序";
@@ -2797,4 +2797,14 @@
 "Tripo is rate limiting requests. Try again later." = "Tripo 正在限制請求頻率。請稍後再試。";
 "Tripo request failed. Try refreshing later." = "Tripo 請求失敗。請稍後嘗試重新整理。";
 "Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo 傳回了無法辨識的回應。請更新 CodexBar 後再試。";
+
+/* Provider setup guidance. */
+"Authorize GitHub's device code to save a Copilot token account." = "授權 GitHub 裝置代碼以儲存 Copilot 權杖帳號。";
+"Supply a GitHub token accepted by the Copilot usage API." = "提供 Copilot 用量 API 接受的 GitHub 權杖。";
+"Optional, best-effort budgets for public github.com only. Enable Budget extras in the macOS app; the browser session must match the token account. Quota usage does not need cookies." = "僅為公開的 github.com 提供選用的預算查詢，不保證成功。在 macOS App 中啟用預算附加功能；瀏覽器工作階段必須與權杖帳號相符。配額查詢不需要 Cookie。";
+"In the macOS app, select manual cookie source and supply the matching GitHub Cookie header." = "在 macOS App 中選擇手動 Cookie 來源，並提供相符的 GitHub Cookie 標頭。";
+"Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app." = "在支援的瀏覽器中登入 GitHub，並在 macOS App 中選擇自動匯入 Cookie。";
+"Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints." = "使用組織的 Admin API 金鑰查詢組織費用與用量。專案或服務帳號金鑰無法讀取這些端點。";
+"A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "一般 API 金鑰僅支援盡力查詢舊版餘額，不支援組織用量。設定了專案範圍的金鑰不會使用此備援方式。";
+"Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "提供金鑰、HTTPS 資源端點與部署名稱。API 版本為選填。重新整理會傳送可能計費的驗證請求，而非用量歷史查詢。";
 "Mistral session expired or invalid." = "Mistral 工作階段已過期或無效。";

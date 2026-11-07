@@ -84,7 +84,29 @@ public enum OpenAIAPIProviderDescriptor {
             cli: ProviderCLIConfig(
                 name: "openai",
                 aliases: ["openai-api"],
-                versionDetector: nil))
+                versionDetector: nil),
+            setup: ProviderSetup(routes: [
+                .init(
+                    id: "admin-api-key",
+                    method: .apiKey,
+                    platforms: [.macOS, .linux],
+                    requiredInputs: [.init(
+                        id: "admin-api-key",
+                        configFields: ["apiKey", "tokenAccounts.accounts[].token"],
+                        environmentVariables: OpenAIAPISettingsReader.apiKeyEnvironmentKeys)],
+                    hint: "Use an organization Admin API key for organization costs and usage. " +
+                        "Project/service-account keys cannot read those endpoints."),
+                .init(
+                    id: "legacy-api-key",
+                    method: .apiKey,
+                    platforms: [.macOS, .linux],
+                    requiredInputs: [.init(
+                        id: "legacy-api-key",
+                        configFields: ["apiKey", "tokenAccounts.accounts[].token"],
+                        environmentVariables: [OpenAIAPISettingsReader.apiKeyEnvironmentKey])],
+                    hint: "A normal API key supports only best-effort legacy balance fallback, " +
+                        "not organization usage. Configured keys with project scoping do not use that fallback."),
+            ]))
     }
 
     private static func fetchPlan() -> ProviderFetchPlan {

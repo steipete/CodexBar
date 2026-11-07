@@ -1751,7 +1751,7 @@
 "Automatic imports longcat.chat cookies from your browser." = "นำเข้า longcat.chat cookies จากเบราว์เซอร์ของคุณโดยอัตโนมัติ";
 "Automatically imports browser cookies for budget extras." = "นำเข้าเบราว์เซอร์ cookies โดยอัตโนมัติเพื่อเพิ่มงบประมาณ";
 "Automatically imports browser cookies for github.com budget extras." = "นำเข้าเบราว์เซอร์ cookies โดยอัตโนมัติสำหรับงบประมาณพิเศษ github.com";
-"Automatically imports the app.devin.ai session from Chromium browsers." = "นำเข้าเซสชัน app.devin.ai จากเบราว์เซอร์ Chromium โดยอัตโนมัติ";
+"Automatically imports the app.devin.ai session from the Devin app or Chromium browsers." = "นำเข้าเซสชัน app.devin.ai จากแอป Devin หรือเบราว์เซอร์ Chromium โดยอัตโนมัติ";
 "Automatically imports the browser session cookie." = "นำเข้าเซสชันเบราว์เซอร์ cookie โดยอัตโนมัติ";
 "Automatically signs in using your ZoomMate session cookies from Chrome." = "ลงชื่อเข้าใช้โดยอัตโนมัติโดยใช้เซสชัน ZoomMate ของคุณ cookies จาก Chrome";
 "BY USAGE" = "จัดอันดับตามการใช้งาน";
@@ -2821,4 +2821,14 @@
 "Tripo is rate limiting requests. Try again later." = "Tripo กำลังจำกัดความถี่ของคำขอ ลองอีกครั้งในภายหลัง";
 "Tripo request failed. Try refreshing later." = "คำขอ Tripo ล้มเหลว ลองรีเฟรชอีกครั้งในภายหลัง";
 "Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo ส่งการตอบกลับที่ไม่รู้จัก โปรดอัปเดต CodexBar แล้วลองอีกครั้ง";
+
+/* Provider setup guidance. */
+"Authorize GitHub's device code to save a Copilot token account." = "อนุญาตรหัสอุปกรณ์ของ GitHub เพื่อบันทึกบัญชีโทเค็น Copilot";
+"Supply a GitHub token accepted by the Copilot usage API." = "ระบุโทเค็น GitHub ที่ API การใช้งาน Copilot ยอมรับ";
+"Optional, best-effort budgets for public github.com only. Enable Budget extras in the macOS app; the browser session must match the token account. Quota usage does not need cookies." = "งบประมาณเสริมสำหรับ github.com สาธารณะเท่านั้น โดยไม่รับประกันผล เปิดส่วนเสริมงบประมาณในแอป macOS และให้เซสชันเบราว์เซอร์ตรงกับบัญชีโทเค็น การดูโควตาไม่ต้องใช้คุกกี้";
+"In the macOS app, select manual cookie source and supply the matching GitHub Cookie header." = "ในแอป macOS ให้เลือกแหล่งคุกกี้แบบกำหนดเองและระบุส่วนหัว Cookie ของ GitHub ที่ตรงกัน";
+"Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app." = "ลงชื่อเข้าใช้ GitHub ในเบราว์เซอร์ที่รองรับ แล้วเลือกนำเข้าคุกกี้อัตโนมัติในแอป macOS";
+"Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints." = "ใช้คีย์ Admin API ขององค์กรเพื่อดูค่าใช้จ่ายและการใช้งานขององค์กร คีย์โครงการหรือบัญชีบริการไม่สามารถอ่านเอนด์พอยต์เหล่านี้ได้";
+"A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "คีย์ API ทั่วไปรองรับเพียงการอ่านยอดคงเหลือแบบเก่าเป็นทางสำรองโดยไม่รับประกันผล ไม่รองรับการใช้งานขององค์กร คีย์ที่กำหนดขอบเขตโครงการจะไม่ใช้ทางสำรองนี้";
+"Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "ระบุคีย์ เอนด์พอยต์ทรัพยากร HTTPS และชื่อการปรับใช้ เวอร์ชัน API เป็นตัวเลือก การรีเฟรชจะส่งคำขอตรวจสอบที่อาจมีค่าใช้จ่าย ไม่ใช่การค้นหาประวัติการใช้งาน";
 "Mistral session expired or invalid." = "เซสชัน Mistral หมดอายุหรือไม่ถูกต้อง";
