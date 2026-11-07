@@ -2466,6 +2466,10 @@
 "merged_icon_source_current_selection" = "当前选择";
 "merged_icon_source_highest_usage" = "最高用量";
 "merged_icon_source_frontmost_app" = "最前台的服务提供方应用";
+"merged_icon_source_all_providers" = "所有服务提供方（平均）";
+"merged_icon_source_all_providers_subtitle" = "显示每个服务提供方最紧限额的平均值，并在接近限额时以其徽标发出警告。";
+"menu_bar_total_accessibility" = "所有服务提供方，平均 %@";
+"menu_bar_total_near_limit_accessibility" = "%1$@ 接近限额，%2$@";
 /* Provider menu bar color */
 "Color by provider" = "按服务商着色";
 

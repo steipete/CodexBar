@@ -2474,6 +2474,10 @@
 "merged_icon_source_current_selection" = "Lựa chọn hiện tại";
 "merged_icon_source_highest_usage" = "Mức sử dụng cao nhất";
 "merged_icon_source_frontmost_app" = "Ứng dụng nhà cung cấp ở phía trước";
+"merged_icon_source_all_providers" = "Tất cả nhà cung cấp (trung bình)";
+"merged_icon_source_all_providers_subtitle" = "Hiển thị mức trung bình của hạn mức sát nhất ở mỗi nhà cung cấp và cảnh báo bằng logo của nhà cung cấp khi sắp chạm hạn mức.";
+"menu_bar_total_accessibility" = "Tất cả nhà cung cấp, trung bình %@";
+"menu_bar_total_near_limit_accessibility" = "%1$@ sắp chạm hạn mức, %2$@";
 /* Provider menu bar color */
 "Color by provider" = "Màu theo nhà cung cấp";
 

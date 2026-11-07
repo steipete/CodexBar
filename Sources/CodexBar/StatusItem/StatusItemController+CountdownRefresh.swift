@@ -63,6 +63,14 @@ extension StatusItemController {
             delays.append(delay)
         }
         delays += self.menuBarPaceRefreshDelays(providers: providers.compactMap(\.firstPartyProvider), now: now)
+        if self.usageTotalProvidersIfActive() != nil {
+            // Forecasts and resets move with the clock, so the total's warning needs no fetch or layout token to
+            // change.
+            let secondsIntoMinute = now.timeIntervalSince1970.truncatingRemainder(dividingBy: 60)
+            delays.append(max(
+                Self.menuBarCountdownRefreshEpsilon,
+                60 - secondsIntoMinute + Self.menuBarCountdownRefreshEpsilon))
+        }
 
         if self.menuBarObservesCodexReset(providers: providers.compactMap(\.firstPartyProvider)) {
             let projection = self.store.codexConsumerProjection(surface: .menuBar, now: now)
@@ -158,6 +166,9 @@ extension StatusItemController {
         if let stackedProviders = self.stackedMergeIconProvidersIfActive() {
             return [stackedProviders.top.instanceID, stackedProviders.bottom.instanceID]
         }
+        if let usageTotalProviders = self.usageTotalProvidersIfActive() {
+            return usageTotalProviders.map(\.instanceID)
+        }
         if self.shouldMergeIcons {
             return [self.primaryProviderForUnifiedIcon()]
         }
@@ -170,7 +181,7 @@ extension StatusItemController {
             return true
         }
         guard self.stackedMergeIconProvidersIfActive() == nil,
-              self.shouldMergeIcons, self.settings.unifiedIconSource == .highestUsage
+              self.shouldMergeIcons, self.settings.unifiedIconSource.readsOverviewProviders
         else {
             return false
         }

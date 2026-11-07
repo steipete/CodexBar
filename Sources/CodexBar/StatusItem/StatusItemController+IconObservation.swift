@@ -14,7 +14,7 @@ extension StatusItemController {
         } else if mergeIcons {
             let primary = self.primaryProviderForUnifiedIcon()
             primaryProvider = primary
-            providers = [primary]
+            providers = self.usageTotalProvidersIfActive()?.map(\.instanceID) ?? [primary]
         } else {
             primaryProvider = nil
             providers = UsageProvider.allCases.filter { self.isVisible($0) }.map(\.instanceID)

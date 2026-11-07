@@ -2471,6 +2471,10 @@
 "merged_icon_source_current_selection" = "Selección actual";
 "merged_icon_source_highest_usage" = "Mayor uso";
 "merged_icon_source_frontmost_app" = "Aplicación del proveedor en primer plano";
+"merged_icon_source_all_providers" = "Todos los proveedores (promedio)";
+"merged_icon_source_all_providers_subtitle" = "Muestra el promedio del límite más ajustado de cada proveedor y avisa con el logotipo del proveedor cuando se acerca a su límite.";
+"menu_bar_total_accessibility" = "Todos los proveedores, promedio %@";
+"menu_bar_total_near_limit_accessibility" = "%1$@ cerca del límite, %2$@";
 /* Provider menu bar color */
 "Color by provider" = "Color por proveedor";
 

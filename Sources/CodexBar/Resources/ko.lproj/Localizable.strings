@@ -2441,6 +2441,10 @@
 "merged_icon_source_current_selection" = "현재 선택";
 "merged_icon_source_highest_usage" = "사용량이 가장 높음";
 "merged_icon_source_frontmost_app" = "전면의 공급자 앱";
+"merged_icon_source_all_providers" = "모든 공급자 (평균)";
+"merged_icon_source_all_providers_subtitle" = "각 공급자의 가장 빠듯한 한도 평균을 표시하고, 한도에 가까워지면 공급자 로고로 경고합니다.";
+"menu_bar_total_accessibility" = "모든 공급자, 평균 %@";
+"menu_bar_total_near_limit_accessibility" = "%1$@ 한도 임박, %2$@";
 /* Provider menu bar color */
 "Color by provider" = "제공업체별 색상";
 

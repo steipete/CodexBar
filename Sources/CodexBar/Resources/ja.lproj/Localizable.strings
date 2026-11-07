@@ -2473,6 +2473,10 @@
 "merged_icon_source_current_selection" = "現在の選択";
 "merged_icon_source_highest_usage" = "使用率が最も高いプロバイダー";
 "merged_icon_source_frontmost_app" = "最前面のプロバイダーアプリ";
+"merged_icon_source_all_providers" = "すべてのプロバイダー（平均）";
+"merged_icon_source_all_providers_subtitle" = "各プロバイダーで最も厳しい上限の平均を表示し、上限に近づくとプロバイダーのロゴで警告します。";
+"menu_bar_total_accessibility" = "すべてのプロバイダー、平均 %@";
+"menu_bar_total_near_limit_accessibility" = "%1$@ は上限間近、%2$@";
 /* Provider menu bar color */
 "Color by provider" = "プロバイダー別の色";
 

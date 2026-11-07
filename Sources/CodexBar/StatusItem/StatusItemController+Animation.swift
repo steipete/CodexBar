@@ -253,6 +253,7 @@ extension StatusItemController {
         }
         defer {
             let providers = self.stackedMergeIconProvidersIfActive().map { [$0.top, $0.bottom] }
+                ?? self.usageTotalProvidersIfActive()
                 ?? self.primaryProviderForUnifiedIcon().firstPartyProvider.map { [$0] } ?? []
             self.updateMenuBarSourceDescription(for: button, providers: providers)
         }
@@ -260,6 +261,11 @@ extension StatusItemController {
         if let rows = self.stackedMergeIconProvidersIfActive(),
            let result = self.applyStoredStackedMenuBarLayoutIfNeeded(top: rows.top, bottom: rows.bottom)
         {
+            return result
+        }
+        if self.usageTotalProvidersIfActive() != nil {
+            let result = self.applyUsageTotal(for: button)
+            self.noteIconPerfRender(skipped: result)
             return result
         }
         let selected = self.primaryProviderForUnifiedIcon()
@@ -707,6 +713,11 @@ extension StatusItemController {
 
     private func setButtonContent(image: NSImage, title: String?, tint: NSColor?, for button: NSStatusBarButton) {
         if let label = self.menuBarLayoutRenderer.pluginSummary.lastAccessibilityLabel,
+           button.accessibilityTitle() == label
+        {
+            button.setAccessibilityTitle(nil)
+        }
+        if let label = self.menuBarLayoutRenderer.usageTotalMemo?.rendered.accessibilityLabel,
            button.accessibilityTitle() == label
         {
             button.setAccessibilityTitle(nil)
@@ -1210,7 +1221,7 @@ extension StatusItemController {
             if let provider = instanceID.firstPartyProvider { return self.isEnabled(provider) }
             return allowsPlugins && localEnabled.contains(instanceID)
         }
-        if self.settings.unifiedIconSource == .highestUsage, self.shouldMergeIcons {
+        if self.settings.unifiedIconSource.readsOverviewProviders, self.shouldMergeIcons {
             let candidates = overview.compactMap(\.firstPartyProvider)
             if let highest = self.store.providerWithHighestUsage(
                 candidateProviders: candidates,

@@ -44,7 +44,7 @@ public struct PreferencesDocument: Codable, Sendable {
         "costSummaryDisplayStyle": ["inlineSummary", "costSubmenu", "both"],
         "workdayTickAppearance": ["hidden", "subtle", "highContrast"],
         "mergedOverviewLayout": ["detailed", "compact"],
-        "unifiedIconSource": ["currentSelection", "highestUsage", "frontmostApp"],
+        "unifiedIconSource": ["currentSelection", "highestUsage", "frontmostApp", "allProviders"],
     ]
     private static let thresholdKeys = Set([
         "quotaWarningThresholds", "quotaWarningSessionThresholds", "quotaWarningWeeklyThresholds",

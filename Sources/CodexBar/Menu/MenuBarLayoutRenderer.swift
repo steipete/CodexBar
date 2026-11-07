@@ -309,7 +309,8 @@ final class MenuBarLayoutTitleCache {
 @MainActor
 // swiftlint:disable:next type_body_length
 final class MenuBarLayoutRenderer {
-    private static let missingValue = "–"
+    var usageTotalMemo: (key: UsageTotalMemoKey, rendered: MenuBarLayoutRenderedTitle)?
+    static let missingValue = "–"
     private static let stackedBaselineOffset: CGFloat = -3 // Center multi-line NSStatusBarButton titles.
     private static let windowPrefixKey = NSAttributedString.Key("CodexBarWindowPrefix")
     private static let singleLineBaselineOffset: CGFloat = -1 // Drop single-line titles slightly for optical centering.
@@ -1169,7 +1170,7 @@ final class MenuBarLayoutRenderer {
         return String(withoutPrefix[..<suffixRange.lowerBound]) + String(withoutPrefix[suffixRange.upperBound...])
     }
 
-    private static func offsetLeadingIcon(_ image: NSImage, adjustment: Int) -> NSImage {
+    static func offsetLeadingIcon(_ image: NSImage, adjustment: Int) -> NSImage {
         // Bake the offset into the surfaced image so the status button and preferences preview share it.
         // Cap the canvas at the 22 pt menu bar content height to avoid proportional downscaling.
         let maxShift = max(0, floor((22 - image.size.height) / 2))
@@ -1345,7 +1346,7 @@ final class MenuBarLayoutRenderer {
 }
 
 extension MenuBarLayoutRenderer {
-    private static func fontSize(size: MenuBarLayoutSize, isStacked: Bool) -> CGFloat {
+    static func fontSize(size: MenuBarLayoutSize, isStacked: Bool) -> CGFloat {
         switch size {
         case .small: isStacked ? 8 : 11
         case .regular: isStacked ? 9 : NSFont.systemFontSize

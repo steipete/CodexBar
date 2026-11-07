@@ -2477,6 +2477,10 @@
 "merged_icon_source_current_selection" = "انتخاب فعلی";
 "merged_icon_source_highest_usage" = "بیشترین استفاده";
 "merged_icon_source_frontmost_app" = "برنامه ارائه‌دهنده در پیش‌زمینه";
+"merged_icon_source_all_providers" = "همه ارائه‌دهندگان (میانگین)";
+"merged_icon_source_all_providers_subtitle" = "میانگین تنگ‌ترین محدودیت هر ارائه‌دهنده را نشان می‌دهد و هنگام نزدیک شدن به محدودیت با نشان‌واره ارائه‌دهنده هشدار می‌دهد.";
+"menu_bar_total_accessibility" = "همه ارائه‌دهندگان، میانگین %@";
+"menu_bar_total_near_limit_accessibility" = "%1$@ نزدیک محدودیت، %2$@";
 /* Provider menu bar color */
 "Color by provider" = "رنگ بر اساس ارائه‌دهنده";
 

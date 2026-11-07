@@ -2476,6 +2476,10 @@
 "merged_icon_source_current_selection" = "Bieżący wybór";
 "merged_icon_source_highest_usage" = "Najwyższe użycie";
 "merged_icon_source_frontmost_app" = "Aplikacja dostawcy na pierwszym planie";
+"merged_icon_source_all_providers" = "Wszyscy dostawcy (średnia)";
+"merged_icon_source_all_providers_subtitle" = "Pokazuje średnią najciaśniejszego limitu każdego dostawcy i ostrzega logo dostawcy, gdy zbliża się on do limitu.";
+"menu_bar_total_accessibility" = "Wszyscy dostawcy, średnio %@";
+"menu_bar_total_near_limit_accessibility" = "%1$@ blisko limitu, %2$@";
 /* Provider menu bar color */
 "Color by provider" = "Kolor według dostawcy";
 

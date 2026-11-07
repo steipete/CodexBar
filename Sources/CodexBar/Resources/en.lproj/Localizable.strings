@@ -2478,6 +2478,10 @@
 "merged_icon_source_current_selection" = "Current selection";
 "merged_icon_source_highest_usage" = "Highest usage";
 "merged_icon_source_frontmost_app" = "Frontmost provider app";
+"merged_icon_source_all_providers" = "All providers (average)";
+"merged_icon_source_all_providers_subtitle" = "Shows the average of each provider's tightest limit, and warns with the provider's logo when one is close to its limit.";
+"menu_bar_total_accessibility" = "All providers, average %@";
+"menu_bar_total_near_limit_accessibility" = "%1$@ near limit, %2$@";
 /* Provider menu bar color */
 "Color by provider" = "Color by provider";
 

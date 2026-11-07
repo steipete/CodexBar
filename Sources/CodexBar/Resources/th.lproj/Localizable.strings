@@ -2477,6 +2477,10 @@
 "merged_icon_source_current_selection" = "ตัวเลือกปัจจุบัน";
 "merged_icon_source_highest_usage" = "การใช้งานสูงสุด";
 "merged_icon_source_frontmost_app" = "แอปผู้ให้บริการที่อยู่ด้านหน้า";
+"merged_icon_source_all_providers" = "ผู้ให้บริการทั้งหมด (เฉลี่ย)";
+"merged_icon_source_all_providers_subtitle" = "แสดงค่าเฉลี่ยของขีดจำกัดที่ตึงที่สุดของผู้ให้บริการแต่ละราย และเตือนด้วยโลโก้ของผู้ให้บริการเมื่อใกล้ถึงขีดจำกัด";
+"menu_bar_total_accessibility" = "ผู้ให้บริการทั้งหมด เฉลี่ย %@";
+"menu_bar_total_near_limit_accessibility" = "%1$@ ใกล้ถึงขีดจำกัด %2$@";
 /* Provider menu bar color */
 "Color by provider" = "สีตามผู้ให้บริการ";
 

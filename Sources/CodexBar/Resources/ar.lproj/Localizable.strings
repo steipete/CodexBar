@@ -2477,6 +2477,10 @@
 "merged_icon_source_current_selection" = "التحديد الحالي";
 "merged_icon_source_highest_usage" = "أعلى استخدام";
 "merged_icon_source_frontmost_app" = "تطبيق المزوّد في المقدمة";
+"merged_icon_source_all_providers" = "كل المزوّدين (المتوسط)";
+"merged_icon_source_all_providers_subtitle" = "يعرض متوسط أضيق حد لكل مزوّد، وينبّه بشعار المزوّد عندما يقترب من حده.";
+"menu_bar_total_accessibility" = "كل المزوّدين، المتوسط %@";
+"menu_bar_total_near_limit_accessibility" = "%1$@ قريب من الحد، %2$@";
 /* Provider menu bar color */
 "Color by provider" = "تلوين حسب المزوّد";
 

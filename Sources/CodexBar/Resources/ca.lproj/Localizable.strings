@@ -2477,6 +2477,10 @@
 "merged_icon_source_current_selection" = "Selecció actual";
 "merged_icon_source_highest_usage" = "Ús més alt";
 "merged_icon_source_frontmost_app" = "Aplicació del proveïdor en primer pla";
+"merged_icon_source_all_providers" = "Tots els proveïdors (mitjana)";
+"merged_icon_source_all_providers_subtitle" = "Mostra la mitjana del límit més ajustat de cada proveïdor i avisa amb el logotip del proveïdor quan s'acosta al seu límit.";
+"menu_bar_total_accessibility" = "Tots els proveïdors, mitjana %@";
+"menu_bar_total_near_limit_accessibility" = "%1$@ a prop del límit, %2$@";
 /* Provider menu bar color */
 "Color by provider" = "Color per proveïdor";
 

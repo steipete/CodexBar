@@ -2477,6 +2477,10 @@
 "merged_icon_source_current_selection" = "Selezione corrente";
 "merged_icon_source_highest_usage" = "Utilizzo più alto";
 "merged_icon_source_frontmost_app" = "App del provider in primo piano";
+"merged_icon_source_all_providers" = "Tutti i provider (media)";
+"merged_icon_source_all_providers_subtitle" = "Mostra la media del limite più stretto di ogni provider e avvisa con il logo del provider quando si avvicina al limite.";
+"menu_bar_total_accessibility" = "Tutti i provider, media %@";
+"menu_bar_total_near_limit_accessibility" = "%1$@ vicino al limite, %2$@";
 /* Provider menu bar color */
 "Color by provider" = "Colore per fornitore";
 

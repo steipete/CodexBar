@@ -2477,6 +2477,10 @@
 "merged_icon_source_current_selection" = "Pilihan saat ini";
 "merged_icon_source_highest_usage" = "Penggunaan tertinggi";
 "merged_icon_source_frontmost_app" = "Aplikasi penyedia di depan";
+"merged_icon_source_all_providers" = "Semua penyedia (rata-rata)";
+"merged_icon_source_all_providers_subtitle" = "Menampilkan rata-rata batas tersempit tiap penyedia, dan memperingatkan dengan logo penyedia saat mendekati batasnya.";
+"menu_bar_total_accessibility" = "Semua penyedia, rata-rata %@";
+"menu_bar_total_near_limit_accessibility" = "%1$@ mendekati batas, %2$@";
 /* Provider menu bar color */
 "Color by provider" = "Warna menurut penyedia";
 

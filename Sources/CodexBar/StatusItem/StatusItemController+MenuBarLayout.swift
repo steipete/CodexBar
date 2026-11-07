@@ -127,6 +127,86 @@ extension StatusItemController {
         return wasCached
     }
 
+    /// The Overview subset, matching what Highest usage compares, when the combined item shows the all-providers total.
+    func usageTotalProvidersIfActive() -> [UsageProvider]? {
+        guard self.shouldMergeIcons,
+              self.settings.unifiedIconSource == .allProviders,
+              self.stackedMergeIconProvidersIfActive() == nil
+        else { return nil }
+        let active = self.store.enabledFirstPartyProvidersForDisplay()
+        return self.settings.resolvedMergedOverviewProviders(
+            activeProviders: self.overviewProviderIDs(enabledProviders: active),
+            maxVisibleProviders: SettingsStore.mergedOverviewProviderLimit)
+            .compactMap(\.firstPartyProvider)
+    }
+
+    func menuBarUsageTotal(now: Date = .init()) -> MenuBarUsageTotal? {
+        let entries = (self.usageTotalProvidersIfActive() ?? []).compactMap { provider -> MenuBarUsageTotal.Entry? in
+            let source = self.menuBarUsageSource(for: provider)
+            guard self.isEnabled(provider) || source.isFleet, let snapshot = source.snapshot else { return nil }
+            let data = self.menuBarLayoutRenderData(
+                provider: provider,
+                snapshot: snapshot,
+                warningFlash: false,
+                now: now)
+            let measured = MenuBarUsageTotal.measuredWindows(snapshot: snapshot, now: now)
+            guard let remaining = MenuBarUsageTotal.tightestRemainingPercent(data: data, measured: measured, now: now)
+            else { return nil }
+            return MenuBarUsageTotal.Entry(
+                provider: provider,
+                remainingPercent: remaining,
+                isStale: self.menuBarIsStale(for: provider),
+                runsOutMinutes: source.isFleet || data.automaticText != nil
+                    ? nil
+                    : self.earliestRunsOutMinutes(provider: provider, snapshot: snapshot, measured: measured, now: now))
+        }
+        return MenuBarUsageTotal(entries: entries)
+    }
+
+    /// The layout metric follows `weekly ?? automatic`, so a session about to run out needs its own forecast here.
+    private func earliestRunsOutMinutes(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot,
+        measured: [RateWindow],
+        now: Date) -> Int?
+    {
+        let layout = self.menuBarLayoutWindows(provider: provider, snapshot: snapshot, now: now)
+        let lanes = [layout.session, layout.weekly].compactMap(\.self)
+            .filter { !$0.isSyntheticPlaceholder && ($0.resetsAt.map { $0 > now } ?? true) }
+        return (measured + lanes)
+            .compactMap {
+                self.store.weeklyPace(
+                    provider: provider,
+                    window: $0,
+                    dataConfidence: snapshot.dataConfidence,
+                    now: now)?.etaSeconds
+            }
+            .min()
+            .map { Int(($0 / 60).rounded()) }
+    }
+
+    /// Returns whether the status item already showed this reading.
+    func applyUsageTotal(for button: NSButton, now: Date = .init()) -> Bool {
+        let total = self.menuBarUsageTotal(now: now)
+        let options = self.menuBarLayoutRenderOptions(
+            forInstanceID: self.primaryProviderForUnifiedIcon(),
+            button: button,
+            now: now)
+        let rendered = self.menuBarLayoutRenderer.usageTotal(
+            total,
+            logo: total?.nearLimit.first.flatMap { ProviderBrandIcon.image(for: $0.provider) },
+            options: options)
+        let wasCached = button.image === rendered.leadingIcon
+            && button.attributedTitle.isEqual(to: rendered.attributedTitle)
+        // Leaving this source must redraw the other sources even if their last quota is unchanged.
+        self.lastAppliedMergedIconRenderSignature = nil
+        self.statusItem.length = Self.applyMenuBarLayoutContent(
+            rendered,
+            for: button,
+            gap: self.settings.menuBarLayoutGap)
+        return wasCached
+    }
+
     private func renderStackedProviderRow(provider: UsageProvider, now: Date) -> MenuBarLayoutRenderedTitle? {
         let resolution = self.renderedMenuBarLayoutResolution(for: provider)
         let warningFlash = self.quotaWarningFlashActive(provider: provider)

@@ -2476,6 +2476,10 @@
 "merged_icon_source_current_selection" = "Geçerli seçim";
 "merged_icon_source_highest_usage" = "En yüksek kullanım";
 "merged_icon_source_frontmost_app" = "Öndeki sağlayıcı uygulaması";
+"merged_icon_source_all_providers" = "Tüm sağlayıcılar (ortalama)";
+"merged_icon_source_all_providers_subtitle" = "Her sağlayıcının en dar sınırının ortalamasını gösterir ve sınırına yaklaşınca sağlayıcının logosuyla uyarır.";
+"menu_bar_total_accessibility" = "Tüm sağlayıcılar, ortalama %@";
+"menu_bar_total_near_limit_accessibility" = "%1$@ sınıra yakın, %2$@";
 /* Provider menu bar color */
 "Color by provider" = "Sağlayıcıya göre renk";
 

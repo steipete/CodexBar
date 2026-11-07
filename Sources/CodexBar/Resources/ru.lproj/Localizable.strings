@@ -2474,6 +2474,10 @@
 "merged_icon_source_current_selection" = "Текущий выбор";
 "merged_icon_source_highest_usage" = "Наибольшее использование";
 "merged_icon_source_frontmost_app" = "Приложение провайдера на переднем плане";
+"merged_icon_source_all_providers" = "Все провайдеры (среднее)";
+"merged_icon_source_all_providers_subtitle" = "Показывает среднее по самому жёсткому лимиту каждого провайдера и предупреждает логотипом провайдера, когда он приближается к лимиту.";
+"menu_bar_total_accessibility" = "Все провайдеры, в среднем %@";
+"menu_bar_total_near_limit_accessibility" = "%1$@ близко к лимиту, %2$@";
 /* Provider menu bar color */
 "Color by provider" = "Цвет по провайдеру";
 

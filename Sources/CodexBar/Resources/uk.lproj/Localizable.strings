@@ -2474,6 +2474,10 @@
 "merged_icon_source_current_selection" = "Поточний вибір";
 "merged_icon_source_highest_usage" = "Найбільше використання";
 "merged_icon_source_frontmost_app" = "Застосунок провайдера на передньому плані";
+"merged_icon_source_all_providers" = "Усі провайдери (середнє)";
+"merged_icon_source_all_providers_subtitle" = "Показує середнє за найжорсткішим лімітом кожного провайдера й попереджає логотипом провайдера, коли той наближається до ліміту.";
+"menu_bar_total_accessibility" = "Усі провайдери, у середньому %@";
+"menu_bar_total_near_limit_accessibility" = "%1$@ близько до ліміту, %2$@";
 /* Provider menu bar color */
 "Color by provider" = "Колір за провайдером";
 

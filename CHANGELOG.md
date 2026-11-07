@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Menu bar: add an opt-in All providers (average) combined icon source that shows one average usage meter and warns with the provider logo when one is near its limit.
+
 ## 0.84.0 — 2026-11-06
 
 ### Highlights

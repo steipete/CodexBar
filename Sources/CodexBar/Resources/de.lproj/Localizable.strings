@@ -2475,6 +2475,10 @@
 "merged_icon_source_current_selection" = "Aktuelle Auswahl";
 "merged_icon_source_highest_usage" = "Höchste Nutzung";
 "merged_icon_source_frontmost_app" = "Anbieter-App im Vordergrund";
+"merged_icon_source_all_providers" = "Alle Anbieter (Durchschnitt)";
+"merged_icon_source_all_providers_subtitle" = "Zeigt den Durchschnitt des engsten Limits jedes Anbieters und warnt mit dem Anbieterlogo, wenn einer sein Limit fast erreicht hat.";
+"menu_bar_total_accessibility" = "Alle Anbieter, Durchschnitt %@";
+"menu_bar_total_near_limit_accessibility" = "%1$@ nahe am Limit, %2$@";
 /* Provider menu bar color */
 "Color by provider" = "Nach Anbieter einfärben";
 

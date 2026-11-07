@@ -2472,6 +2472,10 @@
 "merged_icon_source_current_selection" = "Huidige selectie";
 "merged_icon_source_highest_usage" = "Hoogste gebruik";
 "merged_icon_source_frontmost_app" = "Provider-app op de voorgrond";
+"merged_icon_source_all_providers" = "Alle aanbieders (gemiddeld)";
+"merged_icon_source_all_providers_subtitle" = "Toont het gemiddelde van de krapste limiet van elke aanbieder en waarschuwt met het logo van de aanbieder wanneer die de limiet nadert.";
+"menu_bar_total_accessibility" = "Alle aanbieders, gemiddeld %@";
+"menu_bar_total_near_limit_accessibility" = "%1$@ bijna aan limiet, %2$@";
 /* Provider menu bar color */
 "Color by provider" = "Kleur per provider";
 
