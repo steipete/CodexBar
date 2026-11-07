@@ -1,9 +1,9 @@
 import Foundation
+import Testing
+@testable import CodexBarCore
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import Testing
-@testable import CodexBarCore
 
 struct ProviderPluginOptionalPOSTTests {
     @Test(arguments: BundledPluginTestSupport.engines, [false, true])
@@ -134,7 +134,7 @@ struct ProviderPluginOptionalPOSTTests {
         optional: String = "{url:'https://console.example.com/optional',method:'POST',body:{}}",
         budget: String = "5",
         suffix: String = "return {identity:{loginMethod:response.optional?.bodyText || 'none'}};",
-        contextOptions: ProviderPluginContextOptions = .production,
+        contextOptions: ProviderPluginContextOptions = BundledPluginTestSupport.contextOptions,
         handler: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse)) throws -> ProviderPluginRuntime
     {
         try ProviderPluginConsoleCapabilitiesTests.runtime(engine, body: """
