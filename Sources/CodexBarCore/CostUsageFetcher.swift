@@ -560,7 +560,8 @@ public struct CostUsageFetcher: Sendable {
             }
             #endif
         } catch {
-            if provider != .cursor {
+            // Local CSVs have no account identity and cannot replace an explicitly selected credential.
+            if provider != .cursor || cursorCookieHeaderOverride != nil {
                 throw error
             }
             remoteError = error
