@@ -956,7 +956,9 @@ extension CostUsageStoreTests {
 
 extension CostUsageStoreTests {
     private static let testedPredecessorParserHashes = [
-        "6b42e42bafad1922",
+        "2dc85fe95af0aa95", // Preserve project-accumulation caches when combined with linked-root discovery.
+        "5454415c8ea2ce7b", // Linked-root discovery preserves native rows, checkpoints, and report totals.
+        "6b42e42bafad1922", // Project accumulation preserves native rows and retained report totals.
         "f98b2d0afc00443c", // Corrected revision-14 reports survive the identified-pricing export change.
         "0ef5e15cc00e8e25", // Current main before resumed-tier and Fast pricing correction.
         "5a57546c60494379", // Home-scoped main before archived-row retention.
@@ -1102,7 +1104,7 @@ extension CostUsageStoreTests {
         let after = await current.readSnapshot()
         var expected = before
         // Only predecessors from before the Fast pricing correction need report totals discarded.
-        if !["f98b2d0afc00443c", "6b42e42bafad1922"].contains(predecessorHash) {
+        if !["f98b2d0afc00443c", "6b42e42bafad1922", "2dc85fe95af0aa95", "5454415c8ea2ce7b"].contains(predecessorHash) {
             expected.metadata.previousReportPayload = nil
         }
         #expect(after == expected)

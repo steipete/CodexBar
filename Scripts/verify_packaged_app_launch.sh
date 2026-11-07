@@ -108,6 +108,9 @@ SANDBOX_PROFILE="(version 1)
 (allow default)
 (deny network*)
 (deny file-read* (subpath \"${ROOT}\"))
+(deny mach-lookup (global-name \"com.apple.cfprefsd.agent\"))
+(deny mach-lookup (global-name \"com.apple.cfprefsd.daemon\"))
+(deny file-read* (require-all (subpath \"${HOME}\") (require-not (subpath \"${SMOKE_DIR}\"))))
 (deny file-write* (require-all (subpath \"${HOME}\") (require-not (subpath \"${SMOKE_DIR}\"))))"
 
 fail_with_probe_log() {
@@ -215,6 +218,31 @@ if [[ "$PROBE_STATUS" -ne 0 ]] || ! grep -q "CODEXBAR_RESOURCE_SMOKE_OK" "$PROBE
   fail_with_probe_log "Launch smoke check FAILED: packaged app cannot load its resource bundles without the build checkout (the 0.48.0 crash class, #2738). Do not ship this build. Exit status: ${PROBE_STATUS}."
 fi
 log "Launch smoke check: resource probe OK."
+
+# The ordinary launch below intentionally suppresses background work. This separate
+# cold process must reach real WebKit enumeration, with only a synthetic named store.
+mkdir -p "$SMOKE_HOME/Library/WebKit/com.steipete.codexbar/WebsiteDataStore/11111111-1111-4111-8111-111111111111"
+log "Launch smoke check: probing cold WebKit cache maintenance."
+(
+  cd "$SMOKE_DIR"
+  exec sandbox-exec -p "$SANDBOX_PROFILE" "${SMOKE_ENV[@]}" /usr/bin/env -u SWIFT_TESTING \
+    CODEXBAR_DISABLE_KEYCHAIN_ACCESS=1 CODEXBAR_WEBKIT_SMOKE=1 "$SMOKE_BIN"
+) >"$PROBE_LOG" 2>&1 &
+SMOKE_PID=$!
+for _ in $(seq 1 60); do
+  if ! kill -0 "$SMOKE_PID" 2>/dev/null; then break; fi
+  sleep 0.5
+done
+if kill -0 "$SMOKE_PID" 2>/dev/null; then
+  fail_with_probe_log "Launch smoke check FAILED: cold WebKit maintenance timed out."
+fi
+PROBE_STATUS=0
+wait "$SMOKE_PID" || PROBE_STATUS=$?
+SMOKE_PID=""
+if [[ "$PROBE_STATUS" -ne 0 ]] || ! grep -q "CODEXBAR_WEBKIT_SMOKE_OK" "$PROBE_LOG"; then
+  fail_with_probe_log "Launch smoke check FAILED: cold WebKit maintenance exited ${PROBE_STATUS}."
+fi
+log "Launch smoke check: cold WebKit maintenance OK."
 
 # Phase 2 exercises AppKit startup with background work and user state isolated.
 log "Launch smoke check: running packaged binary with ${ROOT} unreadable for ${SMOKE_SECONDS}s."

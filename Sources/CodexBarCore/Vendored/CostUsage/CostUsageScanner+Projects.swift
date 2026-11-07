@@ -78,10 +78,28 @@ extension CostUsageScanner {
                 ?? projectPathResolver.canonicalProjectPath(for: usage.projectPath)
                 ?? ""
             let sourceKey = usage.projectPath ?? ""
-            var accumulator = accumulatorsByProjectPath[projectKey] ?? CodexProjectBreakdownAccumulator()
-            accumulator.files[filePath] = usage
-            accumulator.reportsBySourcePath[sourceKey, default: []].append(report)
-            accumulatorsByProjectPath[projectKey] = accumulator
+            #if DEBUG
+            let previousStorage: UInt? = if CostUsageStoreTestHooks.current.projectSourceReportStorageChanged != nil {
+                accumulatorsByProjectPath[projectKey]?.reportsBySourcePath[sourceKey]?.withUnsafeBufferPointer {
+                    UInt(bitPattern: $0.baseAddress)
+                }
+            } else {
+                nil
+            }
+            #endif
+            accumulatorsByProjectPath[projectKey, default: .init()].files[filePath] = usage
+            accumulatorsByProjectPath[projectKey, default: .init()]
+                .reportsBySourcePath[sourceKey, default: []].append(report)
+            #if DEBUG
+            if let previousStorage,
+               let observer = CostUsageStoreTestHooks.current.projectSourceReportStorageChanged,
+               let currentStorage = accumulatorsByProjectPath[projectKey]?
+                   .reportsBySourcePath[sourceKey]?.withUnsafeBufferPointer({ UInt(bitPattern: $0.baseAddress) }),
+                   previousStorage != currentStorage
+            {
+                observer()
+            }
+            #endif
         }
 
         let projects = accumulatorsByProjectPath.map { projectPath, accumulator in
