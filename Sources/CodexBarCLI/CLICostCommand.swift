@@ -17,7 +17,7 @@ extension CodexBarCLI {
 
     private static func runStandardCost(_ values: ParsedValues, output: CLIOutputPreferences) async {
         let config = CodexBarCLI.loadConfig(output: output)
-        let selection = CodexBarCLI.decodeProvider(from: values, config: config)
+        let selection = CodexBarCLI.decodeProvider(from: values, config: config, output: output)
         let providers = Self.costProviders(from: selection)
         let unsupported = selection.asList.filter { !Self.costSupportedProviders.contains($0) }
         if !unsupported.isEmpty {

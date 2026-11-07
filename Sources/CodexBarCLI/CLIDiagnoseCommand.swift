@@ -27,8 +27,7 @@ extension CodexBarCLI {
             }
             providerSelection = parsed
         } else {
-            providerSelection = Self.providerSelection(
-                rawOverride: nil,
+            providerSelection = Self.defaultProviderSelection(
                 enabled: config.enabledProviders().compactMap(\.firstPartyProvider))
         }
 
