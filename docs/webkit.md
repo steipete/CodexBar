@@ -12,6 +12,38 @@ CodexBar uses WebKit in two places:
 - Visible purchase windows (e.g. credits purchase).
 - Offscreen WebViews for OpenAI dashboard scraping.
 
+## Persistent data and cache maintenance
+
+WebKit keeps account sessions under `~/Library/WebKit/com.steipete.codexbar/WebsiteDataStore/`.
+Named stores use a deterministic UUID derived from normalized email and the Codex source scope
+(managed account ID or profile home). The default store holds sessions without a known account email.
+Cookies, local storage and IndexedDB remain available across refreshes and app launches.
+
+At launch, CodexBar clears only WebKit disk and memory caches in existing named stores, including stores whose
+account mapping is unknown. A completed sweep is remembered for 24 hours across launches. Missing or empty named-store
+directories skip WebKit entirely. When stores exist and cleanup is due, CodexBar initializes the default store before
+enumerating identifiers: cold enumeration otherwise crashes in WebKit on macOS 27. Background dashboard views
+request the same cleanup when released, including the default store, at most once per store per day.
+Same-day refreshes retain HTTP asset reuse; the first refresh after cleanup may
+download those assets again. Cookies, local storage and IndexedDB are excluded from this maintenance.
+
+Automatic maintenance skips WebKit stores in test processes. Ordinary app-delegate fixtures and fake-store tests
+never enumerate or modify persistent WebKit data. A dedicated regression and the packaging smoke check run the real
+cache sweep in a separate cold process with a synthetic named store, isolated home and blocked preference-daemon
+access, without the test-process guard.
+This verifies WebKit initialization without touching user sessions.
+
+Removing a managed account also attempts to remove its exact email-and-managed-ID store after the
+account registry is saved and rechecked. CodexBar releases its cached store reference before requesting deletion;
+live views retain their own references. Other account scopes are untouched. If a view or other WebKit work still
+uses that store, WebKit refuses deletion and the session remains intact. Historical stores,
+profile-home stores, and stores with unknown mappings receive cache-only cleanup: neither an old
+timestamp nor an absent identity is sufficient evidence to delete a session.
+
+Ordinary dashboard leases release their WebView after each refresh. Cookie validation can retain a
+loaded page for a single immediate handoff, expiring after five seconds. WebKit controls when its helper
+processes exit; releasing a view is not a guarantee that its process immediately disappears.
+
 ## Teardown helper
 
 Use `WebKitTeardown` whenever a `WKWebView` + `NSWindow` should be torn down or hidden.

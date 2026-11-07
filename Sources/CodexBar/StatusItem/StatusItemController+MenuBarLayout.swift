@@ -294,8 +294,16 @@ extension StatusItemController {
         absolute: Bool? = nil) -> [Date]
     {
         let data = self.menuBarLayoutRenderData(for: instanceID, now: now)
-        let tokens = self.renderedMenuBarLayoutResolution(forInstanceID: instanceID).layout
-            .flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
+        let conditionals = Dictionary(
+            self.settings.menuBarLayoutConditionals.map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first })
+        let outcomes = conditionals.mapValues { $0.evaluatesTrue(data: data, now: now) }
+        // Hidden resets need no ticking clock; conditional predicates schedule their own state changes.
+        let tokens = self.renderedMenuBarLayoutResolution(forInstanceID: instanceID).layout.lines.joined()
+            .compactMap {
+                MenuBarLayoutRenderer.resolvedDisplayToken(
+                    $0, data: data, conditionals: conditionals, outcomes: outcomes)
+            }
         let selections = Set(tokens.filter { absolute == nil || $0.resetIsAbsolute == absolute }
             .compactMap(\.resetWindow))
         return PercentWindow.allCases.filter(selections.contains).compactMap {

@@ -6,6 +6,8 @@ defineProvider({
     { key: "webTimeoutSeconds", title: "Web timeout", type: "plain" },
     { key: "resetDeadlineMillis", title: "Reset lookup deadline", type: "plain" },
     { key: "chromeMajorVersion", title: "Chrome major version", type: "plain" },
+    { key: "manualUserAgent", title: "User-Agent", type: "plain" },
+    { key: "manualUserAgentError", title: "Invalid User-Agent message", type: "plain" },
   ],
   capabilities: ["browser-cookies", "http-status"],
   cookieDomains: ["workbuddy.cn", "www.workbuddy.cn"],
@@ -19,6 +21,13 @@ defineProvider({
     const domain = "www.workbuddy.cn";
     const policy = ctx.browser.availability(domain);
     if (policy === "off") throw ctx.fail.missingCredential("WorkBuddy cookies are disabled.");
+    const manualUserAgent = policy === "manual" ? (ctx.settings.get("manualUserAgent") ?? "") : "";
+    if (/[^\x20-\x7e]/.test(manualUserAgent)) {
+      throw ctx.fail.missingCredential(
+        ctx.settings.get("manualUserAgentError") ?? "Paste the WorkBuddy User-Agent as a single request header value.",
+      );
+    }
+    const override = manualUserAgent.trim();
     const timeoutRaw = Number(ctx.settings.get("webTimeoutSeconds") ?? "15");
     const timeoutSeconds = Number.isFinite(timeoutRaw) ? Math.min(30, Math.max(1, Math.round(timeoutRaw))) : 15;
     // WorkBuddy binds the session to the browser User-Agent, and Chrome's reduced UA varies only by major version.
@@ -26,8 +35,9 @@ defineProvider({
     const major = Number(ctx.settings.get("chromeMajorVersion") ?? "");
     const userAgent = (version: number): string =>
       `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${version}.0.0.0 Safari/537.36`;
-    const userAgents: Array<string | undefined> =
+    const chromeUserAgents =
       Number.isSafeInteger(major) && major > 1 ? [userAgent(major), userAgent(major - 1)] : [undefined];
+    const userAgents = override ? [override] : chromeUserAgents;
 
     const fail = (field: string): never => {
       throw ctx.fail.parseFailure(`Invalid WorkBuddy billing response: ${field}`);

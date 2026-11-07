@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 111 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 113 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -191,6 +191,8 @@ complete when the available scan window covers fewer days.
 | [Chatbox AI](chatbox.md) | API token |
 | [abliteration.ai](abliteration.md) | API key for prepaid USD credits and cumulative usage. |
 | [OpenDesign](opendesign.md) | Browser or manual session cookies for the active workspace's five-hour and weekly subscription allowance. |
+| [SiliconFlow](siliconflow.md) | API key for the prepaid account balance on the China (CNY) or international (USD) API. |
+| [Tripo](tripo.md) | API key for available and reserved account credits from the official account balance endpoint. |
 
 <!-- End generated provider additions -->
 
@@ -497,8 +499,9 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 
 ## Synthetic
 - API key from `~/.codexbar/config.json` (`providers[].apiKey`) or `SYNTHETIC_API_KEY`.
-- The menu card shows rolling five-hour, weekly token, and search-hourly quota lanes when present. The compact menu bar
-  metric uses the five-hour or weekly lane; weekly credit regeneration details appear when returned.
+- The menu card shows weekly credit and search-hourly quota lanes for current plans, including weekly regeneration
+  details when returned. Older plans can also supply a rolling five-hour quota. Known lanes suppress the legacy
+  subscription request counter; a subscription-only response remains supported.
 - External status page: `https://status.synthetic.new` (not linked or auto-polled by CodexBar).
 - Details: `docs/synthetic.md`.
 

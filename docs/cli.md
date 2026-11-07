@@ -11,10 +11,16 @@ read_when:
 A lightweight Commander-based CLI that mirrors the menu bar app’s provider fetchers and config file.
 Use it when you need usage numbers in scripts, CI, or dashboards without UI.
 
+Startup builds option metadata only for the selected command family. `--version` exits before command metadata and
+provider descriptors are built; provider discovery and fetching retain their existing behavior for other commands.
+
 ## Install
-- In the app: **Preferences → Advanced → Install CLI**. This symlinks `CodexBarCLI` to `/usr/local/bin/codexbar` and `/opt/homebrew/bin/codexbar`.
-- From the repo, after installing `CodexBar.app` in `/Applications`: `./bin/install-codexbar-cli.sh` (same symlink targets; requires macOS administrator approval).
-- Manual: `ln -sf "/Applications/CodexBar.app/Contents/Helpers/CodexBarCLI" /usr/local/bin/codexbar`.
+- In the app: **Settings → Advanced → Install CLI** creates links in existing, writable `/usr/local/bin` and `/opt/homebrew/bin` directories. It preserves existing entries and reports each destination, including protected directories it cannot write. **CodexBar Help** below the result opens this guide.
+- From the repo, after installing `CodexBar.app` in `/Applications`: `./bin/install-codexbar-cli.sh`. This separate installer requests macOS administrator approval and replaces both target entries.
+- Manual, for a missing link in an existing directory: `ln -s "/Applications/CodexBar.app/Contents/Helpers/CodexBarCLI" /usr/local/bin/codexbar`. Use `sudo` in Terminal if that directory requires administrator access; preserve any unrelated existing entry.
+
+One successfully installed link on your shell's `PATH` is enough to use `codexbar`. The in-app installer
+uses your current account's write permissions and reports protected destinations alongside working links.
 
 The bundled macOS CLI identifies its running executable and containing app through the operating system, even
 when launched through these symlinks. Mutable external aliases are not added to new credential-cache trust lists.
@@ -63,6 +69,10 @@ describe fetching, not authentication methods, and cookie support can be optiona
 not declared by the descriptor are not enumerated. User-plugin entries currently omit this metadata. Listing it
 does not read credentials, launch login flows, import cookies, or contact providers; `enabled` keeps its existing meaning.
 
+For Claude Platform setup or renewal, pipe a Console Cookie header containing `sessionKey` privately into
+`codexbar config login --provider claudeplatform --stdin --json` (`claude-platform` also works). It validates the
+candidate before replacing a saved cookie. See [validated session import](cli-configuration.md#claude-platform-session-import).
+
 Arguments are parsed strictly: unknown options, missing option values, and extra positional arguments
 fail before the command runs. For example, `codex-accounts promote` accepts one account identifier;
 a second identifier is an error. For an option value beginning with a dash, use the equals form
@@ -73,6 +83,10 @@ a second identifier is an error. For an option value beginning with a dash, use 
   - Multi-provider usage fetches run up to three providers concurrently. Text, JSON, and diagnostics retain selection order; a failed provider does not prevent the others from finishing. Refreshed credentials share a command-scoped writer, while externally changed credentials remain protected.
   - `--format text|json|toon` (default: text).
   - Text output and full terminal cards include history already supplied by the selected provider, such as OpenRouter Activity spend or Grok local token totals. They preserve the source period, currency, known zero values, and reported/estimated cost labels. This live history remains separate from the ordinary usage JSON schema and the `cost` command.
+  - Codex usage JSON can supplement a fresh measurement with an ownership-compatible cached `openaiDashboard`.
+    Cached dashboards are attached only when their `updatedAt` is no more than one hour old at attachment time,
+    with a 60-second allowance for future timestamps due to clock skew. Older caches and caches more than 60 seconds
+    in the future are omitted without deleting the shared cache. Live web dashboard results are unaffected.
   - Usage JSON includes optional `resetCredits` with `available` and `nextExpiresAt`, derived from the shared unexpired, available reset-credit inventory. This compact summary contains no credit identifiers; an absent inventory omits the summary.
   - Usage JSON includes optional `rateWindowLabels` for present windows from built-in providers. Consumers can use these display labels when a window omits its cadence; missing windows and unknown provider IDs do not gain invented labels.
   - JSON uses the generic `usage.details` array for provider-specific information. Each section contains an optional
@@ -185,6 +199,7 @@ a second identifier is an error. For an option value beginning with a dash, use 
 - `codexbar dashboard` prints one dashboard-v1 JSON snapshot and exits.
   - Honors enabled providers in stable order, carries configured display sort keys, and defaults to full account identity; `--identity redacted` hides email local parts.
   - Provider failures remain row-level errors alongside healthy rows; a valid partial snapshot exits `0`.
+  - Claude's unavailable per-model breakdown adds `providers[].warnings: ["model-breakdown-unavailable"]` while retaining session and all-model weekly quotas. This optional schema-v1 field carries fixed codes only, never provider notice text, in every identity mode. It is omitted after recovery and from shell rows; an account with no model-specific limit does not receive the warning.
   - Stdout contains only the snapshot document. Diagnostics and optional `--json-output` logs go to stderr.
   - `--pretty` formats the document. `--timeout <seconds>` accepts `0...86400`, defaults to `30`, and uses `0` to disable the command deadline.
   - `--output <path>` atomically writes the snapshot to a file (`0644`) instead of stdout — staged in the destination directory, fsync'd, then renamed over the target so readers never observe a partial document. The parent directory must already exist (it is not created), and stdout stays silent on success.
@@ -205,6 +220,7 @@ a second identifier is an error. For an option value beginning with a dash, use 
   - On a **non-loopback** host the token gates **all data routes** — `/usage`, `/cost`, and `/dashboard/v1/snapshot` all require `Authorization: Bearer YOUR_TOKEN`, so account data is never exposed to the network unauthenticated. The static web UI at `/` and `/health` are always open. On the default loopback bind, `/usage` and `/cost` stay unauthenticated.
   - `--allow-plain-http` is the explicit acknowledgment that the bearer token crosses the network **in cleartext on every request** when serving on a non-loopback host. `serve` refuses to start on a non-loopback host without it.
   - Provider config is reloaded for each usage/cost request; cache entries are keyed by the loaded config so provider toggles and source changes do not require restarting `serve`.
+  - Forced refreshes also prune expired response variants, so repeated configuration changes do not retain obsolete snapshots indefinitely.
   - Transient refresh failures fall back to the last good response for up to ten refresh intervals (minimum five minutes) so polling clients do not flicker between data and errors; disabled when `--refresh-interval 0`.
   - After a cached usage or cost response expires, `serve` returns the last-good response immediately while rebuilding it in the background. Dashboard snapshots wait for a rebuild after their normal refresh interval, including when returning to a previously cached used/remaining mode; request deadlines and last-good fallback on failure still apply. `--refresh-interval 0` keeps every request blocking.
   - Add `refresh=1` to `/usage` or a full `/dashboard/v1/snapshot` request to wait for a new usage measurement inside the cache interval. Concurrent requests join an active measurement, and forced usage measurements wait at least five seconds between starts for each provider, including across those two endpoints. Normal authentication, deadlines, and last-good fallback still apply; shell-only dashboard requests remain metadata-only.
@@ -285,7 +301,8 @@ a second identifier is an error. For an option value beginning with a dash, use 
 - `codexbar hooks watch` polls enabled providers and fires matching hooks on real quota and status transitions.
   Without it, hook rules only ever fire from the macOS app, so a headless install can configure hooks that never run.
   - `--interval <seconds>`: poll period. Default `300`, minimum `60`; a smaller value is rejected rather than
-    clamped, because each tick fetches every selected provider.
+    clamped, because each tick fetches every selected provider. Nonfinite values and intervals that cannot fit the
+    rounded nanosecond sleep timer are also rejected before config reads or provider fetches.
   - `--provider <id|both|all>`: restrict polling; repeatable. Defaults to every enabled provider. `both` selects the primary providers; `all` selects every registered provider, including providers not enabled in the config.
   - `--format json`/`--json`/`--pretty`: emit each attempted event as JSON, excluding throttled candidates.
   - Events are edge-triggered against the previous poll, so a condition that merely persists (a saturated window,
@@ -517,6 +534,12 @@ non-zero only when it cannot produce a valid snapshot document.
 
 ## Notes
 - CLI uses the config file for enabled providers, ordering, and secrets.
+- Ordinary `usage` fetches use noninteractive browser-cookie access, with or without a TTY. Browser Safe Storage
+  access requiring a new grant is skipped; missing sessions fall back or return a provider error.
+- On macOS, set `CODEXBAR_DISABLE_KEYCHAIN_ACCESS=1` in the CLI launcher's environment to block CodexBar-owned
+  Keychain operations and Chromium Safe Storage decryption. Provider-owned CLIs may still use their own credentials
+  and prompt. See [CLI and external dashboards](keychain-prompts.md#cli-and-external-dashboards) for setup and the
+  relationship to the app preference.
 - CLI binary discovery checks explicit overrides, captured login PATH, inherited PATH, and known install paths before falling back to an interactive shell probe.
 - Automatic executable discovery and child PATHs use absolute directories only; empty, `.` and relative entries are ignored. Install CLIs in an absolute PATH directory. Explicit executable overrides and shell startup files remain trusted user configuration.
 - Bundled helpers and plugin resources are located relative to the resolved running executable, including symlinked CLI installations, rather than the invocation directory.

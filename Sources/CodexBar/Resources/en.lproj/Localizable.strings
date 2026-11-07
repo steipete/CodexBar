@@ -8,7 +8,7 @@
 "ollama_browser_cookie_decryption_denied" = "%@ cookie decryption was declined in Keychain. Open the provider card and click Refresh (⌘R) to request Keychain access again.";
 "ollama_browser_cookie_decryption_disabled" = "%@ cookie decryption is disabled in CodexBar; enable Keychain access and refresh.";
 "claude_oauth_keychain_access_disabled" = "Keychain access is disabled, so CodexBar can't read Claude's sign-in.";
-"claude_oauth_keychain_access_revoked" = "Claude Keychain access was revoked by Claude Code's token rotation. Click Refresh to re-grant access, or switch Claude Usage source to CLI/Web.";
+"claude_oauth_keychain_access_revoked" = "Claude OAuth credentials are currently unavailable to CodexBar. Click Refresh to retry access, or switch Claude Usage source to CLI/Web.";
 "claude_showing_last_known_usage" = "Showing last-known usage captured %@.";
 "claude_limited_usage_detail" = "Limited usage detail";
 
@@ -1297,7 +1297,8 @@
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\nor paste just the session_id value";
 "Clear" = "Clear";
 "No matching providers" = "No matching providers";
-"Search providers" = "Search providers";
+"No matching settings or providers" = "No matching settings or providers";
+"Search settings" = "Search settings";
 
 "language_vietnamese" = "Vietnamese";
 "language_indonesian" = "Bahasa Indonesia";
@@ -2798,3 +2799,28 @@
 "Leave blank to use the default name." = "Leave blank to use the default name.";
 "Rewards" = "Rewards";
 "Reward expiry" = "Reward expiry";
+"China (CNY) is the default. International accounts use https://api.siliconflow.com (USD)." = "China (CNY) is the default. International accounts use https://api.siliconflow.com (USD).";
+"https://api.siliconflow.cn" = "https://api.siliconflow.cn";
+"SiliconFlow API origin must be https://api.siliconflow.cn or https://api.siliconflow.com." = "SiliconFlow API origin must be https://api.siliconflow.cn or https://api.siliconflow.com.";
+"SiliconFlow refused the balance query. Check the balance in the SiliconFlow console." = "SiliconFlow refused the balance query. Check the balance in the SiliconFlow console.";
+
+"SiliconFlow" = "SiliconFlow";
+"Show SiliconFlow usage" = "Show SiliconFlow usage";
+"SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow is rate limiting requests. Try again later.";
+"SiliconFlow request failed. Try refreshing later." = "SiliconFlow request failed. Try refreshing later.";
+"SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow returned an unrecognized response. Update CodexBar and try again.";
+"Claude Platform session validated and saved." = "Claude Platform session validated and saved.";
+"Use %@ or %@." = "Use %@ or %@.";
+"Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@.";
+"Read cookie header from stdin" = "Read cookie header from stdin";
+"User-Agent" = "User-Agent";
+"Optional. Paste the User-Agent value from the same request as the Cookie." = "Optional. Paste the User-Agent value from the same request as the Cookie.";
+"Paste the WorkBuddy User-Agent as a single request header value." = "Paste the WorkBuddy User-Agent as a single request header value.";
+"TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure." = "TypeSafe billing overview could not be read. Open https://console.typesafe.ai/billing to check access; if the page opens, report the integration failure.";
+"No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header." = "No TypeSafe session cookies found. Sign in at console.typesafe.ai/billing or paste a Cookie header.";
+
+"Tripo" = "Tripo";
+"Show Tripo usage" = "Show Tripo usage";
+"Tripo is rate limiting requests. Try again later." = "Tripo is rate limiting requests. Try again later.";
+"Tripo request failed. Try refreshing later." = "Tripo request failed. Try refreshing later.";
+"Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo returned an unrecognized response. Update CodexBar and try again.";

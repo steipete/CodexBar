@@ -3,6 +3,10 @@ import Foundation
 // MARK: - Cursor Local CSV Reader (tokscale compatible)
 
 enum CursorLocalCSVReader {
+    #if DEBUG
+    @TaskLocal static var observeBufferedLineBytesForTesting: (@Sendable (Int) -> Void)?
+    #endif
+
     static func cachedCSVPaths(home: URL? = nil) -> [URL] {
         let base: URL = if let home {
             home.appendingPathComponent(".config/tokscale/cursor-cache", isDirectory: true)
@@ -36,12 +40,28 @@ enum CursorLocalCSVReader {
     static func parseFile(at url: URL, calendar: Calendar = .current) -> [Row] {
         guard let data = try? Data(contentsOf: url),
               let text = String(data: data, encoding: .utf8) else { return [] }
-        let lines = text.components(separatedBy: .newlines).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-        guard let header = lines.first else { return [] }
-        let cols = self.parseCSVLine(header)
+        let source = text as NSString
+        let length = source.length
+        var cursor = 0
+        func nextNonemptyLine() -> String? {
+            while cursor < length {
+                let separator = source.rangeOfCharacter(
+                    from: .newlines, options: [], range: NSRange(location: cursor, length: length - cursor))
+                let end = separator.location == NSNotFound ? length : separator.location
+                let line = source.substring(with: NSRange(location: cursor, length: end - cursor))
+                cursor = separator.location == NSNotFound ? length : NSMaxRange(separator)
+                #if DEBUG
+                self.observeBufferedLineBytesForTesting?(line.utf8.count)
+                #endif
+                if !line.trimmingCharacters(in: .whitespaces).isEmpty { return line }
+            }
+            return nil
+        }
+        guard let cols = nextNonemptyLine().map(self.parseCSVLine) else { return [] }
         let hasKind = cols.contains { $0.lowercased() == "kind" }
         struct Idx { let model: Int; let inW: Int; let inWo: Int; let read: Int; let out: Int; let cost: Int }
-        let idx = if hasKind, cols.count >= 11 {
+        // Trailing billing columns do not identify the cloud-agent schema.
+        let idx = if hasKind, cols.contains(where: { $0.lowercased() == "cloud agent id" }) {
             Idx(model: 4, inW: 6, inWo: 7, read: 8, out: 9, cost: 11)
         } else if hasKind {
             Idx(model: 2, inW: 4, inWo: 5, read: 6, out: 7, cost: 9)
@@ -49,7 +69,7 @@ enum CursorLocalCSVReader {
             Idx(model: 1, inW: 2, inWo: 3, read: 4, out: 5, cost: 7)
         }
         var rows: [Row] = []
-        for line in lines.dropFirst() {
+        while let line = nextNonemptyLine() {
             let c = self.parseCSVLine(line)
             guard c.count > max(idx.model, idx.cost) else { continue }
             let model = c[idx.model].trimmingCharacters(in: .whitespacesAndNewlines)
@@ -82,8 +102,7 @@ enum CursorLocalCSVReader {
 
     static func makeDailyReport(
         from rows: [Row],
-        calendar: Calendar = .current,
-        now: Date = Date()) -> CostUsageDailyReport
+        calendar: Calendar = .current) -> CostUsageDailyReport
     {
         var byDay: [String: CostUsageDailyReport.Entry] = [:]
         var totalCost: Double = 0
@@ -91,7 +110,7 @@ enum CursorLocalCSVReader {
         for row in rows {
             let key = CostUsageLocalDay.key(from: row.date, calendar: calendar)
             let existing = byDay[key]
-            var e = existing ?? CostUsageDailyReport.Entry(
+            let e = existing ?? CostUsageDailyReport.Entry(
                 date: key,
                 inputTokens: 0,
                 outputTokens: 0,

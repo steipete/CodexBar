@@ -16,11 +16,11 @@ struct CodexBarWidgetBundle: WidgetBundle {
 }
 
 struct CodexBarSwitcherWidget: Widget {
-    private let kind = "CodexBarSwitcherWidget"
+    static let kind = "CodexBarSwitcherWidget"
 
     var body: some WidgetConfiguration {
         StaticConfiguration(
-            kind: self.kind,
+            kind: Self.kind,
             provider: CodexBarSwitcherTimelineProvider())
         { entry in
             CodexBarSwitcherWidgetView(entry: entry)

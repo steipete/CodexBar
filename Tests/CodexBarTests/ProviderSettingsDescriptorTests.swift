@@ -956,31 +956,6 @@ extension ProviderSettingsDescriptorTests {
         #expect(presentation.detailLine(context) == "local")
         #expect(presentation.showsVersionInSettings == false)
     }
-
-    @Test
-    func `devin presentation follows store source label`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-devin-presentation")
-        fixture.store.lastSourceLabels[.devin] = "web"
-        let metadata = try #require(ProviderDescriptorRegistry.metadata[.devin])
-        let context = fixture.presentationContext(provider: .devin, metadata: metadata)
-
-        let detailLine = DevinProviderImplementation()
-            .presentation(context: context)
-            .detailLine(context)
-
-        #expect(detailLine == "web")
-    }
-
-    @Test
-    func `devin automatic auth explains Chromium browser support`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-devin-browsers")
-        fixture.settings.devinCookieSource = .auto
-        let picker = try #require(DevinProviderImplementation()
-            .settingsPickers(context: fixture.settingsContext(provider: .devin)).first)
-
-        let expected = "Automatically imports the app.devin.ai session from the Devin app or Chromium browsers."
-        #expect(picker.subtitle == expected)
-    }
 }
 
 extension ProviderSettingsDescriptorTests {

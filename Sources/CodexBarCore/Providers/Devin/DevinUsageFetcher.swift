@@ -68,9 +68,7 @@ public struct DevinUsageFetcher: Sendable {
             auths = []
             lastError = error
         }
-        // The Devin.app session lives behind a Keychain-gated decrypt; it is only read once the
-        // browser path is exhausted so a working browser sign-in never spends the manual action's
-        // Keychain allowance on a token that would go unused.
+        // Defer the desktop secret read until all browser candidates have been tried.
         let authStages: [() -> [RequestAuth]] = [
             { auths },
             { self.appSessionAuths(organizationOverride: organizationOverride, logger: logger) },
@@ -94,9 +92,7 @@ public struct DevinUsageFetcher: Sendable {
                     }
                 }
             }
-            // Advancing to the app stage spends a Keychain-gated read; only failures an alternate
-            // credential can resolve justify it. A service-wide error (5xx apiError) would fail
-            // identically for the Devin app session and must not request unrelated Keychain access.
+            // A service error cannot be resolved by reading another credential.
             if index < authStages.count - 1,
                !candidates.isEmpty,
                let lastError,

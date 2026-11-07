@@ -1,6 +1,7 @@
 import Foundation
 #if os(macOS)
 import SQLite3
+import SweetCookieKit
 #endif
 
 #if os(macOS)
@@ -12,8 +13,7 @@ import SQLite3
 /// (`User/globalStorage/state.vscdb`, `secret://{"extensionId":…,"key":"windsurf_auth.sessions"}`),
 /// AES-128-CBC encrypted with the `Devin Safe Storage` Keychain password like Chromium
 /// `v10` cookie values. Reading it follows the same Safe Storage access gate as cookie
-/// imports: background refreshes stay non-interactive and only explicit retries may
-/// trigger the macOS prompt.
+/// imports, but never requests interaction, including during manual retries.
 struct DevinAppSessionImporter {
     static let sourceLabel = "Devin app"
 
@@ -28,12 +28,7 @@ struct DevinAppSessionImporter {
     private let localStorageURL: URL
 
     init(dbPath: String? = nil, localStorageURL: URL? = nil, home: String = NSHomeDirectory()) {
-        // CODEXBAR_DEVIN_APP_HOME points the importer at another Devin.app data root for
-        // diagnostics or isolated verification (same idea as CODEXBAR_CONFIG for the CLI).
-        let effectiveHome = ProcessInfo.processInfo.environment["CODEXBAR_DEVIN_APP_HOME"].flatMap {
-            $0.isEmpty ? nil : $0
-        } ?? home
-        let root = URL(fileURLWithPath: effectiveHome).appendingPathComponent(Self.appSupportDirectory)
+        let root = URL(fileURLWithPath: home).appendingPathComponent(Self.appSupportDirectory)
         self.dbPath = dbPath ?? root.appendingPathComponent(Self.stateDatabasePath).path
         self.localStorageURL = localStorageURL ?? root.appendingPathComponent(Self.localStoragePath)
     }
@@ -49,7 +44,7 @@ struct DevinAppSessionImporter {
             let rows = try self.itemTableRows()
             itemTableKeys = rows.map(\.key)
             secretBlobs = rows
-                .filter { $0.key.hasPrefix("secret://") && $0.key.contains(Self.sessionsSecretName) }
+                .filter { Self.isSessionKey($0.key) }
                 .compactMap { Self.bufferData(fromSecretValue: $0.value) }
         } catch {
             log("Devin app database unreadable: \(error.localizedDescription)")
@@ -86,10 +81,13 @@ struct DevinAppSessionImporter {
         logger: @escaping (String) -> Void) -> [String]
     {
         guard !secretBlobs.isEmpty else { return [] }
-        guard let password = ChromiumSafeStorage.password(
-            service: Self.safeStorageService,
-            account: Self.safeStorageAccount,
-            allowPrompt: true)
+        // Keep legacy ACL preflight while refusing escalation even during explicit refreshes.
+        guard let password = BrowserCookieKeychainAccessGate.withUserInteractionDisallowed({
+            ChromiumSafeStorage.password(
+                service: Self.safeStorageService,
+                account: Self.safeStorageAccount,
+                allowPrompt: true)
+        })
         else {
             logger("Devin app session found but its Safe Storage key is unavailable")
             return []
@@ -104,50 +102,41 @@ struct DevinAppSessionImporter {
         }
     }
 
-    /// Values of `secret://{"extensionId":…,"key":"windsurf_auth.sessions"}` rows, which VS Code
-    /// secret storage writes as `{"type":"Buffer","data":[…]}` where bytes are a `v10` blob.
+    private static func isSessionKey(_ key: String) -> Bool {
+        guard key.hasPrefix("secret://"),
+              let data = String(key.dropFirst("secret://".count)).data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return false }
+        return object["key"] as? String == Self.sessionsSecretName
+    }
+
+    /// Validate the Electron Buffer and v10 AES-CBC framing before consulting Safe Storage.
     private static func bufferData(fromSecretValue raw: String) -> Data? {
         guard let data = raw.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              object["type"] as? String == "Buffer",
+              let numbers = object["data"] as? [NSNumber],
+              numbers.allSatisfy({ CFGetTypeID($0) != CFBooleanGetTypeID() })
         else { return nil }
-        if let bytes = object["data"] as? [Any] {
-            return Data(bytes.compactMap { ($0 as? NSNumber)?.uint8Value })
-        }
-        if let base64 = object["data"] as? String {
-            return Data(base64Encoded: base64)
-        }
-        return nil
+        let bytes = numbers.compactMap { UInt8(exactly: $0.doubleValue) }
+        guard bytes.count == numbers.count, bytes.count > 3,
+              (bytes.count - 3).isMultiple(of: 16), bytes.starts(with: "v10".utf8)
+        else { return nil }
+        return Data(bytes)
     }
 
     /// VS Code authentication sessions serialize as `[{id, accessToken, account, scopes}]`.
     static func accessTokens(fromSessionsPayload payload: String) -> [String] {
         guard let data = payload.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data)
+              let sessions = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
         else { return [] }
         var tokens: [String] = []
-        self.collectAccessTokens(in: object, into: &tokens)
-        return tokens
-    }
-
-    private static func collectAccessTokens(in object: Any, into tokens: inout [String]) {
-        if let dictionary = object as? [String: Any],
-           let token = dictionary["accessToken"] as? String
-        {
+        for session in sessions {
+            guard let token = session["accessToken"] as? String else { continue }
             let value = token.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !value.isEmpty, !tokens.contains(value) {
-                tokens.append(value)
-            }
+            if !value.isEmpty, !tokens.contains(value) { tokens.append(value) }
         }
-        if let dictionary = object as? [String: Any] {
-            for value in dictionary.values {
-                self.collectAccessTokens(in: value, into: &tokens)
-            }
-        }
-        if let array = object as? [Any] {
-            for value in array {
-                self.collectAccessTokens(in: value, into: &tokens)
-            }
-        }
+        return tokens
     }
 
     // MARK: - Organization
@@ -204,24 +193,26 @@ struct DevinAppSessionImporter {
     }
 
     private func itemTableRows() throws -> [ItemRow] {
-        guard FileManager.default.fileExists(atPath: self.dbPath) else { return [] }
-        do {
-            return try self.itemTableRows(immutable: false)
-        } catch let failure as SQLiteReadFailure {
-            // An idle WAL database can retain WAL mode in its header after both sidecars disappear.
-            // Immutable mode reads that main file without recreating sidecars. Never use it while a WAL exists,
-            // because doing so would ignore live, uncheckpointed app state.
-            guard failure.code == SQLITE_CANTOPEN, self.walSidecarsAreMissing else { throw failure }
-            return try self.itemTableRows(immutable: true)
+        let source = URL(fileURLWithPath: self.dbPath).resolvingSymlinksInPath()
+        guard FileManager.default.fileExists(atPath: source.path) else { return [] }
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-devin-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let copy = directory.appendingPathComponent("state.vscdb")
+        try FileManager.default.copyItem(at: source, to: copy)
+        let wal = URL(fileURLWithPath: source.path + "-wal")
+        if FileManager.default.fileExists(atPath: wal.path) {
+            try FileManager.default.copyItem(at: wal, to: URL(fileURLWithPath: copy.path + "-wal"))
         }
+        return try self.itemTableRows(at: copy)
     }
 
-    private func itemTableRows(immutable: Bool) throws -> [ItemRow] {
+    private func itemTableRows(at url: URL) throws -> [ItemRow] {
         var db: OpaquePointer?
-        let databaseURL = URL(fileURLWithPath: self.dbPath, isDirectory: false).absoluteURL
-        let filename = immutable ? "\(databaseURL.absoluteString)?immutable=1" : self.dbPath
-        let flags = immutable ? SQLITE_OPEN_READONLY | SQLITE_OPEN_URI : SQLITE_OPEN_READONLY
-        let openResult = sqlite3_open_v2(filename, &db, flags, nil)
+        // Read-only SQLite connections can still create sidecars. Only open the disposable copy.
+        let openResult = sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READWRITE, nil)
         guard openResult == SQLITE_OK else {
             let failure = Self.sqliteFailure(db: db, resultCode: openResult)
             sqlite3_close(db)
@@ -234,7 +225,7 @@ struct DevinAppSessionImporter {
         let prepareResult = sqlite3_prepare_v2(
             db,
             "SELECT key, value FROM ItemTable WHERE key LIKE 'secret://%' " +
-                "OR key LIKE '%org-%' OR key LIKE '%org\\_%' ESCAPE '\\';",
+                "OR key LIKE 'devin.desktopShell.%';",
             -1,
             &stmt,
             nil)
@@ -251,10 +242,12 @@ struct DevinAppSessionImporter {
             guard stepResult == SQLITE_ROW else {
                 throw Self.sqliteFailure(db: db, resultCode: stepResult)
             }
-            guard let key = Self.decodeSQLiteValue(stmt: stmt, index: 0),
-                  let value = Self.decodeSQLiteValue(stmt: stmt, index: 1)
-            else { continue }
-            rows.append(ItemRow(key: key, value: value))
+            guard let key = Self.decodeSQLiteValue(stmt: stmt, index: 0) else { continue }
+            if Self.isSessionKey(key), let value = Self.decodeSQLiteValue(stmt: stmt, index: 1) {
+                rows.append(ItemRow(key: key, value: value))
+            } else if key.hasPrefix("devin.desktopShell.") {
+                rows.append(ItemRow(key: key, value: ""))
+            }
         }
         return rows
     }
@@ -283,20 +276,12 @@ struct DevinAppSessionImporter {
         }
     }
 
-    private var walSidecarsAreMissing: Bool {
-        !FileManager.default.fileExists(atPath: self.dbPath + "-wal") &&
-            !FileManager.default.fileExists(atPath: self.dbPath + "-shm")
-    }
-
     private static func sqliteFailure(db: OpaquePointer?, resultCode: Int32) -> SQLiteReadFailure {
-        let code = db.map(sqlite3_errcode) ?? resultCode
-        let message = db.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown error"
-        return SQLiteReadFailure(code: code, message: message)
+        SQLiteReadFailure(code: db.map(sqlite3_errcode) ?? resultCode)
     }
 
     private struct SQLiteReadFailure: Error {
         let code: Int32
-        let message: String
     }
 }
 #endif

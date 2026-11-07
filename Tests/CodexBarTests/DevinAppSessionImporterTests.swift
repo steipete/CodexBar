@@ -1,6 +1,7 @@
 #if os(macOS)
 import CommonCrypto
 import Foundation
+import LocalAuthentication
 import Security
 import SQLite3
 import SweetCookieKit
@@ -365,6 +366,116 @@ struct DevinAppSessionImporterTests {
         #expect(sessions.first?.internalOrganizationID == "org_example12345")
     }
 
+    @Test
+    func `a rejected manual token never imports a desktop session`() async throws {
+        let importer = try Self.importer(payload: Self.sessionsPayload(tokens: ["synthetic-desktop-token"]))
+        let fetcher = DevinUsageFetcher(browserDetection: BrowserDetection(cacheTTL: 0), devinAppImporter: importer)
+        let transport = ProviderHTTPTransportStub { request in
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer synthetic-manual-token")
+            return (Data(), HTTPURLResponse(url: request.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!)
+        }
+        try await Self.withKeychain(
+            read: { _ in
+                Issue.record("Manual credentials must not fall back to desktop credentials")
+                return (errSecSuccess, Data(Self.password.utf8))
+            },
+            onPreflight: { Issue.record("Manual credentials must not inspect desktop Safe Storage") },
+            operation: {
+                await #expect(throws: DevinUsageError.self) {
+                    try await fetcher.fetch(
+                        bearerTokenOverride: "synthetic-manual-token",
+                        organizationOverride: "org_manual12345",
+                        transport: transport)
+                }
+            })
+        #expect(await transport.requests().count == 1)
+    }
+
+    @Test
+    func `manual retries never request permission for desktop secrets`() throws {
+        let importer = try Self.importer(payload: Self.sessionsPayload(tokens: ["synthetic-desktop-token"]))
+        let sessions = try Self.withKeychain(
+            read: { _ in
+                Issue.record("Desktop fallback must never request an interactive secret read")
+                return (errSecSuccess, Data(Self.password.utf8))
+            },
+            preflight: .interactionRequired,
+            interaction: .userInitiated,
+            operation: {
+                BrowserCookieAccessGate.withExplicitRetry { importer.importSessions() }
+            })
+        #expect(sessions.isEmpty)
+    }
+
+    @Test
+    func `unrelated and malformed secret rows never consult Safe Storage`() throws {
+        let encrypted = try Self.encrypted(Self.sessionsPayload(tokens: ["synthetic-desktop-token"]))
+        let valid = #"{"type":"Buffer","data":[\#(encrypted)]}"#
+        let importer = try Self.importer(payloads: [], secretRows: [
+            (#"secret://{"key":"windsurf_auth.sessions.backup"}"#, valid),
+            (#"secret://{"extensionId":"windsurf_auth.sessions","key":"unrelated"}"#, valid),
+            (
+                #"secret://{"extensionId":"fixture-a","key":"windsurf_auth.sessions"}"#,
+                #"{"type":"Buffer","data":[118,49,48,-1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}"#),
+            (
+                #"secret://{"extensionId":"fixture-b","key":"windsurf_auth.sessions"}"#,
+                #"{"type":"Buffer","data":[118,49,48,true,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}"#),
+            (
+                #"secret://{"extensionId":"fixture-c","key":"windsurf_auth.sessions"}"#,
+                #"{"data":[\#(encrypted)]}"#),
+        ])
+        let sessions = try Self.withKeychain(
+            read: { _ in
+                Issue.record("Only a valid session blob may consult Safe Storage")
+                return (errSecSuccess, Data(Self.password.utf8))
+            },
+            onPreflight: { Issue.record("Malformed or unrelated data must not inspect the Keychain") },
+            operation: { importer.importSessions() })
+        #expect(sessions.isEmpty)
+    }
+
+    @Test
+    func `desktop tokens come only from direct session records`() {
+        #expect(DevinAppSessionImporter.accessTokens(
+            fromSessionsPayload: #"[{"account":{"accessToken":"unrelated"}}]"#).isEmpty)
+        #expect(DevinAppSessionImporter.accessTokens(
+            fromSessionsPayload: #"{"accessToken":"unrelated"}"#).isEmpty)
+    }
+
+    @Test
+    func `desktop WAL reads leave source database and sidecars untouched`() throws {
+        let directory = CodexCredentialFixtures.root.appendingPathComponent("devin-wal")
+        let importer = try Self.importer(payloads: [], directory: directory)
+        let database = directory.appendingPathComponent("state.vscdb")
+        let wal = directory.appendingPathComponent("state.vscdb-wal")
+        let shm = directory.appendingPathComponent("state.vscdb-shm")
+        var db: OpaquePointer?
+        try #require(sqlite3_open(database.path, &db) == SQLITE_OK)
+        defer { if let db { sqlite3_close(db) } }
+        try #require(sqlite3_exec(db, "PRAGMA journal_mode=WAL", nil, nil, nil) == SQLITE_OK)
+        let encrypted = try Self.encrypted(Self.sessionsPayload(tokens: ["synthetic-wal-token"]))
+        try Self.insert(
+            db: db,
+            key: #"secret://{"key":"windsurf_auth.sessions"}"#,
+            value: #"{"type":"Buffer","data":[\#(encrypted)]}"#)
+        let originalDatabase = try Data(contentsOf: database)
+        let originalWAL = try Data(contentsOf: wal)
+        try #require(sqlite3_close(db) == SQLITE_OK)
+        db = nil
+        // Recreate a committed WAL whose shared-memory index needs rebuilding.
+        try originalDatabase.write(to: database)
+        try originalWAL.write(to: wal)
+        if FileManager.default.fileExists(atPath: shm.path) { try FileManager.default.removeItem(at: shm) }
+        let originalFiles = try Set(FileManager.default.contentsOfDirectory(atPath: directory.path))
+
+        let sessions = try Self.withKeychain { importer.importSessions() }
+
+        #expect(sessions.map(\.accessToken) == ["synthetic-wal-token"])
+        #expect(try Data(contentsOf: database) == originalDatabase)
+        #expect(try Data(contentsOf: wal) == originalWAL)
+        #expect(try Set(FileManager.default.contentsOfDirectory(atPath: directory.path)) == originalFiles)
+    }
+
     // MARK: - Fixtures
 
     static func sessionsPayload(tokens: [String]) throws -> String {
@@ -385,6 +496,7 @@ struct DevinAppSessionImporterTests {
             (errSecSuccess, Data(Self.password.utf8))
         },
         preflight: KeychainAccessPreflight.Outcome = .allowed,
+        onPreflight: (@Sendable () -> Void)? = nil,
         interaction: ProviderInteraction = .background,
         operation: () throws -> T) throws -> T
     {
@@ -392,6 +504,8 @@ struct DevinAppSessionImporterTests {
             #expect(query[kSecAttrService as String] as? String == "Devin Safe Storage")
             #expect(query[kSecAttrAccount as String] as? String == "Devin Key")
             #expect(query[kSecReturnData as String] as? Bool == true)
+            #expect((query[kSecUseAuthenticationContext as String] as? LAContext)?.interactionNotAllowed == true)
+            #expect(query[kSecUseAuthenticationUI as String] as? String == KeychainNoUIQuery.uiFailPolicyForTesting())
             return read(query)
         }
         let promptHandler = BrowserCookieKeychainPromptHandler.handler
@@ -400,7 +514,8 @@ struct DevinAppSessionImporterTests {
         return try KeychainAccessGate.withTaskOverrideForTesting(false) {
             try BrowserCookieAccessGate.withIsolatedStateForTesting {
                 try KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
-                    preflight
+                    onPreflight?()
+                    return preflight
                 } operation: {
                     try ChromiumSafeStorage.$readOverrideForTesting.withValue(lookup) {
                         try ProviderInteractionContext.$current.withValue(interaction, operation: operation)
@@ -423,6 +538,8 @@ struct DevinAppSessionImporterTests {
             #expect(query[kSecAttrService as String] as? String == "Devin Safe Storage")
             #expect(query[kSecAttrAccount as String] as? String == "Devin Key")
             #expect(query[kSecReturnData as String] as? Bool == true)
+            #expect((query[kSecUseAuthenticationContext as String] as? LAContext)?.interactionNotAllowed == true)
+            #expect(query[kSecUseAuthenticationUI as String] as? String == KeychainNoUIQuery.uiFailPolicyForTesting())
             return read(query)
         }
         let promptHandler = BrowserCookieKeychainPromptHandler.handler
@@ -454,13 +571,13 @@ struct DevinAppSessionImporterTests {
 
     static func importer(
         payloads: [String],
+        secretRows: [(key: String, value: String)] = [],
         organizationKeys: [String] = [],
-        home: String? = nil) throws -> DevinAppSessionImporter
+        home: String? = nil,
+        directory: URL? = nil) throws -> DevinAppSessionImporter
     {
-        let home = home ?? FileManager.default.temporaryDirectory
-            .appendingPathComponent("devin-app-\(UUID())").path
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("devin-app-db-\(UUID())")
+        let home = home ?? CodexCredentialFixtures.root.appendingPathComponent("home").path
+        let directory = directory ?? CodexCredentialFixtures.root.appendingPathComponent("devin-app-db-\(UUID())")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let dbPath = directory.appendingPathComponent("state.vscdb").path
         var db: OpaquePointer?
@@ -476,6 +593,9 @@ struct DevinAppSessionImporterTests {
             let secretValue = try #"{"type":"Buffer","data":[\#(Self.encrypted(payload))]}"#
             let key = #"secret://{"extensionId":"codeium.windsurf-\#(index)","key":"windsurf_auth.sessions"}"#
             try Self.insert(db: db, key: key, value: secretValue)
+        }
+        for row in secretRows {
+            try Self.insert(db: db, key: row.key, value: row.value)
         }
         for key in organizationKeys {
             try Self.insert(db: db, key: key, value: "true")

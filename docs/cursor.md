@@ -26,8 +26,8 @@ Linux. Explicit `web` mode never reads local Cursor credentials; macOS uses its 
 1) **Cursor.app local auth** (first automatic source on macOS; Linux fallback)
    - Reads Cursor.app's VS Code-style global state DB for `ItemTable` key `cursorAuth/accessToken`.
    - On macOS, supports both plain JWTs and Cursor 3.27's `cursor-safe-storage:v1:` encrypted tokens. Encrypted
-     tokens use the `Cursor Safe Storage` Keychain item (account `Cursor`). Plain token decoding performs no
-     Keychain reads.
+     tokens use the `Cursor Safe Storage` Keychain item, trying account `Cursor Key` first and legacy account
+     `Cursor` if the first key cannot decrypt the token. Plain token decoding performs no Keychain reads.
      Background and settings refreshes never prompt. An explicit manual refresh may request access once, sharing
      that action's prompt allowance with browser imports. Choose **Always Allow** to permit future refreshes without
      another prompt; denying access keeps the six-hour cooldown, including subsequent manual refreshes.
@@ -185,6 +185,13 @@ Caching: automatic cost refreshes follow the app's token-cost cadence, with a mi
 
 An HTTP 403 from the cost endpoint records a failed cost source with an in-memory retry time at least six hours later, even when no cost snapshot is available. It does not invalidate the working quota session or change local CSV fallback. Manual and menu-open refreshes bypass the cooldown, and a changed account, credential source, history window, timezone, or provider configuration permits a new attempt. Timed-out cost scans keep their normal cooldown without a snapshot; transient failures retain their normal retry behavior. Restarting the app clears this in-memory cooldown.
 
+The local Tokscale CSV fallback supports legacy, `Kind`, and cloud-agent layouts. A `Cloud Agent ID` header identifies
+the cloud-agent layout; trailing billing columns such as `Cost to you` leave the layout unchanged. The existing
+`Total Tokens` and `Cost` fields supply the exported token totals and API-rate cost.
+The reader processes physical lines without retaining a second array of split lines, reducing peak memory for
+large exports. UTF-8 validation, supported newline separators, quoting, and accounting remain unchanged; the
+decoded input and parsed usage rows still stay in memory during the read.
+
 If Auto fetches usage with a cookie that the app still cannot confirm for the current account, the result stays unpublished. An unchanged account scope waits for the next normal or manual refresh instead of repeatedly forcing another request. Real account, history-window, provider, or cost-timezone changes still request a replacement; a successful fetch that confirms its own cookie can publish immediately.
 
 ## Snapshot mapping
@@ -207,6 +214,12 @@ displays `GB 0%` in used mode. Lane percentages are tagged `T` (Total), `C` (Cur
 menus and VoiceOver keep the full names. Auto % ranks usable allowances, including Grok Bot, by depletion
 forecast and then used percentage; an exhausted total or exhaustion of every subquota still takes priority.
 Balance tokens remain independent, and the dropdown keeps its existing reset countdown and paid-weekly pace display.
+
+With a usage snapshot, the layout editor uses the account's window names: **Cursor** for the legacy monthly
+Auto allowance and **Weekly** for the unified weekly pool. Without a snapshot, elements retain their default
+labels or explicit provider overrides. Selecting **Grok Bot %** leaves adjacent reset elements on their
+original windows. An explicit Grok Bot reset element is not available yet; use the provider card to see
+Grok Bot's own reset when the provider reports one.
 
 Named-extra selections are stored in V4 layout keys. A V3 projection omits them while preserving explicit
 reset-window selections for 0.60.x; V2/V1 projections remain available for older releases. An unchanged
