@@ -2820,3 +2820,4 @@
 "Tripo is rate limiting requests. Try again later." = "Tripo đang giới hạn tần suất yêu cầu. Hãy thử lại sau.";
 "Tripo request failed. Try refreshing later." = "Yêu cầu Tripo không thành công. Hãy thử làm mới sau.";
 "Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo trả về phản hồi không nhận dạng được. Hãy cập nhật CodexBar rồi thử lại.";
+"Mistral session expired or invalid." = "Phiên Mistral đã hết hạn hoặc không hợp lệ.";

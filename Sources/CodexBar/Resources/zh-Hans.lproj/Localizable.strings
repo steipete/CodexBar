@@ -2811,3 +2811,4 @@
 "Tripo is rate limiting requests. Try again later." = "Tripo 正在限制请求频率。请稍后重试。";
 "Tripo request failed. Try refreshing later." = "Tripo 请求失败。请稍后尝试刷新。";
 "Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo 返回了无法识别的响应。请更新 CodexBar 后重试。";
+"Mistral session expired or invalid." = "Mistral 会话已过期或无效。";
