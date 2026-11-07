@@ -398,7 +398,7 @@ extension CostUsageTokenSnapshot {
         return Set(dailyByDay.keys).union(slicesByDay.keys)
             .compactMap { dayKey -> QuotaProjectionDay? in
                 guard let dayStart = CostUsageLocalDay.date(fromKey: dayKey, calendar: calendar),
-                      let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart)
+                      let dayEnd = calendar.dateInterval(of: .day, for: dayStart)?.end
                 else { return nil }
                 return QuotaProjectionDay(
                     start: dayStart,

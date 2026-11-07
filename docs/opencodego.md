@@ -52,11 +52,13 @@ require an existing no-UI Safe Storage grant, and the actual cookie read disallo
 blocked, or rejected discovered sessions leave the local estimate available; Cookie source Off disables discovery.
 An invalid manual credential still surfaces its authentication error. No local estimate is used for pace forecasts.
 
-Unchanged database scans are reused within the app/server process, keyed by the database and SQLite `-wal`
-sidecar sizes and modification dates. WAL commits, checkpoints, and removal invalidate the cache. One parsed-row
-payload of at most 4 MiB (row storage plus model text, excluding allocator overhead) is retained; larger payloads
-remain readable but are not cached. Exact row timestamps let quota windows, resets, and requested history ranges
-advance on cache hits. Separate CLI invocations each perform their own initial scan.
+Unchanged database scans are reused within the app/server process, keyed by database and SQLite `-wal`
+sidecar identities, sizes, and modification dates. WAL commits, checkpoints, removal, and database replacement
+invalidate the cache. One payload has a 4 MiB storage budget (excluding allocator overhead): small histories keep
+parsed rows; larger histories keep daily totals and only timestamp/cost pairs for the recent five-hour window.
+Moving quota windows and resets remain live. Aggregate reuse ends at calendar or billing boundaries, future records,
+backward clock changes, or a wider requested history range; changed sources always rescan. Payloads exceeding the
+budget remain readable without being retained. Separate CLI invocations each perform their own initial scan.
 
 The shared [OpenCode guide](opencode.md) documents authentication, scoped source selection, usage mapping, and the
 boundary between device-local estimates and account quota. Keep those details there so the two guides do not drift.

@@ -19,23 +19,67 @@ public enum OpenAIDashboardWebsiteDataStore {
     /// Cached data store instances keyed by the same account identifier WebKit persists.
     /// Using the same instance ensures stable object identity for WebView cache lookups.
     private static var cachedStores: [UUID: WKWebsiteDataStore] = [:]
+    private static var sweepInProgress = false
 
     /// Reclaim old HTTP caches, including stores whose historical account mapping is unknown.
     /// Cookies, local storage and other session data are deliberately excluded.
-    public static func clearNetworkCaches() async {
-        guard !TestProcessSafety.isRunning else { return }
-        for identifier in await WKWebsiteDataStore.allDataStoreIdentifiers {
+    @discardableResult
+    public static func clearNetworkCaches() async -> Int {
+        guard !TestProcessSafety.isRunning, !self.sweepInProgress else { return 0 }
+        let log = CodexBarLog.logger("openai.webview")
+        guard self.sweepIsDue(lastSweep: UserDefaults.standard.object(forKey: "openAIDashboardLastCacheSweep") as? Date)
+        else {
+            log.info("OpenAI cache sweep skipped: completed within 24 hours")
+            return 0
+        }
+        self.sweepInProgress = true
+        defer { self.sweepInProgress = false }
+        let identifiers = await self.existingIdentifiers()
+        guard !identifiers.isEmpty else {
+            log.info("OpenAI cache sweep skipped: no named stores")
+            return 0
+        }
+        for identifier in identifiers {
             await OpenAIDashboardCacheMaintenance.shared.clearIfNeeded(WKWebsiteDataStore(forIdentifier: identifier))
         }
+        UserDefaults.standard.set(Date(), forKey: "openAIDashboardLastCacheSweep")
+        log.info("OpenAI cache sweep completed: \(identifiers.count) named stores")
+        return identifiers.count
+    }
+
+    static func sweepIsDue(lastSweep: Date?, now: Date = Date()) -> Bool {
+        lastSweep.map { now.timeIntervalSince($0) >= 24 * 60 * 60 } ?? true
+    }
+
+    static var namedStoreDirectory: URL {
+        FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("WebKit", isDirectory: true)
+            .appendingPathComponent(
+                Bundle.main.bundleIdentifier ?? ProcessInfo.processInfo.processName,
+                isDirectory: true)
+            .appendingPathComponent("WebsiteDataStore", isDirectory: true)
+    }
+
+    static func existingIdentifiers(
+        in directory: URL = Self.namedStoreDirectory,
+        initialize: () -> Void = { _ = WKWebsiteDataStore.default() },
+        enumerate: () async -> [UUID] = { await WKWebsiteDataStore.allDataStoreIdentifiers }) async -> [UUID]
+    {
+        guard let entries = try? FileManager.default.contentsOfDirectory(atPath: directory.path),
+              entries.contains(where: { UUID(uuidString: $0) != nil }) else { return [] }
+        // Enumeration omits InitializeWebKit2; its IO callback needs the main RunLoop initialized first.
+        initialize()
+        return await enumerate()
     }
 
     public static func removeStore(
         forRemovedAccount account: ManagedCodexAccount,
         isStillRemoved: @MainActor () -> Bool) async
     {
+        guard !TestProcessSafety.isRunning else { return }
         await self.removeStore(
             forRemovedAccount: account,
-            identifiers: WKWebsiteDataStore.allDataStoreIdentifiers,
+            identifiers: self.existingIdentifiers(),
             isStillRemoved: isStillRemoved,
             releaseCachedStore: { self.cachedStores.removeValue(forKey: $0) },
             remove: { try await WKWebsiteDataStore.remove(forIdentifier: $0) })

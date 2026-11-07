@@ -115,6 +115,7 @@ extension ProviderInstanceID {
     public static let abliteration = UsageProvider.abliteration.instanceID
     public static let opendesign = UsageProvider.opendesign.instanceID
     public static let siliconflow = UsageProvider.siliconflow.instanceID
+    public static let tripo = UsageProvider.tripo.instanceID
 }
 
 // swiftformat:enable sortDeclarations

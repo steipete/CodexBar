@@ -54,6 +54,20 @@ struct OllamaAPIBalanceTests {
         #expect(usage.identity?.loginMethod == "API key")
     }
 
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `weekly only legacy balances do not invent a session or credit row`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let usage = try await Self.fetch(
+            #"{"included":{"weekly":{"remaining_percent":58}}}"#,
+            engine: engine)
+        #expect(usage.primary == nil)
+        #expect(usage.secondary?.usedPercent == 42)
+        #expect(usage.secondary?.windowMinutes == 10080)
+        #expect(usage.secondary?.resetsAt == nil)
+        #expect(usage.details.isEmpty)
+    }
+
     @Test(arguments: [
         #"{"included":{"session":{"remaining_percent":-1,"resets_at":"2026-11-06T18:00:00Z"}}}"#,
         #"{"included":{"session":{"remaining_percent":101,"resets_at":"2026-11-06T18:00:00Z"}}}"#,

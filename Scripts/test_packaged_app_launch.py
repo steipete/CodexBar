@@ -44,20 +44,29 @@ class PackagedAppLaunchTests(unittest.TestCase):
                 assert Path(os.environ['XDG_CONFIG_HOME']).is_relative_to(home)
                 assert Path(os.environ['TMPDIR']).is_relative_to(home.parent)
                 assert os.environ['PATH'] == '/usr/bin:/bin:/usr/sbin:/sbin'
-                for key in ['SWIFT_TESTING', 'CODEXBAR_SUPPRESS_TEST_KEYCHAIN_ACCESS',
+                webkit = os.environ.get('CODEXBAR_WEBKIT_SMOKE')
+                assert ('SWIFT_TESTING' not in os.environ) if webkit else os.environ['SWIFT_TESTING'] == '1'
+                if webkit:
+                    assert os.environ['CODEXBAR_DISABLE_KEYCHAIN_ACCESS'] == '1'
+                    stores = home / 'Library/WebKit/com.steipete.codexbar/WebsiteDataStore'
+                    assert (stores / '11111111-1111-4111-8111-111111111111').is_dir()
+                for key in ['CODEXBAR_SUPPRESS_TEST_KEYCHAIN_ACCESS',
                             'CODEXBAR_TEST_CODEX_FILE_ISOLATION', 'CODEXBAR_TEST_SESSION_FILE_ISOLATION']:
                     assert os.environ[key] == '1', key
                 resource = os.environ.get('CODEXBAR_RESOURCE_SMOKE')
-                if resource is None:
+                if resource is None and not webkit:
                     args = dict(zip(sys.argv[1::2], sys.argv[2::2]))
                     assert args['-iCloudSyncEnabled'] == 'NO'
                     assert args['-debugDisableKeychainAccess'] == 'YES'
                     assert args['-SUEnableAutomaticChecks'] == 'NO'
                     assert args['-SUAutomaticallyUpdate'] == 'NO'
                 with open({str(receipts)!r}, 'a') as out:
-                    out.write(json.dumps({{'executable': Path(sys.argv[0]).name, 'resource': resource}}) + '\\n')
+                    out.write(json.dumps({{'executable': Path(sys.argv[0]).name, 'resource': resource,
+                                          'webkit': webkit}}) + '\\n')
                 if resource == '1':
                     print('CODEXBAR_RESOURCE_SMOKE_OK')
+                elif webkit:
+                    print('CODEXBAR_WEBKIT_SMOKE_OK')
                 else:
                     time.sleep(60)
                 """)
@@ -99,13 +108,16 @@ class PackagedAppLaunchTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             observations = [json.loads(line) for line in receipts.read_text().splitlines()]
-            self.assertEqual([r["resource"] for r in observations], ["1", "1", "1", None])
+            self.assertEqual([r["resource"] for r in observations], ["1", "1", "1", None, None])
+            self.assertEqual([r["webkit"] for r in observations], [None, None, None, "1", None])
             self.assertEqual([r["executable"] for r in observations],
-                             ["CodexBarCLI", "codexbar", "CodexBar", "CodexBar"])
+                             ["CodexBarCLI", "codexbar", "CodexBar", "CodexBar", "CodexBar"])
             sandbox_profiles = [json.loads(line) for line in profiles.read_text().splitlines()]
-            self.assertEqual(len(sandbox_profiles), 4)
+            self.assertEqual(len(sandbox_profiles), 5)
             for profile in sandbox_profiles:
                 self.assertIn('(deny network*)', profile)
+                self.assertIn('(deny mach-lookup (global-name "com.apple.cfprefsd.agent"))', profile)
+                self.assertIn('(deny mach-lookup (global-name "com.apple.cfprefsd.daemon"))', profile)
                 self.assertIn(f'(deny file-read* (subpath "{script.parent.parent}"))', profile)
                 self.assertIn(f'(deny file-write* (require-all (subpath "{ambient}")', profile)
                 exception = re.search(r'\(require-not \(subpath "([^"]+)"\)\)', profile)

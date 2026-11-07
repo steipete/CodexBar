@@ -610,6 +610,23 @@ swiftlint --strict
 
 ## Distribution
 
+### Allocator policy
+
+The packaged app sets `LSEnvironment.MallocLargeCache=0` before LaunchServices starts it. On recent xzone
+allocators (macOS 26.3 and later published sources), this disables huge-allocation caching and deferred
+reclamation of freed large, tiny, and small storage. Three paired synthetic whole-app runs on macOS 27 reduced
+mean refresh/settled physical footprint by 38%/36%, with less than 1% additional busy CPU. This reduces freed
+allocator storage; it does not establish or fix every memory-growth report.
+
+`MallocLargeCache` is an undocumented Apple allocator control whose meaning varies by OS. On macOS 14/15,
+and the magazine path in 26.0, it only disables the large last-free cache; 26.0's xzone initializer does not
+read it. Those older runtimes have not been benchmarked. Recheck the policy when updating the SDK or OS baseline.
+
+malloc reads the policy before `main`; the app then removes the variable before constructing provider environments,
+so provider CLIs and the HTTP helper retain their normal allocator policy. The separately launched widget has no
+override. Sparkle relaunches through LaunchServices. Direct binary execution does not apply `LSEnvironment`;
+explicitly pass `MallocLargeCache=0` when reproducing the packaged allocator policy from a shell.
+
 ### Local Development Build
 ```bash
 ./Scripts/package_app.sh

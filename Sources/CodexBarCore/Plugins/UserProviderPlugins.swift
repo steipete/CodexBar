@@ -412,7 +412,24 @@ public final class UserProviderPluginLoader: @unchecked Sendable {
             try QuickJSProviderPluginEngine.transpileTypeScript(source: source, sucraseSource: sucraseSource)
         }
         try Data(output.utf8).write(to: cacheURL, options: .atomic)
+        // Runtimes own their source strings; no running fetch reopens these cache files.
+        try? Self.removeCachedRevisions(sourceFileURL: sourceFileURL, directory: self.cacheDirectory, keeping: cacheURL)
         return (output, cacheURL, false)
+    }
+
+    static func removeCachedRevisions(sourceFileURL: URL, directory: URL, keeping current: URL? = nil) throws {
+        guard FileManager.default.fileExists(atPath: directory.path) else { return }
+        let name = NSRegularExpression.escapedPattern(for: sourceFileURL.deletingPathExtension().lastPathComponent)
+        let pattern = "^" + name + #"-[a-f0-9]{64}-sucrase-[0-9.]+\.js$"#
+        let artifacts = try FileManager.default.contentsOfDirectory(
+            at: directory, includingPropertiesForKeys: [.isRegularFileKey])
+        for artifact in artifacts where artifact.lastPathComponent != current?.lastPathComponent &&
+            artifact.lastPathComponent.range(of: pattern, options: .regularExpression) != nil
+        {
+            if try artifact.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true {
+                try FileManager.default.removeItem(at: artifact)
+            }
+        }
     }
 
     private static func transpileTypeScriptWithJavaScriptCore(
@@ -495,16 +512,7 @@ public enum UserProviderPluginManager {
         }
         let directory = plugin.transpiledCacheURL?.deletingLastPathComponent()
             ?? UserProviderPluginLoader.defaultCacheDirectory
-        if FileManager.default.fileExists(atPath: directory.path) {
-            let prefix = plugin.fileURL.deletingPathExtension().lastPathComponent + "-"
-            let artifacts = try FileManager.default.contentsOfDirectory(
-                at: directory,
-                includingPropertiesForKeys: [.isRegularFileKey])
-                .filter { $0.lastPathComponent.hasPrefix(prefix) && $0.pathExtension == "js" }
-            for artifact in artifacts {
-                try FileManager.default.removeItem(at: artifact)
-            }
-        }
+        try UserProviderPluginLoader.removeCachedRevisions(sourceFileURL: plugin.fileURL, directory: directory)
         try approvalStore.remove(instanceID: plugin.manifest.id)
         config.removeProviderConfig(for: plugin.manifest.id)
         if let historyDirectory {
