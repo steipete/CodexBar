@@ -16,17 +16,35 @@ import CoreFoundation
 #endif
 
 extension CodexBarCLI {
-    static func decodeProvider(from values: ParsedValues, config: CodexBarConfig) -> ProviderSelection {
+    static func decodeProvider(
+        from values: ParsedValues,
+        config: CodexBarConfig,
+        output: CLIOutputPreferences) -> ProviderSelection
+    {
         let rawOverride = values.options["provider"]?.last
-        return Self.providerSelection(
-            rawOverride: rawOverride,
-            enabled: config.enabledProviders().compactMap(\.firstPartyProvider))
+        do {
+            return try Self.providerSelection(
+                rawOverride: rawOverride,
+                enabled: config.enabledProviders().compactMap(\.firstPartyProvider))
+        } catch let error as CLIArgumentError {
+            Self.exit(code: .failure, message: "Error: \(error.message)", output: output, kind: .args)
+        } catch {
+            Self.exit(code: .failure, message: "Error: \(error.localizedDescription)", output: output, kind: .args)
+        }
     }
 
-    static func providerSelection(rawOverride: String?, enabled: [UsageProvider]) -> ProviderSelection {
-        if let rawOverride, let parsed = ProviderSelection(argument: rawOverride) {
+    /// An omitted override falls back to the enabled providers; an explicit but unrecognized one is an error.
+    static func providerSelection(rawOverride: String?, enabled: [UsageProvider]) throws -> ProviderSelection {
+        if let rawOverride {
+            guard let parsed = ProviderSelection(argument: rawOverride) else {
+                throw CLIArgumentError("Unknown provider '\(rawOverride)'. Use --provider \(ProviderHelp.list).")
+            }
             return parsed
         }
+        return Self.defaultProviderSelection(enabled: enabled)
+    }
+
+    static func defaultProviderSelection(enabled: [UsageProvider]) -> ProviderSelection {
         if enabled.count == 2 {
             let enabledSet = Set(enabled)
             let primary = Set(ProviderDescriptorRegistry.all.filter(\ .metadata.isPrimaryProvider).map(\ .id))

@@ -64,8 +64,7 @@ struct DashboardSnapshotProducer: Sendable {
         identityMode: DashboardIdentityMode? = nil,
         providers requestedProviders: [UsageProvider]? = nil) async throws -> DashboardSnapshotResult
     {
-        let selection = requestedProviders.map(ProviderSelection.custom) ?? CodexBarCLI.providerSelection(
-            rawOverride: nil,
+        let selection = requestedProviders.map(ProviderSelection.custom) ?? CodexBarCLI.defaultProviderSelection(
             enabled: config.enabledProviders().compactMap(\.firstPartyProvider))
         let usageOutput = try await self.collectUsage(selection.asList)
         let costPayloads = await self.collectCost(
