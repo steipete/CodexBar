@@ -1,9 +1,9 @@
 import Foundation
+import Testing
+@testable import CodexBarCore
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import Testing
-@testable import CodexBarCore
 
 struct AbacusPluginTests {
     @Test(arguments: BundledPluginTestSupport.engines)
@@ -131,12 +131,12 @@ struct AbacusPluginTests {
     }
 
     @Test(arguments: [2.0, 60.0, 90.0])
-    func `descriptor preserves web timeout without the prototype switch`(timeout: Double) async throws {
+    func `descriptor preserves web timeout without the prototype switch`(timeout: Double) async {
         let strategy = AbacusProviderDescriptor.scriptStrategy(
             timeout: timeout,
-            transport: ProviderHTTPTransportHandler { request in
-                #expect(request.timeoutInterval == (request.httpMethod == "POST" ? min(timeout, 5) : timeout))
-                return Self.response(request, body: request.httpMethod == "POST" ? Self.billing : Self.points)
+            transport: ProviderHTTPTransportHandler { _ in
+                Issue.record("Descriptor inspection must not fetch")
+                throw URLError(.badURL)
             })
         let context = ProviderFetchContext(
             runtime: .cli, sourceMode: .web, includeCredits: false, webTimeout: timeout,
@@ -146,15 +146,16 @@ struct AbacusPluginTests {
             claudeFetcher: ClaudeUsageFetcher(browserDetection: BrowserDetection()),
             browserDetection: BrowserDetection())
         #expect(await strategy.isAvailable(context))
-        #expect(try await strategy.fetch(context).sourceLabel == "web")
+        #expect(strategy.timeout == AbacusProviderDescriptor.refreshTimeout(for: timeout))
+        #expect(strategy.resolveValues(context)?.settings["REQUEST_TIMEOUT"] == String(timeout))
     }
 
     @Test
-    func `configured credits request can outlive the default plugin budget`() async throws {
+    func `configured credits request reserves more than the default plugin budget`() async throws {
         let strategy = AbacusProviderDescriptor.scriptStrategy(
             timeout: 60,
             transport: ProviderHTTPTransportHandler { request in
-                if request.httpMethod == "GET" { try await Task.sleep(for: .seconds(21)) }
+                #expect(request.timeoutInterval == (request.httpMethod == "GET" ? 60 : 5))
                 return Self.response(request, body: request.httpMethod == "POST" ? Self.billing : Self.points)
             })
         let context = ProviderFetchContext(
@@ -164,7 +165,12 @@ struct AbacusPluginTests {
             fetcher: UsageFetcher(environment: [:]),
             claudeFetcher: ClaudeUsageFetcher(browserDetection: BrowserDetection()),
             browserDetection: BrowserDetection())
-        #expect(try await strategy.fetch(context).usage.primary?.usedPercent == 25)
+        #expect(strategy.timeout == 90)
+        #expect(strategy.timeout > ProviderPluginRuntime.defaultTimeout)
+        let result = try await strategy.fetch(context)
+        #expect(strategy.runtime?.timeout == 90)
+        #expect(result.sourceLabel == "web")
+        #expect(result.usage.primary?.usedPercent == 25)
     }
 
     @Test(.timeLimit(.minutes(1)), arguments: BundledPluginTestSupport.engines)
@@ -172,7 +178,19 @@ struct AbacusPluginTests {
         engine: ProviderPluginEngineKind) async throws
     {
         let sessions = Sessions()
+        let (starts, started) = AsyncStream<Void>.makeStream()
         let (cancellations, cancelled) = AsyncStream<Bool>.makeStream()
+        defer { started.finish() }
+        let deadlines = FirstAttemptDeadline()
+        var options = BundledPluginTestSupport.contextOptions
+        options.waitForHTTPDeadline = { _, budget in
+            if budget == .seconds(15), await deadlines.isFirst() {
+                var iterator = starts.makeAsyncIterator()
+                #expect(await iterator.next() != nil)
+            } else {
+                try await BundledPluginTestSupport.suspendUntilCancelled()
+            }
+        }
         defer { cancelled.finish() }
         // The successful candidate must not race an artificial sleep against its request deadline.
         let requestTimeout = 15.0
@@ -185,15 +203,16 @@ struct AbacusPluginTests {
                 #expect(request.timeoutInterval == (request.httpMethod == "POST" ? 5 : requestTimeout))
                 if request.httpMethod == "POST" { return Self.response(request, body: Self.billing) }
                 if request.value(forHTTPHeaderField: "Cookie") == "session=stale" {
-                    let (pending, release) = AsyncStream<Void>.makeStream()
-                    defer { release.finish() }
-                    for await _ in pending {}
-                    cancelled.yield(Task.isCancelled)
-                    try Task.checkCancellation()
+                    started.yield()
+                    do { try await BundledPluginTestSupport.suspendUntilCancelled() } catch {
+                        cancelled.yield(Task.isCancelled)
+                        throw error
+                    }
                 }
                 return Self.response(request, body: Self.points)
             },
-            timeout: AbacusProviderDescriptor.refreshTimeout(for: requestTimeout),
+            timeout: BundledPluginTestSupport.timeout,
+            contextOptions: options,
             engine: engine)
         let usage = try await runtime.fetchUsage(
             settings: ["REQUEST_TIMEOUT": String(requestTimeout)],
@@ -311,5 +330,13 @@ struct AbacusPluginTests {
                 return .init(header: "session=\(id)", source: "Fixture", origin: "https://apps.abacus.ai", id: id)
             }
         }
+    }
+}
+
+private actor FirstAttemptDeadline {
+    private var first = true
+    func isFirst() -> Bool {
+        defer { self.first = false }
+        return self.first
     }
 }
