@@ -246,28 +246,26 @@ struct ProviderPagerHeader: View {
 
     var body: some View {
         let pager = ProviderPager.make(providers: self.providers, selected: self.selected)
-        HStack(spacing: 7) {
-            ProviderMark(provider: self.selected, isSelected: true, size: self.size.markSize)
-            // Small tiles stack freshness under the name, beside the mark, which leaves room for the
-            // quota lanes below the headline.
-            VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 7) {
+                ProviderMark(provider: self.selected, isSelected: true, size: self.size.markSize)
                 Text(ProviderTitle.text(for: self.selected, size: self.size))
                     .font(.subheadline.weight(.semibold))
-                    .lineLimit(self.size == .small ? 1 : 2)
-                    .minimumScaleFactor(self.size == .small ? 0.7 : 0.85)
-                if self.size == .small {
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                    .layoutPriority(2)
+                if self.size != .small {
                     FreshnessLabel(updatedAt: self.updatedAt)
+                        .layoutPriority(0)
+                }
+                Spacer(minLength: 4)
+                if let pager, pager.isPageable {
+                    ProviderPagerControls(pager: pager, size: self.size)
+                        .layoutPriority(1)
                 }
             }
-            .layoutPriority(2)
-            if self.size != .small {
+            if self.size == .small {
                 FreshnessLabel(updatedAt: self.updatedAt)
-                    .layoutPriority(0)
-            }
-            Spacer(minLength: 4)
-            if let pager, pager.isPageable {
-                ProviderPagerControls(pager: pager, size: self.size)
-                    .layoutPriority(1)
             }
         }
     }
@@ -564,7 +562,7 @@ private struct HistoryView: View {
                 size: self.isLarge ? .large : .medium)
             UsageHistoryChart(
                 points: self.entry.dailyUsage,
-                color: WidgetInk.data,
+                color: WidgetColors.color(for: self.entry.provider),
                 currencyCode: self.entry.tokenUsage?.currencyCode)
                 .frame(minHeight: self.isLarge ? 110 : 58, maxHeight: .infinity)
             if let token = entry.tokenUsage {

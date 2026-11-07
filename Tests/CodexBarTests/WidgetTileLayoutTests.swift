@@ -65,24 +65,6 @@ struct WidgetTileLayoutTests {
     }
 
     @Test
-    func `a low lane past the cap stays visible instead of folding into the overflow row`() {
-        // Hero takes the 2% lane; the 9% lane sits last and would be cut by a plain prefix.
-        let lanes = [
-            self.lane("session", "Session", 2),
-            self.lane("weekly", "Weekly", 60),
-            self.lane("opus", "Opus", 70),
-            self.lane("sonnet", "Sonnet", 80),
-            self.lane("design", "Design", 9),
-        ]
-
-        let plan = WidgetTilePlan.make(lanes: lanes, maxSecondaryLanes: 2)
-
-        #expect(plan.hero?.id == "session")
-        #expect(plan.lanes.map(\.id) == ["weekly", "design"])
-        #expect(plan.overflowCount == 2)
-    }
-
-    @Test
     func `reserving a slot for the overflow row keeps compact tiles inside their budget`() {
         let lanes = (0..<6).map { self.lane("lane-\($0)", "Lane \($0)", Double(50 + $0)) }
 

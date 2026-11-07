@@ -83,8 +83,8 @@ enum WidgetLayout {
     static let laneSpacing: CGFloat = 7
     static let barHeight: CGFloat = 7
     static let heroBarHeight: CGFloat = 9
-    static let markSizeSmall: CGFloat = 24
-    static let markSizeRegular: CGFloat = 30
+    static let markSizeSmall: CGFloat = 20
+    static let markSizeRegular: CGFloat = 23
     static let separatorOpacity: Double = 0.12
 
     /// The single-metric tile has no lanes to fit around, so its figure runs larger.
@@ -141,8 +141,6 @@ enum ProviderMonogram {
         return String([first, letters.dropFirst().first ?? first]).uppercased()
     }
 }
-
-// MARK: - Contrast
 
 // MARK: - Provider mark
 
@@ -218,10 +216,8 @@ enum WidgetProviderMarkAsset {
             return cached
         }
         let bundle = WidgetLocalization.resourceBundle
-        let url = ["svg", "png"].lazy.compactMap { fileExtension in
-            bundle.url(forResource: name, withExtension: fileExtension)
-                ?? bundle.url(forResource: name, withExtension: fileExtension, subdirectory: "ProviderMarks")
-        }.first
+        let url = bundle.url(forResource: name, withExtension: "svg")
+            ?? bundle.url(forResource: name, withExtension: "svg", subdirectory: "ProviderMarks")
         guard let url, let image = NSImage(contentsOf: url) else { return nil }
         image.size = self.size
         image.isTemplate = isTemplate
@@ -275,27 +271,11 @@ enum ProviderMarkLabel {
     }
 }
 
-// MARK: - Ink
-
-/// Data marks (bars, history) are drawn in ink. Colour is reserved for one meaning: a limit that is
-/// running low. Provider identity lives in the mark, not in the bars.
-enum WidgetInk {
-    static let data = Color.primary.opacity(0.82)
-
-    /// Fill for a bar whose limit is running low. Full colour shows red. Tinted and clear widgets
-    /// render through a luminance mask where red reads dimmer than ink, which would invert the
-    /// warning, so there the low fill keeps full ink strength and joins the accent group instead.
-    static func lowBar(renderingMode: WidgetRenderingMode) -> Color {
-        renderingMode == .fullColor ? .red : .primary
-    }
-}
-
 // MARK: - Quota bar
 
 struct QuotaBar: View {
     let percent: Double?
     let color: Color
-    /// A low limit replaces `color` with the rendering-mode-aware warning fill.
     var isLow: Bool = false
     var height: CGFloat = WidgetLayout.barHeight
 
@@ -303,6 +283,7 @@ struct QuotaBar: View {
     @Environment(\.widgetRenderingModeOverride) private var renderingModeOverride
 
     var body: some View {
+        let fullColor = (self.renderingModeOverride ?? self.renderingMode) == .fullColor
         GeometryReader { proxy in
             let fraction = QuotaBar.fillFraction(self.percent)
             ZStack(alignment: .leading) {
@@ -311,18 +292,17 @@ struct QuotaBar: View {
                     // Floor the fill at the bar's own height so a nearly-exhausted lane reads as a
                     // visible nub instead of a sliver indistinguishable from an empty track.
                     Capsule()
-                        .fill(self.isLow
-                            ? WidgetInk.lowBar(renderingMode: self.renderingModeOverride ?? self.renderingMode)
-                            : self.color)
-                        .widgetAccentable(self.isLow)
-                        .frame(width: max(self.height, fraction * proxy.size.width))
+                        // Red loses warning contrast in WidgetKit's luminance mask.
+                            .fill(self.isLow ? (fullColor ? .red : .primary) : self.color)
+                            .widgetAccentable(self.isLow)
+                            .frame(width: max(self.height, fraction * proxy.size.width))
                 }
             }
         }
         .frame(height: self.height)
     }
 
-    nonisolated static func fillFraction(_ percent: Double?) -> Double {
+    static func fillFraction(_ percent: Double?) -> Double {
         guard let percent else { return 0 }
         return min(1, max(0, percent / 100))
     }
@@ -385,6 +365,9 @@ struct HeroBlock: View {
     var isLow: Bool = false
     var color: Color = .secondary
     var numberSize: CGFloat = 34
+    /// Pushes the bar to the bottom of the available height so a column tile has no dead space
+    /// under the headline.
+    var spreads: Bool = false
     var compact: Bool = false
     var inlineQuotaTitle: String?
 
@@ -453,12 +436,15 @@ struct HeroBlock: View {
                     .minimumScaleFactor(0.75)
             }
             if let barPercent = self.barPercent {
+                if self.spreads {
+                    Spacer(minLength: 5)
+                }
                 QuotaBar(
                     percent: barPercent,
                     color: self.color,
                     isLow: self.isLow,
                     height: self.compact ? 6 : WidgetLayout.heroBarHeight)
-                    .padding(.top, self.compact ? 2 : 5)
+                    .padding(.top, self.spreads ? 0 : self.compact ? 2 : 5)
             }
         }
     }
@@ -522,27 +508,22 @@ struct TileHeader: View {
     var size: WidgetTileSize = .medium
 
     var body: some View {
-        HStack(spacing: 7) {
-            if let provider = self.provider.firstPartyProvider {
-                ProviderMark(
-                    provider: provider,
-                    isSelected: true,
-                    size: self.size == .small ? WidgetLayout.markSizeSmall : WidgetLayout.markSizeRegular)
-            }
-            // Small tiles stack freshness under the name, beside the mark, which leaves room for the
-            // quota lanes below the headline.
-            VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 7) {
+                if let provider = self.provider.firstPartyProvider {
+                    ProviderMark(provider: provider, isSelected: true, size: WidgetLayout.markSizeSmall)
+                }
                 Text(self.displayName)
                     .font(.subheadline.weight(.semibold))
-                    .lineLimit(self.size == .small ? 1 : 2)
-                    .minimumScaleFactor(self.size == .small ? 0.7 : 0.85)
-                if self.size == .small {
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                    .layoutPriority(1)
+                Spacer(minLength: 0)
+                if self.size != .small {
                     FreshnessLabel(updatedAt: self.updatedAt)
                 }
             }
-            .layoutPriority(1)
-            Spacer(minLength: 0)
-            if self.size != .small {
+            if self.size == .small {
                 FreshnessLabel(updatedAt: self.updatedAt)
             }
         }

@@ -309,7 +309,7 @@ struct AccountsOverviewTile: View {
             if self.family == .systemLarge, remaining != nil {
                 QuotaBar(
                     percent: displayed,
-                    color: WidgetInk.data,
+                    color: WidgetColors.color(for: self.entry.provider.instanceID),
                     isLow: QuotaSeverity.isLow(remaining: remaining),
                     height: 3)
             }
