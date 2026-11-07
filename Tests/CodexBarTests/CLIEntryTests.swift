@@ -237,8 +237,8 @@ final class CLIEntryTests: XCTestCase {
         XCTAssertEqual(CodexBarCLI._decodeFormatForTesting(from: textDefault), .text)
     }
 
-    func test_providerSelectionPrefersOverride() {
-        let selection = CodexBarCLI.providerSelection(rawOverride: "codex", enabled: [.claude, .gemini])
+    func test_providerSelectionPrefersOverride() throws {
+        let selection = try CodexBarCLI.providerSelection(rawOverride: "codex", enabled: [.claude, .gemini])
         XCTAssertEqual(selection.asList, [.codex])
     }
 
@@ -526,8 +526,8 @@ final class CLIEntryTests: XCTestCase {
         XCTAssertFalse(payload.message.contains("Codex not running"))
     }
 
-    func test_providerSelectionFallsBackToBothForPrimaryPair() {
-        let selection = CodexBarCLI.providerSelection(rawOverride: nil, enabled: [.codex, .claude])
+    func test_providerSelectionFallsBackToBothForPrimaryPair() throws {
+        let selection = try CodexBarCLI.providerSelection(rawOverride: nil, enabled: [.codex, .claude])
         switch selection {
         case .both:
             break
@@ -536,8 +536,8 @@ final class CLIEntryTests: XCTestCase {
         }
     }
 
-    func test_providerSelectionFallsBackToCustomWhenNonPrimary() {
-        let selection = CodexBarCLI.providerSelection(rawOverride: nil, enabled: [.codex, .gemini])
+    func test_providerSelectionFallsBackToCustomWhenNonPrimary() throws {
+        let selection = try CodexBarCLI.providerSelection(rawOverride: nil, enabled: [.codex, .gemini])
         switch selection {
         case let .custom(providers):
             XCTAssertEqual(providers, [.codex, .gemini])
@@ -546,8 +546,8 @@ final class CLIEntryTests: XCTestCase {
         }
     }
 
-    func test_providerSelectionHonorsEmptyEnabledSet() {
-        let selection = CodexBarCLI.providerSelection(rawOverride: nil, enabled: [])
+    func test_providerSelectionHonorsEmptyEnabledSet() throws {
+        let selection = try CodexBarCLI.providerSelection(rawOverride: nil, enabled: [])
         switch selection {
         case let .custom(providers):
             XCTAssertEqual(providers, [])
