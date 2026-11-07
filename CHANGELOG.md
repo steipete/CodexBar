@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Share card: lead with one hero figure, rank model families beside their provider marks on neutral surfaces, and export in the app's current light or dark appearance (#4888).
+
 ## 0.84.0 — 2026-11-06
 
 ### Highlights

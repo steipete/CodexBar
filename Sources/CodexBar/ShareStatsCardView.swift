@@ -1,171 +1,235 @@
+import CodexBarCore
 import SwiftUI
 
 struct ShareStatsCardView: View {
     static let size = CGSize(width: 1200, height: 630)
 
     let payload: ShareStatsPayload
+    @Environment(\.colorScheme) private var colorScheme
 
     static func providerDisplayLimit(for providerCount: Int) -> Int {
         providerCount > 5 ? 4 : min(providerCount, 5)
     }
 
-    static func providerPaletteIndex(
-        for model: ShareStatsModelPayload,
-        providers: [ShareStatsProviderPayload]) -> Int?
-    {
-        providers.firstIndex { $0.provider == model.provider }
+    /// "Cursor Pro" already names its provider; "Max" needs "Claude" in front of it.
+    static func rollCallName(_ provider: ShareStatsProviderPayload) -> String {
+        guard let plan = provider.subscriptionName else { return provider.providerName }
+        if plan.localizedCaseInsensitiveContains(provider.providerName) {
+            return plan
+        }
+        return "\(provider.providerName) \(plan)"
     }
 
-    private let background = Color(red: 0.078, green: 0.067, blue: 0.063)
-    private let primary = Color(red: 0.96, green: 0.94, blue: 0.91)
-    private let secondary = Color(red: 0.70, green: 0.66, blue: 0.62)
-    private let accent = Color(red: 0.93, green: 0.56, blue: 0.36)
+    enum Hero: Equatable {
+        case spend(ShareStatsCurrencyPayload)
+        case tokens
+    }
+
+    /// Spend leads only when it is one complete figure; a partial or multi-currency total would
+    /// overstate what the snapshot knows, so tokens lead instead.
+    static func hero(for payload: ShareStatsPayload) -> Hero {
+        guard payload.currencies.count == 1,
+              let currency = payload.currencies.first,
+              let cost = currency.estimatedCost, cost.isFinite, cost > 0,
+              !currency.isPartial,
+              currency.coveredDayCount >= payload.days || ShareStatsFormatting.isAllTime(payload)
+        else { return .tokens }
+        return .spend(currency)
+    }
+
+    /// One hero, one ranked list. Four type sizes: hero, value, body, label.
+    private enum Scale {
+        static let hero: CGFloat = 124
+        static let value: CGFloat = 28
+        static let body: CGFloat = 20
+        static let label: CGFloat = 15
+    }
+
+    private var theme: ShareStatsTheme {
+        ShareStatsTheme(colorScheme: self.colorScheme)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             self.header
-            self.hero
-                .padding(.top, 16)
-            Rectangle()
-                .fill(self.secondary.opacity(0.22))
-                .frame(height: 1)
-                .padding(.vertical, 17)
-            self.rankings
-                .frame(height: 286, alignment: .top)
-            Spacer(minLength: 10)
+            HStack(alignment: .top, spacing: 64) {
+                self.summary
+                    .frame(width: 500, alignment: .topLeading)
+                self.topModels
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+            .padding(.top, 30)
+            Spacer(minLength: 12)
             self.footer
         }
-        .padding(.horizontal, 52)
-        .padding(.vertical, 34)
+        .padding(.horizontal, 56)
+        .padding(.vertical, 40)
         .frame(width: Self.size.width, height: Self.size.height, alignment: .topLeading)
-        .background(self.background)
-        .foregroundStyle(self.primary)
-        .environment(\.colorScheme, .dark)
+        .background(self.theme.surface)
+        .foregroundStyle(self.theme.ink)
     }
 
     private var header: some View {
-        HStack(alignment: .center) {
-            HStack(spacing: 14) {
-                ShareStatsMark(accent: self.accent)
-                    .frame(width: 34, height: 34)
-                Text("CodexBar")
-                    .font(.system(size: 26, weight: .semibold, design: .rounded))
-            }
-            Spacer()
-            Text(L("LOCAL SNAPSHOT"))
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
-                .tracking(1.8)
-                .foregroundStyle(self.secondary)
-                .padding(.horizontal, 15)
-                .padding(.vertical, 9)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(self.secondary.opacity(0.45), lineWidth: 1)
-                }
+        HStack(spacing: 12) {
+            ShareStatsMark(color: self.theme.ink)
+                .frame(width: 26, height: 26)
+            Text("CodexBar")
+                .font(.system(size: Scale.body, weight: .semibold))
         }
     }
 
-    private var hero: some View {
-        HStack(alignment: .bottom, spacing: 52) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(L("TRACKED TOKENS · %@", String(describing: self.periodLabel)))
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
-                    .tracking(1.8)
-                    .foregroundStyle(self.secondary)
+    // MARK: Summary
+
+    private var summary: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            self.label(self.heroLabel)
+            Text(self.heroValue)
+                .font(.system(size: Scale.hero, weight: .semibold))
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.55)
+                .padding(.top, -4)
+            self.secondary
+                .padding(.top, 8)
+            Spacer(minLength: 18)
+            self.providerRow
+        }
+        .frame(height: 384, alignment: .topLeading)
+    }
+
+    @ViewBuilder
+    private var secondary: some View {
+        switch Self.hero(for: self.payload) {
+        case .spend:
+            VStack(alignment: .leading, spacing: 4) {
+                self.label(L("TRACKED TOKENS · %@", String(describing: self.periodLabel)))
                 Text(self.trackedTokensText)
-                    .font(.system(size: 104, weight: .semibold, design: .rounded))
+                    .font(.system(size: Scale.value, weight: .semibold))
                     .monospacedDigit()
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            VStack(alignment: .leading, spacing: 9) {
-                Text(L("EST. %@", String(describing: self.spendLabel)))
-                    .font(.system(size: 18, weight: .semibold, design: .rounded))
-                    .tracking(1.2)
-                    .foregroundStyle(self.secondary)
-                ForEach(self.payload.currencies.prefix(2)) { currency in
-                    HStack(alignment: .firstTextBaseline) {
-                        Text("\(currency.currencyCode) · \(currency.coveredDayCount)/\(self.coverageDenominator)")
-                            .font(.system(size: 17, weight: .semibold, design: .rounded))
-                            .foregroundStyle(self.secondary)
-                        Spacer()
-                        Text(self.spendText(for: currency))
-                            .font(.system(size: 32, weight: .semibold, design: .rounded))
-                            .monospacedDigit()
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.72)
-                    }
-                }
-                Text(self.currencySummary)
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .foregroundStyle(self.secondary)
-            }
-            .frame(width: 390, alignment: .leading)
-        }
-        .frame(height: 132, alignment: .bottom)
-    }
-
-    private var currencySummary: String {
-        let hiddenCount = self.payload.currencies.count - min(self.payload.currencies.count, 2)
-        return hiddenCount > 0
-            ? L("+%d more currencies · see subscription rows", hiddenCount)
-            : ShareStatsFormatting.subscriptionSummary(count: self.payload.providers.count)
-            + L(" · native currencies kept separate")
-    }
-
-    private var rankings: some View {
-        HStack(alignment: .top, spacing: 46) {
-            VStack(alignment: .leading, spacing: 6) {
-                self.sectionHeader(L("SUBSCRIPTIONS"), detail: L("%d CONNECTED", self.payload.providers.count))
-                ForEach(
-                    Array(self.payload.providers.prefix(self.providerDisplayLimit).enumerated()),
-                    id: \.offset)
-                { index, provider in
-                    ShareStatsProviderRow(
-                        rank: index + 1,
-                        provider: provider,
-                        days: self.payload.days,
-                        color: ShareStatsPalette.color(at: index))
-                }
-                if self.payload.providers.count > self.providerDisplayLimit {
-                    Text(L(
-                        "+%@ more configured",
-                        String(describing: self.payload.providers.count - self.providerDisplayLimit)))
-                        .font(.system(size: 16, weight: .medium, design: .rounded))
-                        .foregroundStyle(self.secondary)
-                        .padding(.leading, 20)
-                }
-            }
-            .frame(width: 554, alignment: .topLeading)
-
-            VStack(alignment: .leading, spacing: 0) {
-                VStack(alignment: .leading, spacing: 6) {
-                    self.sectionHeader(L("TOP MODELS"), detail: self.payload.modelRankingDetail)
-                    if self.payload.topModels.isEmpty {
-                        Text(L("No model-level history in this local snapshot"))
-                            .font(.system(size: 18, weight: .medium, design: .rounded))
-                            .foregroundStyle(self.secondary)
-                            .padding(.top, 4)
-                    } else {
-                        ForEach(
-                            Array(self.payload.topModels.prefix(3).enumerated()),
-                            id: \.offset)
-                        { index, model in
-                            ShareStatsModelRow(
-                                rank: self.payload.hasPartialModels ? nil : index + 1,
-                                model: model,
-                                color: self.color(for: model))
+        case .tokens:
+            VStack(alignment: .leading, spacing: 4) {
+                self.label(L("EST. %@", String(describing: self.spendLabel)))
+                HStack(alignment: .firstTextBaseline, spacing: 18) {
+                    ForEach(self.payload.currencies.prefix(2)) { currency in
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(self.spendText(for: currency))
+                                .font(.system(size: Scale.value, weight: .semibold))
+                                .monospacedDigit()
+                                .lineLimit(1)
+                            if currency.coveredDayCount < self.payload.days, !self.isAllTime {
+                                self.label(L("%d/%dd", currency.coveredDayCount, self.payload.days))
+                            }
                         }
                     }
+                    if self.payload.currencies.count > 2 {
+                        self.label("+\(codexBarLocalizedInteger(self.payload.currencies.count - 2))")
+                    }
                 }
-                Text(L("Only aggregate usage, plan tier, and estimated spend are included."))
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .foregroundStyle(self.secondary)
-                    .padding(.top, 18)
             }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+    }
+
+    /// Each connected provider as its own logo chip with its name: identity by mark, never by a
+    /// coloured frame, and no overlap that would hide one logo behind another.
+    private var providerRow: some View {
+        let shown = Array(self.payload.providers.prefix(self.providerDisplayLimit))
+        let hidden = self.payload.providers.count - shown.count
+        return ViewThatFits(in: .horizontal) {
+            self.providerPills(shown, hidden: hidden, showsNames: true)
+            self.providerPills(shown, hidden: hidden, showsNames: false)
+        }
+    }
+
+    private func providerPills(
+        _ providers: [ShareStatsProviderPayload],
+        hidden: Int,
+        showsNames: Bool) -> some View
+    {
+        HStack(spacing: 18) {
+            ForEach(Array(providers.enumerated()), id: \.offset) { _, provider in
+                HStack(spacing: 10) {
+                    self.theme.chip(for: provider.provider, size: 36)
+                    if showsNames {
+                        Text(Self.rollCallName(provider))
+                            .font(.system(size: Scale.label + 2, weight: .medium))
+                            .foregroundStyle(self.theme.muted)
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
+                }
+            }
+            if hidden > 0 {
+                self.label(L("+%@ more configured", String(describing: hidden)))
+            }
+        }
+    }
+
+    // MARK: Top models
+
+    private var topModels: some View {
+        let models = Array(self.payload.topModels.prefix(4))
+        let shares = ShareStatsModelShares.make(self.payload)
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline) {
+                self.label(L("TOP MODELS"))
+                Spacer()
+                self.label(self.payload.modelRankingDetail)
+            }
+            .padding(.bottom, 10)
+            if models.isEmpty {
+                Text(L("No model-level history in this local snapshot"))
+                    .font(.system(size: Scale.body, weight: .medium))
+                    .foregroundStyle(self.theme.muted)
+                    .padding(.top, 4)
+            } else {
+                ForEach(Array(models.enumerated()), id: \.offset) { index, model in
+                    if index > 0 {
+                        Rectangle().fill(self.theme.keyline).frame(height: 1)
+                    }
+                    ShareStatsModelRow(
+                        rank: self.payload.hasPartialModels ? nil : index + 1,
+                        model: model,
+                        share: shares?[index],
+                        theme: self.theme,
+                        bodySize: Scale.body,
+                        valueSize: Scale.value,
+                        labelSize: Scale.label)
+                }
+            }
+        }
+    }
+
+    private var footer: some View {
+        HStack(spacing: 12) {
+            Label(L("LOCAL · AGGREGATE ONLY"), systemImage: "lock.shield")
+            Spacer()
+            Text(L("DATA THROUGH %@", String(describing: ShareStatsFormatting.dataThrough(self.payload).uppercased())))
+        }
+        .font(.system(size: Scale.label, weight: .medium))
+        .tracking(0.7)
+        .foregroundStyle(self.theme.muted)
+    }
+
+    private func label(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: Scale.label, weight: .semibold))
+            .tracking(1.2)
+            .foregroundStyle(self.theme.muted)
+            .lineLimit(1)
+    }
+
+    private var heroLabel: String {
+        switch Self.hero(for: self.payload) {
+        case .spend: L("EST. %@", String(describing: self.spendLabel))
+        case .tokens: L("TRACKED TOKENS · %@", String(describing: self.periodLabel))
+        }
+    }
+
+    private var heroValue: String {
+        switch Self.hero(for: self.payload) {
+        case let .spend(currency): self.spendText(for: currency)
+        case .tokens: self.trackedTokensText
         }
     }
 
@@ -191,183 +255,188 @@ struct ShareStatsCardView: View {
         return self.payload.hasPartialTokens ? "~\(formatted)" : formatted
     }
 
-    private var coverageDenominator: String {
-        self.isAllTime ? L("all") : L("%dd", self.payload.days)
-    }
-
     private func spendText(for currency: ShareStatsCurrencyPayload) -> String {
         guard let cost = currency.estimatedCost else { return L("Unavailable") }
         let formatted = ShareStatsFormatting.currency(cost, code: currency.currencyCode)
         return currency.isPartial ? "~\(formatted)" : formatted
     }
+}
 
-    private func color(for model: ShareStatsModelPayload) -> Color {
-        guard let index = Self.providerPaletteIndex(for: model, providers: self.payload.providers) else {
-            return self.secondary
+/// Neutral share-card tokens: paper white or neutral graphite, never a warm black.
+/// Colour on the card comes only from provider marks.
+struct ShareStatsTheme {
+    let surface: Color
+    let plate: Color
+    let keyline: Color
+    let ink: Color
+    let muted: Color
+
+    init(colorScheme: ColorScheme) {
+        if colorScheme == .dark {
+            self.surface = Self.gray(0x17)
+            self.plate = Self.gray(0x23)
+            self.keyline = Self.gray(0x30)
+            self.ink = Self.gray(0xED)
+            self.muted = Self.gray(0xA6)
+        } else {
+            self.surface = Self.gray(0xFF)
+            self.plate = Color(red: 0xF4 / 255, green: 0xF4 / 255, blue: 0xF2 / 255)
+            self.keyline = Color(red: 0xE9 / 255, green: 0xE9 / 255, blue: 0xE6 / 255)
+            self.ink = Self.gray(0x11)
+            self.muted = Color(red: 0x6E / 255, green: 0x6E / 255, blue: 0x6B / 255)
         }
-        return ShareStatsPalette.color(at: index)
     }
 
-    private func sectionHeader(_ title: String, detail: String) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(title)
-                .font(.system(size: 18, weight: .semibold, design: .rounded))
-                .tracking(1.5)
-            Spacer()
-            Text(detail)
-                .font(.system(size: 16, weight: .semibold, design: .rounded))
-                .tracking(1.0)
-        }
-        .foregroundStyle(self.secondary)
+    /// The shared provider mark in this card's fixed tokens, so the export never depends on system colours.
+    func chip(for provider: UsageProvider, size: CGFloat) -> ProviderMarkChip {
+        ProviderMarkChip(
+            provider: provider,
+            size: size,
+            plate: self.plate,
+            keyline: self.keyline,
+            keylineWidth: 1,
+            ink: self.ink)
     }
 
-    private var footer: some View {
-        HStack(spacing: 12) {
-            Label(L("LOCAL · AGGREGATE ONLY"), systemImage: "lock.shield")
-            Spacer()
-            Text(L("DATA THROUGH %@", String(describing: ShareStatsFormatting.dataThrough(self.payload).uppercased())))
-        }
-        .font(.system(size: 14, weight: .medium, design: .rounded))
-        .tracking(0.7)
-        .foregroundStyle(self.secondary)
+    private static func gray(_ value: Int) -> Color {
+        Color(white: Double(value) / 255)
     }
 }
 
-private struct ShareStatsModelRow: View {
-    let rank: Int?
-    let model: ShareStatsModelPayload
-    let color: Color
-
-    var body: some View {
-        HStack(spacing: 9) {
-            Capsule()
-                .fill(self.color)
-                .frame(width: 5, height: 34)
-            Text(self.rank.map { String(format: "%02d", $0) } ?? "·")
-                .font(.system(size: 17, weight: .bold, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(Color(red: 0.70, green: 0.66, blue: 0.62))
-                .frame(width: 27, alignment: .leading)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(self.model.modelName)
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
-                Text(self.model.providerName)
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .foregroundStyle(Color(red: 0.70, green: 0.66, blue: 0.62))
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 10)
-            Text(self.detail)
-                .font(.system(size: 17, weight: .medium, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(Color(red: 0.78, green: 0.74, blue: 0.69))
-                .lineLimit(1)
-        }
-        .padding(.horizontal, 9)
-        .frame(height: 48)
-        .background(Color.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 9))
-        .overlay {
-            RoundedRectangle(cornerRadius: 9)
-                .stroke(Color.white.opacity(0.10), lineWidth: 1)
-        }
+/// Each model family's share of all ranked families' tokens, in `topModels` order.
+///
+/// The denominator is every family in the payload, not the rows the card has room for. Shares are
+/// withheld when the ranking is partial or a family has no token count: a percentage of an
+/// unknown whole would overstate what the snapshot knows.
+enum ShareStatsModelShares {
+    static func make(_ payload: ShareStatsPayload) -> [Double]? {
+        guard !payload.hasPartialModels, !payload.topModels.isEmpty else { return nil }
+        let tokens = payload.topModels.compactMap(\.totalTokens)
+        guard tokens.count == payload.topModels.count else { return nil }
+        let total = tokens.reduce(0.0) { $0 + Double(max($1, 0)) }
+        guard total > 0, total.isFinite else { return nil }
+        return tokens.map { Double(max($0, 0)) / total }
     }
 
-    private var detail: String {
+    static func text(_ share: Double) -> String {
+        share.formatted(FloatingPointFormatStyle<Double>.Percent()
+            .precision(.fractionLength(share > 0 && share < 0.01 ? 1 : 0))
+            .locale(codexBarLocalizedResourceLocale()))
+    }
+}
+
+struct ShareStatsModelRow: View {
+    let rank: Int?
+    let model: ShareStatsModelPayload
+    let share: Double?
+    let theme: ShareStatsTheme
+    let bodySize: CGFloat
+    let valueSize: CGFloat
+    let labelSize: CGFloat
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 14) {
+            Text(self.rank.map(ShareStatsModelRow.rankText) ?? "·")
+                .font(.system(size: self.labelSize, weight: .semibold))
+                .monospacedDigit()
+                .foregroundStyle(self.theme.muted)
+                .frame(width: 22, alignment: .leading)
+            self.theme.chip(for: self.model.provider, size: 40)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(self.model.modelName)
+                        .font(.system(size: self.bodySize, weight: .semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    // A family named after its provider ("Claude" by Claude) would only repeat itself.
+                    if self.model.providerName.localizedCaseInsensitiveCompare(self.model.modelName) != .orderedSame {
+                        Text(self.model.providerName)
+                            .font(.system(size: self.labelSize, weight: .medium))
+                            .foregroundStyle(self.theme.muted)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 12)
+                    Text(self.primaryValue)
+                        .font(.system(
+                            size: self.share == nil ? self.bodySize : self.valueSize,
+                            weight: .semibold))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                }
+                if let share {
+                    HStack(spacing: 10) {
+                        ShareStatsShareBar(share: share, theme: self.theme)
+                        if let tokens = self.model.totalTokens {
+                            Text(ShareStatsFormatting.compactCount(tokens))
+                                .font(.system(size: self.labelSize, weight: .medium))
+                                .monospacedDigit()
+                                .foregroundStyle(self.theme.muted)
+                                .frame(width: 64, alignment: .trailing)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 9)
+    }
+
+    /// Two-digit rank ("01") in the card's locale digits.
+    nonisolated static func rankText(_ rank: Int) -> String {
+        rank.formatted(IntegerFormatStyle<Int>()
+            .precision(.integerLength(2))
+            .grouping(.never)
+            .locale(codexBarLocalizedResourceLocale()))
+    }
+
+    /// The share leads when the card knows the whole; otherwise the row's own amount does.
+    private var primaryValue: String {
+        if let share = self.share {
+            return ShareStatsModelShares.text(share)
+        }
+        return self.amount ?? L("used")
+    }
+
+    private var amount: String? {
         if let cost = self.model.estimatedCost, cost.isFinite {
             return "~\(ShareStatsFormatting.currency(cost, code: self.model.currencyCode))"
         }
-        return self.model.totalTokens.map(ShareStatsFormatting.compactCount) ?? L("used")
+        return self.model.totalTokens.map(ShareStatsFormatting.compactCount)
     }
 }
 
-private struct ShareStatsProviderRow: View {
-    let rank: Int
-    let provider: ShareStatsProviderPayload
-    let days: Int
-    let color: Color
+/// Share of the whole in ink. Provider colour stays in the mark beside it.
+struct ShareStatsShareBar: View {
+    let share: Double
+    let theme: ShareStatsTheme
 
     var body: some View {
-        HStack(spacing: 9) {
-            Capsule()
-                .fill(self.color)
-                .frame(width: 6, height: 30)
-            Text(String(format: "%02d", self.rank))
-                .font(.system(size: 17, weight: .bold, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(Color(red: 0.70, green: 0.66, blue: 0.62))
-                .frame(width: 27, alignment: .leading)
-            HStack(spacing: 8) {
-                Text(self.provider.providerName)
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
-                if let subscriptionName = self.provider.subscriptionName {
-                    Text("· \(subscriptionName)")
-                        .font(.system(size: 17, weight: .medium, design: .rounded))
-                        .foregroundStyle(Color(red: 0.70, green: 0.66, blue: 0.62))
-                        .lineLimit(1)
-                }
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule().fill(self.theme.keyline)
+                Capsule()
+                    .fill(self.theme.ink.opacity(0.85))
+                    .frame(width: Self.fillWidth(share: self.share, trackWidth: proxy.size.width))
             }
-            Spacer(minLength: 12)
-            Text(self.detail)
-                .font(.system(size: 18, weight: .medium, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(Color(red: 0.78, green: 0.74, blue: 0.69))
-                .lineLimit(1)
-                .minimumScaleFactor(0.82)
         }
-        .padding(.horizontal, 9)
-        .frame(height: 44)
-        .background(Color.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 9))
-        .overlay {
-            RoundedRectangle(cornerRadius: 9)
-                .stroke(Color.white.opacity(0.10), lineWidth: 1)
-        }
+        .frame(height: 5)
     }
 
-    private var detail: String {
-        var metrics: [String] = []
-        if let tokens = self.provider.totalTokens {
-            metrics.append(ShareStatsFormatting.compactCount(tokens))
-        }
-        if let cost = self.provider.estimatedCost, cost.isFinite {
-            metrics.append("~\(ShareStatsFormatting.currency(cost, code: self.provider.currencyCode))")
-            if self.provider.coveredDayCount < self.days {
-                metrics.append(L("%d/%dd", self.provider.coveredDayCount, self.days))
-            }
-        } else {
-            metrics.append(L("Spend unavailable"))
-        }
-        return metrics.isEmpty ? L("connected") : metrics.joined(separator: " · ")
-    }
-}
-
-private enum ShareStatsPalette {
-    static let colors = [
-        Color(red: 1.00, green: 0.60, blue: 0.38),
-        Color(red: 0.60, green: 0.66, blue: 1.00),
-        Color(red: 0.38, green: 0.84, blue: 0.72),
-        Color(red: 0.95, green: 0.79, blue: 0.41),
-        Color(red: 0.44, green: 0.77, blue: 0.96),
-        Color(red: 0.95, green: 0.55, blue: 0.67),
-    ]
-
-    static func color(at index: Int) -> Color {
-        self.colors[index % self.colors.count]
+    /// A visible sliver keeps tiny shares legible; a zero share draws no fill at all.
+    nonisolated static func fillWidth(share: Double, trackWidth: CGFloat) -> CGFloat {
+        guard share > 0 else { return 0 }
+        return max(trackWidth * min(share, 1), 4)
     }
 }
 
 private struct ShareStatsMark: View {
-    let accent: Color
+    let color: Color
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 4) {
             ForEach(Array([0.38, 0.68, 1.0].enumerated()), id: \.offset) { _, height in
                 Capsule()
-                    .fill(self.accent)
-                    .frame(width: 5, height: 28 * height)
+                    .fill(self.color)
+                    .frame(width: 5, height: 26 * height)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)

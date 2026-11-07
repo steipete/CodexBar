@@ -3,9 +3,16 @@ import SwiftUI
 
 @MainActor
 enum ShareStatsRenderer {
-    static func pngData(for payload: ShareStatsPayload) -> Data? {
+    /// Renders in the app's current appearance unless one is given, so the exported card matches the
+    /// preview the user just looked at.
+    static func pngData(for payload: ShareStatsPayload, appearance: NSAppearance? = nil) -> Data? {
         let size = ShareStatsCardView.size
-        let view = NSHostingView(rootView: ShareStatsCardView(payload: payload).codexBarLocalized())
+        let resolved = appearance ?? NSApp?.effectiveAppearance ?? NSAppearance(named: .aqua)
+        let isDark = resolved?.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        let view = NSHostingView(rootView: ShareStatsCardView(payload: payload)
+            .environment(\.colorScheme, isDark ? .dark : .light)
+            .codexBarLocalized())
+        view.appearance = resolved
         view.frame = CGRect(origin: .zero, size: size)
         view.layoutSubtreeIfNeeded()
 
