@@ -2821,3 +2821,4 @@
 "Tripo is rate limiting requests. Try again later." = "Tripo กำลังจำกัดความถี่ของคำขอ ลองอีกครั้งในภายหลัง";
 "Tripo request failed. Try refreshing later." = "คำขอ Tripo ล้มเหลว ลองรีเฟรชอีกครั้งในภายหลัง";
 "Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo ส่งการตอบกลับที่ไม่รู้จัก โปรดอัปเดต CodexBar แล้วลองอีกครั้ง";
+"Mistral session expired or invalid." = "เซสชัน Mistral หมดอายุหรือไม่ถูกต้อง";
