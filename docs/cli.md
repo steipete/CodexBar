@@ -69,6 +69,29 @@ describe fetching, not authentication methods, and cookie support can be optiona
 not declared by the descriptor are not enumerated. User-plugin entries currently omit this metadata. Listing it
 does not read credentials, launch login flows, import cookies, or contact providers; `enabled` keeps its existing meaning.
 
+`setup` separately describes provider-owned setup routes. Copilot declares device login and token routes,
+OpenAI API distinguishes Admin access from legacy balance access, and Azure OpenAI requires a key, endpoint,
+and deployment. Other providers and user plugins report `status: "unknown"`, which means guidance has not
+been declared, not that credentials are unnecessary or unsupported. Existing `authentication` fields stay unchanged.
+
+Routes are alternatives; all `requiredInputs` in one route are required together. Each input lists alternative
+config fields and environment variable names, never values or precedence. Config paths are relative to a provider
+entry; `tokenAccounts.accounts[].token` denotes a selected token account. `platforms` describes where the route
+works and is not filtered by the machine printing the inventory. Optional `command` describes an existing action;
+listing a route never executes it. An interactive route can obtain its credential during that action.
+
+`optionalCapabilities` describes enrichment, not requirements for primary usage. Copilot budgets require an explicit
+opt-in in the macOS app, a matching public GitHub browser account, and cookies; quota usage needs no cookies.
+OpenAI organization usage needs an Admin API key, whereas ordinary keys provide only best-effort legacy balance;
+configured project scoping suppresses that fallback. Azure refresh performs a potentially billable deployment
+validation, not a usage-history query. Hints describe these constraints; they are not readiness checks.
+
+For example, an undeclared provider returns:
+
+```json
+{"status":"unknown","routes":[],"optionalCapabilities":[]}
+```
+
 For Claude Platform setup or renewal, pipe a Console Cookie header containing `sessionKey` privately into
 `codexbar config login --provider claudeplatform --stdin --json` (`claude-platform` also works). It validates the
 candidate before replacing a saved cookie. See [validated session import](cli-configuration.md#claude-platform-session-import).
@@ -173,6 +196,16 @@ a second identifier is an error. For an option value beginning with a dash, use 
     Files are read and validated even for a short window; reducing `--days` does not skip older files.
   - Requires explicit `--provider codex` and JSON. Do not combine with `--summary-only`,
     `--period`, `--group-by` or `--breakdown`; the existing separate-host summary command is unchanged.
+- `codexbar cost --provider claude --identified-only --format json` exports native Claude request accounting;
+  repeat `--remote <host>` to deduplicate and price the union with one local pricing snapshot.
+  Claude uses schema 1; Codex and Pi use schema 2. Provider ledgers cannot be mixed.
+- `codexbar cost --provider pi --identified-only --format json` exports Pi/OMP tokens, with no price estimate.
+  Pi and OMP share session/entry identities; copied records count once.
+- Identified collection is manual and accepts at most 15 explicitly supplied SSH hosts. It retains at most
+  128 MiB of encoded source ledgers, in addition to the existing 32 MiB per-source limit. Exceeding the
+  aggregate limit rejects that source, preserves earlier sources, marks the result partial and exits nonzero.
+  No remote host is discovered or contacted by ordinary refreshes. See [Claude](claude.md#identified-request-history)
+  and [Pi](pi.md#identified-token-history-over-ssh) for their accounting contracts.
 - `codexbar cards` prints a one-shot usage snapshot as a responsive terminal card grid.
   - Reuses the same provider, source, account, credits, and status flags as `codexbar usage`.
   - Account lines and plan badges are included in the card grid by default.

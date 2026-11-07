@@ -116,16 +116,12 @@ extension CostUsageScanner {
         startOffset: Int64 = 0,
         pricingResolver: CostUsagePricing.ClaudeResolver,
         recordDay: ((String) -> Void)? = nil,
+        observation: ((ClaudeAccountingObservation) -> Void)? = nil,
+        retainRows: Bool = true,
+        scanIssue: (() -> Void)? = nil,
+        shouldStop: (() -> Bool)? = nil,
         checkCancellation: CancellationCheck? = nil) throws -> ClaudeParseResult
     {
-        func toInt(_ v: Any?) -> Int {
-            (v as? NSNumber)?.intValue ?? 0
-        }
-
-        func toBool(_ value: Any?) -> Bool {
-            (value as? Bool) ?? (value as? NSNumber)?.boolValue ?? false
-        }
-
         let rowStrings = CostUsageRowStringPool()
         let pathRole = Self.claudePathRole(fileURL: fileURL)
         var keyedRows: [ClaudeRowKey: ClaudeUsageRow] = [:]
@@ -137,71 +133,64 @@ extension CostUsageScanner {
         let costScale = 1_000_000_000.0
 
         let parsedBytes: Int64
+        var didValidateTail = false
+        var decodedTail: (observation: ClaudeAccountingObservation?, ordinaryCompatible: Bool)?
         do {
-            parsedBytes = try CostUsageJsonl.scan(
+            let progress = try CostUsageJsonl.scanBounded(
                 fileURL: fileURL,
                 offset: startOffset,
                 maxLineBytes: maxLineBytes,
                 prefixBytes: prefixBytes,
+                maxBytesToRead: nil,
+                resumeState: nil,
+                shouldStop: { _ in shouldStop?() == true },
                 checkCancellation: checkCancellation,
+                tailValidator: { data in
+                    didValidateTail = true
+                    decodedTail = try Self.decodeClaudeAccounting(
+                        data,
+                        providerFilter: providerFilter,
+                        scanMetadata: true,
+                        calendar: range.calendar,
+                        checkCancellation: { try checkCancellation?() })
+                    return decodedTail?.ordinaryCompatible == true
+                },
                 onLine: { line in
                     guard !line.bytes.isEmpty else { return }
-                    guard !line.wasTruncated else { return }
-                    guard line.bytes.containsAscii(#""type":"assistant""#) else { return }
-                    guard line.bytes.containsAscii(#""usage""#) else { return }
+                    guard !line.wasTruncated else { scanIssue?(); return }
                     let couldContainMetadata = providerFilter != .all && Self.couldContainVertexAIMetadata(line.bytes)
-                    if providerFilter == .vertexAIOnly, !couldContainMetadata,
-                       !line.bytes.containsAscii("@"), !line.bytes.containsAscii("_vrtx_")
-                    { return }
-
-                    autoreleasepool {
-                        #if DEBUG
-                        recordClaudeScanWork(.claudeLineDecode)
-                        #endif
-                        guard
-                            let obj = try? ClaudeJSONObject.decode(line.bytes),
-                            let type = obj["type"] as? String,
-                            type == "assistant"
-                        else { return }
-                        let message = obj.dictionary("message")
-                        if providerFilter != .all {
-                            let isVertex = Self.isVertexAIUsageEntry(
-                                obj: obj, message: message, scanMetadata: couldContainMetadata)
-                            if isVertex != (providerFilter == .vertexAIOnly) { return }
-                        }
-
-                        guard let tsText = obj["timestamp"] as? String,
-                              let parsedTimestamp = Self.claudeTimestampAndDayKey(tsText, calendar: range.calendar)
-                        else { return }
+                    let ordinaryCandidate = retainRows && line.bytes.containsAscii(#""type":"assistant""#)
+                        && line.bytes.containsAscii(#""usage""#)
+                        && (providerFilter != .vertexAIOnly || couldContainMetadata
+                            || line.bytes.containsAscii("@") || line.bytes.containsAscii("_vrtx_"))
+                    guard observation != nil || ordinaryCandidate else { return }
+                    try autoreleasepool {
+                        let decoded = didValidateTail ? decodedTail : try Self.decodeClaudeAccounting(
+                            line.bytes,
+                            providerFilter: providerFilter,
+                            scanMetadata: observation != nil || couldContainMetadata,
+                            calendar: range.calendar,
+                            checkCancellation: { try checkCancellation?() })
+                        if decoded == nil { scanIssue?() }
+                        guard let accounting = decoded?.observation else { return }
+                        observation?(accounting)
+                        guard ordinaryCandidate, let parsedTimestamp = accounting.timestamp else { return }
+                        recordDay?(parsedTimestamp.dayKey)
+                        guard CostUsageDayRange.isInRange(
+                            dayKey: parsedTimestamp.dayKey, since: range.scanSinceKey, until: range.scanUntilKey),
+                            let model = accounting.model, let counts = accounting.ordinary,
+                            counts.total != 0 else { return }
                         let timestamp = parsedTimestamp.date
                         let dayKey = parsedTimestamp.dayKey
-                        recordDay?(dayKey)
-                        guard CostUsageDayRange.isInRange(
-                            dayKey: dayKey,
-                            since: range.scanSinceKey,
-                            until: range.scanUntilKey)
-                        else { return }
-
-                        guard let message else { return }
-                        guard let model = message["model"] as? String else { return }
-                        guard let usage = message.dictionary("usage") else { return }
-
-                        let input = max(0, toInt(usage["input_tokens"]))
-                        let cacheCreate = max(0, toInt(usage["cache_creation_input_tokens"]))
-                        let cacheRead = max(0, toInt(usage["cache_read_input_tokens"]))
-                        let output = max(0, toInt(usage["output_tokens"]))
-                        if input == 0, cacheCreate == 0, cacheRead == 0, output == 0 {
-                            return
-                        }
-                        let cacheCreate1h = Self.claudeOneHourCacheCreationTokens(
-                            usage: usage,
-                            total: cacheCreate)
+                        let input = counts.input
+                        let cacheRead = counts.cacheRead
+                        let cacheCreate = counts.cacheCreation
+                        let cacheCreate1h = counts.cacheCreation1h
+                        let output = counts.output
 
                         // Proxies may put a local, cache-unaware estimate in message_start.
                         // Missing stop_reason alone is not evidence of incomplete legacy usage.
-                        let isIncomplete = message["stop_reason"] is NSNull && input > 0 && output == 0
-                            && usage["cache_read_input_tokens"] == nil
-                            && usage["cache_creation_input_tokens"] == nil
+                        let isIncomplete = accounting.preliminary
                         #if DEBUG
                         if !isIncomplete { recordClaudeScanWork(.claudeCostCalculation) }
                         #endif
@@ -215,21 +204,16 @@ extension CostUsageScanner {
                             pricingDate: timestamp)
                         let costNanos = cost.flatMap { Int(exactly: ($0 * costScale).rounded()) }
 
-                        let messageId = message["id"] as? String
-                        let requestId = obj["requestId"] as? String ?? obj["request_id"] as? String
-                        let sessionId = obj["sessionId"] as? String
-                            ?? obj["session_id"] as? String
-                            ?? obj.dictionary("metadata")?["sessionId"] as? String
-                            ?? message.dictionary("metadata")?["sessionId"] as? String
+                        let identity = accounting.identity
                         let normalizedModel = pricingResolver.normalize(model)
                         let row = ClaudeUsageRow(
                             dayKey: dayKey,
                             model: rowStrings.intern(normalizedModel),
-                            sessionId: sessionId.map(rowStrings.intern),
-                            messageId: messageId,
-                            requestId: requestId,
+                            sessionId: identity.sessionID.map(rowStrings.intern),
+                            messageId: identity.messageID,
+                            requestId: identity.requestID,
                             timestampUnixMs: Int64((timestamp.timeIntervalSince1970 * 1000).rounded()),
-                            isSidechain: toBool(obj["isSidechain"]),
+                            isSidechain: accounting.isSidechain,
                             pathRole: pathRole,
                             input: input,
                             cacheRead: cacheRead,
@@ -250,9 +234,24 @@ extension CostUsageScanner {
                         }
                     }
                 })
+            if let observation, let tail = progress.resumeState {
+                scanIssue?()
+                if let data = tail.bufferedLine, shouldStop?() != true {
+                    try checkCancellation?()
+                    let decoded = didValidateTail ? decodedTail : try Self.decodeClaudeAccounting(
+                        data,
+                        providerFilter: providerFilter,
+                        scanMetadata: true,
+                        calendar: range.calendar,
+                        checkCancellation: { try checkCancellation?() })
+                    if let accounting = decoded?.observation { observation(accounting) }
+                }
+            }
+            parsedBytes = progress.committedOffset
         } catch is CancellationError {
             throw CancellationError()
         } catch {
+            scanIssue?()
             parsedBytes = startOffset
         }
 
@@ -260,10 +259,16 @@ extension CostUsageScanner {
         return ClaudeParseResult(rows: rows, parsedBytes: parsedBytes)
     }
 
-    private static func claudeOneHourCacheCreationTokens(usage: ClaudeJSONObject, total: Int) -> Int {
-        guard let cacheCreation = usage.dictionary("cache_creation") else { return 0 }
-        let tokens = (cacheCreation["ephemeral_1h_input_tokens"] as? NSNumber)?.intValue ?? 0
-        return min(total, max(0, tokens))
+    static func claudeUsageIdentity(
+        _ obj: ClaudeJSONObject,
+        message: ClaudeJSONObject?) -> (messageID: String?, requestID: String?, sessionID: String?)
+    {
+        (
+            message?["id"] as? String,
+            obj["requestId"] as? String ?? obj["request_id"] as? String,
+            obj["sessionId"] as? String ?? obj["session_id"] as? String
+                ?? obj.dictionary("metadata")?["sessionId"] as? String
+                ?? message?.dictionary("metadata")?["sessionId"] as? String)
     }
 
     private static func claudePathRole(fileURL: URL) -> ClaudePathRole {
@@ -477,7 +482,7 @@ extension CostUsageScanner {
         self.isVertexAIUsageEntry(obj: obj, message: obj.dictionary("message"))
     }
 
-    private static func isVertexAIUsageEntry(
+    static func isVertexAIUsageEntry(
         obj: ClaudeJSONObject,
         message: ClaudeJSONObject?,
         scanMetadata: Bool = true) -> Bool
@@ -664,52 +669,76 @@ extension CostUsageScanner {
         state.sourceDayBounds[sourceKey] = parsed.parsedBytes == stamp.size ? dayBounds : nil
     }
 
-    private static func inventoryClaudeRoots(
+    static func inventoryClaudeRoots(
         _ roots: [URL],
-        checkCancellation: CancellationCheck?) throws -> [String: CostUsageClaudeFileStamp]
+        checkCancellation: CancellationCheck?,
+        scanIssue: (() -> Void)? = nil,
+        readableRoot: (() -> Void)? = nil) throws -> [String: CostUsageClaudeFileStamp]
     {
         var inventory: [String: CostUsageClaudeFileStamp] = [:]
 
         for root in roots {
             try checkCancellation?()
-            let rootPath = root.path
-            let rootCandidates = Self.claudeRootCandidates(for: rootPath)
-            // A root that exists but cannot be inspected must fail the scan, not silently drop its sources.
-            guard let existingRootPath = try rootCandidates.first(where: { try Self.claudeRootExists(atPath: $0) })
-            else { continue }
-            let existingRoot = existingRootPath == rootPath ? root : URL(fileURLWithPath: existingRootPath)
-            if existingRoot.pathExtension == "jsonl",
-               let stamp = try CostUsageClaudeFileStamp.readIfPresent(at: existingRoot)
-            {
-                inventory[existingRoot.path] = stamp
-                continue
-            }
-            var enumerationError: Error?
-            guard let enumerator = FileManager.default.enumerator(
-                at: existingRoot.resolvingSymlinksInPath(),
-                includingPropertiesForKeys: nil,
-                options: [.skipsHiddenFiles, .skipsPackageDescendants],
-                errorHandler: { _, error in
-                    // Files removed mid-walk are ordinary churn; unreadable directories would undercount.
-                    if CostUsageClaudeFileStamp.isMissingFileError(error) { return true }
-                    enumerationError = error
-                    return false
-                })
-            else {
-                guard try Self.claudeRootExists(atPath: existingRootPath) else { continue }
-                throw NSError(
-                    domain: NSCocoaErrorDomain,
-                    code: NSFileReadUnknownError,
-                    userInfo: [NSFilePathErrorKey: existingRootPath])
-            }
+            do {
+                let rootPath = root.path
+                let rootCandidates = Self.claudeRootCandidates(for: rootPath)
+                // A root that exists but cannot be inspected must fail the scan, not silently drop its sources.
+                guard let existingRootPath = try rootCandidates.first(where: { try Self.claudeRootExists(atPath: $0) })
+                else { continue }
+                let existingRoot = existingRootPath == rootPath ? root : URL(fileURLWithPath: existingRootPath)
+                if readableRoot != nil, !FileManager.default.isReadableFile(atPath: existingRoot.path) {
+                    throw CocoaError(.fileReadNoPermission)
+                }
+                if existingRoot.pathExtension == "jsonl",
+                   let stamp = try CostUsageClaudeFileStamp.readIfPresent(at: existingRoot)
+                {
+                    readableRoot?()
+                    inventory[existingRoot.path] = stamp
+                    continue
+                }
+                var enumerationError: Error?
+                guard let enumerator = FileManager.default.enumerator(
+                    at: existingRoot.resolvingSymlinksInPath(),
+                    includingPropertiesForKeys: nil,
+                    options: [.skipsHiddenFiles, .skipsPackageDescendants],
+                    errorHandler: { _, error in
+                        // Files removed mid-walk are ordinary churn; unreadable directories would undercount.
+                        if CostUsageClaudeFileStamp.isMissingFileError(error) {
+                            scanIssue?()
+                            return true
+                        }
+                        enumerationError = error
+                        return false
+                    })
+                else {
+                    guard try Self.claudeRootExists(atPath: existingRootPath) else { continue }
+                    throw NSError(
+                        domain: NSCocoaErrorDomain,
+                        code: NSFileReadUnknownError,
+                        userInfo: [NSFilePathErrorKey: existingRootPath])
+                }
 
-            for case let url as URL in enumerator {
-                try checkCancellation?()
-                guard url.pathExtension.lowercased() == "jsonl" else { continue }
-                guard let stamp = try CostUsageClaudeFileStamp.readIfPresent(at: url), stamp.size > 0 else { continue }
-                inventory[url.path] = stamp
+                readableRoot?()
+                for case let url as URL in enumerator {
+                    try checkCancellation?()
+                    guard url.pathExtension.lowercased() == "jsonl" else { continue }
+                    do {
+                        guard let stamp = try CostUsageClaudeFileStamp.readIfPresent(at: url) else {
+                            scanIssue?()
+                            continue
+                        }
+                        guard stamp.size > 0 else { continue }
+                        inventory[url.path] = stamp
+                    } catch {
+                        guard let scanIssue else { throw error }
+                        scanIssue()
+                    }
+                }
+                if let enumerationError { throw enumerationError }
+            } catch is CancellationError { throw CancellationError() } catch {
+                guard let scanIssue else { throw error }
+                scanIssue()
             }
-            if let enumerationError { throw enumerationError }
         }
         return inventory
     }
@@ -887,7 +916,7 @@ extension CostUsageScanner {
             // Keep the window certificate even if pricing was replaced during this pass.
             // The earlier pricing stamp makes report reuse miss and reprice cached rows.
             reportKey.cacheArtifactStamp = finalCacheArtifactStamp
-            memo.store(
+            return memo.store(
                 provider: provider,
                 canonicalCachePath: canonicalCachePath,
                 sourceInventory: sourceInventory,

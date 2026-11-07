@@ -341,15 +341,11 @@ extension CodexBarCLI {
         var results = config.normalized().providers.map { providerConfig in
             let provider = providerConfig.id.firstPartyProvider
             let meta = provider.flatMap { metadata[$0] }
-            let defaultEnabled = meta?.defaultEnabled ?? false
             return ConfigProviderStatusResult(
-                provider: providerConfig.id.rawValue,
+                config: providerConfig,
+                descriptor: provider.map { ProviderDescriptorRegistry.descriptor(for: $0) },
                 displayName: meta?.displayName ?? UserProviderPluginRegistry.plugin(for: providerConfig.id)?
-                    .manifest.name ?? providerConfig.id.rawValue,
-                enabled: providerConfig.enabled ?? defaultEnabled,
-                defaultEnabled: defaultEnabled,
-                authentication: provider.map { ConfigProviderAuthenticationResult(
-                    descriptor: ProviderDescriptorRegistry.descriptor(for: $0)) })
+                    .manifest.name ?? providerConfig.id.rawValue)
         }
         for entry in config.unavailableProviders {
             results.insert(ConfigProviderStatusResult(
@@ -357,7 +353,8 @@ extension CodexBarCLI {
                 displayName: "plugin (not loaded)",
                 enabled: entry.enabled,
                 defaultEnabled: false,
-                authentication: nil), at: min(entry.index, results.count))
+                authentication: nil,
+                setup: .unknown), at: min(entry.index, results.count))
         }
         return results
     }
@@ -440,6 +437,19 @@ struct ConfigProviderStatusResult: Encodable, Equatable {
     let enabled: Bool
     let defaultEnabled: Bool
     let authentication: ConfigProviderAuthenticationResult?
+    let setup: ProviderSetup
+}
+
+extension ConfigProviderStatusResult {
+    init(config: ProviderConfig, descriptor: ProviderDescriptor?, displayName: String) {
+        self.init(
+            provider: config.id.rawValue,
+            displayName: displayName,
+            enabled: config.enabled ?? descriptor?.metadata.defaultEnabled ?? false,
+            defaultEnabled: descriptor?.metadata.defaultEnabled ?? false,
+            authentication: descriptor.map { ConfigProviderAuthenticationResult(descriptor: $0) },
+            setup: descriptor?.setup ?? .unknown)
+    }
 }
 
 struct ConfigProviderAuthenticationResult: Encodable, Equatable {
