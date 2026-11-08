@@ -953,16 +953,50 @@ struct CostHistoryChartMenuViewTests {
 
     @Test
     @MainActor
-    func `render fingerprint excludes projects hidden for non-codex providers`() {
+    func `render fingerprint excludes projects for providers without breakdowns`() {
         let first = Self.fingerprint(
             projects: [Self.makeProject(index: 0, sourceCount: 2)],
-            provider: .claude)
+            provider: .vertexai)
         let changed = Self.fingerprint(
             projects: [Self.makeProject(index: 0, sourceCount: 2, totalCostUSD: 99)],
-            provider: .claude)
+            provider: .vertexai)
 
         #expect(first.projects.isEmpty)
         #expect(first == changed)
+    }
+
+    @Test
+    @MainActor
+    func `claude render fingerprint includes projects and sessions`() {
+        func session(costUSD: Double) -> CostUsageSessionBreakdown {
+            CostUsageSessionBreakdown(
+                sessionID: "session-alpha-1",
+                lastActivity: Date(timeIntervalSince1970: 100),
+                inputTokens: 100,
+                cachedInputTokens: 0,
+                outputTokens: 10,
+                totalTokens: 110,
+                requestCount: 1,
+                costUSD: costUSD,
+                modelBreakdowns: [])
+        }
+        let base = Self.fingerprint(
+            projects: [Self.makeProject(index: 0, sourceCount: 1)],
+            sessions: [session(costUSD: 0.01)],
+            provider: .claude)
+
+        #expect(base.projects.count == 1)
+        #expect(base.sessions.count == 1)
+        #expect(base != Self.fingerprint(
+            projects: [Self.makeProject(index: 0, sourceCount: 1, totalCostUSD: 99)],
+            sessions: [session(costUSD: 0.01)],
+            provider: .claude))
+        #expect(base != Self.fingerprint(
+            projects: [Self.makeProject(index: 0, sourceCount: 1)],
+            sessions: [session(costUSD: 0.02)],
+            provider: .claude))
+        #expect(CostHistoryChartMenuView.showsProjectBreakdowns(provider: .claude))
+        #expect(!CostHistoryChartMenuView.showsProjectBreakdowns(provider: .vertexai))
     }
 
     @Test

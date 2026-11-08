@@ -854,6 +854,11 @@ struct CostHistoryChartMenuView: View {
         return [source]
     }
 
+    /// Provider-specific by design: only Codex and Claude transcripts attribute usage to projects and sessions.
+    nonisolated static func showsProjectBreakdowns(provider: UsageProvider) -> Bool {
+        provider == .codex || provider == .claude
+    }
+
     private static func defaultSelectedDateKey(model: Model) -> String? {
         model.dateKeys.last?.key
     }
@@ -1213,8 +1218,9 @@ extension CostHistoryChartMenuView {
         displayCurrencyCode: String? = nil,
         displayCostMultiplier: Double = 1.0) -> RenderFingerprint
     {
-        let projects = provider == .codex ? snapshot.projects : []
-        let sessions = provider == .codex ? snapshot.sessions : []
+        let showsBreakdowns = self.showsProjectBreakdowns(provider: provider)
+        let projects = showsBreakdowns ? snapshot.projects : []
+        let sessions = showsBreakdowns ? snapshot.sessions : []
         return RenderFingerprint(
             hidePersonalInfo: hidePersonalInfo,
             currencyCode: displayCurrencyCode ?? snapshot.currencyCode,

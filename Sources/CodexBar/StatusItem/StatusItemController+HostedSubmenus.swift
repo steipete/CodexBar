@@ -447,7 +447,7 @@ extension StatusItemController {
             historyDays: tokenSnapshot.displayHistoryDays(calendar: self.settings.costUsageBucketCalendar),
             historyCoverageIsEstablished: tokenSnapshot.historyCoverageIsEstablished,
             windowLabel: tokenSnapshot.historyLabel,
-            projects: provider == .codex ? tokenSnapshot.projects : [],
+            projects: CostHistoryChartMenuView.showsProjectBreakdowns(provider: provider) ? tokenSnapshot.projects : [],
             sessions: tokenSnapshot.sessions,
             hidePersonalInfo: self.settings.hidePersonalInfo,
             width: width,
