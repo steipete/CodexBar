@@ -2,9 +2,8 @@ import Foundation
 
 enum PiSessionCostCacheIO {
     /// Artifact schema version. Pricing changes are tracked separately by `pricingKey`.
-    /// v9 invalidates artifacts produced before stricter root and parser
-    /// provenance checks were introduced.
-    private static let artifactVersion = 9
+    /// v10 adds per-session project and title metadata, which requires one full reparse.
+    private static let artifactVersion = 10
 
     private static func defaultCacheRoot() -> URL {
         let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
@@ -55,11 +54,22 @@ struct PiSessionCostCache: Codable {
     var pricingKey: String?
     var sessionRootsFingerprint: String?
     var daysByProvider: [String: [String: [String: PiPackedUsage]]] = [:]
+    /// Deduped usage per session key; written only by the rebuild that writes `daysByProvider`.
+    var sessions: [String: PiSessionUsage] = [:]
     var files: [String: PiSessionFileUsage] = [:]
 
-    init(version: Int = 9) {
+    init(version: Int = 10) {
         self.version = version
     }
+}
+
+struct PiSessionUsage: Codable, Equatable {
+    var projectPath: String?
+    /// Pi `--…--` project folder name, kept only when the header has no usable `cwd`.
+    var projectSlug: String?
+    var title: String?
+    var lastActivityUnixMs: Int64
+    var contributions: [String: [String: [String: PiPackedUsage]]]
 }
 
 struct PiSessionFileUsage: Codable {
@@ -68,6 +78,8 @@ struct PiSessionFileUsage: Codable {
     var parsedBytes: Int64
     var fileIdentity: String?
     var sessionID: String?
+    var projectPath: String?
+    var title: String?
     var lastModelContext: PiModelContext?
     var contributions: [String: [String: [String: PiPackedUsage]]]
     var unkeyedContributions: [String: [String: [String: PiPackedUsage]]]
@@ -81,6 +93,8 @@ struct PiSessionFileUsage: Codable {
         parsedBytes: Int64,
         fileIdentity: String? = nil,
         sessionID: String? = nil,
+        projectPath: String? = nil,
+        title: String? = nil,
         lastModelContext: PiModelContext?,
         contributions: [String: [String: [String: PiPackedUsage]]],
         unkeyedContributions: [String: [String: [String: PiPackedUsage]]] = [:],
@@ -93,6 +107,8 @@ struct PiSessionFileUsage: Codable {
         self.parsedBytes = parsedBytes
         self.fileIdentity = fileIdentity
         self.sessionID = sessionID
+        self.projectPath = projectPath
+        self.title = title
         self.lastModelContext = lastModelContext
         self.contributions = contributions
         self.unkeyedContributions = unkeyedContributions
