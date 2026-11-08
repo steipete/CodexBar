@@ -29,7 +29,16 @@ Store the API key without opening Settings:
 printf '%s' "$ELEVENLABS_API_KEY" | codexbar config set-api-key --provider elevenlabs --stdin
 ```
 
-This trims the piped key, writes it to `~/.codexbar/config.json` with restrictive permissions, and enables ElevenLabs by default. Use `--no-enable` to save the key without enabling the provider.
+This trims the piped key, writes it to the [resolved CodexBar config](configuration.md) with restrictive permissions,
+and enables ElevenLabs by default. Use `--no-enable` to save the key without enabling the provider.
+The key needs `user_read` permission to fetch subscription usage.
+
+The command saves a standalone `apiKey`. It does not replace saved API-key accounts or their selection.
+A selected saved account takes priority, followed by the standalone key, `ELEVENLABS_API_KEY`, and `XI_API_KEY`.
+
+`codexbar config providers --json` includes this route in ElevenLabs' static `setup` guidance on macOS and Linux.
+It lists the accepted input names and existing stdin command without reading credentials or checking whether
+the account is ready.
 
 ### Settings
 

@@ -34,6 +34,17 @@ public enum ElevenLabsProviderDescriptor {
             requiresManualCookieSource: false,
             cookieName: nil),
         aliases: ["11labs", "eleven"],
+        setup: ProviderSetup(routes: [.init(
+            id: "api-key",
+            method: .apiKey,
+            platforms: [.macOS, .linux],
+            requiredInputs: [.init(
+                id: "api-key",
+                configFields: ["apiKey", "tokenAccounts.accounts[].token"],
+                environmentVariables: ElevenLabsSettingsReader.apiKeyEnvironmentKeys)],
+            command: "codexbar config set-api-key --provider elevenlabs --stdin",
+            hint: "Use an API key with user_read permission for subscription usage. " +
+                "The command saves a standalone key; a selected API key account takes priority.")]),
         scriptSettings: { context in
             var url = ElevenLabsSettingsReader.apiURL(environment: context.env)
             url.append(path: url.path.split(separator: "/").last == "v1" ? "user/subscription" : "v1/user/subscription")

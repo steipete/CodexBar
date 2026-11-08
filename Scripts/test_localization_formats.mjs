@@ -83,6 +83,7 @@ test("credential prefixes and environment names remain literal while prose can t
     ["Use org-... / org_...", "Use organización-... / org_..."],
     ["ory_session_…=…; csrftoken=…", "ory_sessie_…=…; csrftoken=…"],
     ["Set PROJECT_ID", "Set ID_PROXECTO"],
+    ["Use user_read permission", "Utilisez la permission lecture_utilisateur"],
     ["Run `firectl whoami`", "Exécutez `firectl qui`"],
   ]) {
     assert.notEqual(protectedLiteralErrors("fixture", translated, english).length, 0, english);

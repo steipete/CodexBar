@@ -43,6 +43,7 @@ const completeLocales = [
 ];
 const languageKeys = ["language_arabic", "language_persian", "language_thai"];
 const isTest = process.argv.includes("--test");
+const providerDescriptorMarker = String.raw`\b(?:title|subtitle|placeholder|sessionLabel|weeklyLabel|opusLabel|creditsHint|noDataMessage|hint):`;
 
 function readCatalog(locale) {
   const file = path.join(resources, `${locale}.lproj/Localizable.strings`);
@@ -118,9 +119,14 @@ if (isTest) {
   assertEqual(literalSwiftKeys('L("first " + "second")', String.raw`\bL\(`), ["first second"], "concatenated keys");
   assertEqual(literalSwiftKeys(String.raw`L("value \\(name)")`, String.raw`\bL\(`), [], "dynamic keys");
   assertEqual(
-    literalSwiftKeys('title: "API key", subtitle: "Help"', String.raw`\b(?:title|subtitle):`),
+    literalSwiftKeys('title: "API key", subtitle: "Help"', providerDescriptorMarker),
     ["API key", "Help"],
     "provider descriptors",
+  );
+  assertEqual(
+    literalSwiftKeys('hint: "Use a key. " + "Selected accounts take priority."', providerDescriptorMarker),
+    ["Use a key. Selected accounts take priority."],
+    "concatenated provider setup hints",
   );
   assertEqual(tokenSignature("%1$@ · %2$d"), tokenSignature("%2$d · %1$@"), "positional reorder");
   assertNotEqual(tokenSignature("%1$@ · %2$d"), tokenSignature("%1$d · %2$@"), "positional type swap");
@@ -212,10 +218,7 @@ for (const directory of ["Sources/CodexBar", "Sources/CodexBarWidget", "Sources/
     }
     if (file.includes(`${path.sep}Providers${path.sep}`)) {
       const isCore = file.includes(`${path.sep}CodexBarCore${path.sep}`);
-      const marker =
-        !isCore || file.endsWith("Descriptor.swift")
-          ? String.raw`\b(?:title|subtitle|placeholder|sessionLabel|weeklyLabel|opusLabel|creditsHint|noDataMessage):`
-          : String.raw`\btitle:`;
+      const marker = !isCore || file.endsWith("Descriptor.swift") ? providerDescriptorMarker : String.raw`\btitle:`;
       keys.push(...literalSwiftKeys(source, marker));
     }
     for (const key of new Set(keys)) {

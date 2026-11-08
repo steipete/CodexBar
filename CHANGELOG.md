@@ -4,6 +4,7 @@
 
 ### Added
 
+- CLI: declare ElevenLabs setup guidance, including API-key alternatives, subscription-read permission, and saved-account priority.
 - Usage & Spend: add a Models view grouped by currency, preserve partial-history warnings, and match shared cards to the current appearance (#4889, #4888). Thanks @Chipagosfinest!
 - CLI: expose provider-owned setup routes for Copilot, OpenAI API, and Azure OpenAI, with explicit unknown guidance for other providers (#4705, #4916). Thanks @Yuxin-Qiao!
 - Devin: fall back to the desktop app session after browser sources, using only an existing silent Keychain grant and never prompting (#4905). Thanks @kentoku24!

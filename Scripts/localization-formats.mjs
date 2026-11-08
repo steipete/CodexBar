@@ -129,6 +129,7 @@ export function protectedLiteralErrors(key, value, english) {
     "codex --version",
     "npm install -g --include=optional @openai/codex@latest",
     "kilo.access",
+    "user_read",
   ];
   const technicalTokens = [
     ...english.matchAll(/`([^`]+)`/g),
