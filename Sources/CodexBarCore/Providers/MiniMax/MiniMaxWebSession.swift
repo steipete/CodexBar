@@ -34,6 +34,22 @@ enum MiniMaxWebSessionDomain: String, CaseIterable, Hashable, Sendable {
         }
     }
 
+    func cookieURL(for region: MiniMaxAPIRegion, environment: [String: String]) -> URL? {
+        let requestURL = MiniMaxUsageFetcher.resolveRemainsURLs(
+            region: region,
+            environment: self.environment(environment)).first ?? self.quotaURL
+        let host = requestURL.host?.lowercased() ?? ""
+        if host == self.rootDomain || host.hasSuffix(".\(self.rootDomain)") {
+            return requestURL
+        }
+        guard !Self.allCases.contains(where: { domain in
+            host == domain.rootDomain || host.hasSuffix(".\(domain.rootDomain)")
+        }) else { return nil }
+
+        // Custom HTTPS proxies are transport aliases, not browser cookie origins.
+        return self.quotaURL
+    }
+
     func environment(_ environment: [String: String]) -> [String: String] {
         guard environment[MiniMaxSettingsReader.hostKey] == nil,
               environment[MiniMaxSettingsReader.codingPlanURLKey] == nil,

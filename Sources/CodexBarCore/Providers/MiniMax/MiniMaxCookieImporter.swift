@@ -53,10 +53,13 @@ public enum MiniMaxCookieImporter {
             self.cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
         }
 
-        func webSessions(for region: MiniMaxAPIRegion) -> [MiniMaxWebSession] {
+        func webSessions(
+            for region: MiniMaxAPIRegion,
+            environment: [String: String] = [:]) -> [MiniMaxWebSession]
+        {
             MiniMaxWebSessionDomain.candidates(for: region).compactMap { domain in
-                let url = domain.quotaURL
-                let host = url.host ?? domain.rootDomain
+                guard let url = domain.cookieURL(for: region, environment: environment) else { return nil }
+                let host = url.host?.lowercased() ?? domain.rootDomain
                 let cookies = self.cookies.filter { cookie in
                     let cookieDomain = cookie.domain.lowercased()
                         .trimmingCharacters(in: CharacterSet(charactersIn: "."))
@@ -105,6 +108,7 @@ public enum MiniMaxCookieImporter {
     static func webSessionCandidates(
         browserDetection: BrowserDetection,
         region: MiniMaxAPIRegion,
+        environment: [String: String] = [:],
         logger: ((String) -> Void)? = nil) throws -> AnySequence<MiniMaxWebSession>
     {
         try BrowserCookieImportSupport.collectSessions(
@@ -113,7 +117,7 @@ public enum MiniMaxCookieImporter {
             logger: { self.emit($0, logger: logger) },
             load: { browser in
                 try self.importSessions(from: browser, region: region, logger: logger)
-                    .flatMap { $0.webSessions(for: region) }
+                    .flatMap { $0.webSessions(for: region, environment: environment) }
             })
     }
 
@@ -160,12 +164,16 @@ public enum MiniMaxCookieImporter {
     public static func hasSession(
         browserDetection: BrowserDetection,
         region: MiniMaxAPIRegion? = nil,
+        environment: [String: String] = [:],
         logger: ((String) -> Void)? = nil) -> Bool
     {
         do {
             if let region {
-                return try self.webSessionCandidates(browserDetection: browserDetection, region: region, logger: logger)
-                    .contains(where: { _ in true })
+                return try self.webSessionCandidates(
+                    browserDetection: browserDetection,
+                    region: region,
+                    environment: environment,
+                    logger: logger).contains(where: { _ in true })
             }
             return try self.sessionCandidates(browserDetection: browserDetection, logger: logger)
                 .contains(where: { _ in true })

@@ -105,6 +105,59 @@ struct MiniMaxBrowserSessionTests {
 
     #if os(macOS)
     @Test
+    func `global host override selects a www only browser cookie`() throws {
+        let session = try MiniMaxCookieImporter.SessionInfo(cookies: [
+            self.cookie(name: "HERTZ-SESSION", value: "www-session", domain: "www.minimax.io"),
+        ], sourceLabel: "Fixture Profile")
+        let environment = [MiniMaxSettingsReader.hostKey: "https://www.minimax.io"]
+
+        #expect(session.webSessions(for: .global).isEmpty)
+        let overridden = session.webSessions(for: .global, environment: environment)
+        #expect(overridden.map(\.cookieHeader) == ["HERTZ-SESSION=www-session"])
+        #expect(overridden.first?.domain == .global)
+    }
+
+    @Test
+    func `remains override selects cookies for its effective host and path`() throws {
+        let session = try MiniMaxCookieImporter.SessionInfo(cookies: [
+            self.cookie(name: "HERTZ-SESSION", value: "default-session", domain: "platform.minimax.io", path: "/v1"),
+            self.cookie(name: "HERTZ-SESSION", value: "path-session", domain: "www.minimax.io", path: "/custom"),
+            self.cookie(name: "HERTZ-SESSION", value: "wrong-path", domain: "www.minimax.io", path: "/custom-other"),
+            self.cookie(name: "HERTZ-SESSION", value: "other-region", domain: ".minimax.cn"),
+        ], sourceLabel: "Fixture Profile")
+        let environment = [MiniMaxSettingsReader.remainsURLKey: "https://www.minimax.io/custom/remains"]
+
+        #expect(session.webSessions(for: .global).map(\.cookieHeader) == ["HERTZ-SESSION=default-session"])
+        #expect(session.webSessions(for: .global, environment: environment).map(\.cookieHeader) ==
+            ["HERTZ-SESSION=path-session"])
+    }
+
+    @Test
+    func `proxy overrides retain canonical cookies without importing proxy cookies`() throws {
+        let session = try MiniMaxCookieImporter.SessionInfo(cookies: [
+            self.cookie(name: "HERTZ-SESSION", value: "provider-session", domain: "platform.minimax.io", path: "/v1"),
+            self.cookie(name: "HERTZ-SESSION", value: "proxy-session", domain: "proxy.example", path: "/custom"),
+        ], sourceLabel: "Fixture Profile")
+        let environment = [MiniMaxSettingsReader.remainsURLKey: "https://proxy.example/custom/remains"]
+
+        #expect(session.webSessions(for: .global, environment: environment).map(\.cookieHeader) ==
+            ["HERTZ-SESSION=provider-session"])
+    }
+
+    @Test
+    func `provider overrides from another host family do not borrow region cookies`() throws {
+        let session = try MiniMaxCookieImporter.SessionInfo(cookies: [
+            self.cookie(name: "HERTZ-SESSION", value: "global-session", domain: ".minimax.io"),
+            self.cookie(name: "_token", value: "china-session", domain: ".minimax.cn"),
+        ], sourceLabel: "Fixture Profile")
+        let environment = [MiniMaxSettingsReader.hostKey: "https://www.minimax.cn"]
+
+        #expect(session.webSessions(for: .global, environment: environment).isEmpty)
+        #expect(session.webSessions(for: .chinaMainland, environment: environment).map(\.cookieHeader) ==
+            ["_token=china-session"])
+    }
+
+    @Test
     func `one browser profile yields isolated current and legacy China sessions`() throws {
         let session = try MiniMaxCookieImporter.SessionInfo(cookies: [
             self.cookie(name: "_token", value: "global-session", domain: ".minimax.io"),

@@ -216,7 +216,8 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
         }
         return MiniMaxCookieImporter.hasSession(
             browserDetection: context.browserDetection,
-            region: context.settings?.minimax?.apiRegion ?? .global)
+            region: region,
+            environment: context.env)
         #else
         return false
         #endif
@@ -265,7 +266,8 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
                 guard Self.allowsBrowserCookieImport(context: context) else { return AnySequence([]) }
                 return (try? MiniMaxCookieImporter.webSessionCandidates(
                     browserDetection: context.browserDetection,
-                    region: fetchContext.region)) ?? AnySequence([])
+                    region: fetchContext.region,
+                    environment: fetchContext.environment)) ?? AnySequence([])
             },
             clearCached: { session in
                 guard let observation = observations[session.domain] else { return }
