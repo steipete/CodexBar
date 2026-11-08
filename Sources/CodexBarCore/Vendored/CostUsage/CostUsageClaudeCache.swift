@@ -102,6 +102,8 @@ final class CostUsageClaudeReportMemo: @unchecked Sendable {
         let sourceInventory: [String: CostUsageClaudeFileStamp]
         let reportKey: CostUsageClaudeReportMemoKey
         let report: CostUsageDailyReport
+        /// In memory only; a persisted memo reloads the cache once to rebuild Claude projects and sessions.
+        let breakdowns: ClaudeReportBreakdowns?
         /// Established by a full rebuild or continuation of certified rows for this memo's scan window.
         let hasWindowScopedRows: Bool
 
@@ -197,18 +199,20 @@ final class CostUsageClaudeReportMemo: @unchecked Sendable {
         sourceInventory: [String: CostUsageClaudeFileStamp],
         reportKey: CostUsageClaudeReportMemoKey,
         report: CostUsageDailyReport,
-        hasWindowScopedRows: Bool = false) -> CostUsageDailyReport
+        breakdowns: ClaudeReportBreakdowns? = nil,
+        hasWindowScopedRows: Bool = false) -> Entry
     {
         let key = "\(provider.rawValue)|\(canonicalCachePath)"
         let entry = Entry(
             sourceInventory: sourceInventory,
             reportKey: reportKey,
             report: report,
+            breakdowns: breakdowns,
             hasWindowScopedRows: hasWindowScopedRows)
         let shared = self.lock.withLock { self.installUnlocked(key: key, entry: entry) }
         Self.persist(shared, canonicalCachePath: canonicalCachePath)
         CostUsageClaudeFragments.shared.evict(at: URL(fileURLWithPath: canonicalCachePath))
-        return shared.report
+        return shared
     }
 
     #if DEBUG
@@ -240,6 +244,7 @@ final class CostUsageClaudeReportMemo: @unchecked Sendable {
                     summary: entry.report.summary,
                     hourly: entry.report.hourly,
                     quotaSlices: prior.report.quotaSlices),
+                breakdowns: entry.breakdowns,
                 hasWindowScopedRows: entry.hasWindowScopedRows)
         }
         self.entries.removeAll { $0.key == key }
@@ -275,6 +280,7 @@ final class CostUsageClaudeReportMemo: @unchecked Sendable {
                 summary: envelope.report.summary,
                 hourly: (envelope.hourly ?? []).map(\.hourlyValue),
                 quotaSlices: envelope.quotaSlices?.values ?? []),
+            breakdowns: nil,
             hasWindowScopedRows: envelope.hasWindowScopedRows == true)
     }
 
@@ -484,8 +490,8 @@ extension CostUsageScanner.ClaudeUsageRow {
 /// Claude and Vertex retain their transcript cache. Codex deliberately has no route
 /// through this JSON I/O boundary; its only persistence authority is `CostUsageStore`.
 enum CostUsageClaudeCacheIO {
-    /// Compact row keys; older artifacts rebuild from their source transcripts.
-    private static let schemaVersion = 5
+    /// v6 records per-file transcript cwd; older artifacts rebuild from their source transcripts.
+    private static let schemaVersion = 6
 
     #if DEBUG
     @TaskLocal static var readForTesting: (@Sendable (URL, Data.ReadingOptions) -> Data?)?
