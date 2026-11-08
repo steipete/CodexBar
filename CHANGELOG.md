@@ -4,6 +4,7 @@
 
 ### Added
 
+- Claude: group local cost by project and conversation in the Cost menu, Usage & Spend, and `codexbar cost --group-by project|session`. Cost history rebuilds once from transcripts to record each conversation's working directory.
 - CLI: declare ElevenLabs setup guidance, including API-key alternatives, subscription-read permission, and saved-account priority (#5020). Thanks @vincent-peng!
 - Usage & Spend: add a Models view grouped by currency, preserve partial-history warnings, and match shared cards to the current appearance (#4889, #4888). Thanks @Chipagosfinest!
 - CLI: expose provider-owned setup routes for Copilot, OpenAI API, and Azure OpenAI, with explicit unknown guidance for other providers (#4705, #4916). Thanks @Yuxin-Qiao!
