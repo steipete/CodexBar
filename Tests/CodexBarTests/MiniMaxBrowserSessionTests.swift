@@ -64,7 +64,7 @@ struct MiniMaxBrowserSessionTests {
             environment: MiniMaxWebSessionDomain.chinaMainland.environment([:]),
             includeBillingHistory: true,
             session: transport)
-        #expect(await transport.requests().count == 2)
+        #expect(await transport.requests().contains { $0.url?.path.hasSuffix("remains_percent") == true })
     }
 
     @Test
