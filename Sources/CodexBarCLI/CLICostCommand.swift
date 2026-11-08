@@ -499,7 +499,10 @@ extension CodexBarCLI {
             if let path = project.path {
                 lines.append("  \(path)")
             }
-            for source in project.sources {
+            // A sole source that repeats the project itself adds no information.
+            let sources = project.sources.count == 1 && project.sources[0].path == project.path
+                && project.sources[0].name == project.name ? [] : project.sources
+            for source in sources {
                 let sourceCost = source.totalCostUSD
                     .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
                 let sourceTokens = source.totalTokens.map { UsageFormatter.tokenCountString($0) }

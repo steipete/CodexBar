@@ -88,10 +88,7 @@ struct CLICostProjectCoverageTests {
         Projects (Last 30 days):
         alpha: $2.00 \u{B7} 2K tokens
           /Users/test/projects/alpha
-          - alpha: $2.00 \u{B7} 2K tokens
-            /Users/test/projects/alpha
         Unknown project: $1.00 \u{B7} 1K tokens
-          - Unknown project: $1.00 \u{B7} 1K tokens
         Estimated from local Claude logs at API rates; token totals include cache read/write tokens and may \
         differ from Claude Code /status.
         """)
