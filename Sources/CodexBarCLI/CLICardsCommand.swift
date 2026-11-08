@@ -17,7 +17,7 @@ extension CodexBarCLI {
     static func runCards(_ values: ParsedValues) async {
         let output = CLIOutputPreferences.from(values: values)
         let config = Self.loadConfig(output: output)
-        let provider = Self.decodeProvider(from: values, config: config)
+        let provider = Self.decodeProvider(from: values, config: config, output: output)
         let providerList = provider.asList
         let setup = Self.usageFetchSetup(values: values, providers: providerList, output: output, cardsLayout: true)
         let command = setup.command.withUsageCacheFallback(config: config)

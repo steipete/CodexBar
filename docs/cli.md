@@ -543,6 +543,10 @@ Grok purchased Extra Usage Credits appear in usage JSON as `usage.providerCost.b
 separate from quota percentages; zero is retained and unavailable or invalid balances are omitted. The balance-only
 `used`/`limit` fields are zero and do not describe spending or a budget. See [Grok](grok.md#purchased-credits-in-cli-json).
 
+An explicit unrecognized `--provider` value in `usage`, `cost`, `cards`, or `diagnose` is an argument error
+(exit 1; commands supporting JSON report `kind: "args"`). Omitting `--provider` still uses the enabled providers; valid names,
+aliases, `both`, and `all` retain their existing meanings.
+
 ## Exit codes
 - 0: success
 - 2: provider missing (binary not on PATH)

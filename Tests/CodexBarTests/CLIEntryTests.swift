@@ -237,8 +237,8 @@ final class CLIEntryTests: XCTestCase {
         XCTAssertEqual(CodexBarCLI._decodeFormatForTesting(from: textDefault), .text)
     }
 
-    func test_providerSelectionPrefersOverride() {
-        let selection = CodexBarCLI.providerSelection(rawOverride: "codex", enabled: [.claude, .gemini])
+    func test_providerSelectionPrefersOverride() throws {
+        let selection = try CodexBarCLI.providerSelection(rawOverride: "codex", enabled: [.claude, .gemini])
         XCTAssertEqual(selection.asList, [.codex])
     }
 
@@ -526,8 +526,8 @@ final class CLIEntryTests: XCTestCase {
         XCTAssertFalse(payload.message.contains("Codex not running"))
     }
 
-    func test_providerSelectionFallsBackToBothForPrimaryPair() {
-        let selection = CodexBarCLI.providerSelection(rawOverride: nil, enabled: [.codex, .claude])
+    func test_providerSelectionFallsBackToBothForPrimaryPair() throws {
+        let selection = try CodexBarCLI.providerSelection(rawOverride: nil, enabled: [.codex, .claude])
         switch selection {
         case .both:
             break
@@ -536,8 +536,8 @@ final class CLIEntryTests: XCTestCase {
         }
     }
 
-    func test_providerSelectionFallsBackToCustomWhenNonPrimary() {
-        let selection = CodexBarCLI.providerSelection(rawOverride: nil, enabled: [.codex, .gemini])
+    func test_providerSelectionFallsBackToCustomWhenNonPrimary() throws {
+        let selection = try CodexBarCLI.providerSelection(rawOverride: nil, enabled: [.codex, .gemini])
         switch selection {
         case let .custom(providers):
             XCTAssertEqual(providers, [.codex, .gemini])
@@ -546,8 +546,8 @@ final class CLIEntryTests: XCTestCase {
         }
     }
 
-    func test_providerSelectionHonorsEmptyEnabledSet() {
-        let selection = CodexBarCLI.providerSelection(rawOverride: nil, enabled: [])
+    func test_providerSelectionHonorsEmptyEnabledSet() throws {
+        let selection = try CodexBarCLI.providerSelection(rawOverride: nil, enabled: [])
         switch selection {
         case let .custom(providers):
             XCTAssertEqual(providers, [])
@@ -924,6 +924,41 @@ final class CLIEntryTests: XCTestCase {
 }
 
 extension CLIEntryTests {
+    func test_unknownProviderArgumentsExitWithStructuredErrors() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let configURL = root.appendingPathComponent("config.json")
+        try CodexBarConfigStore(fileURL: configURL).save(CodexBarConfig(providers: [
+            ProviderConfig(id: .codex, enabled: false),
+            ProviderConfig(id: .claude, enabled: false),
+        ]))
+        let environment = ["CODEXBAR_CONFIG": configURL.path, "CODEXBAR_DISABLE_KEYCHAIN_ACCESS": "1"]
+        for command in ["usage", "cost", "diagnose"] {
+            let result = try Self.runCLI(
+                arguments: [command, "--provider", "not-a-real-provider", "--format", "json"],
+                environment: environment)
+            XCTAssertEqual(result.status, 1, command)
+            let rows = try XCTUnwrap(JSONSerialization.jsonObject(with: result.stdout) as? [[String: Any]])
+            let error = try XCTUnwrap(rows.first?["error"] as? [String: Any])
+            XCTAssertEqual(error["kind"] as? String, "args", command)
+            XCTAssertEqual(error["code"] as? Int, 1, command)
+            XCTAssertEqual(error["message"] as? String, "Error: unknown provider 'not-a-real-provider'", command)
+        }
+        let omitted = try Self.runCLI(arguments: ["usage", "--json"], environment: environment)
+        XCTAssertEqual(omitted.status, 0)
+        XCTAssertEqual(try XCTUnwrap(String(data: omitted.stdout, encoding: .utf8)).trimmingCharacters(
+            in: .whitespacesAndNewlines), "[]")
+        for command in ["usage", "cards"] {
+            let text = try Self.runCLI(
+                arguments: [command, "--provider", "not-a-real-provider"], environment: environment)
+            XCTAssertEqual(text.status, 1, command)
+            XCTAssertTrue(text.stdout.isEmpty, command)
+            XCTAssertEqual(
+                String(data: text.stderr, encoding: .utf8),
+                "Error: unknown provider 'not-a-real-provider'\n")
+        }
+    }
+
     fileprivate static func runCLI(
         arguments: [String],
         environment: [String: String] = [:]) throws -> (status: Int32, stdout: Data, stderr: Data)
