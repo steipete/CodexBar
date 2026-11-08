@@ -51,9 +51,10 @@ public struct MiniMaxUsageFetcher: Sendable {
                         to: remainsSnapshot,
                         context: context,
                         groupID: groupID)
-                    return try await self.attachingBillingIfAvailable(
+                    return try await self.attachingOptionalUsageIfAvailable(
                         to: snapshot,
                         context: context,
+                        groupID: groupID,
                         includeBillingHistory: includeBillingHistory,
                         now: now)
                 } catch {
@@ -68,9 +69,10 @@ public struct MiniMaxUsageFetcher: Sendable {
                 to: htmlSnapshot,
                 context: context,
                 groupID: groupID)
-            return try await self.attachingBillingIfAvailable(
+            return try await self.attachingOptionalUsageIfAvailable(
                 to: snapshot,
                 context: context,
+                groupID: groupID,
                 includeBillingHistory: includeBillingHistory,
                 now: now)
         } catch let error as MiniMaxUsageError {
@@ -90,9 +92,10 @@ public struct MiniMaxUsageFetcher: Sendable {
                     now: now),
                 context: context,
                 groupID: groupID)
-            return try await self.attachingBillingIfAvailable(
+            return try await self.attachingOptionalUsageIfAvailable(
                 to: snapshot,
                 context: context,
+                groupID: groupID,
                 includeBillingHistory: includeBillingHistory,
                 now: now)
         }
@@ -256,7 +259,7 @@ public struct MiniMaxUsageFetcher: Sendable {
         }
     }
 
-    private static func makeWebRequest(
+    static func makeWebRequest(
         url: URL,
         context: WebFetchContext,
         accept: String) -> URLRequest
@@ -388,7 +391,7 @@ public struct MiniMaxUsageFetcher: Sendable {
         return false
     }
 
-    private static func attachingBillingIfAvailable(
+    static func attachingBillingIfAvailable(
         to snapshot: MiniMaxUsageSnapshot,
         context: WebFetchContext,
         includeBillingHistory: Bool,

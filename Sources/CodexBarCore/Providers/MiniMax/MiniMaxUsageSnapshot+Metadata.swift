@@ -17,6 +17,7 @@ extension MiniMaxUsageSnapshot {
             updatedAt: self.updatedAt,
             services: self.services,
             billingSummary: self.billingSummary,
+            usageSummary: self.usageSummary,
             pointsBalance: self.pointsBalance,
             subscriptionExpiresAt: self.subscriptionExpiresAt,
             subscriptionRenewsAt: self.subscriptionRenewsAt)
@@ -34,6 +35,7 @@ extension MiniMaxUsageSnapshot {
             updatedAt: self.updatedAt,
             services: self.services,
             billingSummary: self.billingSummary,
+            usageSummary: self.usageSummary,
             pointsBalance: self.pointsBalance,
             subscriptionExpiresAt: metadata.subscriptionExpiresAt ?? self.subscriptionExpiresAt,
             subscriptionRenewsAt: metadata.subscriptionRenewsAt ?? self.subscriptionRenewsAt)

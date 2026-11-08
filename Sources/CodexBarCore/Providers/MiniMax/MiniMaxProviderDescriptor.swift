@@ -109,7 +109,7 @@ public enum MiniMaxProviderDescriptor {
                     ].compactMap(\.self))
                 },
                 optionalDetails: ProviderOptionalDetailsPresentation(
-                    hiddenTitlesWithoutOptionalUsage: ["Billing history"],
+                    hiddenTitlesWithoutOptionalUsage: ["Billing history", "Tokens"],
                     costSummaryTitles: ["Billing history"])),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web, .api],

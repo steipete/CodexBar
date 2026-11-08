@@ -11,6 +11,7 @@ public struct MiniMaxUsageSnapshot: Sendable {
     public let updatedAt: Date
     public let services: [MiniMaxServiceUsage]?
     public let billingSummary: MiniMaxBillingSummary?
+    public let usageSummary: MiniMaxUsageSummary?
     public let pointsBalance: Double?
     public let subscriptionExpiresAt: Date?
     public let subscriptionRenewsAt: Date?
@@ -75,6 +76,7 @@ public struct MiniMaxUsageSnapshot: Sendable {
         updatedAt: Date,
         services: [MiniMaxServiceUsage]? = nil,
         billingSummary: MiniMaxBillingSummary? = nil,
+        usageSummary: MiniMaxUsageSummary? = nil,
         pointsBalance: Double? = nil,
         subscriptionExpiresAt: Date? = nil,
         subscriptionRenewsAt: Date? = nil)
@@ -89,6 +91,7 @@ public struct MiniMaxUsageSnapshot: Sendable {
         self.updatedAt = updatedAt
         self.services = services
         self.billingSummary = billingSummary
+        self.usageSummary = usageSummary
         self.pointsBalance = pointsBalance
         self.subscriptionExpiresAt = subscriptionExpiresAt
         self.subscriptionRenewsAt = subscriptionRenewsAt
@@ -106,6 +109,25 @@ public struct MiniMaxUsageSnapshot: Sendable {
             updatedAt: self.updatedAt,
             services: self.services,
             billingSummary: billingSummary,
+            usageSummary: self.usageSummary,
+            pointsBalance: self.pointsBalance,
+            subscriptionExpiresAt: self.subscriptionExpiresAt,
+            subscriptionRenewsAt: self.subscriptionRenewsAt)
+    }
+
+    public func withUsageSummary(_ usageSummary: MiniMaxUsageSummary?) -> MiniMaxUsageSnapshot {
+        MiniMaxUsageSnapshot(
+            planName: self.planName,
+            availablePrompts: self.availablePrompts,
+            currentPrompts: self.currentPrompts,
+            remainingPrompts: self.remainingPrompts,
+            windowMinutes: self.windowMinutes,
+            usedPercent: self.usedPercent,
+            resetsAt: self.resetsAt,
+            updatedAt: self.updatedAt,
+            services: self.services,
+            billingSummary: self.billingSummary,
+            usageSummary: usageSummary,
             pointsBalance: self.pointsBalance,
             subscriptionExpiresAt: self.subscriptionExpiresAt,
             subscriptionRenewsAt: self.subscriptionRenewsAt)
@@ -210,6 +232,9 @@ extension MiniMaxUsageSnapshot {
                     title: "Daily tokens",
                     unit: "tokens",
                     points: billing.daily.map { ($0.day, Double($0.tokens)) })))
+        }
+        if let section = self.usageSummary?.detailSection(now: self.updatedAt) {
+            sections.append(section)
         }
         return sections
     }

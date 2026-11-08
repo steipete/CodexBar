@@ -73,8 +73,28 @@ and their region endpoints remain unchanged.
 If the billing-history endpoint is unavailable but normal Coding Plan quota data is present, CodexBar still shows the
 quota card and omits the chart instead of treating the whole provider as failed.
 
+## 中国区订阅 Token 统计（可选）
+
+中国区当前控制台的 Web 会话包含 `_token` Cookie，且套餐页面和配额请求均使用当前的 `minimax.cn`
+地址时，CodexBar 使用同一 Cookie、认证上下文和 group 查询
+`https://www.minimax.cn/backend/account/token_plan/usage_summary`。这一路径使用现有的
+“Show optional credits and extra usage” 开关，不依赖充值积分查询，也不请求旧的 `/account/amount` 账单接口。
+自定义主机、非当前官方中国区端点、旧中国区会话和全球区继续使用原有账单路径。
+
+“Tokens” 详情提供今日总 Token、输入、输出、缓存读取、缓存写入、近 30 日总量、每日趋势和服务端更新时间。
+日期按 `Asia/Shanghai` 解释；只有带明确日期的记录用于统计，不从无日期数组或格式化的总量字符串推测历史。
+缺少今日记录、计数缺失或总量溢出时显示不可用，不把最近有数据的一天冒充今天。缓存读取是输入的子集，
+不会再次加到总量中；缓存写入按服务端独立报告值显示。
+近 30 日总量只汇总接口已报告且日期有效的记录；不足 30 天时会标明已报告天数。
+
+历史统计可能延迟更新，不保证实时。统计接口的鉴权、网络或结构错误会省略统计详情，同时保留已经成功读取的套餐配额。
+仅使用 Coding Plan 订阅 API Key 的路径仍只查询配额，不自动关联浏览器账户或补充历史 Token；
+查看上述统计需要使用中国区当前控制台的 Web 会话模式。
+
 ## Key files
 - `Sources/CodexBarCore/Providers/MiniMax/MiniMaxUsageFetcher.swift`
+- `Sources/CodexBarCore/Providers/MiniMax/MiniMaxUsageFetcher+UsageSummary.swift`
+- `Sources/CodexBarCore/Providers/MiniMax/MiniMaxUsageSummary.swift`
 - `Sources/CodexBarCore/Providers/MiniMax/MiniMaxProviderDescriptor.swift`
 - `Sources/CodexBar/Providers/MiniMax/MiniMaxProviderImplementation.swift`
 
