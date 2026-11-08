@@ -12,6 +12,15 @@ public struct MiniMaxUsageFetcher: Sendable {
         let region: MiniMaxAPIRegion
         @ProcessEnvironment private(set) var environment: [String: String]
         let transport: any ProviderHTTPTransport
+
+        var usesCurrentChinaEndpoint: Bool {
+            let url = MiniMaxUsageFetcher.resolveRemainsURLs(region: self.region, environment: self.environment).first
+            guard url?.host == "www.minimax.cn" else { return false }
+            let usesTokenCookie = CookieHeaderNormalizer.pairs(from: self.cookie)
+                .contains { $0.name == "_token" && !$0.value.isEmpty }
+            return usesTokenCookie || MiniMaxSettingsReader.remainsURL(environment: self.environment)?.absoluteString ==
+                "https://www.minimax.cn/backend/account/token_plan/remains_percent"
+        }
     }
 
     public static func fetchUsage(
@@ -394,7 +403,11 @@ public struct MiniMaxUsageFetcher: Sendable {
         includeBillingHistory: Bool,
         now: Date) async throws -> MiniMaxUsageSnapshot
     {
-        guard includeBillingHistory else { return snapshot }
+        // The old billing endpoint belongs to minimaxi.com and cannot receive current minimax.cn cookies.
+        guard includeBillingHistory,
+              !context.usesCurrentChinaEndpoint || MiniMaxSettingsReader.billingHistoryURL(
+                  environment: context.environment) != nil
+        else { return snapshot }
         do {
             let billing = try await self.fetchBillingSummary(context: context, now: now)
             return snapshot.withBillingSummary(billing)
@@ -792,8 +805,10 @@ enum MiniMaxUsageParser {
         let baseResponse = payload.data.baseResp ?? payload.baseResp
         if let status = baseResponse?.statusCode, status != 0 {
             let message = baseResponse?.statusMessage ?? "status_code \(status)"
-            let lower = message.lowercased()
-            if status == 1004 || lower.contains("cookie") || lower.contains("log in") || lower.contains("login") {
+            let lower = message.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if status == 1004 || lower == "invalid api key" || lower.contains("cookie") ||
+                lower.contains("log in") || lower.contains("login")
+            {
                 throw MiniMaxUsageError.invalidCredentials
             }
             throw MiniMaxUsageError.apiError(message)

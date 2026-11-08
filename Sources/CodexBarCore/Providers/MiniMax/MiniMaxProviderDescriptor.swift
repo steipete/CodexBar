@@ -201,16 +201,22 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
         if Self.resolveCookieOverride(context: context) != nil {
             return true
         }
+        guard (context.settings?.minimax?.cookieSource ?? .auto) == .auto else { return false }
         #if os(macOS)
-        if let cached = CookieHeaderCache.load(provider: .minimax),
-           !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        {
-            return true
+        let region = context.settings?.minimax?.apiRegion ?? .global
+        for domain in MiniMaxWebSessionDomain.candidates(for: region) {
+            if let cached = CookieHeaderCache.load(provider: .minimax, scope: domain.cacheScope),
+               !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
+                return true
+            }
         }
         guard Self.allowsBrowserCookieImport(context: context) else {
             return false
         }
-        return MiniMaxCookieImporter.hasSession(browserDetection: context.browserDetection)
+        return MiniMaxCookieImporter.hasSession(
+            browserDetection: context.browserDetection,
+            region: context.settings?.minimax?.apiRegion ?? .global)
         #else
         return false
         #endif
@@ -236,75 +242,53 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
         }
 
         #if os(macOS)
-        let tokenContext = Self.loadTokenContext(browserDetection: context.browserDetection)
-
-        var lastError: Error?
-        if let cached = CookieHeaderCache.load(provider: .minimax),
-           !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        {
-            switch await Self.attemptFetch(
-                cookieHeader: cached.cookieHeader,
-                sourceLabel: cached.sourceLabel,
-                tokenContext: tokenContext,
-                logLabel: "cached",
-                fetchContext: fetchContext)
-            {
-            case let .success(snapshot):
-                return self.makeResult(
-                    usage: snapshot.toUsageSnapshot(),
-                    sourceLabel: "web")
-            case let .failure(error):
-                lastError = error
-                if Self.shouldTryNextBrowser(for: error) {
-                    CookieHeaderCache.clear(provider: .minimax)
-                } else {
-                    throw error
-                }
-            }
-        }
-
-        guard Self.allowsBrowserCookieImport(context: context) else {
-            if let lastError {
-                throw lastError
-            }
+        guard (context.settings?.minimax?.cookieSource ?? .auto) == .auto else {
             throw MiniMaxSettingsError.missingCookie
         }
-
-        let sessions = (try? MiniMaxCookieImporter.sessionCandidates(
-            browserDetection: context.browserDetection)) ?? AnySequence([])
-
-        for session in sessions {
-            switch await Self.attemptFetch(
-                cookieHeader: session.cookieHeader,
-                sourceLabel: session.sourceLabel,
-                tokenContext: tokenContext,
-                logLabel: "",
-                fetchContext: fetchContext)
-            {
-            case let .success(snapshot):
-                CookieHeaderCache.store(
+        let domains = MiniMaxWebSessionDomain.candidates(for: fetchContext.region)
+        var observations = Dictionary(uniqueKeysWithValues: domains.map { domain in
+            (domain, CookieHeaderCache.observeForConditionalMutation(provider: .minimax, scope: domain.cacheScope))
+        })
+        let cached = domains.compactMap { domain -> MiniMaxWebSession? in
+            guard let entry = observations[domain]?.entry else { return nil }
+            return MiniMaxWebSession(cookieHeader: entry.cookieHeader, sourceLabel: entry.sourceLabel, domain: domain)
+        }
+        let snapshot = try await Self.fetchAutomatic(
+            cached: cached,
+            fetchSession: { session in
+                let tokenContext = session.usesTokenCookie
+                    ? TokenContext(tokensByLabel: [:], groupIDByLabel: [:])
+                    : Self.loadTokenContext(browserDetection: context.browserDetection, domain: session.domain)
+                return try await Self.fetchSession(session, tokenContext: tokenContext, fetchContext: fetchContext)
+            },
+            browserSessions: {
+                guard Self.allowsBrowserCookieImport(context: context) else { return AnySequence([]) }
+                return (try? MiniMaxCookieImporter.webSessionCandidates(
+                    browserDetection: context.browserDetection,
+                    region: fetchContext.region)) ?? AnySequence([])
+            },
+            clearCached: { session in
+                guard let observation = observations[session.domain] else { return }
+                if CookieHeaderCache.clearIfCurrent(
+                    provider: .minimax, scope: session.domain.cacheScope, expected: observation.entry)
+                {
+                    observations[session.domain] = observation.afterOwnedClear()
+                }
+            },
+            storeResolved: { session in
+                guard let observation = observations[session.domain] else { return }
+                CookieHeaderCache.storeIfObservationCurrent(
                     provider: .minimax,
+                    scope: session.domain.cacheScope,
+                    expected: observation,
                     cookieHeader: session.cookieHeader,
                     sourceLabel: session.sourceLabel)
-                return self.makeResult(
-                    usage: snapshot.toUsageSnapshot(),
-                    sourceLabel: "web")
-            case let .failure(error):
-                lastError = error
-                if Self.shouldTryNextBrowser(for: error) {
-                    Self.log.debug("MiniMax cookies invalid from \(session.sourceLabel), trying next browser")
-                    continue
-                }
-                throw error
-            }
-        }
-
-        if let lastError {
-            throw lastError
-        }
+            })
+        return self.makeResult(usage: snapshot.toUsageSnapshot(), sourceLabel: "web")
         #endif
-
+        #if !os(macOS)
         throw MiniMaxSettingsError.missingCookie
+        #endif
     }
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
@@ -312,11 +296,49 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
     }
 
     static func allowsBrowserCookieImport(context: ProviderFetchContext) -> Bool {
-        context.runtime == .app && ProviderInteractionContext.current == .userInitiated
+        guard context.runtime == .app else { return false }
+        // The shared access gate permits background reads only when Keychain access needs no UI.
+        return (context.settings?.minimax?.cookieSource ?? .auto) == .auto
+    }
+
+    static func fetchAutomatic(
+        cached: [MiniMaxWebSession],
+        fetchSession: (MiniMaxWebSession) async throws -> MiniMaxUsageSnapshot,
+        browserSessions: () -> AnySequence<MiniMaxWebSession>,
+        clearCached: (MiniMaxWebSession) -> Void,
+        storeResolved: (MiniMaxWebSession) -> Void) async throws -> MiniMaxUsageSnapshot
+    {
+        var lastError: Error?
+        for session in cached {
+            do {
+                return try await fetchSession(session)
+            } catch {
+                guard Self.shouldTryNextBrowser(for: error) else { throw error }
+                lastError = error
+                if case MiniMaxUsageError.invalidCredentials = error { clearCached(session) }
+            }
+        }
+        for session in browserSessions() {
+            do {
+                let snapshot = try await fetchSession(session)
+                storeResolved(session)
+                return snapshot
+            } catch {
+                guard Self.shouldTryNextBrowser(for: error) else { throw error }
+                lastError = error
+            }
+        }
+        if let lastError { throw lastError }
+        throw MiniMaxSettingsError.missingCookie
     }
 
     private struct TokenContext {
-        let tokensByLabel: [String: [String]]
+        struct Token {
+            let value: String
+            let groupID: String?
+        }
+
+        let tokensByLabel: [String: [Token]]
         let groupIDByLabel: [String: String]
     }
 
@@ -324,11 +346,6 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
         let region: MiniMaxAPIRegion
         @ProcessEnvironment private(set) var environment: [String: String]
         let includeBillingHistory: Bool
-    }
-
-    private enum FetchAttemptResult {
-        case success(MiniMaxUsageSnapshot)
-        case failure(Error)
     }
 
     private static func resolveCookieOverride(context: ProviderFetchContext) -> MiniMaxCookieOverride? {
@@ -350,20 +367,25 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
         return label
     }
 
-    private static func loadTokenContext(browserDetection: BrowserDetection) -> TokenContext {
+    private static func loadTokenContext(
+        browserDetection: BrowserDetection,
+        domain: MiniMaxWebSessionDomain) -> TokenContext
+    {
         #if os(macOS)
         let tokenLog: (String) -> Void = { msg in Self.log.debug(msg) }
         let accessTokens = MiniMaxLocalStorageImporter.importAccessTokens(
             browserDetection: browserDetection,
+            domain: domain,
             logger: tokenLog)
         let groupIDs = MiniMaxLocalStorageImporter.importGroupIDs(
             browserDetection: browserDetection,
+            domain: domain,
             logger: tokenLog)
-        var tokensByLabel: [String: [String]] = [:]
+        var tokensByLabel: [String: [TokenContext.Token]] = [:]
         var groupIDByLabel: [String: String] = [:]
         for token in accessTokens {
             let normalized = Self.normalizeStorageLabel(token.sourceLabel)
-            tokensByLabel[normalized, default: []].append(token.accessToken)
+            tokensByLabel[normalized, default: []].append(.init(value: token.accessToken, groupID: token.groupID))
             if let groupID = token.groupID, groupIDByLabel[normalized] == nil {
                 groupIDByLabel[normalized] = groupID
             }
@@ -377,30 +399,32 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
         return TokenContext(tokensByLabel: tokensByLabel, groupIDByLabel: groupIDByLabel)
         #else
         _ = browserDetection
+        _ = domain
         return TokenContext(tokensByLabel: [:], groupIDByLabel: [:])
         #endif
     }
 
-    private static func attemptFetch(
-        cookieHeader: String,
-        sourceLabel: String,
+    private static func fetchSession(
+        _ session: MiniMaxWebSession,
         tokenContext: TokenContext,
-        logLabel: String,
-        fetchContext: FetchContext) async -> FetchAttemptResult
+        fetchContext: FetchContext) async throws -> MiniMaxUsageSnapshot
     {
-        let normalizedLabel = Self.normalizeStorageLabel(sourceLabel)
-        let tokenCandidates = tokenContext.tokensByLabel[normalizedLabel] ?? []
-        let groupID = tokenContext.groupIDByLabel[normalizedLabel]
-        let cookieToken = Self.cookieValue(named: "HERTZ-SESSION", in: cookieHeader)
-        var attempts: [String?] = tokenCandidates.map(\.self)
-        if let cookieToken, !tokenCandidates.contains(cookieToken) {
-            attempts.append(cookieToken)
+        let normalizedLabel = Self.normalizeStorageLabel(session.sourceLabel)
+        let environment = session.domain.environment(fetchContext.environment)
+        let tokenCandidates = (tokenContext.tokensByLabel[normalizedLabel] ?? []).filter { token in
+            Self.isCompatibleGroupID(token.groupID, sessionGroupID: session.groupID)
         }
-        attempts.append(nil)
+        let cookieToken = Self.cookieValue(named: "HERTZ-SESSION", in: session.cookieHeader)
+        let attempts = Self.authorizationCandidates(
+            cookieHeader: session.cookieHeader,
+            tokens: tokenCandidates.map(\.value),
+            domain: session.domain)
 
-        let prefix = logLabel.isEmpty ? "" : "\(logLabel) "
         var lastError: Error?
         for token in attempts {
+            let groupID = session.groupID
+                ?? tokenCandidates.first(where: { $0.value == token })?.groupID
+                ?? tokenContext.groupIDByLabel[normalizedLabel]
             let tokenLabel: String = {
                 guard let token else { return "" }
                 if token == cookieToken {
@@ -408,30 +432,57 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
                 }
                 return " + access token"
             }()
-            Self.log.debug("Trying MiniMax \(prefix)cookies from \(sourceLabel)\(tokenLabel)")
+            Self.log.debug("Trying MiniMax cookies from \(session.sourceLabel)\(tokenLabel)")
             do {
                 let snapshot = try await MiniMaxUsageFetcher.fetchUsage(
-                    cookieHeader: cookieHeader,
+                    cookieHeader: session.cookieHeader,
                     authorizationToken: token,
                     groupID: groupID,
                     region: fetchContext.region,
-                    environment: fetchContext.environment,
+                    environment: environment,
                     includeBillingHistory: fetchContext.includeBillingHistory)
-                Self.log.debug("MiniMax \(prefix)cookies valid from \(sourceLabel)")
-                return .success(snapshot)
+                Self.log.debug("MiniMax cookies valid from \(session.sourceLabel)")
+                return snapshot
             } catch {
                 lastError = error
                 if Self.shouldTryNextBrowser(for: error) {
                     continue
                 }
-                return .failure(error)
+                throw error
             }
         }
 
         if let lastError {
-            return .failure(lastError)
+            throw lastError
         }
-        return .failure(MiniMaxSettingsError.missingCookie)
+        throw MiniMaxSettingsError.missingCookie
+    }
+
+    static func authorizationCandidates(
+        cookieHeader: String,
+        tokens: [String],
+        domain: MiniMaxWebSessionDomain) -> [String?]
+    {
+        // A browser's _token is the selected session; unrelated storage bearers must not replace its account.
+        if domain == .chinaMainland, let token = cookieValue(named: "_token", in: cookieHeader), !token.isEmpty {
+            return [nil]
+        }
+        var attempts: [String?] = []
+        for token in tokens where !attempts.contains(where: { $0 == token }) {
+            attempts.append(token)
+        }
+        if let cookieToken = self.cookieValue(named: "HERTZ-SESSION", in: cookieHeader),
+           !attempts.contains(where: { $0 == cookieToken })
+        {
+            attempts.append(cookieToken)
+        }
+        attempts.append(nil)
+        return attempts
+    }
+
+    static func isCompatibleGroupID(_ candidate: String?, sessionGroupID: String?) -> Bool {
+        // Opaque tokens can lack group claims; only an explicit mismatch rejects a same-host/profile candidate.
+        candidate == nil || sessionGroupID == nil || candidate == sessionGroupID
     }
 
     private static func cookieValue(named name: String, in header: String) -> String? {

@@ -238,6 +238,7 @@ extension MiniMaxUsageFetcher {
         context: WebFetchContext,
         groupID: String?) async throws -> MiniMaxUsageSnapshot
     {
+        guard !context.usesCurrentChinaEndpoint else { return snapshot }
         let resolvedGroupID = groupID ?? MiniMaxCookieHeader.override(from: context.cookie)?.groupID
         guard resolvedGroupID?.isEmpty == false else { return snapshot }
         do {

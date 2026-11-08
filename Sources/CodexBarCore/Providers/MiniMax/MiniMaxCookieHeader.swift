@@ -13,16 +13,6 @@ public struct MiniMaxCookieOverride: Sendable {
 }
 
 public enum MiniMaxCookieHeader {
-    private static let headerPatterns: [String] = [
-        #"(?i)-H\s*'Cookie:\s*([^']+)'"#,
-        #"(?i)-H\s*\"Cookie:\s*([^\"]+)\""#,
-        #"(?i)\bcookie:\s*'([^']+)'"#,
-        #"(?i)\bcookie:\s*\"([^\"]+)\""#,
-        #"(?i)\bcookie:\s*([^\r\n]+)"#,
-        #"(?i)(?:--cookie|-b)\s*'([^']+)'"#,
-        #"(?i)(?:--cookie|-b)\s*\"([^\"]+)\""#,
-        #"(?i)(?:--cookie|-b)\s*([^\s]+)"#,
-    ]
     private static let authorizationPattern = #"(?i)\bauthorization:\s*bearer\s+([A-Za-z0-9._\-+=/]+)"#
     private static let groupIDPatterns = [
         #"(?i)\bx-group-id:\s*([0-9]{4,})"#,
@@ -46,6 +36,6 @@ public enum MiniMaxCookieHeader {
     }
 
     public static func normalized(from raw: String?) -> String? {
-        CookieHeaderNormalizer.normalize(raw, headerPatterns: self.headerPatterns)
+        CookieHeaderNormalizer.normalize(raw)
     }
 }

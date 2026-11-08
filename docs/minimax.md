@@ -23,6 +23,8 @@ falls back across the provider's supported web requests when needed.
 
 2) **Cached/imported browser session** (automatic web path)
    - Uses CodexBar's standard cookie cache and browser import flow.
+   - 自动会话按全球站、中国当前站和旧中国站隔离缓存。旧版无域名信息的缓存不会迁移；升级后首次刷新会重新读取浏览器当前有效会话，手动 Cookie 配置保持不变。
+   - 缓存认证失效时会重新导入；后台读取继续受共享无交互权限检查保护。网络失败不会删除有效凭据，浏览器本身退出登录后仍需重新登录官网。
 
 3) **Browser cookie import** (automatic)
    - Uses provider metadata for browser order and MiniMax domain filters.

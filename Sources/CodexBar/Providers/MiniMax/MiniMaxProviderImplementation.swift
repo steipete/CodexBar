@@ -69,7 +69,9 @@ struct MiniMaxProviderImplementation: ProviderImplementation {
                 isVisible: { authMode().allowsCookies },
                 onChange: nil,
                 trailingText: {
-                    ProviderCookieSourceUI.cachedTrailingText(provider: .minimax)
+                    context.settings.minimaxAPIRegion.cookieCacheScopes.lazy.compactMap {
+                        CookieHeaderCache.loadForDisplay(provider: .minimax, scope: $0)
+                    }.first.map { ProviderCookieSourceUI.cachedTrailingText(entry: $0) }
                 }),
             ProviderSettingsPickerDescriptor(
                 id: "minimax-region",

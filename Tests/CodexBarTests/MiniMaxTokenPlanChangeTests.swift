@@ -585,7 +585,7 @@ struct MiniMaxTokenPlanChangeTests {
     }
 
     @Test
-    func `web usage fetch merges combo subscription metadata`() async throws {
+    func `legacy web usage fetch merges combo subscription metadata`() async throws {
         let now = Date(timeIntervalSince1970: 1_780_282_340)
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
@@ -607,7 +607,7 @@ struct MiniMaxTokenPlanChangeTests {
         }
 
         let snapshot = try await MiniMaxUsageFetcher.fetchUsage(
-            cookieHeader: "_token=abc; minimax_group_id_v2=2013894056999916075",
+            cookieHeader: "HERTZ-SESSION=abc; minimax_group_id_v2=2013894056999916075",
             groupID: "2013894056999916075",
             region: .chinaMainland,
             environment: [:],
@@ -672,7 +672,7 @@ struct MiniMaxTokenPlanChangeTests {
     }
 
     @Test
-    func `web usage fetch preserves combo metadata cancellation`() async throws {
+    func `legacy web usage fetch preserves combo metadata cancellation`() async throws {
         let now = Date(timeIntervalSince1970: 1_780_282_340)
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
@@ -690,7 +690,7 @@ struct MiniMaxTokenPlanChangeTests {
 
         await #expect(throws: CancellationError.self) {
             try await MiniMaxUsageFetcher.fetchUsage(
-                cookieHeader: "_token=abc",
+                cookieHeader: "HERTZ-SESSION=legacy-fixture",
                 groupID: "2013894056999916075",
                 region: .chinaMainland,
                 environment: [:],
@@ -701,7 +701,7 @@ struct MiniMaxTokenPlanChangeTests {
     }
 
     @Test
-    func `combo metadata failure does not block quota rendering`() async throws {
+    func `legacy combo metadata failure does not block quota rendering`() async throws {
         let now = Date(timeIntervalSince1970: 1_780_282_340)
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
@@ -721,7 +721,7 @@ struct MiniMaxTokenPlanChangeTests {
         }
 
         let snapshot = try await MiniMaxUsageFetcher.fetchUsage(
-            cookieHeader: "_token=abc",
+            cookieHeader: "HERTZ-SESSION=legacy-fixture",
             groupID: "2013894056999916075",
             region: .chinaMainland,
             environment: [:],
@@ -731,6 +731,7 @@ struct MiniMaxTokenPlanChangeTests {
 
         #expect(snapshot.planName == nil)
         #expect(snapshot.toUsageSnapshot().primary?.usedPercent == 4)
+        #expect(await transport.requests().contains { $0.url?.path.contains("/charge/combo/") == true })
     }
 
     private static let comboMetadataJSON = """

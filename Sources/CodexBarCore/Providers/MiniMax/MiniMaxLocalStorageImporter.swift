@@ -13,6 +13,7 @@ enum MiniMaxLocalStorageImporter {
 
     static func importAccessTokens(
         browserDetection: BrowserDetection,
+        domain: MiniMaxWebSessionDomain? = nil,
         logger: ((String) -> Void)? = nil) -> [TokenInfo]
     {
         let log: (String) -> Void = { msg in logger?("[minimax-storage] \(msg)") }
@@ -24,7 +25,7 @@ enum MiniMaxLocalStorageImporter {
         }
 
         for candidate in chromeCandidates {
-            let snapshot = self.readLocalStorage(from: candidate.url, logger: log)
+            let snapshot = self.readLocalStorage(from: candidate.url, domain: domain, logger: log)
             if !snapshot.tokens.isEmpty {
                 let groupID = snapshot.groupID ?? self.groupID(fromJWT: snapshot.tokens.first ?? "")
                 if groupID != nil {
@@ -33,7 +34,10 @@ enum MiniMaxLocalStorageImporter {
                 for token in snapshot.tokens {
                     let hint = token.contains(".") ? "jwt" : "opaque"
                     log("Found MiniMax access token in \(candidate.label): \(token.count) chars (\(hint))")
-                    tokens.append(TokenInfo(accessToken: token, groupID: groupID, sourceLabel: candidate.label))
+                    tokens.append(TokenInfo(
+                        accessToken: token,
+                        groupID: self.groupID(fromJWT: token) ?? groupID,
+                        sourceLabel: candidate.label))
                 }
             }
         }
@@ -44,7 +48,7 @@ enum MiniMaxLocalStorageImporter {
                 log("Chrome session storage candidates: \(sessionCandidates.count)")
             }
             for candidate in sessionCandidates {
-                let sessionTokens = self.readSessionStorageTokens(from: candidate.url, logger: log)
+                let sessionTokens = self.readSessionStorageTokens(from: candidate.url, domain: domain, logger: log)
                 guard !sessionTokens.isEmpty else { continue }
                 for token in sessionTokens {
                     let hint = token.contains(".") ? "jwt" : "opaque"
@@ -58,7 +62,7 @@ enum MiniMaxLocalStorageImporter {
         if tokens.isEmpty {
             let indexedCandidates = self.storageCandidates(
                 browserDetection: browserDetection,
-                storage: self.indexedDBStorage)
+                storage: self.indexedDBStorage(for: domain))
             if !indexedCandidates.isEmpty {
                 log("Chrome IndexedDB candidates: \(indexedCandidates.count)")
             }
@@ -83,6 +87,7 @@ enum MiniMaxLocalStorageImporter {
 
     static func importGroupIDs(
         browserDetection: BrowserDetection,
+        domain: MiniMaxWebSessionDomain? = nil,
         logger: ((String) -> Void)? = nil) -> [String: String]
     {
         let log: (String) -> Void = { msg in logger?("[minimax-storage] \(msg)") }
@@ -94,7 +99,7 @@ enum MiniMaxLocalStorageImporter {
         }
 
         for candidate in chromeCandidates {
-            let snapshot = self.readLocalStorage(from: candidate.url, logger: log)
+            let snapshot = self.readLocalStorage(from: candidate.url, domain: domain, logger: log)
             if let groupID = snapshot.groupID, results[candidate.label] == nil {
                 log("Found MiniMax group id in \(candidate.label)")
                 results[candidate.label] = groupID
@@ -120,6 +125,12 @@ enum MiniMaxLocalStorageImporter {
     static let indexedDBStorage = ChromiumLocalStorageDiscovery.Storage.indexedDB(
         originPrefixes: Self.origins.map { $0.replacingOccurrences(of: "://", with: "_") + "_" })
 
+    static func indexedDBStorage(for domain: MiniMaxWebSessionDomain?) -> ChromiumLocalStorageDiscovery.Storage {
+        .indexedDB(originPrefixes: (domain?.storageOrigins ?? self.origins).map {
+            $0.replacingOccurrences(of: "://", with: "_") + "_"
+        })
+    }
+
     static func storageCandidates(
         browserDetection: BrowserDetection,
         storage: ChromiumLocalStorageDiscovery.Storage,
@@ -141,10 +152,11 @@ enum MiniMaxLocalStorageImporter {
 
     private static func readLocalStorage(
         from levelDBURL: URL,
+        domain: MiniMaxWebSessionDomain?,
         logger: ((String) -> Void)? = nil) -> LocalStorageSnapshot
     {
         var entries: [SweetCookieKit.ChromiumLocalStorageEntry] = []
-        for origin in self.origins {
+        for origin in domain?.storageOrigins ?? self.origins {
             entries.append(contentsOf: SweetCookieKit.ChromiumLocalStorageReader.readEntries(
                 for: origin,
                 in: levelDBURL,
@@ -167,7 +179,7 @@ enum MiniMaxLocalStorageImporter {
             }
         }
 
-        if tokens.isEmpty {
+        if tokens.isEmpty, domain == nil {
             let textEntries = SweetCookieKit.ChromiumLocalStorageReader.readTextEntries(
                 in: levelDBURL,
                 logger: logger)
@@ -197,7 +209,8 @@ enum MiniMaxLocalStorageImporter {
             }
         }
 
-        if tokens.isEmpty, hasMinimaxSignal {
+        // Unscoped raw scans cannot attribute tokens to a host and must not supplement an isolated session.
+        if tokens.isEmpty, hasMinimaxSignal, domain == nil {
             let rawCandidates = SweetCookieKit.ChromiumLocalStorageReader.readTokenCandidates(
                 in: levelDBURL,
                 minimumLength: 60,
@@ -221,6 +234,7 @@ enum MiniMaxLocalStorageImporter {
 
     private static func readSessionStorageTokens(
         from levelDBURL: URL,
+        domain: MiniMaxWebSessionDomain?,
         logger: ((String) -> Void)? = nil) -> [String]
     {
         let entries = SweetCookieKit.ChromiumLocalStorageReader.readTextEntries(
@@ -228,7 +242,7 @@ enum MiniMaxLocalStorageImporter {
             logger: logger)
         guard !entries.isEmpty else { return [] }
 
-        let mapIDs = self.sessionStorageMapIDs(in: entries, logger: logger)
+        let mapIDs = self.sessionStorageMapIDs(in: entries, domain: domain, logger: logger)
         if mapIDs.isEmpty {
             logger?("[minimax-storage] No MiniMax session storage namespaces found")
             return []
@@ -294,11 +308,14 @@ enum MiniMaxLocalStorageImporter {
 
     private static func sessionStorageMapIDs(
         in entries: [SweetCookieKit.ChromiumLevelDBTextEntry],
+        domain: MiniMaxWebSessionDomain?,
         logger: ((String) -> Void)? = nil) -> Set<Int>
     {
         var mapIDs = Set<Int>()
         for entry in entries where entry.key.hasPrefix("namespace-") {
-            for origin in self.origins where entry.key.localizedCaseInsensitiveContains(origin) {
+            for origin in domain?.storageOrigins ?? self.origins where self.matchesSessionStorageOrigin(
+                entry.key, origin: origin)
+            {
                 if let mapID = Int(entry.value.trimmingCharacters(in: .whitespacesAndNewlines)) {
                     mapIDs.insert(mapID)
                 }
@@ -309,6 +326,12 @@ enum MiniMaxLocalStorageImporter {
             logger?("[minimax-storage] Session storage map ids for MiniMax: \(values)")
         }
         return mapIDs
+    }
+
+    static func matchesSessionStorageOrigin(_ key: String, origin: String) -> Bool {
+        guard let range = key.range(of: origin, options: .caseInsensitive) else { return false }
+        let suffix = key[range.upperBound...]
+        return suffix.isEmpty || suffix == "/" || suffix.first == "\0"
     }
 
     private static func sessionStorageMapID(fromKey key: String) -> Int? {
