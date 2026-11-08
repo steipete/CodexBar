@@ -26,6 +26,21 @@ struct MiniMaxUsageSummaryPresentationTests {
         #expect(!hidden.metrics.isEmpty)
     }
 
+    @Test(arguments: [false, true], [false, true])
+    func `historical token visibility preserves quota details`(optionalUsage: Bool, inline: Bool) throws {
+        let snapshot = try self.snapshot()
+        let model = try self.model(
+            snapshot: snapshot,
+            showOptionalUsage: optionalUsage,
+            costSummaryInlineEnabled: inline)
+
+        #expect(model.providerDetails.contains { $0.title == "Tokens" } == (optionalUsage && inline))
+        let quota = try #require(model.providerDetails.first { $0.title == "Quota services" })
+        #expect(quota.rows.count == 1)
+        #expect(!model.metrics.isEmpty)
+        #expect(snapshot.toUsageSnapshot().details.contains { $0.title == "Tokens" })
+    }
+
     @Test
     func `snapshot enrichment preserves token statistics without adding estimated cost`() throws {
         let snapshot = try self.snapshot()
@@ -57,12 +72,22 @@ struct MiniMaxUsageSummaryPresentationTests {
             usedPercent: 4,
             resetsAt: nil,
             updatedAt: Self.now,
+            services: [MiniMaxServiceUsage(
+                serviceType: "general",
+                windowType: "5 hours",
+                timeRange: "2026-11-08",
+                usage: 4,
+                limit: 100,
+                percent: 4,
+                resetsAt: nil,
+                resetDescription: "Fixture reset")],
             usageSummary: summary)
     }
 
     private func model(
         snapshot: MiniMaxUsageSnapshot,
-        showOptionalUsage: Bool) throws -> UsageMenuCardView.Model
+        showOptionalUsage: Bool,
+        costSummaryInlineEnabled: Bool = true) throws -> UsageMenuCardView.Model
     {
         let metadata = try #require(ProviderDefaults.metadata[.minimax])
         return UsageMenuCardView.Model.make(.init(
@@ -80,7 +105,7 @@ struct MiniMaxUsageSummaryPresentationTests {
             usageBarsShowUsed: true,
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
-            costSummaryInlineEnabled: true,
+            costSummaryInlineEnabled: costSummaryInlineEnabled,
             showOptionalCreditsAndExtraUsage: showOptionalUsage,
             hidePersonalInfo: false,
             now: Self.now))

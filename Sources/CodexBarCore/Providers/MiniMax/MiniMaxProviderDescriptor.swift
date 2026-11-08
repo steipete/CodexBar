@@ -110,7 +110,7 @@ public enum MiniMaxProviderDescriptor {
                 },
                 optionalDetails: ProviderOptionalDetailsPresentation(
                     hiddenTitlesWithoutOptionalUsage: ["Billing history", "Tokens"],
-                    costSummaryTitles: ["Billing history"])),
+                    costSummaryTitles: ["Billing history", "Tokens"])),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
