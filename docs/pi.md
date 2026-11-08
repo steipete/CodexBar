@@ -43,9 +43,21 @@ codexbar cost --provider codex --provider-native-only
 
 For a combined report, enable Claude, Codex, and Pi in the config, then run `codexbar cost --format json --pretty` without a provider override. Selecting Pi with Claude/Codex excludes mirrored Pi rows from those native providers. A standalone Claude/Codex selection (including `--provider both`) retains its existing inclusive behavior unless `--provider-native-only` is supplied. The same selection rule applies to dashboard and HTTP cost collection.
 
+## Sessions and projects
+
+Standalone Pi history is also grouped by session and by project in the cost-history menu, Usage & Spend, and `codexbar cost --provider pi --group-by session|project`. Pi JSON cost payloads include `projects[]` with an empty `sources[]`; like Codex, they carry no per-session rows. Session and project rows use the same deduplication, backend partitions, and date range as the Pi total, so each set sums to that total.
+
+- Project: the first session header's `cwd`, normalized like a Codex `cwd`. Without a usable `cwd`, a Pi `--…--` project folder supplies a display name with no path; it is never decoded back into a path. Otherwise the session belongs to Unknown project.
+- Title: the latest Pi `session_info` name; an empty name clears it. For OMP, a title line before the header wins over the header `title`, and a later title line replaces it. Untitled sessions show a short session ID. Hide personal information masks titles and project names in the app; CLI and JSON output match Codex and are not masked.
+- Last activity is the session file's modification time. A session copied into several roots appears once, with metadata from the most recently modified copy.
+
+Pi sessions have no tool activity, turn timing, or request-level detail.
+
 ## Cache and incomplete history
 
-The cache is `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v9.json` on macOS. It records source scope, coverage, and unsupported-history evidence, and is replaced atomically on macOS and Linux. Version 8 is rebuilt once from transcripts because it did not record sufficient scope and completeness evidence for safe reuse. An unavailable source during this upgrade leaves history unavailable until a valid scan can complete; it does not borrow an old cache's timestamp or totals.
+The cache is `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v10.json` on macOS. It records source scope, coverage, and unsupported-history evidence, and is replaced atomically on macOS and Linux. Version 8 is rebuilt once from transcripts because it did not record sufficient scope and completeness evidence for safe reuse. An unavailable source during this upgrade leaves history unavailable until a valid scan can complete; it does not borrow an old cache's timestamp or totals.
+
+Version 10 adds each session's `cwd` and title. Existing caches could not supply them for unchanged files, so the first scan after upgrading reparses every transcript in the window once. The version 9 file is left untouched.
 
 Incomplete refreshes can preserve a previously valid report with its original source scope and scan time. Malformed records, truncated tails, inaccessible roots, and unrepresentable aggregate totals cannot advance cache freshness. Cached and debounced reads check the recorded file inventory and metadata before declaring coverage complete, without reparsing transcripts. Failed root transitions never combine old and new datasets. Missing optional Pi history leaves available native history explicitly incomplete and immediately eligible for another refresh. For Claude, an established native spend subtotal stays visible as a partial estimate in Usage & Spend, Overview, and sharing. CLI totals remain available with incomplete-history metadata; repairing the mirror restores complete coverage. A verified empty source remains distinct from an uninspected source.
 
