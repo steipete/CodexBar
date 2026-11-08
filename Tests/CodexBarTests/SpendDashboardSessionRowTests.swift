@@ -147,6 +147,70 @@ struct SpendDashboardSessionRowTests {
     }
 
     @Test
+    func `pi sessions produce dashboard rows without tool activity`() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let sample = try #require(CostUsageTurnPerformanceSample(
+            completedAt: Self.now.addingTimeInterval(60),
+            outputTokens: 10,
+            durationMilliseconds: 1000))
+        let session = CostUsageSessionBreakdown(
+            sessionID: "pi-session",
+            lastActivity: Self.now,
+            inputTokens: 10,
+            cachedInputTokens: nil,
+            outputTokens: 0,
+            totalTokens: 10,
+            requestCount: 1,
+            costUSD: 1,
+            modelBreakdowns: [],
+            projectPath: "/Users/test/projects/alpha",
+            projectName: "alpha",
+            title: "Refactor parser",
+            turnPerformanceSamples: [sample],
+            toolActivitySource: SessionToolActivitySource(
+                fileURL: URL(fileURLWithPath: "/Users/test/sessions/pi-session.jsonl"),
+                sessionID: "pi-session"))
+        var snapshot = Self.sessionInput(sessions: [session]).snapshot
+        snapshot = CostUsageTokenSnapshot(
+            sessionTokens: snapshot.sessionTokens,
+            sessionCostUSD: snapshot.sessionCostUSD,
+            last30DaysTokens: snapshot.last30DaysTokens,
+            last30DaysCostUSD: snapshot.last30DaysCostUSD,
+            currencyCode: snapshot.currencyCode,
+            historyDays: snapshot.historyDays,
+            daily: snapshot.daily,
+            projects: [
+                CostUsageProjectBreakdown(
+                    name: "alpha",
+                    path: "/Users/test/projects/alpha",
+                    totalTokens: 10,
+                    totalCostUSD: 1,
+                    daily: snapshot.daily,
+                    modelBreakdowns: nil),
+            ],
+            sessions: snapshot.sessions,
+            updatedAt: snapshot.updatedAt)
+        let model = SpendDashboardModel.build(
+            inputs: [.init(id: "pi", provider: .pi, displayName: "Pi", snapshot: snapshot)],
+            requestedDays: 90,
+            now: Self.now,
+            calendar: calendar)
+
+        let group = try #require(model.groups.first)
+        let row = try #require(group.sessions.first)
+        #expect(group.sessions.count == 1)
+        #expect(row.provider == .pi)
+        #expect(row.title == "Refactor parser")
+        #expect(row.projectName == "alpha")
+        #expect(row.projectPath == "/Users/test/projects/alpha")
+        #expect(row.toolActivitySource == nil)
+        #expect(row.usage?.toolActivitySource == nil)
+        #expect(row.usage?.turnPerformanceSamples.isEmpty == true)
+        #expect(group.projects.map(\.projectName) == ["alpha"])
+    }
+
+    @Test
     func `sessions retain every row so search can find inexpensive conversations`() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
