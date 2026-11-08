@@ -623,8 +623,10 @@ struct SpendDashboardModel: Equatable, Sendable {
         }
         // Aggregate retained named models; source completeness still controls the warnings.
         let modelSummary = Self.modelSummary(summaries: modelSummaries)
+        // Matching known subtotals does not establish complete spend while requests remain unpriced.
         let modelHistoryCompleteness = modelSummaries.count == scopedSummaries.count &&
-            modelSummary.completeness == .complete && !scopedSummaries.contains(where: \.historyScanIsPartial)
+            modelSummary.completeness == .complete &&
+            !scopedSummaries.contains(where: { $0.hasUnpricedRequests || $0.historyScanIsPartial })
             ? ModelHistoryCompleteness.complete
             : ModelHistoryCompleteness.incomplete
         let tokenCompleteness = modelSummary.tokenCompleteness(retained: modelSummaries.count, scoped: scopedSummaries)
