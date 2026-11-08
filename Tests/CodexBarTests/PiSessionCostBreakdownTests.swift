@@ -183,6 +183,58 @@ struct PiSessionCostBreakdownTests {
     }
 
     @Test
+    func `pi last activity is the newest reply, not the file modification time`() throws {
+        let fixture = try Fixture()
+        defer { fixture.env.cleanup() }
+        let olderReply = fixture.day.addingTimeInterval(-2 * 60 * 60)
+        let newestReply = fixture.day.addingTimeInterval(-60 * 60)
+        let url = try fixture.write("2026-04-10T10-00-00-000Z_activity.jsonl", [
+            fixture.header(id: "activity-session", cwd: "/Users/test/projects/alpha"),
+            fixture.assistant(
+                id: "a2", provider: "openai-codex", model: "gpt-5.4", input: 10, output: 5, at: newestReply),
+            fixture.assistant(
+                id: "a1", provider: "openai-codex", model: "gpt-5.4", input: 10, output: 5, at: olderReply),
+        ])
+        try fixture.setModificationDate(fixture.day.addingTimeInterval(4 * 60 * 60), of: url)
+
+        let result = try fixture.scan()
+        #expect(result.sessions.map(\.lastActivity) == [newestReply])
+        let cached = try #require(PiSessionCostCacheIO.load(cacheRoot: fixture.env.cacheRoot).files.values.first)
+        #expect(cached.lastAssistantUnixMs == Int64(newestReply.timeIntervalSince1970 * 1000))
+    }
+
+    @Test
+    func `pi appended rows move last activity only to a newer reply`() throws {
+        let fixture = try Fixture()
+        defer { fixture.env.cleanup() }
+        let firstReply = fixture.day.addingTimeInterval(-2 * 60 * 60)
+        let url = try fixture.write("2026-04-10T10-00-00-000Z_tail.jsonl", [
+            fixture.header(id: "tail-session", cwd: "/Users/test/projects/alpha"),
+            fixture.assistant(
+                id: "t1", provider: "openai-codex", model: "gpt-5.4", input: 10, output: 5, at: firstReply),
+        ])
+        try fixture.setModificationDate(fixture.day.addingTimeInterval(60 * 60), of: url)
+        #expect(try fixture.scan().sessions.map(\.lastActivity) == [firstReply])
+
+        // A tail without a reply keeps the cached reply time instead of falling back to mtime.
+        try fixture.append(to: url, [["type": "session_info", "name": "Refactor parser"]])
+        try fixture.setModificationDate(fixture.day.addingTimeInterval(2 * 60 * 60), of: url)
+        let renamed = try fixture.scan(now: fixture.day.addingTimeInterval(1))
+        #expect(renamed.sessions.map(\.title) == ["Refactor parser"])
+        #expect(renamed.sessions.map(\.lastActivity) == [firstReply])
+
+        let newerReply = fixture.day.addingTimeInterval(-60 * 60)
+        try fixture.append(to: url, [
+            fixture.assistant(
+                id: "t2", provider: "openai-codex", model: "gpt-5.4", input: 20, output: 10, at: newerReply),
+        ])
+        try fixture.setModificationDate(fixture.day.addingTimeInterval(3 * 60 * 60), of: url)
+        let replied = try fixture.scan(now: fixture.day.addingTimeInterval(2))
+        #expect(replied.sessions.map(\.totalTokens) == [45])
+        #expect(replied.sessions.map(\.lastActivity) == [newerReply])
+    }
+
+    @Test
     func `pi atomic rewrite with a new cwd moves the session to the new project`() throws {
         let fixture = try Fixture()
         defer { fixture.env.cleanup() }
@@ -523,6 +575,10 @@ struct PiSessionCostBreakdownFixture {
         try handle.seekToEnd()
         try handle.write(contentsOf: Data(self.env.jsonl(rows).utf8))
         try handle.close()
+    }
+
+    func setModificationDate(_ date: Date, of url: URL) throws {
+        try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: url.path)
     }
 
     func scan(

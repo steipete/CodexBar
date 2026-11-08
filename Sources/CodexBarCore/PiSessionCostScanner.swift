@@ -66,6 +66,8 @@ enum PiSessionCostScanner {
         let projectPath: String?
         let title: String?
         let lastModelContext: PiModelContext?
+        /// Newest in-window assistant row timestamp; nil when no such row has a timestamp.
+        let lastAssistantUnixMs: Int64?
         let isComplete: Bool
         let unsupportedAssistantDayKeys: Set<String>
         let hasUndatedUnsupportedAssistant: Bool
@@ -850,6 +852,8 @@ enum PiSessionCostScanner {
                 projectPath: delta.projectPath,
                 title: delta.title,
                 lastModelContext: delta.lastModelContext,
+                lastAssistantUnixMs: [cached.lastAssistantUnixMs, delta.lastAssistantUnixMs]
+                    .compactMap(\.self).max(),
                 contributions: merged,
                 unkeyedContributions: mergedUnkeyed,
                 entryUsages: mergedEntryUsages,
@@ -876,6 +880,7 @@ enum PiSessionCostScanner {
             projectPath: parsed.projectPath,
             title: parsed.title,
             lastModelContext: parsed.lastModelContext,
+            lastAssistantUnixMs: parsed.lastAssistantUnixMs,
             contributions: parsed.contributions,
             unkeyedContributions: parsed.unkeyedContributions,
             entryUsages: parsed.entryUsages,
@@ -906,6 +911,7 @@ enum PiSessionCostScanner {
         var entryUsages: [String: PiSessionEntryUsage] = [:]
         var unsupportedAssistantDayKeys: Set<String> = []
         var hasUndatedUnsupportedAssistant = false
+        var lastAssistantDate: Date?
         var isComplete = true
 
         func add(
@@ -987,6 +993,7 @@ enum PiSessionCostScanner {
                             guard CostUsageScanner.CostUsageDayRange.isInRange(
                                 dayKey: dayKey, since: range.scanSinceKey, until: range.scanUntilKey)
                             else { return }
+                            lastAssistantDate = max(lastAssistantDate ?? date, date)
                             if let usage = self.extractUsage(
                                 provider: identity.pricingProvider,
                                 modelName: identity.modelName,
@@ -1023,6 +1030,7 @@ enum PiSessionCostScanner {
                                 dayKey: day, since: range.scanSinceKey, until: range.scanUntilKey)
                             {
                                 unsupportedAssistantDayKeys.insert(day)
+                                lastAssistantDate = max(lastAssistantDate ?? date, date)
                             }
                         } else {
                             hasUndatedUnsupportedAssistant = true
@@ -1054,6 +1062,7 @@ enum PiSessionCostScanner {
             projectPath: metadata.projectPath,
             title: metadata.title,
             lastModelContext: currentModelContext,
+            lastAssistantUnixMs: lastAssistantDate.map { Int64($0.timeIntervalSince1970 * 1000) },
             isComplete: isComplete,
             unsupportedAssistantDayKeys: unsupportedAssistantDayKeys,
             hasUndatedUnsupportedAssistant: hasUndatedUnsupportedAssistant)
@@ -1082,6 +1091,8 @@ enum PiSessionCostScanner {
         var seenEntriesBySessionID: [String: Set<String>] = [:]
         var days: [String: [String: [String: PiPackedUsage]]] = [:]
         var sessions: [String: PiSessionUsage] = [:]
+        var newestMtimeBySessionKey: [String: Int64] = [:]
+        var newestReplyBySessionKey: [String: Int64] = [:]
 
         for file in files {
             try checkCancellation?()
@@ -1090,12 +1101,19 @@ enum PiSessionCostScanner {
             let sessionKey = usage.sessionID ?? file.url.deletingPathExtension().lastPathComponent
             var session = sessions[sessionKey]
                 ?? PiSessionUsage(lastActivityUnixMs: usage.mtimeUnixMs, contributions: [:])
-            if sessions[sessionKey] == nil || usage.mtimeUnixMs > session.lastActivityUnixMs {
+            // Metadata follows the most recently modified copy; activity follows the newest reply.
+            if usage.mtimeUnixMs > newestMtimeBySessionKey[sessionKey] ?? .min {
+                newestMtimeBySessionKey[sessionKey] = usage.mtimeUnixMs
                 session.projectPath = usage.projectPath
                 session.projectSlug = usage.projectPath == nil ? Self.piProjectSlug(fileURL: file.url) : nil
                 session.title = usage.title
             }
-            session.lastActivityUnixMs = max(session.lastActivityUnixMs, usage.mtimeUnixMs)
+            if let reply = usage.lastAssistantUnixMs {
+                newestReplyBySessionKey[sessionKey] = max(newestReplyBySessionKey[sessionKey] ?? reply, reply)
+            }
+            session.lastActivityUnixMs = newestReplyBySessionKey[sessionKey]
+                ?? newestMtimeBySessionKey[sessionKey]
+                ?? usage.mtimeUnixMs
             // Sessions receive exactly the deltas the totals receive, so they partition `days`.
             func apply(_ contributions: [String: [String: [String: PiPackedUsage]]]) -> Bool {
                 self.applyContributions(daysByProvider: &days, contributions: contributions)

@@ -52,6 +52,34 @@ struct PiSessionCostV9UpgradeTests {
         #expect(!result.detailsAreComplete)
     }
 
+    @Test
+    func `early v10 cache without reply time falls back to file mtime for last activity`() throws {
+        // Early v10 artifacts predate `lastAssistantUnixMs`; they must decode and keep the mtime fallback.
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let modifiedAt = try #require(ISO8601DateFormatter().date(from: "2026-09-19T15:00:00Z"))
+        let fixture = try Self.seedReleasedArtifact(in: env, version: 10, modifiedAt: modifiedAt)
+        var options = fixture.options
+        options.refreshMinIntervalSeconds = 0
+
+        let counter = PiBreakdownParseCounter()
+        let observer: @Sendable () -> Void = { counter.increment() }
+        let result = try PiSessionCostScanner.$sessionParseObserverForTesting.withValue(observer) {
+            try PiSessionCostScanner.loadDailyReportResultCancellable(
+                provider: .pi,
+                since: fixture.day,
+                until: fixture.day,
+                now: fixture.day.addingTimeInterval(1),
+                options: options,
+                checkCancellation: nil)
+        }
+
+        #expect(counter.value == 0)
+        #expect(result.detailsAreComplete)
+        #expect(result.sessions.map(\.sessionID) == ["upgrade-session"])
+        #expect(result.sessions.map(\.lastActivity) == [modifiedAt])
+    }
+
     private struct Fixture {
         let day: Date
         let cacheURL: URL
@@ -59,7 +87,11 @@ struct PiSessionCostV9UpgradeTests {
         let options: PiSessionCostScanner.Options
     }
 
-    private static func seedReleasedArtifact(in env: CostUsageTestEnvironment, version: Int) throws -> Fixture {
+    private static func seedReleasedArtifact(
+        in env: CostUsageTestEnvironment,
+        version: Int,
+        modifiedAt fileModifiedAt: Date? = nil) throws -> Fixture
+    {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
         let day = try #require(ISO8601DateFormatter().date(from: "2026-09-19T12:00:00Z"))
@@ -87,7 +119,9 @@ struct PiSessionCostV9UpgradeTests {
                     ],
                 ],
             ]))
-        try FileManager.default.setAttributes([.modificationDate: day], ofItemAtPath: sessionURL.path)
+        try FileManager.default.setAttributes(
+            [.modificationDate: fileModifiedAt ?? day],
+            ofItemAtPath: sessionURL.path)
         let canonicalPath = sessionURL.standardizedFileURL.resolvingSymlinksInPath().standardizedFileURL.path
         let attributes = try FileManager.default.attributesOfItem(atPath: canonicalPath)
         let modifiedAt = try #require(attributes[.modificationDate] as? Date)

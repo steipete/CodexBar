@@ -49,7 +49,7 @@ Standalone Pi history is also grouped by session and by project in the cost-hist
 
 - Project: the first session header's `cwd`, normalized like a Codex `cwd`. Without a usable `cwd`, a Pi `--…--` project folder supplies a display name with no path; it is never decoded back into a path. Otherwise the session belongs to Unknown project.
 - Title: the latest Pi `session_info` name; an empty name clears it. For OMP, a title line before the header wins over the header `title`, and a later title line replaces it. Untitled sessions show a short session ID. Hide personal information masks titles and project names in the app; CLI and JSON output match Codex and are not masked.
-- Last activity is the session file's modification time. A session copied into several roots appears once, with metadata from the most recently modified copy.
+- Last activity is the newest assistant reply's timestamp, or the session file's modification time when no reply has one. A session copied into several roots appears once, with metadata from the most recently modified copy.
 
 Pi sessions have no tool activity, turn timing, or request-level detail.
 

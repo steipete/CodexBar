@@ -2,7 +2,7 @@ import Foundation
 
 enum PiSessionCostCacheIO {
     /// Artifact schema version. Pricing changes are tracked separately by `pricingKey`.
-    /// v10 adds per-session project and title metadata, which requires one full reparse.
+    /// v10 adds per-session project, title and last-reply metadata, which requires one full reparse.
     static let artifactVersion = 10
 
     private static func defaultCacheRoot() -> URL {
@@ -81,6 +81,8 @@ struct PiSessionFileUsage: Codable {
     var projectPath: String?
     var title: String?
     var lastModelContext: PiModelContext?
+    /// Newest assistant reply in the scan window; nil in early v10 artifacts or when no reply has a timestamp.
+    var lastAssistantUnixMs: Int64?
     var contributions: [String: [String: [String: PiPackedUsage]]]
     var unkeyedContributions: [String: [String: [String: PiPackedUsage]]]
     var entryUsages: [String: PiSessionEntryUsage]
@@ -96,6 +98,7 @@ struct PiSessionFileUsage: Codable {
         projectPath: String? = nil,
         title: String? = nil,
         lastModelContext: PiModelContext?,
+        lastAssistantUnixMs: Int64? = nil,
         contributions: [String: [String: [String: PiPackedUsage]]],
         unkeyedContributions: [String: [String: [String: PiPackedUsage]]] = [:],
         entryUsages: [String: PiSessionEntryUsage] = [:],
@@ -110,6 +113,7 @@ struct PiSessionFileUsage: Codable {
         self.projectPath = projectPath
         self.title = title
         self.lastModelContext = lastModelContext
+        self.lastAssistantUnixMs = lastAssistantUnixMs
         self.contributions = contributions
         self.unkeyedContributions = unkeyedContributions
         self.entryUsages = entryUsages
