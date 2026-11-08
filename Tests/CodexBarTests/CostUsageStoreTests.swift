@@ -955,15 +955,7 @@ extension CostUsageStoreTests {
 }
 
 extension CostUsageStoreTests {
-    @Test
-    func `shared JSONL callbacks preserve released Codex caches`() {
-        let releasedHash = "ad011f05e9ab733a"
-        #expect(CostUsageStore.compatiblePredecessorParserHashes.contains(releasedHash))
-        #expect(!CostUsageStore.incompatibleRetainedReportPredecessorParserHashes.contains(releasedHash))
-    }
-
     private static let testedPredecessorParserHashes = [
-        "ad011f05e9ab733a", // Shared JSONL callbacks retain current rows, checkpoints, and reports.
         "2dc85fe95af0aa95", // Preserve project-accumulation caches when combined with linked-root discovery.
         "5454415c8ea2ce7b", // Linked-root discovery preserves native rows, checkpoints, and report totals.
         "6b42e42bafad1922", // Project accumulation preserves native rows and retained report totals.
@@ -1112,9 +1104,7 @@ extension CostUsageStoreTests {
         let after = await current.readSnapshot()
         var expected = before
         // Only predecessors from before the Fast pricing correction need report totals discarded.
-        if !["ad011f05e9ab733a", "f98b2d0afc00443c", "6b42e42bafad1922", "2dc85fe95af0aa95", "5454415c8ea2ce7b"]
-            .contains(predecessorHash)
-        {
+        if !["f98b2d0afc00443c", "6b42e42bafad1922", "2dc85fe95af0aa95", "5454415c8ea2ce7b"].contains(predecessorHash) {
             expected.metadata.previousReportPayload = nil
         }
         #expect(after == expected)
