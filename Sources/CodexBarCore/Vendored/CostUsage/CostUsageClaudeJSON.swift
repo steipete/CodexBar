@@ -19,10 +19,7 @@ struct ClaudeJSONObject {
     }
 
     static func decode(_ data: Data) throws -> Self? {
-        try self.decoded(JSONSerialization.jsonObject(with: data))
-    }
-
-    static func decoded(_ value: Any) -> Self? {
+        let value = try JSONSerialization.jsonObject(with: data)
         #if canImport(Darwin)
         guard let dictionary = value as? NSDictionary else { return nil }
         return Self(decoded: dictionary)
