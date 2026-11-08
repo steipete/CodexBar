@@ -82,7 +82,7 @@ extension CodexBarCLI {
     static func runUsage(_ values: ParsedValues) async {
         let output = Self.resolveUsageOutputPreferences(from: values)
         let config = Self.loadConfig(output: output)
-        let provider = Self.decodeProvider(from: values, config: config)
+        let provider = Self.decodeProvider(from: values, config: config, output: output)
         let providerList = provider.asList
         let setup = Self.usageFetchSetup(values: values, providers: providerList, output: output)
         let command = setup.command.withUsageCacheFallback(config: config)
