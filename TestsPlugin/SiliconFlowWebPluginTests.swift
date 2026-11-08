@@ -6,6 +6,9 @@ import FoundationNetworking
 #endif
 
 struct SiliconFlowWebPluginTests {
+    private static let denied = "SiliconFlow denied access to the console balance (HTTP 403). "
+        + "Open cloud.siliconflow.cn, check that this account can view billing, then refresh."
+
     private static func wallet(balance: String = #""12500000000000""#) -> String {
         let totals = #","available":"1","recharged":"400000000000000","used":"387500000000000""#
         return #"{"code":20000,"data":{"financialInfo":{"balance":\#(balance)\#(totals)}}}"#
@@ -90,8 +93,10 @@ struct SiliconFlowWebPluginTests {
             Fixture(wallet: Self.wallet(), loginRedirectSessions: [1, 2]),
             Fixture(wallet: "private-response-sentinel", walletStatus: 401),
         ] {
+            let rejected = Recorder()
+            let validated = Recorder()
             await #expect {
-                try await Self.fetch(engine, fixture)
+                try await Self.fetch(engine, fixture, rejected: rejected, validated: validated)
             } throws: { error in
                 guard let error = error as? ProviderFetchClassifiedError else { return false }
                 return error.kind == .authenticationExpired
@@ -100,6 +105,8 @@ struct SiliconFlowWebPluginTests {
                     && !error.message.contains("private-response-sentinel")
             }
             #expect(await Set(fixture.requests.map(\.cookie)) == ["sf-session-1", "sf-session-2"])
+            #expect(rejected.ids.count == 2)
+            #expect(validated.ids.isEmpty)
         }
     }
 
@@ -120,15 +127,17 @@ struct SiliconFlowWebPluginTests {
                 .apiFailure),
         ] {
             let rejected = Recorder()
+            let validated = Recorder()
             await #expect {
-                try await Self.fetch(engine, fixture, rejected: rejected)
+                try await Self.fetch(engine, fixture, rejected: rejected, validated: validated)
             } throws: { error in
                 guard let error = error as? ProviderFetchClassifiedError else { return false }
                 return error.kind == kind && !error.message.contains("private-response-sentinel")
                     && (kind != .permissionDenied
-                        || error.message == "SiliconFlow denied access to the console balance (HTTP 403).")
+                        || error.message == Self.denied)
             }
             #expect(rejected.ids.isEmpty)
+            #expect(validated.ids.isEmpty)
             #expect(await Set(fixture.requests.map(\.cookie)) == ["sf-session-1"])
         }
     }
@@ -171,6 +180,39 @@ struct SiliconFlowWebPluginTests {
         }
     }
 
+    @Test
+    func `production redirect delegate keeps parent domain cookies off the login host`() throws {
+        var properties: [HTTPCookiePropertyKey: Any] = [
+            .name: "__SF_auth.session-token", .value: "sf-session", .domain: ".siliconflow.cn", .path: "/",
+        ]
+        properties[.secure] = "TRUE"
+        let jar = ProviderPluginCookieJar()
+        let session = try ProviderPluginCookieSession(
+            header: "",
+            source: "Synthetic",
+            origin: "https://cloud.siliconflow.cn",
+            records: [ProviderPluginCookieRecord(cookie: #require(HTTPCookie(properties: properties)))])
+        jar.register(session)
+        let delegate = ProviderPluginCookieTransport.CookieRedirectDelegate(jar: jar, id: session.id)
+        let original = try #require(URL(string: "https://cloud.siliconflow.cn/me/expensebill"))
+        for (raw, cookie) in [
+            ("https://cloud.siliconflow.cn/me/expensebill/", "__SF_auth.session-token=sf-session"),
+            ("https://account.siliconflow.cn/login?state=state-sentinel", nil),
+            ("http://cloud.siliconflow.cn/me/expensebill", nil),
+        ] {
+            var request = try URLRequest(url: #require(URL(string: raw)))
+            request.setValue("__SF_auth.session-token=sf-session", forHTTPHeaderField: "Cookie")
+            #expect(
+                delegate.redirectedRequest(originalURL: original, request: request)?
+                    .value(forHTTPHeaderField: "Cookie") == cookie,
+                "\(raw)")
+        }
+        jar.reject(id: session.id)
+        var request = URLRequest(url: original)
+        #expect(throws: (any Error).self) { try jar.apply(to: &request, id: session.id) }
+        #expect(delegate.redirectedRequest(originalURL: original, request: URLRequest(url: original)) == nil)
+    }
+
     private struct Result {
         let usage: UsageSnapshot
         let validated: [String]
@@ -180,9 +222,9 @@ struct SiliconFlowWebPluginTests {
     private static func fetch(
         _ engine: ProviderPluginEngineKind,
         _ fixture: Fixture,
-        rejected: Recorder = Recorder()) async throws -> Result
+        rejected: Recorder = Recorder(),
+        validated: Recorder = Recorder()) async throws -> Result
     {
-        let validated = Recorder()
         let runtime = try BundledPluginTestSupport.runtime("siliconflow-web", engine: engine, transport: fixture)
         let usage = try await runtime.fetchUsage(
             sourceMode: .web,

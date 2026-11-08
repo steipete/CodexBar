@@ -2810,7 +2810,7 @@
 "SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow پاسخی ناشناخته برگرداند. CodexBar را به‌روز کنید و دوباره امتحان کنید.";
 "Sign in to cloud.siliconflow.cn in your browser, then refresh CodexBar." = "در مرورگر خود وارد cloud.siliconflow.cn شوید، سپس CodexBar را تازه‌سازی کنید.";
 "The SiliconFlow China balance API was retired. Set the source to Auto or Web and sign in to cloud.siliconflow.cn." = "API موجودی SiliconFlow چین بازنشسته شده است. منبع را روی Auto یا Web بگذارید و وارد cloud.siliconflow.cn شوید.";
-"SiliconFlow denied access to the console balance (HTTP 403)." = "SiliconFlow دسترسی به موجودی کنسول را رد کرد (HTTP 403).";
+"SiliconFlow denied access to the console balance (HTTP 403). Open cloud.siliconflow.cn, check that this account can view billing, then refresh." = "SiliconFlow دسترسی به موجودی کنسول را رد کرد (HTTP 403). cloud.siliconflow.cn را باز کنید، بررسی کنید که این حساب به صورت‌حساب دسترسی دارد، سپس تازه‌سازی کنید.";
 "Claude Platform session validated and saved." = "نشست Claude Platform اعتبارسنجی و ذخیره شد.";
 "Use %@ or %@." = "از %@ یا %@ استفاده کنید.";
 "Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "در %@ وارد شوید. سرآیند Cookie آن را که شامل sessionKey است، به‌صورت خصوصی به %@ بدهید. سپس %@ را اجرا کنید.";

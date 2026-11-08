@@ -35,12 +35,16 @@ Each refresh walks the browser sessions offered by the shared cookie importer an
 
 The first session whose wallet response parses is cached; the subject is rediscovered on every refresh and never
 stored. HTTP 401, or a redirect to `https://account.siliconflow.cn/login`, rejects that session and tries the next.
-When all fail, CodexBar asks you to sign in again in the browser. HTTP 403 reports that console balance access was denied, 429 is rate limiting, and 408/5xx are temporary failures; none of these discard the session. Other redirects
-are not followed. The session cookie (`__SF_auth.session-token`) is set on `.siliconflow.cn`, so the importer reads
-both that parent domain and `cloud.siliconflow.cn`; cookies are sent only to `cloud.siliconflow.cn`.
+When all fail, CodexBar asks you to sign in again in the browser. HTTP 403 reports that console balance access was
+denied and asks you to check billing access in the console; 429 is rate limiting, and 408/5xx are temporary failures.
+None of these discard the session, and any other 3xx response that reaches the plugin fails the refresh. The shared transport refuses
+cross-origin and non-HTTPS redirects, so no cookie reaches `account.siliconflow.cn`; a same-origin HTTPS redirect is
+followed with cookies reselected for its URL. The session cookie (`__SF_auth.session-token`) is set on
+`.siliconflow.cn`, so the importer reads both that parent domain and `cloud.siliconflow.cn`; cookies are sent only to
+`cloud.siliconflow.cn`.
 
-Wallet amounts are integer strings in 10⁻¹² CNY. **Balance** is `financialInfo.balance`; **Available** is shown only
-when `financialInfo.available` differs. Cumulative `recharged` and `used` are not shown as spend. Zero and negative
+Wallet amounts are integer strings in 10⁻¹² CNY. **Balance** is `financialInfo.balance`, the only row shown;
+`available` and the cumulative `recharged` and `used` totals are not displayed. Zero and negative
 balances are kept; missing, empty, fractional, or non-string amounts, a missing or malformed subject header, and any
 other response shape fail the refresh without showing a balance.
 

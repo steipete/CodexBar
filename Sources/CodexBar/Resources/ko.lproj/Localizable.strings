@@ -2774,7 +2774,7 @@
 "SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow가 알 수 없는 응답을 반환했습니다. CodexBar를 업데이트하고 다시 시도하세요.";
 "Sign in to cloud.siliconflow.cn in your browser, then refresh CodexBar." = "브라우저에서 cloud.siliconflow.cn에 로그인한 다음 CodexBar를 새로 고치세요.";
 "The SiliconFlow China balance API was retired. Set the source to Auto or Web and sign in to cloud.siliconflow.cn." = "SiliconFlow 중국 잔액 API가 종료되었습니다. 소스를 Auto 또는 Web으로 설정하고 cloud.siliconflow.cn에 로그인하세요.";
-"SiliconFlow denied access to the console balance (HTTP 403)." = "SiliconFlow가 콘솔 잔액 접근을 거부했습니다(HTTP 403).";
+"SiliconFlow denied access to the console balance (HTTP 403). Open cloud.siliconflow.cn, check that this account can view billing, then refresh." = "SiliconFlow가 콘솔 잔액 접근을 거부했습니다(HTTP 403). cloud.siliconflow.cn을 열어 이 계정이 결제 정보를 볼 수 있는지 확인한 다음 새로 고치세요.";
 "Claude Platform session validated and saved." = "Claude Platform 세션을 검증하고 저장했습니다.";
 "Use %@ or %@." = "%@ 또는 %@을(를) 사용하세요.";
 "Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "%@에서 로그인하세요. sessionKey가 포함된 Cookie 헤더를 %@에 비공개로 전달하세요. 그런 다음 %@을(를) 실행하세요.";

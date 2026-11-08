@@ -2804,7 +2804,7 @@
 "SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow hat eine unbekannte Antwort zurückgegeben. Aktualisiere CodexBar und versuche es erneut.";
 "Sign in to cloud.siliconflow.cn in your browser, then refresh CodexBar." = "Melde dich im Browser bei cloud.siliconflow.cn an und aktualisiere dann CodexBar.";
 "The SiliconFlow China balance API was retired. Set the source to Auto or Web and sign in to cloud.siliconflow.cn." = "Die SiliconFlow-Guthaben-API für China wurde eingestellt. Setze die Quelle auf Auto oder Web und melde dich bei cloud.siliconflow.cn an.";
-"SiliconFlow denied access to the console balance (HTTP 403)." = "SiliconFlow hat den Zugriff auf das Konsolenguthaben verweigert (HTTP 403).";
+"SiliconFlow denied access to the console balance (HTTP 403). Open cloud.siliconflow.cn, check that this account can view billing, then refresh." = "SiliconFlow hat den Zugriff auf das Konsolenguthaben verweigert (HTTP 403). Öffne cloud.siliconflow.cn, prüfe, ob dieses Konto die Abrechnung sehen darf, und aktualisiere dann.";
 "Claude Platform session validated and saved." = "Claude Platform-Sitzung wurde validiert und gespeichert.";
 "Use %@ or %@." = "Verwenden Sie %@ oder %@.";
 "Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Melden Sie sich bei %@ an. Übergeben Sie den Cookie-Header mit sessionKey vertraulich an %@. Führen Sie anschließend %@ aus.";

@@ -11,7 +11,8 @@ public enum SiliconFlowProviderDescriptor {
         "Sign in to cloud.siliconflow.cn in your browser, then refresh CodexBar.",
         "The SiliconFlow China balance API was retired. "
             + "Set the source to Auto or Web and sign in to cloud.siliconflow.cn.",
-        "SiliconFlow denied access to the console balance (HTTP 403).",
+        "SiliconFlow denied access to the console balance (HTTP 403). "
+            + "Open cloud.siliconflow.cn, check that this account can view billing, then refresh.",
     ]
 
     public static let descriptor = Self.spec.makeDescriptor(fetchPlan: ProviderFetchPlan(

@@ -35,7 +35,11 @@ defineProvider({
       if (response.status >= 300 && response.status < 400 && isLoginRedirect(response.headers.location)) throw expired;
       const tryLater = message("SiliconFlow request failed. Try refreshing later.");
       if (response.status === 403) {
-        throw ctx.fail.permissionDenied(message("SiliconFlow denied access to the console balance (HTTP 403)."));
+        throw ctx.fail.permissionDenied(
+          message(
+            "SiliconFlow denied access to the console balance (HTTP 403). Open cloud.siliconflow.cn, check that this account can view billing, then refresh.",
+          ),
+        );
       }
       if (response.status === 429)
         throw ctx.fail.rateLimited(message("SiliconFlow is rate limiting requests. Try again later."));
