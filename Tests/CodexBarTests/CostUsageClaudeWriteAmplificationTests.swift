@@ -614,17 +614,29 @@ struct CostUsageClaudeWriteAmplificationTests {
         func load(
             context: CostUsageReportContext,
             cycle: Int = 0,
-            forceRescan: Bool = false) throws -> CostUsageDailyReport
+            forceRescan: Bool = false,
+            includeBreakdowns: Bool = false) throws -> CostUsageDailyReport
         {
             var options = CostUsageScanner.Options(
                 claudeProjectsRoots: [self.env.claudeProjectsRoot], cacheRoot: self.env.cacheRoot)
             options.refreshMinIntervalSeconds = 0
             options.forceRescan = forceRescan
+            let since = self.day.addingTimeInterval(context == .regular ? -29 * 86400 : -364 * 86400)
+            let now = self.day.addingTimeInterval(Double(cycle * 900))
+            if includeBreakdowns {
+                return try CostUsageScanner.loadClaudeReportProjectionsCancellable(
+                    since: since,
+                    until: self.day,
+                    now: now,
+                    options: options,
+                    reportContext: context,
+                    checkCancellation: nil).daily
+            }
             return try CostUsageScanner.loadDailyReportCancellable(
                 provider: .claude,
-                since: self.day.addingTimeInterval(context == .regular ? -29 * 86400 : -364 * 86400),
+                since: since,
                 until: self.day,
-                now: self.day.addingTimeInterval(Double(cycle * 900)),
+                now: now,
                 options: options,
                 reportContext: context,
                 checkCancellation: nil)
