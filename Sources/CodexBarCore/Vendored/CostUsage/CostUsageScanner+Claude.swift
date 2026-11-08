@@ -63,7 +63,7 @@ extension CostUsageScanner {
 
     // MARK: - Claude
 
-    private struct ClaudeDayModelKey: Hashable {
+    struct ClaudeDayModelKey: Hashable {
         let day: String
         let model: String
     }
@@ -136,7 +136,7 @@ extension CostUsageScanner {
         startOffset: Int64 = 0,
         pricingResolver: CostUsagePricing.ClaudeResolver,
         recordDay: ((String) -> Void)? = nil,
-        recordCwd: ((String) -> Void)? = nil,
+        projectPaths: ClaudeSessionProjectPaths? = nil,
         checkCancellation: CancellationCheck? = nil) throws -> ClaudeParseResult
     {
         func toInt(_ v: Any?) -> Int {
@@ -151,6 +151,7 @@ extension CostUsageScanner {
         let pathRole = Self.claudePathRole(fileURL: fileURL)
         var keyedRows: [ClaudeRowKey: ClaudeUsageRow] = [:]
         var unkeyedRows: [ClaudeUsageRow] = []
+        let fallbackSessionKey = Self.claudeFallbackSessionKey(filePath: fileURL.path)
 
         let maxLineBytes = 512 * 1024
         // Keep the full line so usage at the tail isn't dropped on large tool outputs.
@@ -190,11 +191,17 @@ extension CostUsageScanner {
                                 obj: obj, message: message, scanMetadata: couldContainMetadata)
                             if isVertex != (providerFilter == .vertexAIOnly) { return }
                         }
-                        if let recordCwd,
-                           let cwd = (obj["cwd"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                           !cwd.isEmpty
+                        let sessionId = obj["sessionId"] as? String
+                            ?? obj["session_id"] as? String
+                            ?? obj.dictionary("metadata")?["sessionId"] as? String
+                            ?? message?.dictionary("metadata")?["sessionId"] as? String
+                        // Known sessions keep their first cwd, so their later lines skip the cwd lookup.
+                        if let projectPaths,
+                           case let sessionKey = Self.claudeSessionKey(sessionId) ?? fallbackSessionKey,
+                           projectPaths.bySession[sessionKey] == nil,
+                           let cwd = Self.claudeTrimmedNonEmpty(obj["cwd"] as? String)
                         {
-                            recordCwd(cwd)
+                            projectPaths.bySession[sessionKey] = cwd
                         }
 
                         guard let tsText = obj["timestamp"] as? String,
@@ -244,10 +251,6 @@ extension CostUsageScanner {
 
                         let messageId = message["id"] as? String
                         let requestId = obj["requestId"] as? String ?? obj["request_id"] as? String
-                        let sessionId = obj["sessionId"] as? String
-                            ?? obj["session_id"] as? String
-                            ?? obj.dictionary("metadata")?["sessionId"] as? String
-                            ?? message.dictionary("metadata")?["sessionId"] as? String
                         let normalizedModel = pricingResolver.normalize(model)
                         let row = ClaudeUsageRow(
                             dayKey: dayKey,
@@ -632,6 +635,7 @@ extension CostUsageScanner {
         var cache: CostUsageCache
         var sourceFileIDs: [String: String]
         var sourceDayBounds: [String: CostUsageClaudeDayBounds]
+        var sourceProjectPaths: [String: [String: String]]
         let previousWindow: (since: String, until: String)?
         let range: CostUsageDayRange
         let providerFilter: ClaudeLogProviderFilter
@@ -685,7 +689,8 @@ extension CostUsageScanner {
         Self.recordClaudeScanWork(.transcriptParse(startOffset: startOffset))
         #endif
         var dayBounds = startOffset > 0 ? state.sourceDayBounds[path] : CostUsageClaudeDayBounds()
-        var parsedCwd: String?
+        // An append keeps each session's first cwd; a full parse recomputes them.
+        let projectPaths = ClaudeSessionProjectPaths(startOffset > 0 ? state.sourceProjectPaths[path] ?? [:] : [:])
         let parsed = try Self.parseClaudeFileCancellable(
             fileURL: URL(fileURLWithPath: path),
             range: state.range,
@@ -693,17 +698,15 @@ extension CostUsageScanner {
             startOffset: startOffset,
             pricingResolver: state.pricingResolver,
             recordDay: { dayBounds?.include($0) },
-            recordCwd: { cwd in if parsedCwd == nil { parsedCwd = cwd } },
+            projectPaths: projectPaths,
             checkCancellation: state.checkCancellation)
         let rows = startOffset > 0 ? Self.mergeClaudeRows(existing: cached?.claudeRows ?? [], delta: parsed.rows)
             : parsed.rows
-        // An append keeps the transcript's first working directory; a full parse recomputes it.
         let usage = CostUsageFileUsage(
             mtimeUnixMs: stamp.mtimeUnixMs,
             size: stamp.size,
             days: [:],
             parsedBytes: parsed.parsedBytes,
-            projectPath: startOffset > 0 ? (cached?.projectPath ?? parsedCwd) : parsedCwd,
             codexCostCacheComplete: true,
             claudeRows: rows)
         state.cache.files[path] = usage
@@ -711,6 +714,7 @@ extension CostUsageScanner {
         // Only a complete source scan can certify that no filtered timestamp lies beyond these bounds.
         let sourceKey = state.sourceFileIDs.index(forKey: path).map { state.sourceFileIDs[$0].key } ?? path
         state.sourceDayBounds[sourceKey] = parsed.parsedBytes == stamp.size ? dayBounds : nil
+        state.sourceProjectPaths[sourceKey] = projectPaths.bySession.isEmpty ? nil : projectPaths.bySession
     }
 
     private static func inventoryClaudeRoots(
@@ -871,6 +875,7 @@ extension CostUsageScanner {
                     timeZoneIdentifier: cache.timeZoneIdentifier)
                 artifact.sourceFileIDs = [:]
                 artifact.sourceDayBounds = [:]
+                artifact.sourceProjectPaths = [:]
             }
             let changedPaths: Set<String> = if let priorMemo {
                 Set(sourceInventory.keys.filter { path in
@@ -893,6 +898,7 @@ extension CostUsageScanner {
                 cache: cache,
                 sourceFileIDs: artifact.sourceFileIDs,
                 sourceDayBounds: artifact.sourceDayBounds,
+                sourceProjectPaths: artifact.sourceProjectPaths,
                 previousWindow: previousWindow,
                 range: range,
                 providerFilter: providerFilter,
@@ -910,6 +916,7 @@ extension CostUsageScanner {
             cache = scanState.cache
             artifact.sourceFileIDs = scanState.sourceFileIDs.filter { sourceInventory[$0.key] != nil }
             artifact.sourceDayBounds = scanState.sourceDayBounds.filter { sourceInventory[$0.key] != nil }
+            artifact.sourceProjectPaths = scanState.sourceProjectPaths.filter { sourceInventory[$0.key] != nil }
             cache.roots = nil
 
             for key in cache.files.keys where sourceInventory[key] == nil {
@@ -939,14 +946,15 @@ extension CostUsageScanner {
             range: range,
             pricingResolver: pricingResolver)
         try checkCancellation?()
+        artifact.usage = cache
         let breakdowns = buildsBreakdowns ? Self.buildClaudeReportBreakdowns(
-            cache: cache,
+            artifact: artifact,
             reconciled: reconciled,
+            daily: report,
             range: range,
             pricingResolver: pricingResolver) : nil
         try checkCancellation?()
 
-        artifact.usage = cache
         let committedCacheStamp: CostUsageClaudeFileStamp? = if shouldMutateCache {
             try CostUsageClaudeCacheIO.save(
                 provider: provider,
@@ -1013,7 +1021,9 @@ extension CostUsageScanner {
         rows: [ClaudeUsageRow],
         range: CostUsageDayRange,
         pricingResolver: CostUsagePricing.ClaudeResolver,
-        hasCompleteRows knownHasCompleteRows: Bool? = nil) -> CostUsageDailyReport
+        hasCompleteRows knownHasCompleteRows: Bool? = nil,
+        includesTemporal: Bool = true,
+        unresolvedDayModels: Set<ClaudeDayModelKey> = []) -> CostUsageDailyReport
     {
         var entries: [CostUsageDailyReport.Entry] = []
         var temporalBuckets = TemporalBuckets()
@@ -1029,6 +1039,7 @@ extension CostUsageScanner {
             rows: rows,
             range: range,
             pricingResolver: pricingResolver,
+            includesTemporal: includesTemporal,
             temporalBuckets: &temporalBuckets)
 
         let hasCompleteRows = knownHasCompleteRows
@@ -1057,7 +1068,8 @@ extension CostUsageScanner {
             var dayCostSeen = false
 
             for model in modelNames {
-                let repricedCost = repricedCosts[ClaudeDayModelKey(day: day, model: model)]
+                let key = ClaudeDayModelKey(day: day, model: model)
+                let repricedCost = repricedCosts[key]
                 let counts = hasCompleteRows
                     ? repricedCost ?? ClaudeReportAggregate()
                     : ClaudeReportAggregate(packed: cache.days[day]?[model] ?? [])
@@ -1077,6 +1089,7 @@ extension CostUsageScanner {
                                        sampleCount > 0,
                                        repricedCost.sampleCount == sampleCount,
                                        !repricedCost.unresolved,
+                                       !unresolvedDayModels.contains(key),
                                        repricedCost.total.isFinite
                 {
                     repricedCost.total
@@ -1154,6 +1167,7 @@ extension CostUsageScanner {
         rows: [ClaudeUsageRow],
         range: CostUsageDayRange,
         pricingResolver: CostUsagePricing.ClaudeResolver,
+        includesTemporal: Bool,
         temporalBuckets: inout TemporalBuckets) -> [ClaudeDayModelKey: ClaudeReportAggregate]
     {
         let costScale = 1_000_000_000.0
@@ -1205,7 +1219,9 @@ extension CostUsageScanner {
             }
             repricedCosts[key] = aggregate
 
-            self.addClaudeTemporal(row: row, costUSD: cost, range: range, into: &temporalBuckets)
+            if includesTemporal {
+                self.addClaudeTemporal(row: row, costUSD: cost, range: range, into: &temporalBuckets)
+            }
         }
 
         return repricedCosts

@@ -40,7 +40,7 @@ struct CostUsageClaudeRebuildBenchmarkTests {
         var options = CostUsageScanner.Options(
             claudeProjectsRoots: [env.claudeProjectsRoot], cacheRoot: env.cacheRoot, calendar: range.calendar)
         options.refreshMinIntervalSeconds = 0
-        // Production Claude refreshes also project sessions and projects.
+        /// Production Claude refreshes also project sessions and projects.
         func load() throws -> CostUsageDailyReport {
             try CostUsageScanner.loadClaudeReport(
                 provider: .claude,

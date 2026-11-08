@@ -554,11 +554,9 @@ struct CostUsageScannerClaudeCacheUpgradeTests {
         let cacheURL = CostUsageClaudeCacheIO.cacheFileURL(provider: .claude, cacheRoot: env.cacheRoot)
         var cache = CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: env.cacheRoot)
         #expect(cache.usage.version == 6)
-        #expect(cache.usage.files.values.allSatisfy { $0.projectPath != nil })
+        #expect(cache.sourceProjectPaths.count == cache.usage.files.count)
         cache.usage.version = 5
-        for path in cache.usage.files.keys {
-            cache.usage.files[path]?.projectPath = nil
-        }
+        cache.sourceProjectPaths = [:]
         try JSONEncoder().encode(cache).write(to: cacheURL)
         CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
 
@@ -570,7 +568,7 @@ struct CostUsageScannerClaudeCacheUpgradeTests {
         #expect(upgraded.projects.map(\.name) == ["alpha", "beta"])
         let saved = CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: env.cacheRoot)
         #expect(saved.usage.version == 6)
-        #expect(Set(saved.usage.files.values.compactMap(\.projectPath))
+        #expect(Set(saved.sourceProjectPaths.values.flatMap(\.values))
             == ["/Users/test/projects/alpha", "/Users/test/projects/beta"])
 
         CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
