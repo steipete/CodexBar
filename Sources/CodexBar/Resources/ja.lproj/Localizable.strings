@@ -2804,6 +2804,9 @@
 "SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow がリクエストの頻度を制限しています。後でもう一度お試しください。";
 "SiliconFlow request failed. Try refreshing later." = "SiliconFlow へのリクエストに失敗しました。後でもう一度更新してください。";
 "SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow から認識できない応答が返されました。CodexBar を更新して、もう一度お試しください。";
+"Sign in to cloud.siliconflow.cn in your browser, then refresh CodexBar." = "ブラウザでcloud.siliconflow.cnにサインインしてから、CodexBarを更新してください。";
+"The SiliconFlow China balance API was retired. Set the source to Auto or Web and sign in to cloud.siliconflow.cn." = "SiliconFlow中国版の残高APIは廃止されました。ソースをAutoまたはWebに設定し、cloud.siliconflow.cnにサインインしてください。";
+"SiliconFlow denied access to the console balance (HTTP 403)." = "SiliconFlowがコンソール残高へのアクセスを拒否しました（HTTP 403）。";
 "Claude Platform session validated and saved." = "Claude Platform のセッションを検証して保存しました。";
 "Use %@ or %@." = "%@ または %@ を使用してください。";
 "Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "%@ にサインインしてください。sessionKey を含む Cookie ヘッダーを %@ に非公開で渡してください。その後、%@ を実行してください。";

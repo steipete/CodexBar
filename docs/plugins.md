@@ -106,8 +106,10 @@ as credits, without inferred quota windows or dollar conversions.
 [abliteration.ai](abliteration.md) uses a fixed-origin bearer request to read prepaid USD credits. It reuses the
 standard API-key field and classified errors, with no browser access or inferred reset schedule.
 
-[SiliconFlow](siliconflow.md) reads `GET /v1/user/info` with the same API-key field. China (`api.siliconflow.cn`)
-is the default and displays CNY; the international origin displays USD. The key is not sent to any other host.
+[SiliconFlow](siliconflow.md) reads the China balance with `siliconflow-web`: one request-URL browser session loads
+the billing page, takes the subject from its `x-subject-id` response header, and reads the wallet with the same
+session. International accounts keep `GET /v1/user/info` with the API-key field and display USD. Neither script sends
+the API key to the console host or cookies to the API host.
 
 [X API](xapi.md) uses the same cookie host with a bundled `ct0` header echo for account discovery and developer-console
 credits. Its script preserves dollar balances and debt without receiving cookie values or adding a native fetcher.

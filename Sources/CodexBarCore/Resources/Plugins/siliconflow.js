@@ -23,7 +23,12 @@ defineProvider({
     const response = await ctx.http.get(`${origin}/v1/user/info`, {
       headers: { Accept: "application/json" },
     });
-    const retired = message("SiliconFlow refused the balance query. Check the balance in the SiliconFlow console.");
+    // The China balance API was retired on 2026-08-14; its balance is read from the console web source instead.
+    const retired = message(
+      currency === "CNY"
+        ? "The SiliconFlow China balance API was retired. Set the source to Auto or Web and sign in to cloud.siliconflow.cn."
+        : "SiliconFlow refused the balance query. Check the balance in the SiliconFlow console.",
+    );
     const checkKey = message("Check your API key in Settings.");
     const tryLater = message("SiliconFlow request failed. Try refreshing later.");
     if (response.status === 410) throw ctx.fail.providerUnavailable(retired);

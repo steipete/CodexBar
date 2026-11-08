@@ -206,7 +206,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [Chatbox AI](docs/chatbox.md) — API token
 - [abliteration.ai](docs/abliteration.md) — API key for prepaid USD credits and cumulative usage.
 - [OpenDesign](docs/opendesign.md) — Browser or manual session cookies for the active workspace's five-hour and weekly subscription allowance.
-- [SiliconFlow](docs/siliconflow.md) — API key for the prepaid account balance on the China (CNY) or international (USD) API.
+- [SiliconFlow](docs/siliconflow.md) — Browser session for the China (CNY) console balance; API key for the international (USD) balance.
 - [Tripo](docs/tripo.md) — API key for available and reserved account credits from the official account balance endpoint.
 <!-- End generated provider additions -->
 

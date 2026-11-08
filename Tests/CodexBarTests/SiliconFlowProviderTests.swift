@@ -11,12 +11,13 @@ struct SiliconFlowProviderTests {
         let fixture = try ProviderSettingsDescriptorTests().makeSettingsFixture(suite: "SiliconFlowProviderTests")
         let implementation = try #require(ProviderCatalog.implementation(for: .siliconflow))
         let fields = implementation.settingsFields(context: fixture.settingsContext(provider: .siliconflow))
-        #expect(fields.map(\.kind) == [.secure, .plain])
-        #expect(fields.map(\.title) == ["API key", "API URL"])
+        #expect(fields.map(\.kind) == [.secure, .secure, .plain])
+        #expect(fields.map(\.title) == ["Cookie header", "API key", "API URL"])
         #expect(ProviderSelection(argument: "SILICONFLOW")?.asList == [.siliconflow])
+        let international = ["SILICONFLOW_BASE_URL": "https://api.siliconflow.com"]
         #expect(!implementation.isAvailable(context: .init(
-            provider: .siliconflow, settings: fixture.settings, environment: [:])))
-        fields[0].binding.wrappedValue = "sk-fixture"
+            provider: .siliconflow, settings: fixture.settings, environment: international)))
+        fields[1].binding.wrappedValue = "sk-fixture"
         #expect(fixture.settings[providerConfig: .siliconflow, field: .apiKey] == "sk-fixture")
         #expect(implementation.isAvailable(context: .init(
             provider: .siliconflow, settings: fixture.settings, environment: [:])))
@@ -35,7 +36,7 @@ struct SiliconFlowProviderTests {
         #expect(descriptor.metadata.balanceOnly)
         #expect(!descriptor.metadata.burnDownWidgetSelectable)
         #expect(descriptor.history == .unavailable)
-        #expect(descriptor.fetchPlan.sourceModes == [.auto, .api])
+        #expect(descriptor.fetchPlan.sourceModes == [.auto, .web, .api])
         let issues = credentials.validateConfig(ProviderConfig(
             id: .siliconflow,
             enterpriseHost: "https://example.com"))
@@ -82,7 +83,7 @@ extension SiliconFlowProviderTests {
         #expect(SiliconFlowProviderImplementation.dashboardURL(settings: fixture.settings, environment: env) == nil)
         let implementation = try #require(ProviderCatalog.implementation(for: .siliconflow))
         let fields = implementation.settingsFields(context: fixture.settingsContext(provider: .siliconflow))
-        #expect(fields[0].actions.isEmpty)
+        #expect(fields[1].actions.isEmpty)
     }
 }
 
@@ -93,5 +94,48 @@ extension SiliconFlowProviderTests {
             #expect(L(message, language: "it") != message)
         }
         #expect(L("Show SiliconFlow usage", language: "de") == "Nutzung von SiliconFlow anzeigen")
+    }
+}
+
+extension SiliconFlowProviderTests {
+    @Test
+    func `China uses browser sessions without an API key while international keeps the API`() async throws {
+        let fixture = try ProviderSettingsDescriptorTests().makeSettingsFixture(suite: "SiliconFlowSourceRouting")
+        let implementation = try #require(ProviderCatalog.implementation(for: .siliconflow))
+        let international = ["SILICONFLOW_BASE_URL": "https://api.siliconflow.com/v1"]
+        #expect(implementation.isAvailable(context: .init(
+            provider: .siliconflow, settings: fixture.settings, environment: [:])))
+        fixture.settings.setCookieSource(.off, provider: .siliconflow)
+        #expect(!implementation.isAvailable(context: .init(
+            provider: .siliconflow, settings: fixture.settings, environment: [:])))
+        fixture.settings.setCookieSource(.auto, provider: .siliconflow)
+        #expect(!implementation.isAvailable(context: .init(
+            provider: .siliconflow, settings: fixture.settings, environment: international)))
+
+        let pipeline = SiliconFlowProviderDescriptor.descriptor.fetchPlan.pipeline
+        func strategies(_ mode: ProviderSourceMode, _ env: [String: String]) async -> [String] {
+            await pipeline.resolveStrategies(Self.context(mode, env)).map(\.id)
+        }
+        #expect(await strategies(.auto, [:]) == ["siliconflow.web"])
+        #expect(await strategies(.web, [:]) == ["siliconflow.web"])
+        #expect(await strategies(.api, [:]) == ["siliconflow.js"])
+        #expect(await strategies(.auto, international) == ["siliconflow.js"])
+        #expect(await strategies(.api, international) == ["siliconflow.js"])
+        #expect(await strategies(.web, international).isEmpty)
+    }
+
+    private static func context(_ mode: ProviderSourceMode, _ env: [String: String]) -> ProviderFetchContext {
+        ProviderFetchContext(
+            runtime: .cli,
+            sourceMode: mode,
+            includeCredits: false,
+            webTimeout: 1,
+            webDebugDumpHTML: false,
+            verbose: false,
+            env: env,
+            settings: nil,
+            fetcher: UsageFetcher(environment: env),
+            claudeFetcher: ClaudeUsageFetcher(browserDetection: BrowserDetection(cacheTTL: 0)),
+            browserDetection: BrowserDetection(cacheTTL: 0))
     }
 }

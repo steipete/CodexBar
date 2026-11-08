@@ -2808,6 +2808,9 @@
 "SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow sta limitando la frequenza delle richieste. Riprova più tardi.";
 "SiliconFlow request failed. Try refreshing later." = "La richiesta a SiliconFlow non è riuscita. Riprova ad aggiornare più tardi.";
 "SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow ha restituito una risposta sconosciuta. Aggiorna CodexBar e riprova.";
+"Sign in to cloud.siliconflow.cn in your browser, then refresh CodexBar." = "Accedi a cloud.siliconflow.cn nel browser, poi aggiorna CodexBar.";
+"The SiliconFlow China balance API was retired. Set the source to Auto or Web and sign in to cloud.siliconflow.cn." = "L'API del saldo SiliconFlow per la Cina è stata dismessa. Imposta la fonte su Auto o Web e accedi a cloud.siliconflow.cn.";
+"SiliconFlow denied access to the console balance (HTTP 403)." = "SiliconFlow ha negato l'accesso al saldo della console (HTTP 403).";
 "Claude Platform session validated and saved." = "Sessione di Claude Platform convalidata e salvata.";
 "Use %@ or %@." = "Usa %@ o %@.";
 "Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Accedi a %@. Passa in modo riservato l’intestazione Cookie contenente sessionKey a %@. Poi esegui %@.";

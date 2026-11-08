@@ -29,7 +29,7 @@ struct PluginCookieProviderSpecTests {
 
     private static let providers: [UsageProvider] = [
         .helmcode, .hyper, .manus, .perplexity, .qoder, .raycast, .sakana, .t3chat, .lithosai, .workbuddy,
-        .claudeplatform, .opendesign,
+        .claudeplatform, .opendesign, .siliconflow,
     ]
 
     @Test
@@ -96,7 +96,8 @@ struct PluginCookieProviderSpecTests {
             #expect(strategy.kind == (source == .web ? .web : .apiToken))
             #expect(await strategy.isAvailable(context))
         }
-        for provider in Self.providers where provider != .hyper {
+        // SiliconFlow keeps the API source for international accounts; SiliconFlowProviderTests covers its routing.
+        for provider in Self.providers where ![UsageProvider.hyper, .siliconflow].contains(provider) {
             #expect(ProviderDescriptorRegistry.descriptor(for: provider).fetchPlan.sourceModes == [.auto, .web])
         }
     }
