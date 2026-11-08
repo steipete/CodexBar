@@ -4,6 +4,7 @@
 
 ### Added
 
+- CLI: declare ElevenLabs setup guidance, including API-key alternatives, subscription-read permission, and saved-account priority.
 - Usage & Spend: add a Models view grouped by currency, preserve partial-history warnings, and match shared cards to the current appearance (#4889, #4888). Thanks @Chipagosfinest!
 - CLI: add manual Claude and Pi/OMP identified-request reports over SSH through one bounded collector, counting copied requests once and preserving unknown prices (#5010, #4835, #4839). Thanks @salmonumbrella!
 - CLI: expose provider-owned setup routes for Copilot, OpenAI API, and Azure OpenAI, with explicit unknown guidance for other providers (#4705, #4916). Thanks @Yuxin-Qiao!

@@ -61,6 +61,7 @@ public struct PluginProviderSpec: Sendable {
     public var menuBarMetrics: ProviderMenuBarMetricCapabilities?
     public var presentation = ProviderUsagePresentation()
     public var aliases: [String] = []
+    public var setup: ProviderSetup = .unknown
     public var timeout = ProviderPluginRuntime.defaultTimeout
     public var scriptSettings: @Sendable (ProviderFetchContext) -> [String: String] = { _ in [:] }
     public var validateContext: ScriptFetchStrategy.ContextValidator = { _ in }
@@ -156,7 +157,8 @@ public struct PluginProviderSpec: Sendable {
             history: self.history,
             presentation: self.presentation,
             fetchPlan: fetchPlan,
-            cli: cli)
+            cli: cli,
+            setup: self.setup)
     }
 
     func scriptValues(_ context: ProviderFetchContext) -> ScriptFetchStrategy.Values? {

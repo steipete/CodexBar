@@ -2808,3 +2808,4 @@
 "A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "一般 API 金鑰僅支援盡力查詢舊版餘額，不支援組織用量。設定了專案範圍的金鑰不會使用此備援方式。";
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "提供金鑰、HTTPS 資源端點與部署名稱。API 版本為選填。重新整理會傳送可能計費的驗證請求，而非用量歷史查詢。";
 "Mistral session expired or invalid." = "Mistral 工作階段已過期或無效。";
+"Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "使用具有 user_read 權限的 API 金鑰查看訂閱用量。此命令會儲存獨立金鑰；所選的 API 金鑰帳號優先。";
