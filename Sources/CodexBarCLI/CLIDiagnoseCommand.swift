@@ -16,20 +16,7 @@ extension CodexBarCLI {
                 kind: .args)
         }
 
-        let providerSelection: ProviderSelection
-        if let rawProvider = values.options["provider"]?.last {
-            guard let parsed = ProviderSelection(argument: rawProvider) else {
-                Self.exit(
-                    code: .failure,
-                    message: "Error: unknown provider '\(rawProvider)'",
-                    output: output,
-                    kind: .args)
-            }
-            providerSelection = parsed
-        } else {
-            providerSelection = Self.defaultProviderSelection(
-                enabled: config.enabledProviders().compactMap(\.firstPartyProvider))
-        }
+        let providerSelection = Self.decodeProvider(from: values, config: config, output: output)
 
         let providers = providerSelection.asList
         let pretty = values.flags.contains("pretty")

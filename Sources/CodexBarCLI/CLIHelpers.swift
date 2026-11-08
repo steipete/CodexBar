@@ -1,5 +1,6 @@
 import CodexBarCore
 import Commander
+import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
@@ -10,7 +11,6 @@ import Glibc
 #elseif canImport(Musl)
 import Musl
 #endif
-import Foundation
 #if os(macOS)
 import CoreFoundation
 #endif
@@ -26,8 +26,6 @@ extension CodexBarCLI {
             return try Self.providerSelection(
                 rawOverride: rawOverride,
                 enabled: config.enabledProviders().compactMap(\.firstPartyProvider))
-        } catch let error as CLIArgumentError {
-            Self.exit(code: .failure, message: "Error: \(error.message)", output: output, kind: .args)
         } catch {
             Self.exit(code: .failure, message: "Error: \(error.localizedDescription)", output: output, kind: .args)
         }
@@ -37,7 +35,7 @@ extension CodexBarCLI {
     static func providerSelection(rawOverride: String?, enabled: [UsageProvider]) throws -> ProviderSelection {
         if let rawOverride {
             guard let parsed = ProviderSelection(argument: rawOverride) else {
-                throw CLIArgumentError("Unknown provider '\(rawOverride)'. Use --provider \(ProviderHelp.list).")
+                throw CLIArgumentError("unknown provider '\(rawOverride)'")
             }
             return parsed
         }
@@ -45,21 +43,15 @@ extension CodexBarCLI {
     }
 
     static func defaultProviderSelection(enabled: [UsageProvider]) -> ProviderSelection {
-        if enabled.count == 2 {
-            let enabledSet = Set(enabled)
-            let primary = Set(ProviderDescriptorRegistry.all.filter(\ .metadata.isPrimaryProvider).map(\ .id))
-            if !primary.isEmpty, enabledSet == primary {
-                return .both
-            }
-            return .custom(enabled)
+        if enabled.count == 2,
+           Set(enabled) == Set(ProviderDescriptorRegistry.all.filter(\ .metadata.isPrimaryProvider).map(\ .id))
+        {
+            return .both
         }
-        if enabled.count >= 3 {
-            return .custom(enabled)
-        }
-        if let first = enabled.first {
+        if enabled.count == 1, let first = enabled.first {
             return ProviderSelection(provider: first)
         }
-        return .custom([])
+        return .custom(enabled)
     }
 
     static func decodeFormat(from values: ParsedValues) -> OutputFormat {

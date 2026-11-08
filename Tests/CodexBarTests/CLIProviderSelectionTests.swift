@@ -162,7 +162,7 @@ struct CLIProviderSelectionTests {
             try CodexBarCLI.providerSelection(rawOverride: "not-a-real-provider", enabled: [.codex])
         } throws: { error in
             guard let error = error as? CLIArgumentError else { return false }
-            return error.message.contains("'not-a-real-provider'") && error.message.contains("codex")
+            return error.message == "unknown provider 'not-a-real-provider'"
         }
     }
 
@@ -180,7 +180,7 @@ struct CLIProviderSelectionTests {
     }
 
     @Test
-    func `default selection ignores overrides`() {
+    func `default selection preserves a single enabled provider`() {
         #expect(CodexBarCLI.defaultProviderSelection(enabled: [.codex]).asList == [.codex])
     }
 }

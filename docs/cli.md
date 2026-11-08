@@ -196,16 +196,6 @@ a second identifier is an error. For an option value beginning with a dash, use 
     Files are read and validated even for a short window; reducing `--days` does not skip older files.
   - Requires explicit `--provider codex` and JSON. Do not combine with `--summary-only`,
     `--period`, `--group-by` or `--breakdown`; the existing separate-host summary command is unchanged.
-- `codexbar cost --provider claude --identified-only --format json` exports native Claude request accounting;
-  repeat `--remote <host>` to deduplicate and price the union with one local pricing snapshot.
-  Claude uses schema 1; Codex and Pi use schema 2. Provider ledgers cannot be mixed.
-- `codexbar cost --provider pi --identified-only --format json` exports Pi/OMP tokens, with no price estimate.
-  Pi and OMP share session/entry identities; copied records count once.
-- Identified collection is manual and accepts at most 15 explicitly supplied SSH hosts. It retains at most
-  128 MiB of encoded source ledgers, in addition to the existing 32 MiB per-source limit. Exceeding the
-  aggregate limit rejects that source, preserves earlier sources, marks the result partial and exits nonzero.
-  No remote host is discovered or contacted by ordinary refreshes. See [Claude](claude.md#identified-request-history)
-  and [Pi](pi.md#identified-token-history-over-ssh) for their accounting contracts.
 - `codexbar cards` prints a one-shot usage snapshot as a responsive terminal card grid.
   - Reuses the same provider, source, account, credits, and status flags as `codexbar usage`.
   - Account lines and plan badges are included in the card grid by default.
@@ -552,6 +542,10 @@ Grok purchased Extra Usage Credits appear in usage JSON as `usage.providerCost.b
 `currencyCode: "USD"` when the CLI proxy supplies a valid wallet. The amount is dollars (`1446` cents → `14.46`),
 separate from quota percentages; zero is retained and unavailable or invalid balances are omitted. The balance-only
 `used`/`limit` fields are zero and do not describe spending or a budget. See [Grok](grok.md#purchased-credits-in-cli-json).
+
+An explicit unrecognized `--provider` value in `usage`, `cost`, `cards`, or `diagnose` is an argument error
+(exit 1; commands supporting JSON report `kind: "args"`). Omitting `--provider` still uses the enabled providers; valid names,
+aliases, `both`, and `all` retain their existing meanings.
 
 ## Exit codes
 - 0: success
