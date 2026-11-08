@@ -46,7 +46,10 @@ struct PiSessionCostV9UpgradeTests {
 
         #expect(counter.value == 0)
         #expect(result.report.summary?.totalTokens == 15)
+        #expect(result.isComplete)
         #expect(result.sessions.isEmpty)
+        // Usage without session rows cannot partition the total, so details stay incomplete.
+        #expect(!result.detailsAreComplete)
     }
 
     private struct Fixture {

@@ -5,13 +5,15 @@ extension PiSessionCostScanner {
     /// contributions with the same merge and range filter as the total, so rows partition it.
     static func breakdowns(
         cache: PiSessionCostCache,
-        range: CostUsageScanner.CostUsageDayRange)
+        range: CostUsageScanner.CostUsageDayRange,
+        checkCancellation: CostUsageScanner.CancellationCheck?) throws
         -> (projects: [CostUsageProjectBreakdown], sessions: [CostUsageSessionBreakdown])?
     {
         var sessions: [CostUsageSessionBreakdown] = []
         var projectContributions: [String: [String: [String: [String: PiPackedUsage]]]] = [:]
         var projectIdentities: [String: (name: String?, path: String?)] = [:]
         for (sessionKey, session) in cache.sessions {
+            try checkCancellation?()
             guard let report = self.piReport(contributions: session.contributions, range: range) else { return nil }
             guard !report.data.isEmpty else { continue }
             let identity = self.projectIdentity(session)

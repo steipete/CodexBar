@@ -76,6 +76,8 @@ enum PiSessionCostScanner {
         var sessionID: String?
         var projectPath: String?
         var title: String?
+        /// An OMP title line owns the title even when empty, matching the live session parser.
+        var titleSlotSeen = false
 
         /// Returns whether `object` was a metadata record; such records carry no usage.
         mutating func apply(type: String, object: [String: Any]) -> Bool {
@@ -84,11 +86,11 @@ enum PiSessionCostScanner {
                 self.sessionID = self.sessionID ?? PiSessionCostScanner.sessionIdentifier(from: object)
                 self.projectPath = self.projectPath
                     ?? CostUsageScanner.normalizedCodexProjectPath(object["cwd"] as? String)
-                // An OMP title line before the header wins, matching the live session parser.
-                if self.title == nil, let headerTitle = object["title"] as? String {
+                if !self.titleSlotSeen, self.title == nil, let headerTitle = object["title"] as? String {
                     self.title = PiFamilySessionFileParser.sanitizedTitle(headerTitle)
                 }
             case "title":
+                self.titleSlotSeen = true
                 self.title = (object["title"] as? String).flatMap(PiFamilySessionFileParser.sanitizedTitle)
             case "session_info":
                 // The latest Pi rename wins; an empty name clears the title.
@@ -341,7 +343,10 @@ enum PiSessionCostScanner {
             : nil
         if provider == .pi {
             let isComplete = scanIsComplete && !self.hasUnsupportedHistory(cache: cache, range: range)
-            let breakdowns = self.breakdowns(cache: cache, range: range)
+            let breakdowns = try self.breakdowns(
+                cache: cache,
+                range: range,
+                checkCancellation: checkCancellation)
             return DailyReportResult(
                 report: reports.pi,
                 isComplete: isComplete,
@@ -349,7 +354,9 @@ enum PiSessionCostScanner {
                 scopeFingerprint: cache.sessionRootsFingerprint,
                 projects: breakdowns?.projects ?? [],
                 sessions: breakdowns?.sessions ?? [],
-                detailsAreComplete: isComplete && breakdowns != nil)
+                // A cache with usage but no session rows cannot partition the total.
+                detailsAreComplete: isComplete && breakdowns != nil
+                    && (reports.pi.data.isEmpty || !cache.sessions.isEmpty))
         }
         return DailyReportResult(
             report: provider == .codex ? reports.codex : reports.claude,

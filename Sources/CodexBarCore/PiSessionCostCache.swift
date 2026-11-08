@@ -3,7 +3,7 @@ import Foundation
 enum PiSessionCostCacheIO {
     /// Artifact schema version. Pricing changes are tracked separately by `pricingKey`.
     /// v10 adds per-session project and title metadata, which requires one full reparse.
-    private static let artifactVersion = 10
+    static let artifactVersion = 10
 
     private static func defaultCacheRoot() -> URL {
         let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
@@ -58,7 +58,7 @@ struct PiSessionCostCache: Codable {
     var sessions: [String: PiSessionUsage] = [:]
     var files: [String: PiSessionFileUsage] = [:]
 
-    init(version: Int = 10) {
+    init(version: Int = PiSessionCostCacheIO.artifactVersion) {
         self.version = version
     }
 }

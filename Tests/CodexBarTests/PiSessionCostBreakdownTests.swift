@@ -127,6 +127,29 @@ struct PiSessionCostBreakdownTests {
     }
 
     @Test
+    func `omp empty title line suppresses the header title like the live parser`() throws {
+        let fixture = try Fixture()
+        defer { fixture.env.cleanup() }
+        var titledHeader = fixture.header(id: "cleared-session", cwd: "/Users/test/projects/alpha")
+        titledHeader["title"] = "Header title"
+        let url = try fixture.writeOMP("2026-04-10T10-00-00-000Z_cleared.jsonl", [
+            ["type": "title", "title": ""],
+            titledHeader,
+            fixture.assistant(id: "c1", provider: "openai-codex", model: "gpt-5.4", input: 10, output: 5),
+        ])
+
+        let result = try fixture.scan()
+        #expect(result.sessions.map(\.sessionID) == ["cleared-session"])
+        #expect(result.sessions.first?.title == nil)
+        let live = try #require(PiFamilySessionFileParser.parse(
+            url: url,
+            dialect: .omp,
+            modifiedAt: fixture.day,
+            now: fixture.day))
+        #expect(live.sessionName == nil)
+    }
+
+    @Test
     func `pi appended rows and rename update the owning session without duplicating usage`() throws {
         let fixture = try Fixture()
         defer { fixture.env.cleanup() }
@@ -312,6 +335,94 @@ struct PiSessionCostBreakdownTests {
         #expect(second.sessions == first.sessions)
         #expect(second.projects == first.projects)
         #expect(second.sessions.first?.title == "Refactor parser")
+    }
+
+    @Test
+    func `pi rebuild with an unavailable root keeps its cached sessions in the total`() throws {
+        let fixture = try Fixture()
+        defer { fixture.env.cleanup() }
+        let visible = try fixture.write("2026-04-10T10-00-00-000Z_visible.jsonl", [
+            fixture.header(id: "visible-session", cwd: "/Users/test/projects/alpha"),
+            fixture.assistant(id: "v1", provider: "openai-codex", model: "gpt-5.4", input: 10, output: 5),
+        ])
+        try fixture.writeOMP("2026-04-10T11-00-00-000Z_hidden.jsonl", [
+            fixture.header(id: "hidden-session", cwd: "/Users/test/projects/beta"),
+            fixture.assistant(id: "h1", provider: "openai-codex", model: "gpt-5.4", input: 20, output: 10),
+        ])
+        let first = try fixture.scan()
+        #expect(first.detailsAreComplete)
+        #expect(first.report.summary?.totalTokens == 45)
+
+        try fixture.append(to: visible, [
+            fixture.assistant(id: "v2", provider: "openai-codex", model: "gpt-5.4", input: 7, output: 3),
+        ])
+        // A configured root that disappears makes the scan partial; its cached files are rebuilt as preserved.
+        try FileManager.default.removeItem(at: fixture.ompSessionsRoot)
+        let partial = try fixture.scan(now: fixture.day.addingTimeInterval(1))
+        let total = try #require(partial.report.summary?.totalTokens)
+        #expect(!partial.isComplete)
+        #expect(!partial.detailsAreComplete)
+        #expect(total == 55)
+        #expect(partial.sessions.compactMap(\.totalTokens).reduce(0, +) == total)
+        #expect(partial.projects.compactMap(\.totalTokens).reduce(0, +) == total)
+        let sessions = Dictionary(uniqueKeysWithValues: partial.sessions.map { ($0.sessionID, $0.totalTokens) })
+        #expect(sessions == ["visible-session": 25, "hidden-session": 30])
+    }
+
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["CODEXBAR_PI_BREAKDOWN_BENCHMARK"] == "1"))
+    func `large synthetic pi session breakdown timing`() throws {
+        let fixture = try Fixture()
+        defer { fixture.env.cleanup() }
+        let sessionCount = 2000
+        let dayCount = 30
+        let since = fixture.day.addingTimeInterval(-Double(dayCount - 1) * 24 * 60 * 60)
+        for index in 0..<sessionCount {
+            let project = index % 50
+            let rows: [[String: Any]] = [fixture.header(id: "bench-\(index)", cwd: "/Users/test/projects/p\(project)")]
+                + (0..<3).map { turn in
+                    fixture.assistant(
+                        id: "bench-\(index)-\(turn)",
+                        provider: turn == 2 ? "anthropic" : "openai-codex",
+                        model: turn == 2 ? "claude-sonnet-4-6" : "gpt-5.4",
+                        input: 10,
+                        output: 5,
+                        at: since.addingTimeInterval(Double((index + turn) % dayCount) * 24 * 60 * 60))
+                }
+            try fixture.write(String(format: "--p%d--/2026-04-10T10-00-00-000Z_bench-%04d.jsonl", project, index), rows)
+        }
+        var debounced = fixture.options
+        debounced.refreshMinIntervalSeconds = 3600
+        let expectedTokens = sessionCount * 3 * 15
+
+        let runs: [(label: String, provider: UsageProvider, options: PiSessionCostScanner.Options)] = [
+            ("cold pi scan", .pi, fixture.options),
+            ("unchanged codex mirror refresh", .codex, fixture.options),
+            ("debounced pi read", .pi, debounced),
+        ]
+        for (offset, run) in runs.enumerated() {
+            let start = ContinuousClock.now
+            let result = try fixture.scan(
+                provider: run.provider,
+                since: since,
+                now: fixture.day.addingTimeInterval(Double(offset)),
+                options: run.options)
+            print("[pi-breakdown-benchmark] \(run.label): \(start.duration(to: .now)); \(sessionCount) sessions")
+            if run.provider == .pi {
+                #expect(result.sessions.count == sessionCount)
+                #expect(result.sessions.compactMap(\.totalTokens).reduce(0, +) == expectedTokens)
+            }
+        }
+
+        let cache = PiSessionCostCacheIO.load(cacheRoot: fixture.env.cacheRoot)
+        let range = CostUsageScanner.CostUsageDayRange(since: since, until: fixture.day, calendar: .current)
+        let start = ContinuousClock.now
+        let breakdowns = try #require(try PiSessionCostScanner.breakdowns(
+            cache: cache,
+            range: range,
+            checkCancellation: nil))
+        print("[pi-breakdown-benchmark] breakdowns only: \(start.duration(to: .now)); \(sessionCount) sessions")
+        #expect(breakdowns.sessions.count == sessionCount)
+        #expect(breakdowns.projects.count == 50)
     }
 
     @Test
