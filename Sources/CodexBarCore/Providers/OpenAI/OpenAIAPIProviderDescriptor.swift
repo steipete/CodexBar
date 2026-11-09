@@ -28,7 +28,7 @@ public enum OpenAIAPIProviderDescriptor {
             metadata: ProviderMetadata(
                 id: .openai,
                 displayName: "OpenAI",
-                sessionLabel: "Spend",
+                sessionLabel: "API credit",
                 weeklyLabel: "Requests",
                 opusLabel: nil,
                 supportsOpus: false,
@@ -54,18 +54,22 @@ public enum OpenAIAPIProviderDescriptor {
                 widgetColor: ProviderColor(red: 15 / 255, green: 130 / 255, blue: 110 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
-                noDataMessage: { "OpenAI usage needs an Admin API key for organization usage." },
+                noDataMessage: {
+                    "OpenAI usage needs an Admin API key, or a platform.openai.com browser session for API credits."
+                },
                 showsCostMenuSection: false,
                 // The KPI grid already shows requests; the source label sits in the card header.
                 showsRequestHistory: false,
                 chartCalendar: CostUsageBucketTimeZone.calendar(identifier: "UTC")),
             presentation: ProviderUsagePresentation(
                 costPresenter: { snapshot in
-                    let style: ProviderCostMenuCardStyle = (snapshot.providerCost?.limit ?? 1) <= 0
-                        ? .apiSpend
-                        : .generic
-                    return ProviderCostPresentation(menuCardStyle: style)
+                    // Only browser-session credit grants carry a balance. Admin API snapshots show spend.
+                    if snapshot.providerCost?.balance != nil {
+                        return ProviderCostPresentation(showsGenericFallback: false, menuCardStyle: .prepaidCredits)
+                    }
+                    return ProviderCostPresentation(menuCardStyle: .apiSpend)
                 },
+                menuBarBalanceUsesPrepaidCost: true,
                 menuCard: ProviderMenuCardPresentation(
                     usageNotesResolver: { context in
                         context.snapshot?.openAIAPIUsage.map(ProviderUsageNotesResolution.openAIAPI) ?? .unhandled
@@ -77,7 +81,11 @@ public enum OpenAIAPIProviderDescriptor {
                             return projected
                         }
                         return snapshot == nil ? tokenSnapshot : nil
-                    }),
+                    },
+                    // Credit grants expire rather than reset, so their expiry stays a detail line.
+                    showsPrimaryBalanceDescription: true,
+                    clearsPrimaryReset: true),
+                menu: ProviderMenuDescriptorPresentation(primaryDescriptionIsDetail: { _ in true }),
                 optionalDetails: ProviderOptionalDetailsPresentation(
                     costSummaryTitles: ["Usage summary"])),
             fetchPlan: self.fetchPlan(),
@@ -97,21 +105,32 @@ public enum OpenAIAPIProviderDescriptor {
                     hint: "Use an organization Admin API key for organization costs and usage. " +
                         "Project/service-account keys cannot read those endpoints."),
                 .init(
-                    id: "legacy-api-key",
-                    method: .apiKey,
-                    platforms: [.macOS, .linux],
-                    requiredInputs: [.init(
-                        id: "legacy-api-key",
-                        configFields: ["apiKey", "tokenAccounts.accounts[].token"],
-                        environmentVariables: [OpenAIAPISettingsReader.apiKeyEnvironmentKey])],
-                    hint: "A normal API key supports only best-effort legacy balance fallback, " +
-                        "not organization usage. Configured keys with project scoping do not use that fallback."),
+                    id: "browser-session",
+                    method: .browserSession,
+                    platforms: [.macOS],
+                    hint: "Sign in at platform.openai.com once in a Chromium browser. CodexBar reads the " +
+                        "platform session from that browser's local storage for API credit grants."),
             ]))
     }
 
     private static func fetchPlan() -> ProviderFetchPlan {
-        ProviderFetchPlan(sourceModes: [.auto, .api], pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
-            [Self.scriptStrategy()]
+        #if os(macOS)
+        let web: [any ProviderFetchStrategy] = [OpenAIPlatformCreditsWebStrategy()]
+        #else
+        let web: [any ProviderFetchStrategy] = []
+        #endif
+        let sourceModes: Set<ProviderSourceMode> = web.isEmpty ? [.auto, .api] : [.auto, .api, .web]
+        // Spend and credits never merge: an Admin key keeps the spend view, so credit grants from a
+        // possibly different browser organization cannot appear beside it. Configured keys arrive as
+        // OPENAI_ADMIN_KEY, so only a non-admin OPENAI_API_KEY, which cannot read spend, goes to the browser session.
+        return ProviderFetchPlan(sourceModes: sourceModes, pipeline: ProviderFetchPipeline(resolveStrategies: {
+            switch $0.sourceMode {
+            case .api: [Self.scriptStrategy()]
+            case .web: web
+            case .auto: OpenAIAPISettingsReader.adminAPIKey(environment: $0.env) == nil && !web.isEmpty
+                ? web : [Self.scriptStrategy()]
+            case .cli, .oauth: []
+            }
         }))
     }
 
@@ -129,7 +148,6 @@ public enum OpenAIAPIProviderDescriptor {
                 var settings = [
                     "OPENAI_LIVE_MINUTES": context.env["OPENAI_LIVE_MINUTES"] == "0" ? "0" : "60",
                     "OPENAI_HISTORY_DAYS": String(context.costUsageHistoryDays),
-                    "OPENAI_ALLOW_BALANCE_FALLBACK": credential.allowsLegacyBalanceFallback ? "1" : "0",
                 ]
                 settings[OpenAIAPISettingsReader.projectIDEnvironmentKey] = credential.projectID
                 return .init(
@@ -139,26 +157,35 @@ public enum OpenAIAPIProviderDescriptor {
     }
 }
 
+#if os(macOS)
+private struct OpenAIPlatformCreditsWebStrategy: ProviderFetchStrategy {
+    let id = "openai.platform-web"
+    let kind: ProviderFetchKind = .web
+
+    func isAvailable(_: ProviderFetchContext) async -> Bool {
+        true
+    }
+
+    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        let body = try await OpenAIPlatformSession.creditGrants(browserDetection: context.browserDetection)
+        let usage = try OpenAIPlatformCreditGrants.snapshot(from: body, now: Date())
+        return self.makeResult(usage: usage, sourceLabel: "web")
+    }
+
+    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
+        false
+    }
+}
+#endif
+
 struct OpenAIAPIUsageCredential: Equatable {
     let apiKey: String
     let projectID: String?
-    let usesAdminKey: Bool
 
     init?(environment: [String: String]) {
-        if let adminKey = OpenAIAPISettingsReader.adminAPIKey(environment: environment) {
-            self.apiKey = adminKey
-            self.usesAdminKey = true
-        } else if let apiKey = OpenAIAPISettingsReader.apiKey(environment: environment) {
-            self.apiKey = apiKey
-            self.usesAdminKey = false
-        } else {
-            return nil
-        }
+        guard let apiKey = OpenAIAPISettingsReader.apiKey(environment: environment) else { return nil }
+        self.apiKey = apiKey
         self.projectID = OpenAIAPISettingsReader.projectID(environment: environment)
-    }
-
-    var allowsLegacyBalanceFallback: Bool {
-        self.projectID == nil || !self.usesAdminKey
     }
 }
 

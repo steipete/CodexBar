@@ -1,17 +1,19 @@
 ---
-summary: "OpenAI API provider: Admin API key daily graphs, per-minute live usage, and legacy balance fallback."
+summary: "OpenAI API provider: Admin API key daily graphs, per-minute live usage, and browser-session API credits on macOS."
 read_when:
   - Updating OpenAI API Platform usage or cost display
   - Updating the OpenAI Live Usage window
   - Debugging OPENAI_ADMIN_KEY or OPENAI_API_KEY behavior
+  - Debugging the platform.openai.com browser-session credit grants
 ---
 
 # OpenAI API provider
 
 CodexBar's OpenAI API provider targets the API Platform organization dashboard, not ChatGPT/Codex subscription limits.
 
-The bundled `openai.js` plugin is authoritative on QuickJS and JavaScriptCore. Swift retains settings and the typed
-usage-card adapter; the script supplies daily history, source labels, project scoping, and legacy billing fallback.
+The bundled `openai.js` plugin is authoritative on QuickJS and JavaScriptCore for Admin API data. Swift retains
+settings and the typed usage-card adapter, and the script supplies daily history, source labels, and project scoping.
+On macOS, a Swift browser-session source reads API credit grants without any key.
 
 ## Data sources
 
@@ -21,8 +23,24 @@ usage-card adapter; the script supplies daily history, source labels, project sc
    - Daily buckets use `bucket_width=1d`, costs are grouped by `line_item`, and completion usage is grouped by `model`.
    - Optional project scoping comes from `OPENAI_PROJECT_ID` or `providers[].workspaceID` for `openai`.
      Project-scoped requests add `project_ids=<project>` to both Admin API endpoints.
-2. Best-effort fallback: legacy `GET https://api.openai.com/v1/dashboard/billing/credit_grants` for older user API
-   keys that cannot access organization usage. This endpoint is not part of OpenAI's current public API reference.
+2. Browser session (macOS, `web`): API credit grants, including the monthly API credits that ChatGPT Pro and
+   Business subscriptions add to the linked API organization.
+   - Reads the session that platform.openai.com keeps in Chromium local storage: the `oai-auth:onboard` entry for
+     origin `https://platform.openai.com`, which holds the platform OAuth access and refresh tokens. Profiles are
+     checked in the shared default browser order and the first profile whose session OpenAI accepts wins. Chromium
+     local storage is not encrypted, so this needs no Keychain prompt. Safari and Firefox are not read.
+   - Each refresh runs plain HTTP: `POST https://api.openai.com/v1/dashboard/onboarding/login` turns an access
+     token into a session key, and `GET https://api.openai.com/v1/dashboard/billing/credit_grants` reads the
+     grants with it.
+   - Token order: each browser access token while its JWT `exp` is more than a minute away, nothing stored. Otherwise
+     CodexBar's own pair from an earlier refresh while unexpired, else a refresh at
+     `https://auth.openai.com/oauth/token` with CodexBar's refresh token, else a refresh with each browser profile's
+     refresh token until one is accepted. Every refresh rotates the refresh token, and CodexBar stores the new pair in its own Keychain
+     cache item. A rejected access token moves on to the next step.
+   - No key can replace this: OpenAI answers that endpoint with HTTP 403 "must be made with a session key" for
+     secret, project, service-account and Admin keys alike.
+   - No session in any profile reports a missing credential, and a rejected refresh reports "OpenAI Platform
+     session expired". Both say to sign in at platform.openai.com in Chrome or another Chromium browser.
 
 ## Setup
 
@@ -33,14 +51,14 @@ printf '%s' "$OPENAI_ADMIN_KEY" | codexbar config set-api-key --provider openai 
 ```
 
 Settings → Providers → OpenAI writes the same `~/.codexbar/config.json` field. `OPENAI_ADMIN_KEY` is preferred over
-`OPENAI_API_KEY` because it unlocks organization costs and usage; a normal API key only supports the legacy balance
-fallback. Selected token accounts take precedence over both environment keys and the configured key. Each
-credential keeps its own manual organization rate limits; Settings edits the selected account's list and identifies
-that account, or edits the provider key's list when no token account is selected.
+`OPENAI_API_KEY` because it unlocks organization costs and usage. Selected token accounts take precedence over both
+environment keys and the configured key. Each credential keeps its own manual organization rate limits; Settings
+edits the selected account's list and identifies that account, or edits the provider key's list when no token
+account is selected.
 
 Project service-account keys are project-scoped credentials for API workloads. They are not organization Admin API
 keys, so they cannot read the organization usage and cost endpoints used by CodexBar. Configure an organization Admin
-API key instead; CodexBar reports this distinction when a project or service-account key is rejected.
+API key instead.
 
 To scope Admin API usage to a project, set the OpenAI Project ID field in Settings or add `workspaceID` to the `openai`
 provider config:
@@ -54,9 +72,25 @@ provider config:
 ```
 
 Project scoping is tied to the configured Admin API key. Selected OpenAI token accounts intentionally scrub
-`OPENAI_PROJECT_ID`/`workspaceID` so one account cannot inherit another account's project filter. Project-scoped Admin
-API failures with a configured Admin key or `OPENAI_ADMIN_KEY` do not fall back to the legacy billing endpoint, because
-that endpoint is not project-filtered. The legacy `OPENAI_API_KEY` environment path retains its existing balance fallback.
+`OPENAI_PROJECT_ID`/`workspaceID` so one account cannot inherit another account's project filter.
+
+### Browser session (macOS)
+
+Sign in at platform.openai.com once in Chrome or another Chromium browser. CodexBar reads the platform session from
+that browser's local storage, so there is nothing to paste. Settings → Providers → OpenAI → **Usage source**: Auto
+(default) uses an Admin API key when one is configured, otherwise the browser session. Admin API key and Browser
+session force one source.
+
+From the CLI, `codexbar usage --provider openai --source web` forces the credit grants. Auto picks the Admin API
+when `OPENAI_ADMIN_KEY`, the configured key, a selected token account, or an `sk-admin-` key in `OPENAI_API_KEY` is
+set. Any other `OPENAI_API_KEY` cannot read organization spend, so Auto uses the browser session instead, and
+`--source api` still sends that key.
+
+Credits and spend never merge. An Admin key keeps the spend view and a failing key never falls back to the
+browser session, because the browser's default organization can differ from the key's organization and the
+`credit_grants` response carries no organization id to prove they match. Key holders who want credits select
+**Browser session**. The browser session reads only platform.openai.com local storage, never Codex or chatgpt.com
+data.
 
 ## Menu display
 
@@ -66,7 +100,11 @@ that endpoint is not project-filtered. The legacy `OPENAI_API_KEY` environment p
 - Daily Admin API data renders inline Today/7d/configured-window KPIs plus a compact spend chart.
 - The inline usage card opens a hosted chart submenu with daily spend, token, and request trends plus selected-day detail.
 - Top model and top spend labels come from the configured completion/cost buckets when the Admin API returns them.
-- Legacy balance data keeps the older available/used credit summary and does not show organization graphs.
+- Browser-session data shows an **API credit** lane for the soonest-expiring ChatGPT subscription grant with credit
+  left, for example `$123.17 of $124.00 left · Expires Nov 26`. Grants expire rather than reset, so the lane has no
+  reset countdown. When that grant is used up there is no lane.
+- Other grants (scheduled, purchased, free trial, exhausted subscription grants) appear under **Other credit grants**.
+- The total available credit is the prepaid balance on the menu card and the menu bar **Balance** token.
 - Project-scoped Admin API data labels the account as `Admin API: <project>` and the organization line as
   `Project: <project>`.
 
@@ -82,7 +120,7 @@ Cached input is a subset of input tokens; total tokens are input plus output.
 The window reads `GET /v1/organization/usage/completions` with `bucket_width=1m`, `group_by=model`, and `group_by=batch`, following
 pagination and filling missing minutes on a regular grid. This covers completions/responses usage only; embeddings, images,
 and separate audio endpoints are not included. It requires an organization Admin API key (`sk-admin-…`), even when
-the daily card can fall back to a legacy balance. Credentials and optional `project_ids` scoping use the same settings
+the daily card shows browser-session credits. Credentials and optional `project_ids` scoping use the same settings
 and selected-account rules as the daily view.
 
 While open, the window polls every 30 seconds and supports Refresh (⌘R). Rate limiting doubles the polling interval

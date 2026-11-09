@@ -1989,7 +1989,6 @@
 "Shows usage from `tcr`; it does not switch accounts, because tcr picks the account for each request. Credentials stay managed by tcr; CodexBar never reads them." = "Visar användning från `tcr`; byter inte konto, eftersom tcr väljer konto för varje förfrågan. Inloggningsuppgifterna hanteras av tcr; CodexBar läser dem aldrig.";
 "Stay Awake" = "Håll dig vaken";
 "Stored in the CodexBar config file. Reads monthly budget and routed usage from /v1/usage." = "Lagrat i konfigurationsfilen CodexBar. Läser månadsbudget och dirigerad användning från /v1/usage.";
-"Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage; legacy/user keys only get a best-effort balance fallback." = "Lagrat i ~/.codexbar/config.json. OPENAI_ADMIN_KEY krävs för organisationsanvändning; äldre nycklar/användarnycklar får bara den bästa möjliga balansen.";
 "Stored in ~/.codexbar/config.json. You can also provide FACTORY_API_KEY or ~/.factory/.env." = "Lagrat i ~/.codexbar/config.json. Du kan också tillhandahålla FACTORY_API_KEY eller ~/.factory/.env.";
 "Stored in ~/.codexbar/config.json. You can also set AMP_API_KEY." = "Lagrat i ~/.codexbar/config.json. Du kan också ställa in AMP_API_KEY.";
 "SuperGrok OAuth" = "SuperGrok OAuth";
@@ -2826,7 +2825,15 @@
 "In the macOS app, select manual cookie source and supply the matching GitHub Cookie header." = "Välj manuell kakkälla i macOS-appen och ange motsvarande GitHub-Cookie-header.";
 "Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app." = "Logga in på GitHub i en webbläsare som stöds och välj automatisk kakimport i macOS-appen.";
 "Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints." = "Använd en Admin-API-nyckel för organisationens kostnader och användning. Projekt- och tjänstekontonycklar kan inte läsa dessa slutpunkter.";
-"A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "En vanlig API-nyckel stöder endast äldre saldo som reservlösning utan garanti, inte organisationsanvändning. Konfigurerade nycklar med projektavgränsning använder inte denna reservlösning.";
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Ange en nyckel, HTTPS-resursslutpunkt och distributionsnamn. API-version är valfri. Uppdatering skickar en potentiellt debiterbar valideringsbegäran, inte en fråga om användningshistorik.";
 "Mistral session expired or invalid." = "Mistral-sessionen har gått ut eller är ogiltig.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Använd en API-nyckel med behörigheten user_read för att visa abonnemangsanvändningen. Kommandot sparar en separat nyckel; det valda API-nyckelkontot har företräde.";
+"Auto uses an Admin API key when configured, otherwise your platform.openai.com browser session for API credits." = "Automatiskt använder en Admin-API-nyckel när en är inställd, annars din webbläsarsession på platform.openai.com för API-kredit.";
+"Browser session" = "Webbläsarsession";
+"Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage. Optional when using the browser session." = "Lagras i ~/.codexbar/config.json. OPENAI_ADMIN_KEY krävs för organisationens användning. Valfri när webbläsarsessionen används.";
+"Sign in at platform.openai.com once in a Chromium browser. CodexBar reads the platform session from that browser's local storage for API credit grants." = "Logga in på platform.openai.com en gång i en Chromium-webbläsare. CodexBar läser plattformssessionen från webbläsarens lokala lagring för API-kredittilldelningar.";
+"Other credit grants" = "Övriga kredittilldelningar";
+"Scheduled credit" = "Schemalagd kredit";
+"ChatGPT subscription credit" = "Kredit från ChatGPT-prenumeration";
+"Credit grant" = "Kredittilldelning";
+"OpenAI usage needs an Admin API key, or a platform.openai.com browser session for API credits." = "OpenAI-användning kräver en Admin-API-nyckel eller en webbläsarsession på platform.openai.com för API-kredit.";

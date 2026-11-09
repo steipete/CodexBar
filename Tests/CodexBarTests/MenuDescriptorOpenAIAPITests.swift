@@ -1,7 +1,7 @@
-import CodexBarCore
 import Foundation
 import Testing
 @testable import CodexBar
+@testable import CodexBarCore
 
 @MainActor
 struct MenuDescriptorOpenAIAPITests {
@@ -90,6 +90,48 @@ struct MenuDescriptorOpenAIAPITests {
         #expect(lines.contains("30d: $17.50 · 48 requests"))
         #expect(lines.contains("Top model: gpt-5.2-codex"))
         #expect(!lines.contains("No usage yet"))
+        let presentation = OpenAIAPIProviderDescriptor.descriptor.presentation
+        #expect(presentation.cost(snapshot: usage.toUsageSnapshot()).menuCardStyle == .apiSpend)
+        #expect(MenuBarLayoutBalanceResolver.balance(provider: .openai, snapshot: usage.toUsageSnapshot()) == nil)
+    }
+
+    @Test
+    func `openai platform credits show the credit lane and prepaid balance`() throws {
+        let settings = testSettingsStore(
+            suiteName: "MenuDescriptorOpenAIAPITests-platform-credits",
+            userDefaults: InMemoryUserDefaults())
+        settings.statusChecksEnabled = false
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let body = """
+        {"total_granted":124,"total_used":0.834548,"total_available":123.165452,"grants":{"data":[
+          {"id":"chatgpt_api_credits_promo_fixture","grant_amount":124,"used_amount":0.834548,
+           "effective_at":1794047545,"expires_at":1795712905,"is_scheduled":false}]}}
+        """
+        let snapshot = try OpenAIPlatformCreditGrants.snapshot(
+            from: Data(body.utf8),
+            now: Date(timeIntervalSince1970: 1_794_139_200))
+        store._setSnapshotForTesting(snapshot, provider: .openai)
+
+        let lines = MenuDescriptor.build(
+            provider: .openai,
+            store: store,
+            settings: settings,
+            account: AccountInfo(email: nil, plan: nil),
+            updateReady: false,
+            includeContextualActions: false).sections
+            .flatMap(\.entries)
+            .compactMap { entry -> String? in
+                guard case let .text(text, _) = entry else { return nil }
+                return text
+            }
+
+        #expect(lines.contains { $0.hasPrefix("API credit: ") })
+        let cost = OpenAIAPIProviderDescriptor.descriptor.presentation.cost(snapshot: snapshot)
+        #expect(cost.menuCardStyle == .prepaidCredits && !cost.showsGenericFallback)
+        #expect(MenuBarLayoutBalanceResolver.balance(provider: .openai, snapshot: snapshot) == "$123.17")
     }
 
     private static func localNoon(year: Int, month: Int, day: Int) throws -> Date {

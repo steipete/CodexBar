@@ -93,7 +93,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 ## Providers
 
 - [Codex](docs/codex.md) — OAuth API or local Codex CLI, plus optional OpenAI web dashboard extras.
-- [OpenAI](docs/openai.md) — Admin API key usage/cost graphs with legacy credit-balance fallback.
+- [OpenAI](docs/openai.md) — Admin API key usage/cost graphs, or API credit grants from the browser session on macOS.
 - [Azure OpenAI](docs/azure-openai.md) — API key, endpoint, and deployment validation probe.
 - [Claude](docs/claude.md) — OAuth API, browser cookies, or CLI PTY fallback; session and weekly usage where available.
 - [ClinePass](docs/clinepass.md) — API key for five-hour, weekly, and monthly subscription limits.

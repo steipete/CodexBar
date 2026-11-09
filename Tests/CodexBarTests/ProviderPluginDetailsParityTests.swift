@@ -610,10 +610,7 @@ struct ProviderPluginDetailsParityTests {
             transport: transport,
             engine: engine)
             .fetchUsage(
-                settings: [
-                    "OPENAI_HISTORY_DAYS": "30",
-                    "OPENAI_ALLOW_BALANCE_FALLBACK": "1",
-                ],
+                settings: ["OPENAI_HISTORY_DAYS": "30"],
                 secrets: ["OPENAI_API_KEY": "fixture-key"],
                 now: now)
 

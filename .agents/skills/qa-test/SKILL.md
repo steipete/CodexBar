@@ -112,7 +112,7 @@ If Browser Use is unavailable, say so and use web search for public official doc
 
 ## Known CodexBar QA Notes
 
-- OpenAI Admin API key is the useful usage provider key. Project `OPENAI_API_KEY` values can fail legacy credit-balance fallback with 403.
+- OpenAI Admin API key is the useful usage provider key. Project `OPENAI_API_KEY` values cannot read organization usage. On macOS, Auto without an Admin key uses the platform.openai.com browser session for credit grants.
 - Deepgram usage requires a key/project with Management API permissions; transcription-only keys can return 403.
 - Groq usage uses the Prometheus metrics API, not ordinary inference endpoints.
 - MiniMax pay-as-you-go API keys and Token Plan/Coding Plan keys are different; wrong key kind can leave usage unavailable.

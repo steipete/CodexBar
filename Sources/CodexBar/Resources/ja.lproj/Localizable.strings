@@ -1990,7 +1990,6 @@
 "Shows usage from `tcr`; it does not switch accounts, because tcr picks the account for each request. Credentials stay managed by tcr; CodexBar never reads them." = "`tcr` から使用状況を表示します。tcr がリクエストごとにアカウントを選ぶため、アカウントは切り替えません。資格情報は tcr によって管理されます。 CodexBar はそれらを決して読みません。";
 "Stay Awake" = "スリープを防ぐ";
 "Stored in the CodexBar config file. Reads monthly budget and routed usage from /v1/usage." = "CodexBar 構成ファイルに保存されます。 /v1/usage から月次予算とルーティングされた使用量を読み取ります。";
-"Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage; legacy/user keys only get a best-effort balance fallback." = "~/.codexbar/config.json に保存されます。 OPENAI_ADMIN_KEY は組織で使用する場合に必要です。レガシー/ユーザーキーは、ベストエフォート型バランスのフォールバックのみを取得します。";
 "Stored in ~/.codexbar/config.json. You can also provide FACTORY_API_KEY or ~/.factory/.env." = "~/.codexbar/config.json に保存されます。 FACTORY_API_KEY または ~/.factory/.env を指定することもできます。";
 "Stored in ~/.codexbar/config.json. You can also set AMP_API_KEY." = "~/.codexbar/config.json に保存されます。 AMP_API_KEY を設定することもできます。";
 "SuperGrok OAuth" = "SuperGrok OAuth";
@@ -2827,7 +2826,15 @@
 "In the macOS app, select manual cookie source and supply the matching GitHub Cookie header." = "macOSアプリで手動のCookieソースを選び、対応するGitHubのCookieヘッダーを指定してください。";
 "Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app." = "対応ブラウザでGitHubにサインインし、macOSアプリでCookieの自動インポートを選択してください。";
 "Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints." = "組織のコストと使用量には、組織のAdmin APIキーを使用してください。プロジェクトやサービスアカウントのキーではこれらのエンドポイントを読み取れません。";
-"A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "通常のAPIキーでは、従来の残高を代替手段として取得できる場合があります。組織の使用量には対応しません。プロジェクト範囲を設定したキーでは、この代替手段は使われません。";
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "キー、HTTPSリソースエンドポイント、デプロイ名を指定してください。APIバージョンは任意です。更新では使用履歴の照会ではなく、課金される可能性がある検証リクエストを送信します。";
 "Mistral session expired or invalid." = "Mistralのセッションが期限切れか無効です。";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "サブスクリプションの使用状況を取得するには、user_read 権限のある API キーを使用します。このコマンドは単独のキーを保存します。選択中の API キーアカウントが優先されます。";
+"Auto uses an Admin API key when configured, otherwise your platform.openai.com browser session for API credits." = "自動では、管理者 API キーが設定されていればそれを使い、なければ platform.openai.com のブラウザセッションで API クレジットを取得します。";
+"Browser session" = "ブラウザセッション";
+"Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage. Optional when using the browser session." = "~/.codexbar/config.json に保存されます。組織の使用量には OPENAI_ADMIN_KEY が必要です。ブラウザセッションを使う場合は省略できます。";
+"Sign in at platform.openai.com once in a Chromium browser. CodexBar reads the platform session from that browser's local storage for API credit grants." = "Chromium 系ブラウザで platform.openai.com に一度サインインしてください。CodexBar はそのブラウザのローカルストレージからプラットフォームのセッションを読み取り、API クレジット付与を表示します。";
+"Other credit grants" = "その他のクレジット付与";
+"Scheduled credit" = "予定されたクレジット";
+"ChatGPT subscription credit" = "ChatGPT サブスクリプションのクレジット";
+"Credit grant" = "クレジット付与";
+"OpenAI usage needs an Admin API key, or a platform.openai.com browser session for API credits." = "OpenAI の使用量には、管理者 API キー、または API クレジット用の platform.openai.com ブラウザセッションが必要です。";

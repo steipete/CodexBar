@@ -1989,7 +1989,6 @@
 "Shows usage from `tcr`; it does not switch accounts, because tcr picks the account for each request. Credentials stay managed by tcr; CodexBar never reads them." = "Mostra o uso desde `tcr`; non cambia de conta, porque tcr escolle a conta para cada solicitude. As credenciais seguen xestionadas por tcr; CodexBar nunca as le.";
 "Stay Awake" = "Mantéñase esperto";
 "Stored in the CodexBar config file. Reads monthly budget and routed usage from /v1/usage." = "Almacenado no ficheiro de configuración CodexBar. Le o orzamento mensual e o uso enrutado desde /v1/usage.";
-"Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage; legacy/user keys only get a best-effort balance fallback." = "Almacenado en ~/.codexbar/config.json. OPENAI_ADMIN_KEY é necesario para o uso da organización; As claves legadas/usuario só obteñen un saldo alternativo do mellor esforzo.";
 "Stored in ~/.codexbar/config.json. You can also provide FACTORY_API_KEY or ~/.factory/.env." = "Almacenado en ~/.codexbar/config.json. Tamén podes proporcionar FACTORY_API_KEY ou ~/.factory/.env.";
 "Stored in ~/.codexbar/config.json. You can also set AMP_API_KEY." = "Almacenado en ~/.codexbar/config.json. Tamén pode configurar AMP_API_KEY.";
 "SuperGrok OAuth" = "SuperGrok OAuth";
@@ -2826,7 +2825,15 @@
 "In the macOS app, select manual cookie source and supply the matching GitHub Cookie header." = "Na app de macOS, selecciona a fonte manual de cookies e proporciona a cabeceira Cookie de GitHub correspondente.";
 "Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app." = "Inicia sesión en GitHub nun navegador compatible e selecciona a importación automática de cookies na app de macOS.";
 "Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints." = "Usa unha clave API Admin da organización para os custos e o uso da organización. As claves de proxecto ou conta de servizo non poden ler eses endpoints.";
-"A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "Unha clave API normal só permite consultar o saldo antigo como alternativa sen garantía, non o uso da organización. As claves configuradas con ámbito de proxecto non usan esta alternativa.";
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Proporciona unha clave, un endpoint de recurso HTTPS e un nome de despregamento. A versión da API é opcional. A actualización envía unha solicitude de validación potencialmente facturable, non unha consulta do historial de uso.";
 "Mistral session expired or invalid." = "A sesión de Mistral caducou ou non é válida.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Usa unha clave API co permiso user_read para consultar o uso da subscrición. A orde garda unha clave independente; a conta de clave API seleccionada ten prioridade.";
+"Auto uses an Admin API key when configured, otherwise your platform.openai.com browser session for API credits." = "Automático usa unha chave de API de administración se está configurada; se non, a túa sesión do navegador de platform.openai.com para os créditos da API.";
+"Browser session" = "Sesión do navegador";
+"Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage. Optional when using the browser session." = "Gárdase en ~/.codexbar/config.json. OPENAI_ADMIN_KEY é necesaria para o uso da organización. Opcional se usas a sesión do navegador.";
+"Sign in at platform.openai.com once in a Chromium browser. CodexBar reads the platform session from that browser's local storage for API credit grants." = "Inicia sesión en platform.openai.com unha vez nun navegador Chromium. CodexBar le a sesión da plataforma do almacenamento local dese navegador para as concesións de crédito da API.";
+"Other credit grants" = "Outras concesións de crédito";
+"Scheduled credit" = "Crédito programado";
+"ChatGPT subscription credit" = "Crédito da subscrición a ChatGPT";
+"Credit grant" = "Concesión de crédito";
+"OpenAI usage needs an Admin API key, or a platform.openai.com browser session for API credits." = "O uso de OpenAI necesita unha chave de API de administración ou unha sesión do navegador de platform.openai.com para os créditos da API.";

@@ -70,7 +70,7 @@ not declared by the descriptor are not enumerated. User-plugin entries currently
 does not read credentials, launch login flows, import cookies, or contact providers; `enabled` keeps its existing meaning.
 
 `setup` separately describes provider-owned setup routes. Copilot declares device login and token routes,
-OpenAI API distinguishes Admin access from legacy balance access, and Azure OpenAI requires a key, endpoint,
+OpenAI API distinguishes Admin key access from the macOS browser session, and Azure OpenAI requires a key, endpoint,
 and deployment. ElevenLabs declares an API-key route with `user_read` permission, including both environment
 names and the selected saved-account alternative. Its stdin command saves a standalone key; a selected saved
 account takes priority. Other providers and user plugins report `status: "unknown"`, which means guidance has not
@@ -84,8 +84,8 @@ listing a route never executes it. An interactive route can obtain its credentia
 
 `optionalCapabilities` describes enrichment, not requirements for primary usage. Copilot budgets require an explicit
 opt-in in the macOS app, a matching public GitHub browser account, and cookies; quota usage needs no cookies.
-OpenAI organization usage needs an Admin API key, whereas ordinary keys provide only best-effort legacy balance;
-configured project scoping suppresses that fallback. Azure refresh performs a potentially billable deployment
+OpenAI organization usage needs an Admin API key, and API credit grants need a platform.openai.com browser session
+on macOS. Azure refresh performs a potentially billable deployment
 validation, not a usage-history query. Hints describe these constraints; they are not readiness checks.
 
 For example, an undeclared provider returns:
@@ -576,7 +576,7 @@ non-zero only when it cannot produce a valid snapshot document.
 - Reset lines follow the in-app reset time display setting when available (default: countdown).
 - Text output uses ANSI colors when stdout is a rich TTY; disable with `--no-color` or `NO_COLOR`/`TERM=dumb`.
 - Copilot CLI queries require an API token via config `apiKey` or `COPILOT_API_TOKEN`.
-- OpenAI API charts require an Admin API key for organization costs/usage. Normal API keys can only use the legacy balance fallback.
+- OpenAI API charts require an Admin API key for organization costs/usage. On macOS, `--source web` reads API credit grants from the platform.openai.com browser session instead.
 - Claude Admin API charts require an Anthropic Admin API key (`sk-ant-admin...` or `ANTHROPIC_ADMIN_KEY`).
 - Codex CLI `auto` tries the OpenAI web dashboard, then Codex CLI RPC/PTy; the app’s Codex `auto` path prefers OAuth when credentials are present, then CLI.
 - Claude CLI `auto` tries web, then CLI PTY; the app’s Claude `auto` path prefers OAuth, then CLI, then web.

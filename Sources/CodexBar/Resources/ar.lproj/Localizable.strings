@@ -1994,7 +1994,6 @@
 "Shows usage from `tcr`; it does not switch accounts, because tcr picks the account for each request. Credentials stay managed by tcr; CodexBar never reads them." = "يعرض الاستخدام من `tcr`؛ ولا يبدّل الحسابات، لأن tcr يختار الحساب لكل طلب. تظل بيانات الاعتماد مُدارة بواسطة tcr؛ CodexBar لا يقرأها أبدًا.";
 "Stay Awake" = "البقاء مستيقظا";
 "Stored in the CodexBar config file. Reads monthly budget and routed usage from /v1/usage." = "مخزنة في ملف التكوين CodexBar. يقرأ الميزانية الشهرية والاستخدام الموجه من /v1/usage.";
-"Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage; legacy/user keys only get a best-effort balance fallback." = "مخزنة في ~/.codexbar/config.json. OPENAI_ADMIN_KEY مطلوب للاستخدام المؤسسي؛ تحصل المفاتيح القديمة/المستخدم فقط على أفضل جهد احتياطي للتوازن.";
 "Stored in ~/.codexbar/config.json. You can also provide FACTORY_API_KEY or ~/.factory/.env." = "مخزنة في ~/.codexbar/config.json. يمكنك أيضًا توفير FACTORY_API_KEY أو ~/.factory/.env.";
 "Stored in ~/.codexbar/config.json. You can also set AMP_API_KEY." = "مخزنة في ~/.codexbar/config.json. يمكنك أيضًا ضبط AMP_API_KEY.";
 "SuperGrok OAuth" = "SuperGrok OAuth";
@@ -2831,7 +2830,15 @@
 "In the macOS app, select manual cookie source and supply the matching GitHub Cookie header." = "في تطبيق macOS، اختر مصدر ملفات تعريف الارتباط اليدوي وأدخل ترويسة Cookie المطابقة لحساب GitHub.";
 "Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app." = "سجّل الدخول إلى GitHub في متصفح مدعوم واختر الاستيراد التلقائي لملفات تعريف الارتباط في تطبيق macOS.";
 "Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints." = "استخدم مفتاح Admin API للمؤسسة لعرض تكاليف المؤسسة واستخدامها. لا يمكن لمفاتيح المشاريع أو حسابات الخدمة قراءة نقاط النهاية هذه.";
-"A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "يدعم مفتاح API العادي الرجوع إلى الرصيد القديم دون ضمان فقط، وليس استخدام المؤسسة. لا تستخدم المفاتيح المضبوطة بنطاق مشروع هذا البديل.";
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "أدخل مفتاحًا ونقطة نهاية مورد HTTPS واسم نشر. إصدار API اختياري. يرسل التحديث طلب تحقق قد يكون مدفوعًا، وليس استعلامًا عن سجل الاستخدام.";
 "Mistral session expired or invalid." = "انتهت صلاحية جلسة Mistral أو أنها غير صالحة.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "استخدم مفتاح API بصلاحية user_read للوصول إلى بيانات استخدام الاشتراك. يحفظ الأمر مفتاحًا مستقلًا؛ وتكون الأولوية لحساب مفتاح API المحدد.";
+"Auto uses an Admin API key when configured, otherwise your platform.openai.com browser session for API credits." = "يستخدم الوضع التلقائي مفتاح API الإدارة عند إعداده، وإلا فيستخدم جلسة متصفح platform.openai.com لرصيد API.";
+"Browser session" = "جلسة المتصفح";
+"Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage. Optional when using the browser session." = "مخزنة في ~/.codexbar/config.json. OPENAI_ADMIN_KEY مطلوب لاستخدام المؤسسة. اختياري عند استخدام جلسة المتصفح.";
+"Sign in at platform.openai.com once in a Chromium browser. CodexBar reads the platform session from that browser's local storage for API credit grants." = "سجّل الدخول إلى platform.openai.com مرة واحدة في متصفح Chromium. يقرأ CodexBar جلسة المنصة من التخزين المحلي لذلك المتصفح لعرض منح رصيد API.";
+"Other credit grants" = "منح رصيد أخرى";
+"Scheduled credit" = "رصيد مجدول";
+"ChatGPT subscription credit" = "رصيد اشتراك ChatGPT";
+"Credit grant" = "منحة رصيد";
+"OpenAI usage needs an Admin API key, or a platform.openai.com browser session for API credits." = "يحتاج استخدام OpenAI إلى مفتاح API الإدارة، أو إلى جلسة متصفح platform.openai.com لرصيد API.";

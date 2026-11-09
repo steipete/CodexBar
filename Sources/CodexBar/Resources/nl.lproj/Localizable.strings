@@ -1989,7 +1989,6 @@
 "Shows usage from `tcr`; it does not switch accounts, because tcr picks the account for each request. Credentials stay managed by tcr; CodexBar never reads them." = "Toont het gebruik uit `tcr`; wisselt niet van account, omdat tcr voor elk verzoek het account kiest. Inloggegevens blijven beheerd door tcr; CodexBar leest ze nooit.";
 "Stay Awake" = "Blijf wakker";
 "Stored in the CodexBar config file. Reads monthly budget and routed usage from /v1/usage." = "Opgeslagen in het CodexBar-configuratiebestand. Leest het maandbudget en het gerouteerde gebruik van /v1/usage.";
-"Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage; legacy/user keys only get a best-effort balance fallback." = "Opgeslagen in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is vereist voor gebruik in de organisatie; oudere/gebruikerssleutels krijgen alleen een terugval in de balans van de beste inspanning.";
 "Stored in ~/.codexbar/config.json. You can also provide FACTORY_API_KEY or ~/.factory/.env." = "Opgeslagen in ~/.codexbar/config.json. U kunt ook FACTORY_API_KEY of ~/.factory/.env opgeven.";
 "Stored in ~/.codexbar/config.json. You can also set AMP_API_KEY." = "Opgeslagen in ~/.codexbar/config.json. U kunt ook AMP_API_KEY instellen.";
 "SuperGrok OAuth" = "SuperGrok OAuth";
@@ -2824,7 +2823,15 @@
 "In the macOS app, select manual cookie source and supply the matching GitHub Cookie header." = "Selecteer in de macOS-app de handmatige cookiebron en geef de bijbehorende GitHub-Cookie-header op.";
 "Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app." = "Log in bij GitHub in een ondersteunde browser en selecteer automatische cookie-import in de macOS-app.";
 "Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints." = "Gebruik een Admin-API-sleutel van de organisatie voor organisatiekosten en -gebruik. Project- en serviceaccountsleutels kunnen deze endpoints niet lezen.";
-"A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "Een gewone API-sleutel ondersteunt alleen het oude saldo als terugval zonder garantie, niet het organisatiegebruik. Geconfigureerde sleutels met projectbereik gebruiken deze terugval niet.";
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Geef een sleutel, HTTPS-resource-endpoint en implementatienaam op. De API-versie is optioneel. Vernieuwen verstuurt een mogelijk betaalde validatieaanvraag, geen aanvraag van de gebruiksgeschiedenis.";
 "Mistral session expired or invalid." = "De Mistral-sessie is verlopen of ongeldig.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Gebruik een API-sleutel met de machtiging user_read om het abonnementsgebruik te bekijken. De opdracht slaat een afzonderlijke sleutel op; het geselecteerde API-sleutelaccount heeft voorrang.";
+"Auto uses an Admin API key when configured, otherwise your platform.openai.com browser session for API credits." = "Automatisch gebruikt een beheerder API-sleutel als die is ingesteld, en anders je browsersessie op platform.openai.com voor API-tegoed.";
+"Browser session" = "Browsersessie";
+"Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage. Optional when using the browser session." = "Opgeslagen in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is vereist voor organisatiegebruik. Optioneel bij gebruik van de browsersessie.";
+"Sign in at platform.openai.com once in a Chromium browser. CodexBar reads the platform session from that browser's local storage for API credit grants." = "Log één keer in op platform.openai.com in een Chromium-browser. CodexBar leest de platformsessie voor API-tegoedtoekenningen uit de lokale opslag van die browser.";
+"Other credit grants" = "Overige tegoedtoekenningen";
+"Scheduled credit" = "Gepland tegoed";
+"ChatGPT subscription credit" = "Tegoed van ChatGPT-abonnement";
+"Credit grant" = "Tegoedtoekenning";
+"OpenAI usage needs an Admin API key, or a platform.openai.com browser session for API credits." = "OpenAI-gebruik vereist een beheerder API-sleutel of een browsersessie op platform.openai.com voor API-tegoed.";

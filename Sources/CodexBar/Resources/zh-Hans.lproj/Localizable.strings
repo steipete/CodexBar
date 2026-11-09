@@ -1995,7 +1995,6 @@
 "Shows usage from `tcr`; it does not switch accounts, because tcr picks the account for each request. Credentials stay managed by tcr; CodexBar never reads them." = "显示来自 `tcr` 的用量；不会切换账户，因为 tcr 会为每个请求选择账户。凭据由 tcr 管理，CodexBar 不会读取。";
 "Stay Awake" = "保持唤醒";
 "Stored in the CodexBar config file. Reads monthly budget and routed usage from /v1/usage." = "存储在 CodexBar 配置文件中。从 /v1/usage 读取每月预算和路由使用情况。";
-"Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage; legacy/user keys only get a best-effort balance fallback." = "保存在 ~/.codexbar/config.json 中。查看组织用量需要 OPENAI_ADMIN_KEY；旧版或用户密钥仅能尝试获取余额。";
 "Stored in ~/.codexbar/config.json. You can also provide FACTORY_API_KEY or ~/.factory/.env." = "存储在~/.codexbar/config.json中。您还可以提供 FACTORY_API_KEY 或 ~/.factory/.env。";
 "Stored in ~/.codexbar/config.json. You can also set AMP_API_KEY." = "存储在~/.codexbar/config.json中。您还可以设置AMP_API_KEY。";
 "SuperGrok OAuth" = "SuperGrok OAuth";
@@ -2819,7 +2818,15 @@
 "In the macOS app, select manual cookie source and supply the matching GitHub Cookie header." = "在 macOS 应用中选择手动 Cookie 来源，并提供匹配的 GitHub Cookie 请求头。";
 "Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app." = "在受支持的浏览器中登录 GitHub，并在 macOS 应用中选择自动导入 Cookie。";
 "Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints." = "使用组织的 Admin API 密钥查询组织费用和用量。项目或服务账户密钥无法读取这些端点。";
-"A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "普通 API 密钥仅支持尽力查询旧版余额，不支持组织用量。配置了项目范围的密钥不会使用此回退方式。";
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "提供密钥、HTTPS 资源端点和部署名称。API 版本为可选项。刷新会发送可能计费的验证请求，而不是用量历史查询。";
 "Mistral session expired or invalid." = "Mistral 会话已过期或无效。";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "使用具有 user_read 权限的 API 密钥查看订阅用量。此命令保存独立密钥；所选 API 密钥账户优先。";
+"Auto uses an Admin API key when configured, otherwise your platform.openai.com browser session for API credits." = "自动模式在配置了管理员 API 密钥时使用该密钥，否则使用你的 platform.openai.com 浏览器会话获取 API 额度。";
+"Browser session" = "浏览器会话";
+"Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage. Optional when using the browser session." = "保存在 ~/.codexbar/config.json 中。查看组织用量需要 OPENAI_ADMIN_KEY。使用浏览器会话时可不填。";
+"Sign in at platform.openai.com once in a Chromium browser. CodexBar reads the platform session from that browser's local storage for API credit grants." = "请在 Chromium 浏览器中登录 platform.openai.com 一次。CodexBar 会从该浏览器的本地存储读取平台会话，用于显示 API 额度发放。";
+"Other credit grants" = "其他额度发放";
+"Scheduled credit" = "计划中的额度";
+"ChatGPT subscription credit" = "ChatGPT 订阅额度";
+"Credit grant" = "额度发放";
+"OpenAI usage needs an Admin API key, or a platform.openai.com browser session for API credits." = "OpenAI 用量需要管理员 API 密钥，或用于 API 额度的 platform.openai.com 浏览器会话。";

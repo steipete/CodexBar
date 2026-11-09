@@ -7,7 +7,9 @@ struct OpenAIAPIProviderImplementation: ProviderImplementation {
 
     @MainActor
     func presentation(context _: ProviderPresentationContext) -> ProviderPresentation {
-        ProviderPresentation { _ in "api" }
+        ProviderPresentation { context in
+            context.store.sourceLabel(for: context.provider)
+        }
     }
 
     @MainActor
@@ -21,11 +23,24 @@ struct OpenAIAPIProviderImplementation: ProviderImplementation {
             providerConfig: .openai,
             field: .secretWorkspace(logField: "projectID"),
         ]
+        _ = settings.openAIUsageDataSource
+    }
+
+    @MainActor
+    func defaultSourceLabel(context: ProviderSourceLabelContext) -> String? {
+        context.settings.openAIUsageDataSource.rawValue
+    }
+
+    @MainActor
+    func sourceMode(context: ProviderSourceModeContext) -> ProviderSourceMode {
+        context.settings.openAIUsageDataSource
     }
 
     @MainActor
     func isAvailable(context: ProviderAvailabilityContext) -> Bool {
-        if OpenAIAPISettingsReader.apiKey(environment: context.environment) != nil {
+        if OpenAIAPISettingsReader.apiKey(environment: context.environment) != nil ||
+            context.settings.openAIUsageDataSource != .api
+        {
             return true
         }
         return !context.settings[
@@ -33,6 +48,38 @@ struct OpenAIAPIProviderImplementation: ProviderImplementation {
             field: .apiKey,
         ]
             .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    @MainActor
+    func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
+        [
+            ProviderSettingsPickerDescriptor(
+                id: "openai-usage-source",
+                title: "Usage source",
+                subtitle: "Auto uses an Admin API key when configured, otherwise your platform.openai.com browser " +
+                    "session for API credits.",
+                binding: Binding(
+                    get: { context.settings.openAIUsageDataSource.rawValue },
+                    set: { value in
+                        let mode = ProviderSourceMode(rawValue: value) ?? .auto
+                        guard mode != context.settings.openAIUsageDataSource else { return }
+                        // Credits and spend never share a snapshot.
+                        context.store.clearProviderState(.openai)
+                        context.settings.openAIUsageDataSource = mode
+                    }),
+                options: [
+                    ProviderSettingsPickerOption(id: ProviderSourceMode.auto.rawValue, title: "Auto"),
+                    ProviderSettingsPickerOption(id: ProviderSourceMode.api.rawValue, title: "Admin API key"),
+                    ProviderSettingsPickerOption(id: ProviderSourceMode.web.rawValue, title: "Browser session"),
+                ],
+                isVisible: nil,
+                onChange: nil,
+                trailingText: {
+                    guard context.settings.openAIUsageDataSource == .auto else { return nil }
+                    let label = context.store.sourceLabel(for: .openai)
+                    return label == "auto" ? nil : label
+                }),
+        ]
     }
 
     @MainActor
@@ -133,7 +180,7 @@ struct OpenAIAPIProviderImplementation: ProviderImplementation {
                 }),
             statusText: nil,
             actions: [],
-            isVisible: nil,
+            isVisible: { context.settings.openAIUsageDataSource != .web },
             isEnabled: nil,
             onChange: nil,
             onAppDidBecomeActive: nil,
@@ -170,8 +217,8 @@ struct OpenAIAPIProviderImplementation: ProviderImplementation {
             ProviderSettingsFieldDescriptor(
                 id: "openai-api-key",
                 title: "Admin API key",
-                subtitle: "Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage; " +
-                    "legacy/user keys only get a best-effort balance fallback.",
+                subtitle: "Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage. " +
+                    "Optional when using the browser session.",
                 kind: .secure,
                 placeholder: "sk-admin-...",
                 binding: context.providerConfigBinding(.apiKey),

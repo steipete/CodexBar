@@ -4,6 +4,7 @@
 
 ### Added
 
+- OpenAI: show ChatGPT subscription API credits on macOS without an API key, read from the platform.openai.com session in Chrome or another Chromium browser.
 - CLI: declare ElevenLabs setup guidance, including API-key alternatives, subscription-read permission, and saved-account priority (#5020). Thanks @vincent-peng!
 - Usage & Spend: add a Models view grouped by currency, preserve partial-history warnings, and match shared cards to the current appearance (#4889, #4888). Thanks @Chipagosfinest!
 - CLI: expose provider-owned setup routes for Copilot, OpenAI API, and Azure OpenAI, with explicit unknown guidance for other providers (#4705, #4916). Thanks @Yuxin-Qiao!
@@ -23,6 +24,10 @@
 
 - Claude: reduce local-history memory by sharing identical quota-event buffers while preserving independent reporting windows and cache validation (#5014).
 - Widgets: show provider logos and improve low-quota bar contrast without changing layouts or refresh behavior (#4887). Thanks @Chipagosfinest!
+
+### Removed
+
+- OpenAI: drop the legacy API-key credit balance fallback, which OpenAI now rejects for every key type.
 
 ## 0.84.0 — 2026-11-06
 
