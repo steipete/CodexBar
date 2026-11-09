@@ -266,8 +266,11 @@ public enum ClaudeProviderDescriptor {
 
     private static func resolveFallbackError(_ previous: Error?, _ current: Error) -> Error {
         if ClaudeOAuthFetchError.isCancellation(current) { return current }
-        if let previous, case ClaudeOAuthCredentialsError.credentialsChanged = previous { return previous }
-        return current
+        guard let previous = previous as? ClaudeOAuthCredentialsError else { return current }
+        switch previous {
+        case .credentialsChanged, .directKeychainReadNotAllowed: return previous
+        default: return current
+        }
     }
 
     private static func menuBarWindow(
@@ -638,9 +641,11 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
                 allowClaudeKeychainRepairWithoutPrompt: false,
                 clearInvalidCache: false)
             return false
-        } catch ClaudeOAuthCredentialsError.notFound, ClaudeOAuthCredentialsError.mcpOAuthOnlyKeychain {
-            return true
-        } catch ClaudeOAuthCredentialsError.credentialsChanged {
+        } catch ClaudeOAuthCredentialsError.notFound,
+            ClaudeOAuthCredentialsError.mcpOAuthOnlyKeychain,
+            ClaudeOAuthCredentialsError.credentialsChanged,
+            ClaudeOAuthCredentialsError.directKeychainReadNotAllowed
+        {
             return true
         } catch {
             // A malformed, unreadable, or otherwise unusable direct credential remains an explicit
@@ -789,7 +794,8 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
            let credentialsError = error as? ClaudeOAuthCredentialsError
         {
             switch credentialsError {
-            case .notFound, .credentialsChanged, .mcpOAuthOnlyKeychain, .refreshDelegatedToClaudeCLI:
+            case .notFound, .credentialsChanged, .directKeychainReadNotAllowed, .mcpOAuthOnlyKeychain,
+                 .refreshDelegatedToClaudeCLI:
                 return true
             default:
                 break

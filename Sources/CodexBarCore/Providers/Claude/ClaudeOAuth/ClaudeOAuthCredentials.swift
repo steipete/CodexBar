@@ -1481,10 +1481,8 @@ public enum ClaudeOAuthCredentialsStore {
         } catch ClaudeOAuthCredentialsError.notFound {
             let now = Date()
             if let failedAt = defaults?.object(forKey: failureKey) as? Date {
-                if let changedAt = self.latestCredentialModificationDate(environment: environment),
-                   changedAt > failedAt, changedAt <= now
-                {
-                    throw ClaudeOAuthCredentialsError.credentialsChanged(changedAt)
+                if let error = self.credentialChangeError(since: failedAt, now: now, environment: environment) {
+                    throw error
                 }
             } else {
                 defaults?.set(now, forKey: failureKey)
@@ -1502,14 +1500,32 @@ public enum ClaudeOAuthCredentialsStore {
         return ClaudeOAuthKeychainPromptPreference.applicationUserDefaults
     }
 
-    static func latestCredentialModificationDate(environment: [String: String]) -> Date? {
+    /// Claims that Refresh can help only when Refresh may read the changed credential: the file needs no consent,
+    /// while Claude Code's Keychain item stays closed until the user opts in (#2634).
+    static func credentialChangeError(
+        since failedAt: Date,
+        now: Date = Date(),
+        environment: [String: String]) -> ClaudeOAuthCredentialsError?
+    {
+        let dates = self.credentialModificationDates(environment: environment)
+        let changed = { (date: Date?) in date.flatMap { $0 > failedAt && $0 <= now ? $0 : nil } }
+        let fileChange = changed(dates.file)
+        let keychainChange = changed(dates.keychain)
+        let readableChanges = self.keychainAccessAllowed ? [fileChange, keychainChange] : [fileChange]
+        if let changedAt = readableChanges.compactMap(\.self).max() {
+            return .credentialsChanged(changedAt)
+        }
+        return keychainChange.map(ClaudeOAuthCredentialsError.directKeychainReadNotAllowed)
+    }
+
+    static func credentialModificationDates(environment: [String: String]) -> (file: Date?, keychain: Date?) {
         let file = self.credentialsFileURL(environment: environment)
         let fileDate = (try? FileManager.default.attributesOfItem(atPath: file.path))?[.modificationDate] as? Date
         #if os(macOS)
         let defaultFile = ClaudeConfigPaths.homeDirectory(environment: environment)
             .appendingPathComponent(".claude/.credentials.json")
         guard !KeychainAccessGate.isDisabled, file.standardizedFileURL == defaultFile.standardizedFileURL else {
-            return fileDate
+            return (fileDate, nil)
         }
         // Attributes bypass the legacy decrypt ACL; requesting data here can prompt even with UI-fail.
         var query: [String: Any] = [
@@ -1520,11 +1536,10 @@ public enum ClaudeOAuthCredentialsStore {
         ]
         KeychainNoUIQuery.apply(to: &query)
         let (status, result, _) = ClaudeOAuthKeychainQueryTiming.copyMatching(query)
-        guard status == errSecSuccess, let rows = result as? [[String: Any]] else { return fileDate }
-        return (rows.compactMap { $0[kSecAttrModificationDate as String] as? Date } + [fileDate].compactMap(\.self))
-            .max()
+        guard status == errSecSuccess, let rows = result as? [[String: Any]] else { return (fileDate, nil) }
+        return (fileDate, rows.compactMap { $0[kSecAttrModificationDate as String] as? Date }.max())
         #else
-        return fileDate
+        return (fileDate, nil)
         #endif
     }
 

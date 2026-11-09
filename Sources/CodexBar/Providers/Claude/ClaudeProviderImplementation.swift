@@ -390,7 +390,9 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         guard !context.settings.claudeOAuthDirectKeychainReadAllowed,
               !context.settings.debugDisableKeychainAccess
         else { return false }
-        return ClaudeOAuthUnreadableCredentialsError.matches(description: context.store.error(for: .claude))
+        let error = context.store.error(for: .claude)
+        return ClaudeOAuthUnreadableCredentialsError.matches(description: error)
+            || ClaudeOAuthCredentialsError.isDirectKeychainReadNotAllowed(description: error)
     }
 
     @MainActor

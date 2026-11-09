@@ -246,6 +246,8 @@ public enum ClaudeOAuthCredentialsError: LocalizedError, Sendable {
     case missingAccessToken
     case notFound
     case credentialsChanged(Date)
+    /// Claude Code's Keychain item changed, but direct-read consent is off, so Refresh cannot read it (#2634).
+    case directKeychainReadNotAllowed(Date)
     case keychainAccessRevoked
     case keychainError(Int)
     case readFailed(String)
@@ -271,6 +273,10 @@ public enum ClaudeOAuthCredentialsError: LocalizedError, Sendable {
         case let .credentialsChanged(date):
             return "Claude Code credentials changed (\(UsageFormatter.updatedString(from: date))). "
                 + "Click Refresh to re-grant CodexBar access."
+        case let .directKeychainReadNotAllowed(date):
+            return Self.directKeychainReadNotAllowedPrefix + " (\(UsageFormatter.updatedString(from: date))). "
+                + "Enable \u{201C}Allow reading Claude Code's credentials\u{201D} in Claude settings, "
+                + "or CodexBar uses the Claude CLI when it is available."
         case .keychainAccessRevoked:
             return "Claude OAuth credentials are currently unavailable to CodexBar. "
                 + "Click Refresh to retry access, or switch Claude Usage source to CLI/Web."
@@ -296,5 +302,13 @@ public enum ClaudeOAuthCredentialsError: LocalizedError, Sendable {
         case .refreshDelegatedToClaudeCLI:
             return "Claude OAuth refresh is delegated to Claude CLI."
         }
+    }
+
+    /// Recognizes `.directKeychainReadNotAllowed` after the error crossed an untyped boundary (e.g. the menu card).
+    public static let directKeychainReadNotAllowedPrefix =
+        "Claude Code credentials changed, but CodexBar isn't allowed to read them"
+
+    public static func isDirectKeychainReadNotAllowed(description: String?) -> Bool {
+        description?.hasPrefix(self.directKeychainReadNotAllowedPrefix) ?? false
     }
 }

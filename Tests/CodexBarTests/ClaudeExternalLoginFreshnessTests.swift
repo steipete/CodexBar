@@ -12,16 +12,67 @@ struct ClaudeExternalLoginFreshnessTests {
     private static let loginDate = Date(timeIntervalSince1970: 1_700_000_000)
 
     @Test
-    func `new Keychain metadata replaces missing credentials without requesting the payload`() throws {
+    func `without consent new Keychain metadata names the consent toggle without requesting the payload`() throws {
         try self.withFixture { _, environment, key in
             ClaudeOAuthDefaultsFixtures.defaults.set(Self.failureDate, forKey: key)
             self.withMetadata(Self.loginDate) {
                 for _ in 0..<2 {
                     let error = self.loadError(environment)
-                    #expect(error.localizedDescription.contains("Claude Code credentials changed"))
-                    #expect(error.localizedDescription.contains("Refresh"))
-                    #expect(!error.localizedDescription.contains("Run `claude`"))
+                    guard case let .directKeychainReadNotAllowed(changedAt) = error else {
+                        Issue.record("Refresh cannot read Claude Code's Keychain item without consent")
+                        return
+                    }
+                    let message = error.localizedDescription
+                    #expect(changedAt == Self.loginDate)
+                    #expect(message.contains("Claude Code credentials changed"))
+                    #expect(message.contains("Allow reading Claude Code's credentials"))
+                    #expect(!message.contains("re-grant"))
+                    #expect(!message.contains("Click Refresh"))
+                    #expect(!message.contains("Run `claude`"))
+                    #expect(ClaudeOAuthCredentialsError.isDirectKeychainReadNotAllowed(description: message))
                     #expect(ClaudeOAuthDefaultsFixtures.defaults.object(forKey: key) as? Date == Self.failureDate)
+                }
+            }
+        }
+    }
+
+    @Test
+    func `with consent new Keychain metadata keeps the Refresh guidance`() throws {
+        try self.withFixture(consent: true) { _, environment, _ in
+            self.withMetadata(Self.loginDate) {
+                let error = ClaudeOAuthCredentialsStore.credentialChangeError(
+                    since: Self.failureDate,
+                    environment: environment)
+                guard case let .credentialsChanged(changedAt) = error else {
+                    Issue.record("Refresh can read the changed Keychain item once consent is granted")
+                    return
+                }
+                #expect(changedAt == Self.loginDate)
+                #expect(error?.localizedDescription.contains("Click Refresh") == true)
+                #expect(!ClaudeOAuthCredentialsError.isDirectKeychainReadNotAllowed(
+                    description: error?.localizedDescription))
+            }
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func `a newer credentials file offers Refresh and only consent lets Keychain metadata feed it`(
+        consent: Bool) throws
+    {
+        let keychainDate = Self.loginDate.addingTimeInterval(100)
+        try self.withFixture(consent: consent) { file, environment, _ in
+            try Data("metadata only".utf8).write(to: file)
+            try FileManager.default.setAttributes([.modificationDate: Self.loginDate], ofItemAtPath: file.path)
+            for metadata in [Self.failureDate, keychainDate] {
+                self.withMetadata(metadata) {
+                    let error = ClaudeOAuthCredentialsStore.credentialChangeError(
+                        since: Self.failureDate,
+                        environment: environment)
+                    guard case let .credentialsChanged(changedAt) = error else {
+                        Issue.record("A file change is readable without Keychain consent")
+                        return
+                    }
+                    #expect(changedAt == (consent && metadata == keychainDate ? keychainDate : Self.loginDate))
                 }
             }
         }
@@ -80,33 +131,30 @@ struct ClaudeExternalLoginFreshnessTests {
             }
             KeychainAccessGate.withTaskOverrideForTesting(!customProfile) {
                 ClaudeOAuthKeychainQueryTiming.$copyMatchingOverride.withValue(unexpectedQuery) {
-                    #expect(ClaudeOAuthCredentialsStore.latestCredentialModificationDate(environment: environment)
-                        == Self.loginDate)
+                    let dates = ClaudeOAuthCredentialsStore.credentialModificationDates(environment: environment)
+                    #expect(dates.file == Self.loginDate)
+                    #expect(dates.keychain == nil)
                 }
             }
         }
     }
 
     @Test
-    func `freshness compares the file and every matching item without requiring a persistent reference`() throws {
+    func `freshness reports the file and newest matching item without a persistent reference`() throws {
         try self.withFixture { file, environment, _ in
             try Data("metadata only".utf8).write(to: file)
             try FileManager.default.setAttributes([.modificationDate: Self.failureDate], ofItemAtPath: file.path)
             self.withMetadata(Self.loginDate) {
-                #expect(ClaudeOAuthCredentialsStore.latestCredentialModificationDate(environment: environment)
-                    == Self.loginDate)
-            }
-            try FileManager.default.setAttributes(
-                [.modificationDate: Self.loginDate.addingTimeInterval(1)], ofItemAtPath: file.path)
-            self.withMetadata(Self.loginDate) {
-                #expect(ClaudeOAuthCredentialsStore.latestCredentialModificationDate(environment: environment)
-                    == Self.loginDate.addingTimeInterval(1))
+                let dates = ClaudeOAuthCredentialsStore.credentialModificationDates(environment: environment)
+                #expect(dates.file == Self.failureDate)
+                #expect(dates.keychain == Self.loginDate)
             }
         }
     }
 
     private func withFixture(
         customProfile: Bool = false,
+        consent: Bool = false,
         operation: (URL, [String: String], String) throws -> Void) throws
     {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -124,7 +172,7 @@ struct ClaudeExternalLoginFreshnessTests {
                 try KeychainAccessGate.withTaskOverrideForTesting(false) {
                     try ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
                         try ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
-                            try ClaudeOAuthDirectKeychainReadConsent.withTaskOverrideForTesting(false) {
+                            try ClaudeOAuthDirectKeychainReadConsent.withTaskOverrideForTesting(consent) {
                                 try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.onlyOnUserAction) {
                                     try ProviderInteractionContext.$current.withValue(.background) {
                                         try ClaudeOAuthCredentialsStore

@@ -15,9 +15,15 @@ struct ClaudeExternalLoginPresentationTests {
         func detectVersion() -> String? { nil }
     }
 
-    @Test(arguments: ["cli", "web", "failed-web", "cancelled-web"])
+    private static func changedCredentialsError(readable: Bool) -> ClaudeOAuthCredentialsError {
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
+        return readable ? .credentialsChanged(date) : .directKeychainReadNotAllowed(date)
+    }
+
+    @Test(arguments: ["cli", "web", "failed-web", "cancelled-web"], [true, false])
     func `Auto continues after changed credentials and preserves guidance if fallback fails`(
-        fallback: String) async throws
+        fallback: String,
+        readable: Bool) async throws
     {
         let environment = ["HOME": "/synthetic/claude-relogin-\(UUID())"]
         let usage = ClaudeUsageSnapshot(
@@ -46,7 +52,7 @@ struct ClaudeExternalLoginPresentationTests {
             fetcher: UsageFetcher(environment: environment),
             claudeFetcher: StubCLI(usage: usage),
             browserDetection: BrowserDetection(cacheTTL: 0))
-        let changed = ClaudeOAuthCredentialsError.credentialsChanged(Date(timeIntervalSince1970: 1_700_000_000))
+        let changed = Self.changedCredentialsError(readable: readable)
         typealias Loader = @Sendable ([String: String], Bool, Bool) async throws -> ClaudeOAuthCredentials
         let loadCredentials: Loader = { _, _, _ in throw changed }
         let loadWeb: ClaudeWebFetchStrategy.UsageLoader = { _ in
@@ -101,10 +107,12 @@ struct ClaudeExternalLoginPresentationTests {
         }
     }
 
-    @Test
+    @Test(arguments: [true, false])
     @MainActor
-    func `menu card and CLI JSON share the actionable message and the existing Refresh action`() throws {
-        let error = ClaudeOAuthCredentialsError.credentialsChanged(Date(timeIntervalSince1970: 1_700_000_000))
+    func `menu card and CLI JSON share the actionable message and the existing Refresh action`(
+        readable: Bool) throws
+    {
+        let error = Self.changedCredentialsError(readable: readable)
         let model = Self.model(message: error.localizedDescription)
         #expect(model.subtitleText == error.localizedDescription)
         #expect(model.subtitleStyle == .error)
@@ -116,6 +124,33 @@ struct ClaudeExternalLoginPresentationTests {
             if case .action(_, .refresh) = $0 { return true }
             return false
         })
+    }
+
+    @Test(arguments: [true, false])
+    func `explicit OAuth hands changed credentials to the owner CLI`(readable: Bool) {
+        let context = ProviderFetchContext(
+            runtime: .app,
+            sourceMode: .oauth,
+            includeCredits: false,
+            webTimeout: 1,
+            webDebugDumpHTML: false,
+            verbose: false,
+            env: [:],
+            settings: nil,
+            fetcher: UsageFetcher(environment: [:]),
+            claudeFetcher: StubCLI(usage: ClaudeUsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                opus: nil,
+                updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: nil,
+                rawText: nil)),
+            browserDetection: BrowserDetection(cacheTTL: 0))
+        #expect(ClaudeOAuthFetchStrategy().shouldFallback(
+            on: Self.changedCredentialsError(readable: readable),
+            context: context))
     }
 
     @Test

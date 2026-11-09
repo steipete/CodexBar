@@ -172,9 +172,12 @@ state can follow a read suppressed by the selected policy. Refresh retries withi
 - Explicit Refresh can repair Claude OAuth Keychain access when direct-read consent is enabled and the policy
   allows user prompts. Ordinary OAuth fetches remain noninteractive, including with `Always allow prompts`;
   that policy still governs the existing delegated refresh and experimental reader paths.
-- After a missing-credentials failure, a newer Claude Code credential timestamp replaces the stale error with
-  **Claude Code credentials changed** and a **Refresh** instruction in the menu and OAuth CLI output. Click the
-  existing menu **Refresh** action to retry; direct-read consent and the prompt policy still control access.
+- After a missing-credentials failure, a newer Claude Code credential timestamp replaces the stale error. A newer
+  credentials file, or a newer Keychain item with direct-read consent on, shows **Claude Code credentials changed**
+  and a **Refresh** instruction in the menu and OAuth CLI output. Click the existing menu **Refresh** action to
+  retry; the prompt policy still controls access. With consent off, Refresh cannot read the Keychain item, so a
+  newer Keychain timestamp says CodexBar isn't allowed to read the changed credentials. The menu then offers
+  **Allow reading Claude Code's credentials in Settings…**; otherwise Auto keeps using the Claude CLI.
   The freshness probe reads only Keychain attributes with UI disabled and the credentials file's modification
   time. It never requests the Keychain credential payload, launches Claude, or grants access in the background.
   A changed timestamp can mean a login or token rotation; it does not prove the credential is valid. Custom

@@ -339,6 +339,20 @@ struct ClaudeWebRecoveryMenuTests {
         })
     }
 
+    @Test(arguments: [ClaudeUsageDataSource.auto, .oauth])
+    func `changed Claude Code credentials without read consent open Claude settings`(
+        source: ClaudeUsageDataSource)
+    {
+        let unreadable = ClaudeOAuthCredentialsError.directKeychainReadNotAllowed(Date(timeIntervalSinceNow: -60))
+        let readable = ClaudeOAuthCredentialsError.credentialsChanged(Date(timeIntervalSinceNow: -60))
+        let consentAction: ((String, MenuDescriptor.MenuAction)) -> Bool = {
+            $0.0 == "Allow reading Claude Code's credentials in Settings…" && $0.1 == .providerSettings(.claude)
+        }
+
+        #expect(self.actions(error: unreadable.localizedDescription, source: source).contains(where: consentAction))
+        #expect(!self.actions(error: readable.localizedDescription, source: source).contains(where: consentAction))
+    }
+
     @Test
     func `auto source Cloudflare challenge opens Claude settings`() {
         let actions = self.actions(error: Self.cloudflareChallengeMessage, source: .auto)
