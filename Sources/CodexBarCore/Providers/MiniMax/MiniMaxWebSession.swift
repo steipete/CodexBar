@@ -151,6 +151,7 @@ struct MiniMaxWebSession: Sendable {
     }
 
     var cacheableCookieHeader: String? {
+        guard SettingsValue.cleaned(self.cookieHeader) != nil else { return nil }
         // A plain header cannot preserve host/path restrictions. Reimport scoped sessions instead of widening them.
         guard let cookies else { return self.cookieHeader }
         guard cookies.allSatisfy({
@@ -160,7 +161,9 @@ struct MiniMaxWebSession: Sendable {
     }
 
     func cookieHeader(for url: URL) -> String? {
-        guard let cookies else { return self.cookieHeader }
+        guard let cookies else {
+            return SettingsValue.cleaned(self.cookieHeader) == nil ? nil : self.cookieHeader
+        }
         return Self.cookieHeader(from: cookies, for: url)
     }
 

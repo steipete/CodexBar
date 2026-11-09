@@ -69,7 +69,8 @@ public struct MiniMaxUsageFetcher: Sendable {
                 environment: scopedEnvironment,
                 cookieBearer: authorizationToken == cookieToken ? authorizationToken : nil,
                 transport: transport),
-            subscriptionEnvironment: environment)
+            subscriptionEnvironment: environment,
+            allowBearerOnly: true)
         return try await self.fetchUsage(
             context: context, groupID: groupID, includeBillingHistory: includeBillingHistory, now: now)
     }
@@ -80,9 +81,12 @@ public struct MiniMaxUsageFetcher: Sendable {
         region: MiniMaxAPIRegion,
         environment: [String: String],
         transport: any ProviderHTTPTransport,
-        subscriptionEnvironment: [String: String]? = nil) throws -> WebFetchContext
+        subscriptionEnvironment: [String: String]? = nil,
+        allowBearerOnly: Bool = false) throws -> WebFetchContext
     {
-        guard let cookie = MiniMaxCookieHeader.normalized(from: cookieHeader) else {
+        let cookie = MiniMaxCookieHeader.normalized(from: cookieHeader)
+        let hasBearer = authorizationToken?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        guard cookie != nil || (allowBearerOnly && hasBearer) else {
             throw MiniMaxUsageError.invalidCredentials
         }
         if let rejectedKey = MiniMaxSettingsReader.rejectedEndpointOverrideKey(environment: environment) {
@@ -90,7 +94,7 @@ public struct MiniMaxUsageFetcher: Sendable {
         }
 
         return WebFetchContext(
-            cookie: cookie,
+            cookie: cookie ?? "",
             authorizationToken: authorizationToken,
             region: region,
             environment: environment,

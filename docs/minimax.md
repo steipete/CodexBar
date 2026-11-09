@@ -33,6 +33,7 @@ falls back across the provider's supported web requests when needed.
      It tries localStorage first, then sessionStorage, then MiniMax-origin IndexedDB when earlier stores yield no
      tokens. These raw-storage reads do not decrypt cookies or request Keychain access.
    - 同一刷新中，同一域名族的存储令牌及 Group ID 只扫描一次；中国当前站的 `_token` 会话继续跳过存储扫描。
+   - Cookie 仅位于登录域或其他路径时，仍保留同一浏览器配置的同域名族存储 Bearer 认证路径；不匹配请求范围的 Cookie 不会发送，空 Cookie 请求头不会缓存。
 
 4) **Manual session cookie header** (optional web-path override)
    - Stored in `~/.codexbar/config.json` via Preferences → Providers → MiniMax (Cookie source → Manual).

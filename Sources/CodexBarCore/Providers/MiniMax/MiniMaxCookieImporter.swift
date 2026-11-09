@@ -86,21 +86,24 @@ public enum MiniMaxCookieImporter {
         {
             MiniMaxWebSessionDomain.candidates(for: region).compactMap { domain in
                 let urls = domain.cookieURLs(for: region, environment: environment)
+                guard !urls.isEmpty else { return nil }
+                let familyCookies = self.requestCookies.filter {
+                    $0.domain == domain.rootDomain || $0.domain.hasSuffix(".\(domain.rootDomain)")
+                }
+                guard !familyCookies.isEmpty else { return nil }
                 let hosts = urls.compactMap(\.host) + domain.storageOrigins.compactMap { URL(string: $0)?.host }
-                let cookies = self.requestCookies.filter {
+                let cookies = familyCookies.filter {
                     let cookie = $0
-                    return (cookie.domain == domain.rootDomain || cookie.domain.hasSuffix(".\(domain.rootDomain)")) &&
-                        hosts.contains { host in
-                            host == cookie.domain || (cookie.includesSubdomains && host.hasSuffix(".\(cookie.domain)"))
-                        }
+                    return hosts.contains { host in
+                        host == cookie.domain || (cookie.includesSubdomains && host.hasSuffix(".\(cookie.domain)"))
+                    }
                 }
                 let headers = urls.compactMap {
                     MiniMaxWebSession.cookieHeader(from: cookies, for: $0)
                 }
-                guard let header = headers.first(where: {
+                let header = headers.first(where: {
                     MiniMaxWebSession.hasAuthenticationCookie(in: $0, domain: domain)
-                })
-                    ?? headers.first else { return nil }
+                }) ?? headers.first ?? ""
                 return MiniMaxWebSession(
                     cookieHeader: header,
                     sourceLabel: self.sourceLabel,
