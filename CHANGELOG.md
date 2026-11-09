@@ -4,7 +4,7 @@
 
 ### Added
 
-- OpenAI: show ChatGPT subscription API credits on macOS without an API key through the opt-in Browser session source (`--source web`), read from the platform.openai.com session in Chrome or another Chromium browser. Auto keeps using configured keys.
+- OpenAI: show ChatGPT subscription API credits on macOS without an API key through the opt-in Browser session source (`--source web`), read from the platform.openai.com session in Chrome or another Chromium browser. CodexBar only reads that session and never refreshes or stores its tokens. Open platform.openai.com in that browser to renew an expired session. Auto keeps using configured keys.
 - CLI: declare ElevenLabs setup guidance, including API-key alternatives, subscription-read permission, and saved-account priority (#5020). Thanks @vincent-peng!
 - Usage & Spend: add a Models view grouped by currency, preserve partial-history warnings, and match shared cards to the current appearance (#4889, #4888). Thanks @Chipagosfinest!
 - CLI: expose provider-owned setup routes for Copilot, OpenAI API, and Azure OpenAI, with explicit unknown guidance for other providers (#4705, #4916). Thanks @Yuxin-Qiao!

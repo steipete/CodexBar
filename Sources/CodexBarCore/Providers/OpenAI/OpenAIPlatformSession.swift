@@ -1,86 +1,47 @@
 #if os(macOS)
 import Foundation
 
-/// The platform.openai.com session: the SPA's tokens from Chromium local storage, CodexBar's own refreshed pair,
-/// and the session key that reads credit grants.
+/// Reads API credit grants with the platform.openai.com session that Chromium browsers keep in local storage.
+/// The session is read-only: CodexBar never refreshes or stores its tokens.
 enum OpenAIPlatformSession {
-    struct Tokens: Codable, Equatable {
-        let accessToken: String
-        let refreshToken: String
-        let expiresAt: Date
-        /// The `sub` claim of the browser access token whose session this pair came from.
-        let subject: String?
-    }
-
-    private static let clientID = "app_2SKx67EdpoN0G6j64rFvigXD"
-    static let storeKey = KeychainCacheStore.Key.oauth(provider: .openai)
-    private static let tokenURL = URL(string: "https://auth.openai.com/oauth/token")!
     private static let loginURL = URL(string: "https://api.openai.com/v1/dashboard/onboarding/login")!
     private static let creditGrantsURL = URL(string: "https://api.openai.com/v1/dashboard/billing/credit_grants")!
     private static let log = CodexBarLog.logger(LogCategories.provider(.openai, scope: "platform"))
-    private static let signInHint = "Sign in at platform.openai.com in Chrome (or another Chromium browser), " +
-        "then refresh."
-    private static let responseError = "Could not read the OpenAI Platform session response."
 
-    /// Returns the `credit_grants` JSON. Tokens are tried in order: each browser access token while unexpired,
-    /// CodexBar's stored pair, a refresh with CodexBar's refresh token, then a refresh with each browser's.
-    /// The stored pair counts only for an account a browser profile is signed in to now.
+    /// Returns the `credit_grants` JSON. Each profile's access token is tried in the shared default browser order
+    /// while its JWT `exp` lies ahead, and a rejected token moves on to the next profile.
     static func creditGrants(
         browserDetection: BrowserDetection,
         localStorage: BrowserLocalStorageAPI = .live,
         // The cookie-less ephemeral session keeps browser cookies off these bearer calls.
-        transport: any ProviderHTTPTransport = CodexAuthenticatedHTTPTransport.current,
-        // Each refresh rotates the refresh token, so it needs a store that outlives this process.
-        storesTokens: Bool = KeychainCacheStore.persistsAcrossProcesses(OpenAIPlatformSession.storeKey))
-        async throws -> Data
+        transport: any ProviderHTTPTransport = CodexAuthenticatedHTTPTransport.current) async throws -> Data
     {
-        let browser = self.browserTokens(browserDetection: browserDetection, localStorage: localStorage)
-        guard !browser.isEmpty else {
-            throw ProviderFetchClassifiedError(kind: .missingCredential, message: self.signInHint)
-        }
-        let fresh = Date().addingTimeInterval(60)
-        for tokens in browser where tokens.expiresAt > fresh {
-            if let body = try await self.grants(tokens.accessToken, transport: transport) { return body }
-        }
-        let expired = ProviderFetchClassifiedError(
-            kind: .authenticationExpired,
-            message: "OpenAI Platform session expired. \(Self.signInHint)")
-        guard storesTokens else { throw expired }
-        // The stored pair stays usable only while a browser profile is still signed in to the same account.
-        let subjects = Set(browser.compactMap(\.subject))
-        let stored: Tokens? = switch KeychainCacheStore.load(key: self.storeKey, as: Tokens.self) {
-        case let .found(tokens): tokens.subject.map(subjects.contains) == true ? tokens : nil
-        case .missing, .invalid: nil
-        case .interactionRequired, .temporarilyUnavailable:
-            // A refresh now would rotate a pair that cannot be stored.
+        let accessTokens = self.browserAccessTokens(browserDetection: browserDetection, localStorage: localStorage)
+        guard !accessTokens.isEmpty else {
             throw ProviderFetchClassifiedError(
-                kind: .networkFailure,
-                message: "CodexBar's saved OpenAI Platform session cannot be read from the Keychain here. " +
-                    self.signInHint)
+                kind: .missingCredential,
+                message: "Sign in at platform.openai.com in Chrome (or another Chromium browser), then refresh.")
         }
-        if let stored, stored.expiresAt > fresh,
-           let body = try await self.grants(stored.accessToken, transport: transport)
+        let now = Date().timeIntervalSince1970
+        for accessToken in accessTokens
+            where (UsageFetcher.parseJWT(accessToken)?["exp"] as? Double ?? .infinity) > now
         {
-            return body
+            if let body = try await self.grants(accessToken, transport: transport) { return body }
         }
-        for source in [stored].compactMap(\.self) + browser {
-            guard let tokens = try await self.refreshed(source, transport: transport) else { continue }
-            // A token issued seconds ago that is still refused will not be helped by rotating another one.
-            if let body = try await self.grants(tokens.accessToken, transport: transport) { return body }
-            break
-        }
-        throw expired
+        throw ProviderFetchClassifiedError(
+            kind: .authenticationExpired,
+            message: "OpenAI Platform session expired. Open platform.openai.com in the browser you signed in " +
+                "with to renew it, then refresh.")
     }
 
-    /// Reads the `oai-auth:onboard` tokens that platform.openai.com keeps in local storage, one pair per profile
-    /// in the shared default browser order.
-    private static func browserTokens(
+    /// Reads the access token of the `oai-auth:onboard` entry that platform.openai.com keeps in local storage,
+    /// one per profile in the shared default browser order.
+    private static func browserAccessTokens(
         browserDetection: BrowserDetection,
-        localStorage: BrowserLocalStorageAPI) -> [Tokens]
+        localStorage: BrowserLocalStorageAPI) -> [String]
     {
         struct Onboard: Decodable {
             let accessToken: String
-            let refreshToken: String
         }
 
         return localStorage.profiles(
@@ -93,12 +54,7 @@ enum OpenAIPlatformSession {
                       let onboard = try? JSONDecoder().decode(Onboard.self, from: Data(value.utf8))
                 else { return nil }
                 self.log.debug("Found OpenAI Platform session in \(profile.id)")
-                let claims = UsageFetcher.parseJWT(onboard.accessToken)
-                return Tokens(
-                    accessToken: onboard.accessToken,
-                    refreshToken: onboard.refreshToken,
-                    expiresAt: (claims?["exp"] as? Double).map(Date.init(timeIntervalSince1970:)) ?? .distantFuture,
-                    subject: claims?["sub"] as? String)
+                return onboard.accessToken
             }
     }
 
@@ -110,36 +66,6 @@ enum OpenAIPlatformSession {
         var request = URLRequest(url: self.creditGrantsURL)
         request.setValue("Bearer \(sessionKey)", forHTTPHeaderField: "Authorization")
         return try await self.send(request, transport: transport)
-    }
-
-    /// Persists every new pair, because each refresh rotates the refresh token. Nil when OpenAI rejects it.
-    private static func refreshed(
-        _ source: Tokens,
-        transport: any ProviderHTTPTransport) async throws -> Tokens?
-    {
-        struct Response: Decodable {
-            let accessToken: String
-            let refreshToken: String?
-            let expiresIn: Double
-        }
-
-        var request = URLRequest(url: self.tokenURL)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: [
-            "client_id": self.clientID,
-            "grant_type": "refresh_token",
-            "refresh_token": source.refreshToken,
-        ])
-        guard let data = try await self.send(request, rejecting: [400, 401], transport: transport) else { return nil }
-        let response = try OpenAIPlatformCreditGrants.decode(Response.self, from: data, message: self.responseError)
-        let tokens = Tokens(
-            accessToken: response.accessToken,
-            refreshToken: response.refreshToken ?? source.refreshToken,
-            expiresAt: Date().addingTimeInterval(response.expiresIn),
-            subject: source.subject)
-        KeychainCacheStore.store(key: self.storeKey, entry: tokens)
-        return tokens
     }
 
     private static func sessionKey(accessToken: String, transport: any ProviderHTTPTransport) async throws -> String? {
@@ -161,23 +87,21 @@ enum OpenAIPlatformSession {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = Data(#"{"app":"api"}"#.utf8)
         guard let data = try await self.send(request, transport: transport) else { return nil }
-        return try OpenAIPlatformCreditGrants.decode(Response.self, from: data, message: self.responseError).user
-            .session.sensitiveId
+        return try OpenAIPlatformCreditGrants.decode(
+            Response.self,
+            from: data,
+            message: "Could not read the OpenAI Platform session response.").user.session.sensitiveId
     }
 
-    /// Nil when OpenAI answers with a status in `rejected`, so callers try the next token.
-    private static func send(
-        _ request: URLRequest,
-        rejecting rejected: Set<Int> = [401],
-        transport: any ProviderHTTPTransport) async throws -> Data?
-    {
+    /// Nil when OpenAI answers HTTP 401, so callers try the next token.
+    private static func send(_ request: URLRequest, transport: any ProviderHTTPTransport) async throws -> Data? {
         var request = request
         request.timeoutInterval = 30
         let response = try await transport.response(for: request)
         let message = "OpenAI Platform error: HTTP \(response.statusCode)"
         switch response.statusCode {
         case 200..<300: return response.data
-        case let code where rejected.contains(code): return nil
+        case 401: return nil
         case 429: throw ProviderFetchClassifiedError(kind: .rateLimited, message: message)
         case 500..<600: throw ProviderFetchClassifiedError(kind: .providerUnavailable, message: message)
         default: throw ProviderFetchClassifiedError(kind: .apiFailure, message: message)

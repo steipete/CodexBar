@@ -2801,7 +2801,7 @@
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "구독 사용량을 조회하려면 user_read 권한이 있는 API 키를 사용하세요. 이 명령은 독립적인 키를 저장하며, 선택된 API 키 계정이 우선합니다.";
 "Auto uses the API key. Browser session reads API credits from the signed-in platform.openai.com browser session." = "자동은 API 키를 사용합니다. 브라우저 세션은 로그인된 platform.openai.com 브라우저 세션에서 API 크레딧을 읽습니다.";
 "Browser session" = "브라우저 세션";
-"Opt in with the Browser session usage source or --source web, then sign in at platform.openai.com once in a Chromium browser. CodexBar reads the platform session from that browser's local storage for API credit grants." = "사용량 소스에서 브라우저 세션을 선택하거나 --source web을 지정해 사용하도록 설정한 다음, Chromium 브라우저에서 platform.openai.com에 한 번 로그인하세요. CodexBar는 API 크레딧 지급을 위해 해당 브라우저의 로컬 저장소에서 플랫폼 세션을 읽습니다.";
+"Opt in with the Browser session usage source or --source web, then sign in at platform.openai.com in a Chromium browser. CodexBar reads the platform session from that browser's local storage for API credit grants and never refreshes it. Open platform.openai.com in that browser again when the session expires." = "사용량 소스에서 브라우저 세션을 선택하거나 --source web을 지정해 사용하도록 설정한 다음, Chromium 브라우저에서 platform.openai.com에 로그인하세요. CodexBar는 API 크레딧 지급을 위해 해당 브라우저의 로컬 저장소에서 플랫폼 세션을 읽기만 하고 갱신하지 않습니다. 세션이 만료되면 해당 브라우저에서 platform.openai.com을 다시 여세요.";
 "Other credit grants" = "기타 크레딧 지급";
 "Scheduled credit" = "예정된 크레딧";
 "ChatGPT subscription credit" = "ChatGPT 구독 크레딧";

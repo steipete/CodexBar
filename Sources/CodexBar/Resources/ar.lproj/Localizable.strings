@@ -2837,7 +2837,7 @@
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "استخدم مفتاح API بصلاحية user_read للوصول إلى بيانات استخدام الاشتراك. يحفظ الأمر مفتاحًا مستقلًا؛ وتكون الأولوية لحساب مفتاح API المحدد.";
 "Auto uses the API key. Browser session reads API credits from the signed-in platform.openai.com browser session." = "يستخدم الوضع التلقائي مفتاح API. تقرأ جلسة المتصفح رصيد API من جلسة متصفح platform.openai.com المسجّل الدخول إليها.";
 "Browser session" = "جلسة المتصفح";
-"Opt in with the Browser session usage source or --source web, then sign in at platform.openai.com once in a Chromium browser. CodexBar reads the platform session from that browser's local storage for API credit grants." = "فعّل ذلك بمصدر الاستخدام جلسة المتصفح أو --source web، ثم سجّل الدخول إلى platform.openai.com مرة واحدة في متصفح Chromium. يقرأ CodexBar جلسة المنصة من التخزين المحلي لذلك المتصفح لعرض منح رصيد API.";
+"Opt in with the Browser session usage source or --source web, then sign in at platform.openai.com in a Chromium browser. CodexBar reads the platform session from that browser's local storage for API credit grants and never refreshes it. Open platform.openai.com in that browser again when the session expires." = "فعّل ذلك بمصدر الاستخدام جلسة المتصفح أو --source web، ثم سجّل الدخول إلى platform.openai.com في متصفح Chromium. يقرأ CodexBar جلسة المنصة من التخزين المحلي لذلك المتصفح لعرض منح رصيد API ولا يجددها أبدًا. افتح platform.openai.com في ذلك المتصفح مرة أخرى عند انتهاء الجلسة.";
 "Other credit grants" = "منح رصيد أخرى";
 "Scheduled credit" = "رصيد مجدول";
 "ChatGPT subscription credit" = "رصيد اشتراك ChatGPT";

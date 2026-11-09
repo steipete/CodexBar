@@ -27,27 +27,22 @@ legacy billing fallback. On macOS, an opt-in Swift browser-session source reads 
    keys that cannot access organization usage. This endpoint is not part of OpenAI's current public API reference.
 3. Browser session (macOS, `web`, opt-in): API credit grants, including the monthly API credits that ChatGPT Pro and
    Business subscriptions add to the linked API organization.
-   - Reads the session that platform.openai.com keeps in Chromium local storage: the `oai-auth:onboard` entry for
-     origin `https://platform.openai.com`, which holds the platform OAuth access and refresh tokens. Profiles are
-     checked in the shared default browser order and the first profile whose session OpenAI accepts wins. Chromium
-     local storage is not encrypted, so this needs no Keychain prompt. Safari and Firefox are not read.
+   - Reads the session that platform.openai.com keeps in Chromium local storage: the access token in the
+     `oai-auth:onboard` entry for origin `https://platform.openai.com`. Profiles are checked in the shared default
+     browser order. Chromium local storage is not encrypted, so this never touches the Keychain. Safari and Firefox are
+     not read.
    - Each refresh runs plain HTTP: `POST https://api.openai.com/v1/dashboard/onboarding/login` turns an access
      token into a session key, and `GET https://api.openai.com/v1/dashboard/billing/credit_grants` reads the
      grants with it.
-   - Token order: each browser access token while its JWT `exp` is more than a minute away, nothing stored. Otherwise
-     CodexBar's own pair from an earlier refresh while unexpired, else a refresh at
-     `https://auth.openai.com/oauth/token` with CodexBar's refresh token, else a refresh with each browser profile's
-     refresh token until one is accepted. Every refresh rotates the refresh token, and CodexBar stores the new pair in its own Keychain
-     cache item. A rejected access token moves on to the next step.
-   - CodexBar's pair counts only while a browser profile still holds a token for the same account (JWT `sub`), so a
-     browser that switched accounts never brings back the old account's credits.
-   - A process without durable Keychain storage, such as the standalone CLI or the app with Keychain access disabled,
-     never refreshes, because the rotated pair would be lost. It uses unexpired browser access tokens only and
-     otherwise reports the expired session.
+   - Token order: each profile's access token while its JWT `exp` lies ahead. A token OpenAI rejects with HTTP 401
+     moves on to the next profile, and the first accepted one wins.
+   - The session is read-only. CodexBar never refreshes or stores these tokens and ignores the refresh token.
+     Opening platform.openai.com in the browser renews the session there, and the next usage refresh uses it.
    - No API key can replace this: OpenAI answers that endpoint with HTTP 403 "must be made with a session key" for
      secret, project, service-account and Admin keys alike.
-   - No session in any profile reports a missing credential, and a rejected refresh reports "OpenAI Platform
-     session expired". Both say to sign in at platform.openai.com in Chrome or another Chromium browser.
+   - No session in any profile reports a missing credential that says to sign in at platform.openai.com in Chrome or
+     another Chromium browser. When every token has expired or is rejected, CodexBar reports "OpenAI Platform session
+     expired".
 
 ## Setup
 
@@ -87,8 +82,9 @@ that endpoint is not project-filtered. The legacy `OPENAI_API_KEY` environment p
 
 The browser session is opt-in. Select Settings → Providers → OpenAI → **Usage source** → **Browser session**, or
 run `codexbar usage --provider openai --source web` (config `"source": "web"`), then sign in at platform.openai.com
-once in Chrome or another Chromium browser. CodexBar reads the platform session from that browser's local storage, so
-there is nothing to paste.
+in Chrome or another Chromium browser. CodexBar reads the platform session from that browser's local storage, so
+there is nothing to paste. It never refreshes that session, so open platform.openai.com in the same browser again
+when CodexBar reports it expired.
 
 Auto (the default) and **Admin API key** use the configured key, a selected token account, `OPENAI_ADMIN_KEY` or
 `OPENAI_API_KEY` (a Platform session key `sess-` reads its grants through the legacy fallback). Auto never reads

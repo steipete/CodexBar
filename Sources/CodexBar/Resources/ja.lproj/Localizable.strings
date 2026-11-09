@@ -2833,7 +2833,7 @@
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "サブスクリプションの使用状況を取得するには、user_read 権限のある API キーを使用します。このコマンドは単独のキーを保存します。選択中の API キーアカウントが優先されます。";
 "Auto uses the API key. Browser session reads API credits from the signed-in platform.openai.com browser session." = "自動では API キーを使用します。ブラウザセッションは、サインイン済みの platform.openai.com ブラウザセッションから API クレジットを読み取ります。";
 "Browser session" = "ブラウザセッション";
-"Opt in with the Browser session usage source or --source web, then sign in at platform.openai.com once in a Chromium browser. CodexBar reads the platform session from that browser's local storage for API credit grants." = "使用状況ソースでブラウザセッションを選ぶか --source web を指定して有効にし、Chromium 系ブラウザで platform.openai.com に一度サインインしてください。CodexBar はそのブラウザのローカルストレージからプラットフォームのセッションを読み取り、API クレジット付与を表示します。";
+"Opt in with the Browser session usage source or --source web, then sign in at platform.openai.com in a Chromium browser. CodexBar reads the platform session from that browser's local storage for API credit grants and never refreshes it. Open platform.openai.com in that browser again when the session expires." = "使用状況ソースでブラウザセッションを選ぶか --source web を指定して有効にし、Chromium 系ブラウザで platform.openai.com にサインインしてください。CodexBar はそのブラウザのローカルストレージからプラットフォームのセッションを読み取って API クレジット付与を表示し、セッションを更新することはありません。セッションが期限切れになったら、そのブラウザで platform.openai.com を再度開いてください。";
 "Other credit grants" = "その他のクレジット付与";
 "Scheduled credit" = "予定されたクレジット";
 "ChatGPT subscription credit" = "ChatGPT サブスクリプションのクレジット";

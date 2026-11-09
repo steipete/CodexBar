@@ -134,8 +134,9 @@ public enum OpenAIAPIProviderDescriptor {
                     method: .browserSession,
                     platforms: [.macOS],
                     hint: "Opt in with the Browser session usage source or --source web, then sign in at " +
-                        "platform.openai.com once in a Chromium browser. CodexBar reads the platform session from " +
-                        "that browser's local storage for API credit grants."),
+                        "platform.openai.com in a Chromium browser. CodexBar reads the platform session from " +
+                        "that browser's local storage for API credit grants and never refreshes it. Open " +
+                        "platform.openai.com in that browser again when the session expires."),
             ]))
     }
 

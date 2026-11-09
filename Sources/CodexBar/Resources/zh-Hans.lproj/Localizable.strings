@@ -2825,7 +2825,7 @@
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "使用具有 user_read 权限的 API 密钥查看订阅用量。此命令保存独立密钥；所选 API 密钥账户优先。";
 "Auto uses the API key. Browser session reads API credits from the signed-in platform.openai.com browser session." = "自动模式使用 API 密钥。浏览器会话模式从已登录的 platform.openai.com 浏览器会话读取 API 额度。";
 "Browser session" = "浏览器会话";
-"Opt in with the Browser session usage source or --source web, then sign in at platform.openai.com once in a Chromium browser. CodexBar reads the platform session from that browser's local storage for API credit grants." = "请在使用来源中选择浏览器会话或使用 --source web 启用，然后在 Chromium 浏览器中登录 platform.openai.com 一次。CodexBar 会从该浏览器的本地存储读取平台会话，用于显示 API 额度发放。";
+"Opt in with the Browser session usage source or --source web, then sign in at platform.openai.com in a Chromium browser. CodexBar reads the platform session from that browser's local storage for API credit grants and never refreshes it. Open platform.openai.com in that browser again when the session expires." = "请在使用来源中选择浏览器会话或使用 --source web 启用，然后在 Chromium 浏览器中登录 platform.openai.com。CodexBar 会从该浏览器的本地存储读取平台会话，用于显示 API 额度发放，但从不续期该会话。会话过期后，请在该浏览器中重新打开 platform.openai.com。";
 "Other credit grants" = "其他额度发放";
 "Scheduled credit" = "计划中的额度";
 "ChatGPT subscription credit" = "ChatGPT 订阅额度";

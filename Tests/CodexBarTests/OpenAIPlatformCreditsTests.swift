@@ -4,8 +4,6 @@ import Testing
 @testable import CodexBarCore
 
 struct OpenAIPlatformSessionTests {
-    private typealias Tokens = OpenAIPlatformSession.Tokens
-
     private final class Fixture: ProviderHTTPTransport, @unchecked Sendable {
         private let lock = NSLock()
         private var responses: [(path: String, status: Int, body: String)]
@@ -28,17 +26,14 @@ struct OpenAIPlatformSessionTests {
         }
     }
 
-    private static let token = "/oauth/token"
     private static let login = "/v1/dashboard/onboarding/login"
     private static let grants = "/v1/dashboard/billing/credit_grants"
     private static let grantsBody = #"{"total_available":12.5}"#
-    private static let loginBody = #"{"user":{"session":{"sensitive_id":"sess-fixture"}}}"#
-    private static let rotatedBody = #"{"access_token":"access-new","refresh_token":"refresh-new","expires_in":864000}"#
 
-    /// A JWT with the `exp` and `sub` claims of the access token the platform SPA stores.
-    private static func jwt(expiresIn seconds: TimeInterval) -> String {
+    /// A JWT with the `exp` claim of the access token the platform SPA stores, told apart by `sub`.
+    private static func jwt(_ subject: String, expiresIn seconds: TimeInterval) -> String {
         let expiry = Date().addingTimeInterval(seconds).timeIntervalSince1970
-        let payload = Data(#"{"exp":\#(expiry),"sub":"user-fixture"}"#.utf8)
+        let payload = Data(#"{"exp":\#(expiry),"sub":"\#(subject)"}"#.utf8)
             .base64EncodedString()
             .replacingOccurrences(of: "+", with: "-")
             .replacingOccurrences(of: "/", with: "_")
@@ -46,112 +41,69 @@ struct OpenAIPlatformSessionTests {
         return "e30.\(payload).sig"
     }
 
-    /// A profile without the session, a stale expired one, then the live one.
-    private static func localStorage(accessToken: String) -> BrowserLocalStorageAPI {
-        let onboard = { (access: String, refresh: String) in
-            [BrowserLocalStorageAPI.Entry(
-                key: "oai-auth:onboard",
-                value: #"{"accessToken":"\#(access)","refreshToken":"\#(refresh)","expiresIn":864000}"#)]
+    /// A profile without the session, then one session per access token.
+    private static func localStorage(_ accessTokens: [String]) -> BrowserLocalStorageAPI {
+        let profiles = [BrowserLocalStorageAPI.Profile(
+            id: "chrome:Default",
+            label: "Chrome",
+            entries: [.init(key: "oai/activeOrg", value: "org")])] + accessTokens.enumerated().map { index, token in
+            BrowserLocalStorageAPI.Profile(
+                id: "chrome:Profile \(index + 1)",
+                label: "Profile \(index + 1)",
+                entries: [.init(
+                    key: "oai-auth:onboard",
+                    value: #"{"accessToken":"\#(token)","refreshToken":"refresh-\#(index)","expiresIn":864000}"#)])
         }
-        let profiles: [BrowserLocalStorageAPI.Profile] = [
-            .init(id: "chrome:Default", label: "Chrome", entries: [.init(key: "oai/activeOrg", value: "org")]),
-            .init(id: "chrome:Profile 1", label: "Old", entries: onboard(Self.jwt(expiresIn: -60), "refresh-old")),
-            .init(id: "chrome:Profile 2", label: "Work", entries: onboard(accessToken, "refresh-browser")),
-        ]
         return BrowserLocalStorageAPI { origin, _, _, _ in origin == "https://platform.openai.com" ? profiles : [] }
     }
 
-    enum Route: CaseIterable {
-        case browserAccess
-        case storedAccess
-        case storedRefresh
-        case browserRefresh
-        case otherAccount
+    enum Row: CaseIterable {
+        case firstUnexpired
+        case firstExpired
+        case firstRejected
+        case allExpired
     }
 
-    @Test(arguments: Route.allCases)
-    func `browser session token order reaches credit grants and persists rotations`(route: Route) async throws {
-        let browserAccess = Self.jwt(expiresIn: [.browserAccess, .browserRefresh].contains(route) ? 3600 : -60)
-        // The stored pair of an account no browser profile holds anymore is neither used nor refreshed.
-        let stored = Tokens(
-            accessToken: "access-stored",
-            refreshToken: "refresh-stored",
-            expiresAt: [.storedAccess, .otherAccount].contains(route) ? .distantFuture : .distantPast,
-            subject: route == .otherAccount ? "user-other" : "user-fixture")
-        let (bearer, refreshes): (String, [String]) = switch route {
-        case .browserAccess: (browserAccess, [])
-        case .storedAccess: ("access-stored", [])
-        case .storedRefresh: ("access-new", ["refresh-stored"])
-        case .browserRefresh: ("access-new", ["refresh-stored", "refresh-old", "refresh-browser"])
-        case .otherAccount: ("access-new", ["refresh-old"])
+    @Test(arguments: Row.allCases)
+    func `unexpired browser access tokens are tried in profile order without the Keychain`(row: Row) async throws {
+        let first = Self.jwt("first", expiresIn: [.firstExpired, .allExpired].contains(row) ? -60 : 3600)
+        let second = Self.jwt("second", expiresIn: row == .allExpired ? -60 : 3600)
+        let logins: [String] = switch row {
+        case .firstUnexpired: [first]
+        case .firstExpired: [second]
+        case .firstRejected: [first, second]
+        case .allExpired: []
         }
-        var responses: [(path: String, status: Int, body: String)] = []
-        if route == .browserRefresh {
-            let rejected = #"{"error":"invalid_grant"}"#
-            responses += [(Self.login, 401, "{}"), (Self.token, 400, rejected), (Self.token, 400, rejected)]
+        // Each rejected login moves on to the next profile, and the last one reaches credit grants.
+        var responses: [(path: String, status: Int, body: String)] = logins.dropLast().map { _ in
+            (Self.login, 401, "{}")
         }
-        if !refreshes.isEmpty {
-            responses.append((Self.token, 200, Self.rotatedBody))
+        if !logins.isEmpty {
+            responses += [
+                (Self.login, 200, #"{"user":{"session":{"sensitive_id":"sess-fixture"}}}"#),
+                (Self.grants, 200, Self.grantsBody),
+            ]
         }
-        responses += [(Self.login, 200, Self.loginBody), (Self.grants, 200, Self.grantsBody)]
         let fixture = Fixture(responses)
-
-        try await KeychainCacheStore.withServiceOverrideForTesting("codexbar.tests.\(UUID().uuidString)") {
-            KeychainCacheStore.setTestStoreForTesting(true)
-            defer { KeychainCacheStore.setTestStoreForTesting(false) }
-            KeychainCacheStore.store(key: OpenAIPlatformSession.storeKey, entry: stored)
-
-            let recorder = KeychainCacheStore.OperationRecorder()
-            let body = try await KeychainCacheStore.withOperationRecorderForTesting(recorder) {
+        let recorder = KeychainCacheStore.OperationRecorder()
+        let fetch = {
+            try await KeychainCacheStore.withOperationRecorderForTesting(recorder) {
                 try await OpenAIPlatformSession.creditGrants(
                     browserDetection: BrowserDetection(homeDirectory: "/nonexistent/openai-test", cacheTTL: 0),
-                    localStorage: Self.localStorage(accessToken: browserAccess),
+                    localStorage: Self.localStorage([first, second]),
                     transport: fixture)
             }
-            // A live browser token never touches the Keychain.
-            #expect(recorder.operations.isEmpty == (route == .browserAccess))
-
-            #expect(String(data: body, encoding: .utf8) == Self.grantsBody)
-            let requests = fixture.requests
-            let sentRefreshTokens = try requests.filter { $0.url?.path == Self.token }.map { request in
-                let body = try #require(request.httpBody)
-                let json = try #require(try JSONSerialization.jsonObject(with: body) as? [String: String])
-                #expect(json["grant_type"] == "refresh_token")
-                return json["refresh_token"] ?? ""
-            }
-            #expect(sentRefreshTokens == refreshes)
-            #expect(requests.last { $0.url?.path == Self.login }?.value(forHTTPHeaderField: "Authorization")
-                == "Bearer \(bearer)")
-            #expect(requests.last?.value(forHTTPHeaderField: "Authorization") == "Bearer sess-fixture")
-            guard case let .found(kept) = KeychainCacheStore.load(
-                key: OpenAIPlatformSession.storeKey,
-                as: Tokens.self)
-            else {
-                Issue.record("The stored pair must stay")
-                return
-            }
-            if refreshes.isEmpty {
-                #expect(kept == stored)
-            } else {
-                #expect(kept.accessToken == "access-new" && kept.refreshToken == "refresh-new")
-                #expect(kept.subject == "user-fixture")
-                #expect(kept.expiresAt > Date().addingTimeInterval(863_000))
-            }
         }
-    }
 
-    @Test
-    func `expired browser tokens are not refreshed without a durable store`() async {
-        // A refresh would consume the browser's refresh token and keep the rotated pair nowhere.
-        let fixture = Fixture([])
-        let error = await #expect(throws: ProviderFetchClassifiedError.self) {
-            try await OpenAIPlatformSession.creditGrants(
-                browserDetection: BrowserDetection(homeDirectory: "/nonexistent/openai-test", cacheTTL: 0),
-                localStorage: Self.localStorage(accessToken: Self.jwt(expiresIn: -60)),
-                transport: fixture,
-                storesTokens: false)
+        if logins.isEmpty {
+            let error = await #expect(throws: ProviderFetchClassifiedError.self) { try await fetch() }
+            #expect(error?.kind == .authenticationExpired)
+        } else {
+            #expect(try await String(data: fetch(), encoding: .utf8) == Self.grantsBody)
         }
-        #expect(error?.kind == .authenticationExpired && fixture.requests.isEmpty)
+        #expect(recorder.operations.isEmpty)
+        #expect(fixture.requests.map { $0.value(forHTTPHeaderField: "Authorization") }
+            == (logins + (logins.isEmpty ? [] : ["sess-fixture"])).map { "Bearer \($0)" })
     }
 }
 

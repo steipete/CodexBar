@@ -519,11 +519,6 @@ public enum KeychainCacheStore {
         !KeychainAccessGate.isDisabled
     }
 
-    /// False when `store` for this key would not outlive the process.
-    static func persistsAcrossProcesses(_ key: Key) -> Bool {
-        !KeychainAccessGate.isExplicitlyDisabled && !self.shouldUseDisabledAccessMemoryStore(for: key.category)
-    }
-
     /// When persistent cookie-cache access is unavailable, keep an in-process cache so session
     /// reconciliation can still succeed without treating every refresh as a session change.
     /// Unit tests keep using the isolated test stores instead, unless a test explicitly opts in.
