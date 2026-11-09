@@ -73,7 +73,17 @@ struct MuseAIPluginTests {
         storedID: String?,
         engine: ProviderPluginEngineKind) async throws
     {
-        let result = try await Self.fetch(engine: engine, storedID: storedID, action: Self.free)
+        let result = try await Self.fetch(
+            engine: engine,
+            storedID: storedID,
+            action: Self.free,
+            observeHTTP: { traces in
+                let posts = traces.filter { $0.method == "POST" }
+                #expect(posts.map(\.status) == (storedID == nil ? [200] : [404, 200]))
+                #expect(posts.allSatisfy { $0.contentType == "text/plain;charset=UTF-8" })
+                #expect(posts.last?.actionID == Self.actionID)
+                if let storedID { #expect(posts.first?.actionID == storedID) }
+            })
         #expect(result.snapshot.primary?.usedPercent == 28)
         #expect(result.requests.contains("GET /_next/static/chunks/settings.js"))
         #expect(!result.requests.contains("GET /_next/static/chunks/other.js"))
@@ -203,7 +213,9 @@ struct MuseAIPluginTests {
     private final class Log: @unchecked Sendable {
         let lock = NSLock()
         var entries: [String] = []
+        var httpTraces: [HTTPTrace] = []
         func append(_ entry: String) { self.lock.withLock { self.entries.append(entry) } }
+        func append(_ trace: HTTPTrace) { self.lock.withLock { self.httpTraces.append(trace) } }
     }
 
     private static func fetch(
@@ -215,7 +227,8 @@ struct MuseAIPluginTests {
         cookies: [String] = ["hatch_sess=fixture"],
         cookieSource: ProviderCookieSource = .auto,
         chunks: [String: String] = Self.chunks,
-        observe: @Sendable ([String], String?) -> Void = { _, _ in }) async throws
+        observe: @Sendable ([String], String?) -> Void = { _, _ in },
+        observeHTTP: @Sendable ([HTTPTrace]) -> Void = { _ in }) async throws
         -> (snapshot: UsageSnapshot, requests: [String], storedID: String?, rejected: [String])
     {
         let storage = FileManager.default.temporaryDirectory.appendingPathComponent("MuseAIPluginTests-\(UUID())")
@@ -230,6 +243,7 @@ struct MuseAIPluginTests {
                 try? JSONSerialization.jsonObject(with: $0) as? [String: Any]
             }
             observe(log.entries, (saved?["values"] as? [String: String])?["actionID"])
+            observeHTTP(log.httpTraces)
             try? FileManager.default.removeItem(at: storage)
         }
         let runtime = try BundledPluginTestSupport.runtime(
@@ -255,6 +269,12 @@ struct MuseAIPluginTests {
                 } else {
                     #expect(request.value(forHTTPHeaderField: "Cookie") == nil)
                 }
+                log.append(HTTPTrace(
+                    method: request.httpMethod ?? "GET",
+                    path: path,
+                    actionID: actionHeader,
+                    contentType: request.value(forHTTPHeaderField: "Content-Type"),
+                    status: status))
                 let response = HTTPURLResponse(
                     url: request.url!, statusCode: status, httpVersion: nil, headerFields: headers)!
                 return (Data(body.utf8), response)
@@ -279,4 +299,12 @@ struct MuseAIPluginTests {
         let saved = try (JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any])?["values"]
         return (snapshot, log.entries, (saved as? [String: String])?["actionID"], rejected.entries)
     }
+}
+
+private struct HTTPTrace: Sendable {
+    let method: String
+    let path: String
+    let actionID: String?
+    let contentType: String?
+    let status: Int
 }
