@@ -275,9 +275,9 @@ public enum ClaudeOAuthCredentialsError: LocalizedError, Sendable {
                 + "Click Refresh to re-grant CodexBar access."
         case let .directKeychainReadNotAllowed(date):
             return Self.directKeychainReadNotAllowedPrefix + " (\(UsageFormatter.updatedString(from: date))). "
-                + "Enable \u{201C}Allow reading Claude Code's credentials\u{201D} in Claude settings to keep usage "
-                + "current in the background, or click Refresh in the CodexBar menu to update once through the "
-                + "Claude CLI, if it is installed."
+                + "Enable \u{201C}Allow reading Claude Code's credentials\u{201D} in Claude settings, "
+                + "then click Refresh to read them. Without it, Refresh in the CodexBar menu updates once "
+                + "through the Claude CLI, if it is installed."
         case .keychainAccessRevoked:
             return "Claude OAuth credentials are currently unavailable to CodexBar. "
                 + "Click Refresh to retry access, or switch Claude Usage source to CLI/Web."

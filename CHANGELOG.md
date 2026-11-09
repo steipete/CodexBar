@@ -11,7 +11,7 @@
 
 ### Fixed
 
-- Claude: stop claiming Refresh re-grants access after Claude Code rotates its Keychain credentials while direct-read consent is off. The menu now offers "Allow reading Claude Code's credentials", Refresh updates once through the Claude CLI, and a CLI or Web failure keeps its own recovery action.
+- Claude: stop claiming Refresh re-grants access after Claude Code rotates its Keychain credentials while direct-read consent is off. The menu now offers "Allow reading Claude Code's credentials", Refresh updates once through the Claude CLI if it is installed, and a CLI or Web failure keeps its own recovery action.
 - CLI: reject unknown `--provider` values for usage, cost, and cards with an argument error instead of silently falling back to enabled providers (#5017, #5019). Thanks @coygeek and @harjothkhara!
 - Ollama: support legacy API session and weekly balances while preserving monthly credits. (#5005, #5006) Thanks @Colafornia!
 - Mistral: recover from expired sessions that redirect to sign-in instead of returning HTTP 401/403. (#5000, #5002) Thanks @enieuwy!
