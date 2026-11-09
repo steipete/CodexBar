@@ -1991,6 +1991,7 @@
 "Shows usage from `tcr`; it does not switch accounts, because tcr picks the account for each request. Credentials stay managed by tcr; CodexBar never reads them." = "Показывает использование из `tcr`; не переключает учетные записи, потому что tcr выбирает учетную запись для каждого запроса. Учетные данные остаются под управлением tcr; CodexBar никогда их не читает.";
 "Stay Awake" = "Бодрствуйте";
 "Stored in the CodexBar config file. Reads monthly budget and routed usage from /v1/usage." = "Хранится в файле конфигурации CodexBar. Считывает ежемесячный бюджет и маршрутизируемое использование из /v1/usage.";
+"Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage; legacy/user keys only get a best-effort balance fallback." = "Хранится в ~/.codexbar/config.json. OPENAI_ADMIN_KEY необходим для использования в организации; устаревшие/пользовательские ключи получают только резервный баланс баланса.";
 "Stored in ~/.codexbar/config.json. You can also provide FACTORY_API_KEY or ~/.factory/.env." = "Хранится в ~/.codexbar/config.json. Вы также можете предоставить FACTORY_API_KEY или ~/.factory/.env.";
 "Stored in ~/.codexbar/config.json. You can also set AMP_API_KEY." = "Хранится в ~/.codexbar/config.json. Вы также можете установить AMP_API_KEY.";
 "SuperGrok OAuth" = "SuperGrok OAuth";
@@ -2827,15 +2828,14 @@
 "In the macOS app, select manual cookie source and supply the matching GitHub Cookie header." = "В приложении macOS выберите ручной источник cookie и укажите соответствующий заголовок Cookie GitHub.";
 "Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app." = "Войдите в GitHub в поддерживаемом браузере и выберите автоматический импорт cookie в приложении macOS.";
 "Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints." = "Используйте ключ Admin API организации для её расходов и использования. Ключи проектов и служебных учётных записей не могут читать эти конечные точки.";
+"A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "Обычный ключ API поддерживает лишь резервное получение прежнего баланса без гарантий, но не использования организации. Настроенные ключи с ограничением по проекту не используют этот вариант.";
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Укажите ключ, HTTPS-адрес ресурса и имя развёртывания. Версия API необязательна. Обновление отправляет потенциально платный запрос проверки, а не запрос истории использования.";
 "Mistral session expired or invalid." = "Срок действия сеанса Mistral истёк или сеанс недействителен.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Для просмотра использования подписки используйте ключ API с разрешением user_read. Команда сохраняет отдельный ключ; выбранная учетная запись ключа API имеет приоритет.";
-"Auto uses an Admin API key when configured, otherwise your platform.openai.com browser session for API credits." = "Авто использует Admin API-ключ, если он настроен, а иначе сеанс браузера на platform.openai.com для кредитов API.";
+"Auto uses the API key. Browser session reads API credits from the signed-in platform.openai.com browser session." = "Авто использует API-ключ. Сеанс браузера считывает кредиты API из сеанса браузера на platform.openai.com, в котором выполнен вход.";
 "Browser session" = "Сеанс браузера";
-"Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage. Optional when using the browser session." = "Хранится в ~/.codexbar/config.json. OPENAI_ADMIN_KEY нужен для данных об использовании организации. Необязателен при работе через сеанс браузера.";
-"Sign in at platform.openai.com once in a Chromium browser. CodexBar reads the platform session from that browser's local storage for API credit grants." = "Один раз войдите на platform.openai.com в браузере на базе Chromium. CodexBar читает сессию платформы из локального хранилища этого браузера, чтобы показать начисления кредитов API.";
+"Opt in with the Browser session usage source or --source web, then sign in at platform.openai.com once in a Chromium browser. CodexBar reads the platform session from that browser's local storage for API credit grants." = "Включите это источником использования «Сеанс браузера» или --source web, затем один раз войдите на platform.openai.com в браузере на базе Chromium. CodexBar читает сессию платформы из локального хранилища этого браузера, чтобы показать начисления кредитов API.";
 "Other credit grants" = "Другие начисления кредитов";
 "Scheduled credit" = "Запланированный кредит";
 "ChatGPT subscription credit" = "Кредит подписки ChatGPT";
 "Credit grant" = "Начисление кредита";
-"OpenAI usage needs an Admin API key, or a platform.openai.com browser session for API credits." = "Для использования OpenAI нужен Admin API-ключ или сеанс браузера на platform.openai.com для кредитов API.";

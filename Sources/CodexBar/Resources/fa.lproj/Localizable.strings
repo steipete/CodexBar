@@ -1994,6 +1994,7 @@
 "Shows usage from `tcr`; it does not switch accounts, because tcr picks the account for each request. Credentials stay managed by tcr; CodexBar never reads them." = "استفاده را از `tcr` نشان می دهد؛ حساب ها را تغییر نمی دهد، زیرا tcr برای هر درخواست حساب را انتخاب می کند. اعتبارنامه ها توسط tcr مدیریت می شوند. CodexBar هرگز آنها را نمی خواند.";
 "Stay Awake" = "بیدار بمان";
 "Stored in the CodexBar config file. Reads monthly budget and routed usage from /v1/usage." = "در فایل پیکربندی CodexBar ذخیره می شود. بودجه ماهانه و استفاده مسیریابی شده را از /v1/usage می خواند.";
+"Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage; legacy/user keys only get a best-effort balance fallback." = "ذخیره شده در ~/.codexbar/config.json. OPENAI_ADMIN_KEY برای استفاده سازمان مورد نیاز است. کلیدهای قدیمی/کاربر فقط یک موجودی با بهترین تلاش را دریافت می کنند.";
 "Stored in ~/.codexbar/config.json. You can also provide FACTORY_API_KEY or ~/.factory/.env." = "ذخیره شده در ~/.codexbar/config.json. همچنین می توانید FACTORY_API_KEY یا ~/.factory/.env را ارائه دهید.";
 "Stored in ~/.codexbar/config.json. You can also set AMP_API_KEY." = "ذخیره شده در ~/.codexbar/config.json. همچنین می توانید AMP_API_KEY را تنظیم کنید.";
 "SuperGrok OAuth" = "SuperGrok OAuth";
@@ -2830,15 +2831,14 @@
 "In the macOS app, select manual cookie source and supply the matching GitHub Cookie header." = "در برنامهٔ macOS منبع دستی کوکی را انتخاب کنید و سرآیند Cookie متناظر GitHub را وارد کنید.";
 "Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app." = "در مرورگر پشتیبانی‌شده وارد GitHub شوید و در برنامهٔ macOS واردکردن خودکار کوکی را انتخاب کنید.";
 "Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints." = "برای هزینه و مصرف سازمان از کلید Admin API سازمان استفاده کنید. کلیدهای پروژه یا حساب سرویس نمی‌توانند این نقطه‌های پایانی را بخوانند.";
+"A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "کلید API معمولی فقط بازیابی جایگزین موجودی قدیمی را بدون تضمین پشتیبانی می‌کند، نه مصرف سازمان را. کلیدهای تنظیم‌شده با محدودهٔ پروژه از این جایگزین استفاده نمی‌کنند.";
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "کلید، نقطهٔ پایانی منبع HTTPS و نام استقرار را وارد کنید. نسخهٔ API اختیاری است. تازه‌سازی درخواست اعتبارسنجی با هزینهٔ احتمالی می‌فرستد، نه پرس‌وجوی سابقهٔ مصرف.";
 "Mistral session expired or invalid." = "نشست Mistral منقضی شده یا نامعتبر است.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "برای مشاهده مصرف اشتراک، از یک کلید API با مجوز user_read استفاده کنید. این فرمان یک کلید مستقل ذخیره می‌کند؛ حساب کلید API انتخاب‌شده اولویت دارد.";
-"Auto uses an Admin API key when configured, otherwise your platform.openai.com browser session for API credits." = "حالت خودکار در صورت تنظیم کلید API مدیریت از آن استفاده می‌کند، وگرنه از نشست مرورگر platform.openai.com برای اعتبار API.";
+"Auto uses the API key. Browser session reads API credits from the signed-in platform.openai.com browser session." = "حالت خودکار از کلید API استفاده می‌کند. نشست مرورگر اعتبار API را از نشست واردشده مرورگر در platform.openai.com می‌خواند.";
 "Browser session" = "نشست مرورگر";
-"Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage. Optional when using the browser session." = "در ~/.codexbar/config.json ذخیره می‌شود. OPENAI_ADMIN_KEY برای مصرف سازمان لازم است. هنگام استفاده از نشست مرورگر اختیاری است.";
-"Sign in at platform.openai.com once in a Chromium browser. CodexBar reads the platform session from that browser's local storage for API credit grants." = "یک بار در یک مرورگر Chromium وارد platform.openai.com شوید. CodexBar نشست پلتفرم را برای اعتبارهای اعطایی API از حافظه محلی همان مرورگر می‌خواند.";
+"Opt in with the Browser session usage source or --source web, then sign in at platform.openai.com once in a Chromium browser. CodexBar reads the platform session from that browser's local storage for API credit grants." = "آن را با منبع استفاده نشست مرورگر یا --source web فعال کنید، سپس یک بار در یک مرورگر Chromium وارد platform.openai.com شوید. CodexBar نشست پلتفرم را برای اعتبارهای اعطایی API از حافظه محلی همان مرورگر می‌خواند.";
 "Other credit grants" = "سایر اعتبارهای اعطایی";
 "Scheduled credit" = "اعتبار زمان‌بندی‌شده";
 "ChatGPT subscription credit" = "اعتبار اشتراک ChatGPT";
 "Credit grant" = "اعتبار اعطایی";
-"OpenAI usage needs an Admin API key, or a platform.openai.com browser session for API credits." = "مصرف OpenAI به کلید API مدیریت، یا به نشست مرورگر platform.openai.com برای اعتبار API نیاز دارد.";

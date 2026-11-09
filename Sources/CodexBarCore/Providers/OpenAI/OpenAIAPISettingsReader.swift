@@ -13,11 +13,8 @@ public enum OpenAIAPISettingsReader {
         SettingsValue.first(in: environment, keys: self.apiKeyEnvironmentKeys)
     }
 
-    /// Admin keys may also be exported as OPENAI_API_KEY, where only their prefix tells them apart.
     public static func adminAPIKey(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         SettingsValue.cleaned(environment[self.adminAPIKeyEnvironmentKey])
-            ?? SettingsValue.cleaned(environment[self.apiKeyEnvironmentKey])
-            .flatMap { $0.hasPrefix("sk-admin-") ? $0 : nil }
     }
 
     public static func projectID(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {

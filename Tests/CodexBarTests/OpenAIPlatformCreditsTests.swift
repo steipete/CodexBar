@@ -34,11 +34,11 @@ struct OpenAIPlatformSessionTests {
     private static let grantsBody = #"{"total_available":12.5}"#
     private static let loginBody = #"{"user":{"session":{"sensitive_id":"sess-fixture"}}}"#
     private static let rotatedBody = #"{"access_token":"access-new","refresh_token":"refresh-new","expires_in":864000}"#
-    private static let storeKey = KeychainCacheStore.Key.oauth(provider: .openai)
 
-    /// A JWT whose only claim is `exp`, as the platform SPA stores its access token.
+    /// A JWT with the `exp` and `sub` claims of the access token the platform SPA stores.
     private static func jwt(expiresIn seconds: TimeInterval) -> String {
-        let payload = Data(#"{"exp":\#(Date().addingTimeInterval(seconds).timeIntervalSince1970)}"#.utf8)
+        let expiry = Date().addingTimeInterval(seconds).timeIntervalSince1970
+        let payload = Data(#"{"exp":\#(expiry),"sub":"user-fixture"}"#.utf8)
             .base64EncodedString()
             .replacingOccurrences(of: "+", with: "-")
             .replacingOccurrences(of: "/", with: "_")
@@ -66,20 +66,24 @@ struct OpenAIPlatformSessionTests {
         case storedAccess
         case storedRefresh
         case browserRefresh
+        case otherAccount
     }
 
     @Test(arguments: Route.allCases)
     func `browser session token order reaches credit grants and persists rotations`(route: Route) async throws {
-        let browserAccess = Self.jwt(expiresIn: route == .storedAccess || route == .storedRefresh ? -60 : 3600)
+        let browserAccess = Self.jwt(expiresIn: [.browserAccess, .browserRefresh].contains(route) ? 3600 : -60)
+        // The stored pair of an account no browser profile holds anymore is neither used nor refreshed.
         let stored = Tokens(
             accessToken: "access-stored",
             refreshToken: "refresh-stored",
-            expiresAt: route == .storedAccess ? .distantFuture : .distantPast)
+            expiresAt: [.storedAccess, .otherAccount].contains(route) ? .distantFuture : .distantPast,
+            subject: route == .otherAccount ? "user-other" : "user-fixture")
         let (bearer, refreshes): (String, [String]) = switch route {
         case .browserAccess: (browserAccess, [])
         case .storedAccess: ("access-stored", [])
         case .storedRefresh: ("access-new", ["refresh-stored"])
         case .browserRefresh: ("access-new", ["refresh-stored", "refresh-old", "refresh-browser"])
+        case .otherAccount: ("access-new", ["refresh-old"])
         }
         var responses: [(path: String, status: Int, body: String)] = []
         if route == .browserRefresh {
@@ -95,7 +99,7 @@ struct OpenAIPlatformSessionTests {
         try await KeychainCacheStore.withServiceOverrideForTesting("codexbar.tests.\(UUID().uuidString)") {
             KeychainCacheStore.setTestStoreForTesting(true)
             defer { KeychainCacheStore.setTestStoreForTesting(false) }
-            KeychainCacheStore.store(key: Self.storeKey, entry: stored)
+            KeychainCacheStore.store(key: OpenAIPlatformSession.storeKey, entry: stored)
 
             let recorder = KeychainCacheStore.OperationRecorder()
             let body = try await KeychainCacheStore.withOperationRecorderForTesting(recorder) {
@@ -119,7 +123,10 @@ struct OpenAIPlatformSessionTests {
             #expect(requests.last { $0.url?.path == Self.login }?.value(forHTTPHeaderField: "Authorization")
                 == "Bearer \(bearer)")
             #expect(requests.last?.value(forHTTPHeaderField: "Authorization") == "Bearer sess-fixture")
-            guard case let .found(kept) = KeychainCacheStore.load(key: Self.storeKey, as: Tokens.self) else {
+            guard case let .found(kept) = KeychainCacheStore.load(
+                key: OpenAIPlatformSession.storeKey,
+                as: Tokens.self)
+            else {
                 Issue.record("The stored pair must stay")
                 return
             }
@@ -127,9 +134,24 @@ struct OpenAIPlatformSessionTests {
                 #expect(kept == stored)
             } else {
                 #expect(kept.accessToken == "access-new" && kept.refreshToken == "refresh-new")
+                #expect(kept.subject == "user-fixture")
                 #expect(kept.expiresAt > Date().addingTimeInterval(863_000))
             }
         }
+    }
+
+    @Test
+    func `expired browser tokens are not refreshed without a durable store`() async {
+        // A refresh would consume the browser's refresh token and keep the rotated pair nowhere.
+        let fixture = Fixture([])
+        let error = await #expect(throws: ProviderFetchClassifiedError.self) {
+            try await OpenAIPlatformSession.creditGrants(
+                browserDetection: BrowserDetection(homeDirectory: "/nonexistent/openai-test", cacheTTL: 0),
+                localStorage: Self.localStorage(accessToken: Self.jwt(expiresIn: -60)),
+                transport: fixture,
+                storesTokens: false)
+        }
+        #expect(error?.kind == .authenticationExpired && fixture.requests.isEmpty)
     }
 }
 
@@ -167,11 +189,9 @@ struct OpenAIPlatformCreditsSourceTests {
         (ProviderSourceMode.api, ["OPENAI_ADMIN_KEY": "fixture"], ["openai.js"]),
         (.web, [:], ["openai.platform-web"]),
         (.auto, ["OPENAI_ADMIN_KEY": "fixture"], ["openai.js"]),
-        (.auto, ["OPENAI_API_KEY": "fixture"], ["openai.platform-web"]),
-        (.auto, ["OPENAI_API_KEY": "sk-admin-fixture"], ["openai.js"]),
-        (.auto, [:], ["openai.platform-web"]),
+        (.auto, [:], []),
     ])
-    func `admin keys stay on spend and other sessions read credits`(
+    func `auto keeps configured keys and only web reads the browser session`(
         mode: ProviderSourceMode,
         environment: [String: String],
         ids: [String]) async
@@ -193,9 +213,9 @@ struct OpenAIPlatformCreditsSourceTests {
                 settings: settings,
                 environment: environment))
         }
-        #expect(available([:]))
-        settings.openAIUsageDataSource = .api
         #expect(!available([:]))
         #expect(available(["OPENAI_ADMIN_KEY": "fixture"]))
+        settings.openAIUsageDataSource = .web
+        #expect(available([:]))
     }
 }

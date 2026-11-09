@@ -76,7 +76,7 @@ complete when the available scan window covers fewer days.
 | Provider | Strategies (ordered for auto) |
 | --- | --- |
 | Codex | App Auto: OAuth API (`oauth`) → CLI RPC/PTy (`codex-cli`). CLI Auto: Web dashboard (`openai-web`) → CLI RPC/PTy (`codex-cli`). |
-| OpenAI | Admin API key (`api`) for organization spend/usage; otherwise browser-session credit grants (`web`, macOS). |
+| OpenAI | Admin API key (`api`) for organization spend/usage; legacy API-key balance fallback. Explicit Web: browser-session credit grants (`web`, macOS). |
 | Azure OpenAI | API key + endpoint + deployment probe (`api`) for deployment status validation. |
 | Claude | Admin API key (`api`) when configured; otherwise App Auto: OAuth API (`oauth`) → CLI PTY (`claude`) → Web API (`web`). CLI Auto: Web API (`web`) → CLI PTY (`claude`); on Linux, Web API (`web`) → OAuth API (`oauth`) → CLI PTY (`claude`). |
 | Gemini | Gemini CLI OAuth quotas (`auto`/`api`, default), or opt-in Gemini app 5-hour/weekly limits via cookies (`web`). |
@@ -210,7 +210,8 @@ complete when the available scan window covers fewer days.
 ## OpenAI
 - API key from `~/.codexbar/config.json`, `OPENAI_ADMIN_KEY`, or `OPENAI_API_KEY`.
 - Admin API keys are preferred and fetch organization costs plus completion usage for inline Today/7d/configured-window dashboards.
-- Without an Admin key, macOS Auto reads API credit grants from the platform.openai.com browser session (`web`). Credits and spend never merge.
+- Normal API keys fall back to the legacy credit-grants balance endpoint when organization usage is unavailable.
+- On macOS, the opt-in Browser session source (`web`) reads API credit grants from the platform.openai.com browser session. Auto never reads it. Credits and spend never merge.
 - Details: `docs/openai.md`.
 
 ## Azure OpenAI

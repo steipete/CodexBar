@@ -51,6 +51,7 @@ struct OpenAIPlatformCreditGrantsTests {
         #expect(usage.details.isEmpty)
         let cost = try #require(usage.providerCost)
         #expect(cost.used == 123.165452 && cost.balance == 123.165452 && cost.limit == 0)
+        #expect(cost.resetsAt == Date(timeIntervalSince1970: 1_795_712_905))
         #expect(cost.currencyCode == "USD" && cost.period == "Prepaid credits")
         #expect(usage.identity?.loginMethod == "Platform session")
     }

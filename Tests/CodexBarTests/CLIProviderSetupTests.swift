@@ -66,10 +66,10 @@ struct CLIProviderSetupTests {
     }
 
     @Test
-    func `OpenAI offers Admin key access and a macOS browser session`() throws {
+    func `OpenAI offers Admin key, legacy balance and a macOS browser session`() throws {
         let setup = try Self.setup("openai")
         let routes = try #require(setup["routes"] as? [[String: Any]])
-        #expect(routes.compactMap { $0["id"] as? String } == ["admin-api-key", "browser-session"])
+        #expect(routes.compactMap { $0["id"] as? String } == ["admin-api-key", "legacy-api-key", "browser-session"])
         let admin = try #require(routes.first)
         #expect(admin["method"] as? String == "apiKey")
         #expect(admin["platforms"] as? [String] == ["macOS", "linux"])
@@ -77,6 +77,9 @@ struct CLIProviderSetupTests {
         #expect(adminInputs.compactMap { $0["id"] as? String } == ["admin-api-key"])
         #expect(adminInputs.first?["configFields"] as? [String] == ["apiKey", "tokenAccounts.accounts[].token"])
         #expect(adminInputs.first?["environmentVariables"] as? [String] == ["OPENAI_ADMIN_KEY", "OPENAI_API_KEY"])
+        let legacyInputs = try #require(routes.dropFirst().first?["requiredInputs"] as? [[String: Any]])
+        #expect(legacyInputs.compactMap { $0["id"] as? String } == ["legacy-api-key"])
+        #expect(legacyInputs.first?["environmentVariables"] as? [String] == ["OPENAI_API_KEY"])
         let browser = try #require(routes.last)
         #expect(browser["method"] as? String == "browserSession")
         #expect(browser["platforms"] as? [String] == ["macOS"])

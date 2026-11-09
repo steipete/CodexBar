@@ -66,7 +66,7 @@ Abacus, Muse, LongCat, Replicate, and TypeSafe unchanged.
 | Provider | Status | Converted | Reason |
 |---|---|:---:|---|
 | codex | `needs-pty/webview/native` | No | PTY CLI, OAuth files/refresh, browser cookies, WKWebView scraping, local logs, and reset-credit details exceed this host. |
-| openai | `cut-over` | Yes | Both engines use the bundled script for Admin API history and project scoping; the allowlisted typed card preserves the native dashboard and source labels. Native fetchers are deleted. |
+| openai | `cut-over` | Yes | Both engines use the bundled script for Admin API history, project scoping, and legacy billing fallback; the allowlisted typed card preserves the native dashboard and source labels. Native fetchers are deleted. |
 | azureopenai | `needs-pty/webview/native` | No | The current quota probe is a POST chat completion against a user-configured deployment origin. |
 | claude | `needs-files/subprocess/oauth-broker` | No | Full parity needs credential files/Keychain, OAuth refresh, CLI/PTY, cookies, local logs, and admin details. |
 | fireworks | `cut-over` | Yes | Both engines use the bundled script for account discovery and billing spend, including empty results, dynamic source labels, and allowlisted app/CLI slug persistence with save diagnostics. Native fetcher is deleted. |

@@ -204,15 +204,22 @@ struct TokenAccountCLISelectionTests {
         #expect(try Self.storedToken(store: store, accountID: account.id) == "reauthorized-token")
     }
 
-    @Test
-    func `Command Code API mode keeps sessions passive unless a CLI account is explicitly selected`() throws {
-        let passive = try Self.context(provider: .commandcode, source: .api)
-        #expect(try passive.resolvedAccounts(for: .commandcode).isEmpty)
-        #expect(passive.effectiveSourceMode(base: .api, provider: .commandcode, account: nil) == .api)
+    @Test(arguments: [
+        (UsageProvider.commandcode, ProviderSourceMode.api, ProviderSourceMode.web),
+        (.openai, .web, .api),
+    ])
+    func `passive source mode keeps saved accounts passive unless a CLI account is explicitly selected`(
+        provider: UsageProvider,
+        source: ProviderSourceMode,
+        explicit: ProviderSourceMode) throws
+    {
+        let passive = try Self.context(provider: provider, source: source)
+        #expect(try passive.resolvedAccounts(for: provider).isEmpty)
+        #expect(passive.effectiveSourceMode(base: source, provider: provider, account: nil) == source)
         for selection in Self.accountOverrides {
-            let context = try Self.context(provider: .commandcode, source: .api, selection: selection)
-            let account = try #require(try context.resolvedAccounts(for: .commandcode).first)
-            #expect(context.effectiveSourceMode(base: .api, provider: .commandcode, account: account) == .web)
+            let context = try Self.context(provider: provider, source: source, selection: selection)
+            let account = try #require(try context.resolvedAccounts(for: provider).first)
+            #expect(context.effectiveSourceMode(base: source, provider: provider, account: account) == explicit)
         }
     }
 

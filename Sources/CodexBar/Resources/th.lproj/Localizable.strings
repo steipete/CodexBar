@@ -1994,6 +1994,7 @@
 "Shows usage from `tcr`; it does not switch accounts, because tcr picks the account for each request. Credentials stay managed by tcr; CodexBar never reads them." = "แสดงการใช้งานจาก `tcr` และไม่สลับบัญชี เพราะ tcr เลือกบัญชีให้แต่ละคำขอเอง ข้อมูลรับรองจะได้รับการจัดการโดย tcr CodexBar ไม่เคยอ่านเลย";
 "Stay Awake" = "ตื่นตัวอยู่เสมอ";
 "Stored in the CodexBar config file. Reads monthly budget and routed usage from /v1/usage." = "เก็บไว้ในไฟล์กำหนดค่า CodexBar อ่านงบประมาณรายเดือนและการใช้งานที่กำหนดเส้นทางจาก /v1/usage";
+"Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage; legacy/user keys only get a best-effort balance fallback." = "เก็บไว้ใน ~/.codexbar/config.json ต้องใช้ OPENAI_ADMIN_KEY สำหรับการใช้งานในองค์กร คีย์เดิม/ผู้ใช้จะได้รับเฉพาะทางเลือกสมดุลที่ดีที่สุดเท่านั้น";
 "Stored in ~/.codexbar/config.json. You can also provide FACTORY_API_KEY or ~/.factory/.env." = "เก็บไว้ใน ~/.codexbar/config.json คุณยังสามารถระบุ FACTORY_API_KEY หรือ ~/.factory/.env ได้";
 "Stored in ~/.codexbar/config.json. You can also set AMP_API_KEY." = "เก็บไว้ใน ~/.codexbar/config.json คุณยังสามารถตั้งค่า AMP_API_KEY ได้อีกด้วย";
 "SuperGrok OAuth" = "SuperGrok OAuth";
@@ -2828,15 +2829,14 @@
 "In the macOS app, select manual cookie source and supply the matching GitHub Cookie header." = "ในแอป macOS ให้เลือกแหล่งคุกกี้แบบกำหนดเองและระบุส่วนหัว Cookie ของ GitHub ที่ตรงกัน";
 "Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app." = "ลงชื่อเข้าใช้ GitHub ในเบราว์เซอร์ที่รองรับ แล้วเลือกนำเข้าคุกกี้อัตโนมัติในแอป macOS";
 "Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints." = "ใช้คีย์ Admin API ขององค์กรเพื่อดูค่าใช้จ่ายและการใช้งานขององค์กร คีย์โครงการหรือบัญชีบริการไม่สามารถอ่านเอนด์พอยต์เหล่านี้ได้";
+"A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "คีย์ API ทั่วไปรองรับเพียงการอ่านยอดคงเหลือแบบเก่าเป็นทางสำรองโดยไม่รับประกันผล ไม่รองรับการใช้งานขององค์กร คีย์ที่กำหนดขอบเขตโครงการจะไม่ใช้ทางสำรองนี้";
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "ระบุคีย์ เอนด์พอยต์ทรัพยากร HTTPS และชื่อการปรับใช้ เวอร์ชัน API เป็นตัวเลือก การรีเฟรชจะส่งคำขอตรวจสอบที่อาจมีค่าใช้จ่าย ไม่ใช่การค้นหาประวัติการใช้งาน";
 "Mistral session expired or invalid." = "เซสชัน Mistral หมดอายุหรือไม่ถูกต้อง";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "ใช้คีย์ API ที่มีสิทธิ์ user_read เพื่อดูการใช้งานการสมัครสมาชิก คำสั่งจะบันทึกคีย์แยกต่างหาก โดยบัญชีคีย์ API ที่เลือกจะมีลำดับความสำคัญสูงกว่า";
-"Auto uses an Admin API key when configured, otherwise your platform.openai.com browser session for API credits." = "โหมดอัตโนมัติจะใช้คีย์ API ของผู้ดูแลระบบเมื่อมีการตั้งค่าไว้ มิฉะนั้นจะใช้เซสชันเบราว์เซอร์ของ platform.openai.com สำหรับเครดิต API";
+"Auto uses the API key. Browser session reads API credits from the signed-in platform.openai.com browser session." = "โหมดอัตโนมัติจะใช้คีย์ API เซสชันเบราว์เซอร์จะอ่านเครดิต API จากเซสชันเบราว์เซอร์ของ platform.openai.com ที่ลงชื่อเข้าใช้ไว้";
 "Browser session" = "เซสชันเบราว์เซอร์";
-"Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage. Optional when using the browser session." = "จัดเก็บใน ~/.codexbar/config.json ต้องใช้ OPENAI_ADMIN_KEY สำหรับการใช้งานขององค์กร ไม่บังคับเมื่อใช้เซสชันเบราว์เซอร์";
-"Sign in at platform.openai.com once in a Chromium browser. CodexBar reads the platform session from that browser's local storage for API credit grants." = "ลงชื่อเข้าใช้ platform.openai.com หนึ่งครั้งในเบราว์เซอร์ Chromium CodexBar จะอ่านเซสชันของแพลตฟอร์มจากพื้นที่จัดเก็บในเครื่องของเบราว์เซอร์นั้นเพื่อแสดงเครดิต API ที่ได้รับ";
+"Opt in with the Browser session usage source or --source web, then sign in at platform.openai.com once in a Chromium browser. CodexBar reads the platform session from that browser's local storage for API credit grants." = "เปิดใช้ด้วยแหล่งการใช้งานเซสชันเบราว์เซอร์หรือ --source web แล้วลงชื่อเข้าใช้ platform.openai.com หนึ่งครั้งในเบราว์เซอร์ Chromium CodexBar จะอ่านเซสชันของแพลตฟอร์มจากพื้นที่จัดเก็บในเครื่องของเบราว์เซอร์นั้นเพื่อแสดงเครดิต API ที่ได้รับ";
 "Other credit grants" = "เครดิตที่ได้รับอื่น ๆ";
 "Scheduled credit" = "เครดิตที่กำหนดเวลาไว้";
 "ChatGPT subscription credit" = "เครดิตจากการสมัครสมาชิก ChatGPT";
 "Credit grant" = "เครดิตที่ได้รับ";
-"OpenAI usage needs an Admin API key, or a platform.openai.com browser session for API credits." = "การใช้งาน OpenAI ต้องใช้คีย์ API ของผู้ดูแลระบบ หรือเซสชันเบราว์เซอร์ของ platform.openai.com สำหรับเครดิต API";

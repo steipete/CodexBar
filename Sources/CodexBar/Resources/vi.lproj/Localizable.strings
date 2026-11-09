@@ -1991,6 +1991,7 @@
 "Shows usage from `tcr`; it does not switch accounts, because tcr picks the account for each request. Credentials stay managed by tcr; CodexBar never reads them." = "Hiển thị mức sử dụng từ `tcr`; không chuyển đổi tài khoản, vì tcr tự chọn tài khoản cho mỗi yêu cầu. Thông tin xác thực vẫn được quản lý bởi tcr; CodexBar không bao giờ đọc chúng.";
 "Stay Awake" = "Luôn tỉnh táo";
 "Stored in the CodexBar config file. Reads monthly budget and routed usage from /v1/usage." = "Được lưu trữ trong tệp cấu hình CodexBar. Đọc ngân sách hàng tháng và định tuyến mức sử dụng từ /v1/usage.";
+"Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage; legacy/user keys only get a best-effort balance fallback." = "Được lưu trữ trong ~/.codexbar/config.json. OPENAI_ADMIN_KEY là bắt buộc để sử dụng trong tổ chức; Khóa kế thừa/người dùng chỉ nhận được dự phòng số dư nỗ lực tốt nhất.";
 "Stored in ~/.codexbar/config.json. You can also provide FACTORY_API_KEY or ~/.factory/.env." = "Được lưu trữ trong ~/.codexbar/config.json. Bạn cũng có thể cung cấp FACTORY_API_KEY hoặc ~/.factory/.env.";
 "Stored in ~/.codexbar/config.json. You can also set AMP_API_KEY." = "Được lưu trữ trong ~/.codexbar/config.json. Bạn cũng có thể đặt AMP_API_KEY.";
 "SuperGrok OAuth" = "SuperGrok OAuth";
@@ -2827,15 +2828,14 @@
 "In the macOS app, select manual cookie source and supply the matching GitHub Cookie header." = "Trong ứng dụng macOS, chọn nguồn cookie thủ công và cung cấp tiêu đề Cookie GitHub tương ứng.";
 "Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app." = "Đăng nhập GitHub trong trình duyệt được hỗ trợ và chọn nhập cookie tự động trong ứng dụng macOS.";
 "Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints." = "Dùng khóa API Admin của tổ chức để xem chi phí và mức sử dụng của tổ chức. Khóa dự án hoặc tài khoản dịch vụ không thể đọc các điểm cuối này.";
+"A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "Khóa API thông thường chỉ hỗ trợ truy vấn số dư cũ dự phòng, không bảo đảm thành công, không hỗ trợ mức sử dụng của tổ chức. Khóa đã cấu hình phạm vi dự án không dùng cách dự phòng này.";
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Cung cấp khóa, điểm cuối tài nguyên HTTPS và tên triển khai. Phiên bản API là tùy chọn. Làm mới gửi yêu cầu xác thực có thể tính phí, không phải truy vấn lịch sử sử dụng.";
 "Mistral session expired or invalid." = "Phiên Mistral đã hết hạn hoặc không hợp lệ.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Sử dụng khóa API có quyền user_read để xem mức sử dụng gói đăng ký. Lệnh lưu một khóa riêng; tài khoản khóa API đang chọn được ưu tiên.";
-"Auto uses an Admin API key when configured, otherwise your platform.openai.com browser session for API credits." = "Tự động dùng khóa quản trị API khi đã cấu hình, nếu không sẽ dùng phiên trình duyệt platform.openai.com của bạn cho tín dụng API.";
+"Auto uses the API key. Browser session reads API credits from the signed-in platform.openai.com browser session." = "Tự động dùng khóa API. Phiên trình duyệt đọc tín dụng API từ phiên trình duyệt platform.openai.com đã đăng nhập.";
 "Browser session" = "Phiên trình duyệt";
-"Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage. Optional when using the browser session." = "Lưu trong ~/.codexbar/config.json. Cần OPENAI_ADMIN_KEY cho mức sử dụng của tổ chức. Không bắt buộc khi dùng phiên trình duyệt.";
-"Sign in at platform.openai.com once in a Chromium browser. CodexBar reads the platform session from that browser's local storage for API credit grants." = "Đăng nhập platform.openai.com một lần trong trình duyệt Chromium. CodexBar đọc phiên nền tảng từ bộ nhớ cục bộ của trình duyệt đó để hiển thị các khoản tín dụng API được cấp.";
+"Opt in with the Browser session usage source or --source web, then sign in at platform.openai.com once in a Chromium browser. CodexBar reads the platform session from that browser's local storage for API credit grants." = "Bật bằng nguồn sử dụng Phiên trình duyệt hoặc --source web, sau đó đăng nhập platform.openai.com một lần trong trình duyệt Chromium. CodexBar đọc phiên nền tảng từ bộ nhớ cục bộ của trình duyệt đó để hiển thị các khoản tín dụng API được cấp.";
 "Other credit grants" = "Các khoản tín dụng được cấp khác";
 "Scheduled credit" = "Tín dụng đã lên lịch";
 "ChatGPT subscription credit" = "Tín dụng gói đăng ký ChatGPT";
 "Credit grant" = "Khoản tín dụng được cấp";
-"OpenAI usage needs an Admin API key, or a platform.openai.com browser session for API credits." = "Mức sử dụng OpenAI cần khóa quản trị API, hoặc phiên trình duyệt platform.openai.com cho tín dụng API.";

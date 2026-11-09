@@ -8,10 +8,12 @@ enum OpenAIPlatformSession {
         let accessToken: String
         let refreshToken: String
         let expiresAt: Date
+        /// The `sub` claim of the browser access token whose session this pair came from.
+        let subject: String?
     }
 
     private static let clientID = "app_2SKx67EdpoN0G6j64rFvigXD"
-    private static let storeKey = KeychainCacheStore.Key.oauth(provider: .openai)
+    static let storeKey = KeychainCacheStore.Key.oauth(provider: .openai)
     private static let tokenURL = URL(string: "https://auth.openai.com/oauth/token")!
     private static let loginURL = URL(string: "https://api.openai.com/v1/dashboard/onboarding/login")!
     private static let creditGrantsURL = URL(string: "https://api.openai.com/v1/dashboard/billing/credit_grants")!
@@ -22,11 +24,15 @@ enum OpenAIPlatformSession {
 
     /// Returns the `credit_grants` JSON. Tokens are tried in order: each browser access token while unexpired,
     /// CodexBar's stored pair, a refresh with CodexBar's refresh token, then a refresh with each browser's.
+    /// The stored pair counts only for an account a browser profile is signed in to now.
     static func creditGrants(
         browserDetection: BrowserDetection,
         localStorage: BrowserLocalStorageAPI = .live,
         // The cookie-less ephemeral session keeps browser cookies off these bearer calls.
-        transport: any ProviderHTTPTransport = CodexAuthenticatedHTTPTransport.current) async throws -> Data
+        transport: any ProviderHTTPTransport = CodexAuthenticatedHTTPTransport.current,
+        // Each refresh rotates the refresh token, so it needs a store that outlives this process.
+        storesTokens: Bool = KeychainCacheStore.persistsAcrossProcesses(OpenAIPlatformSession.storeKey))
+        async throws -> Data
     {
         let browser = self.browserTokens(browserDetection: browserDetection, localStorage: localStorage)
         guard !browser.isEmpty else {
@@ -36,8 +42,14 @@ enum OpenAIPlatformSession {
         for tokens in browser where tokens.expiresAt > fresh {
             if let body = try await self.grants(tokens.accessToken, transport: transport) { return body }
         }
+        let expired = ProviderFetchClassifiedError(
+            kind: .authenticationExpired,
+            message: "OpenAI Platform session expired. \(Self.signInHint)")
+        guard storesTokens else { throw expired }
+        // The stored pair stays usable only while a browser profile is still signed in to the same account.
+        let subjects = Set(browser.compactMap(\.subject))
         let stored: Tokens? = switch KeychainCacheStore.load(key: self.storeKey, as: Tokens.self) {
-        case let .found(tokens): tokens
+        case let .found(tokens): tokens.subject.map(subjects.contains) == true ? tokens : nil
         case .missing, .invalid: nil
         case .interactionRequired, .temporarilyUnavailable:
             // A refresh now would rotate a pair that cannot be stored.
@@ -51,15 +63,13 @@ enum OpenAIPlatformSession {
         {
             return body
         }
-        for refreshToken in ([stored?.refreshToken] + browser.map(\.refreshToken)).compactMap(\.self) {
-            guard let tokens = try await self.refreshed(refreshToken, transport: transport) else { continue }
+        for source in [stored].compactMap(\.self) + browser {
+            guard let tokens = try await self.refreshed(source, transport: transport) else { continue }
             // A token issued seconds ago that is still refused will not be helped by rotating another one.
             if let body = try await self.grants(tokens.accessToken, transport: transport) { return body }
             break
         }
-        throw ProviderFetchClassifiedError(
-            kind: .authenticationExpired,
-            message: "OpenAI Platform session expired. \(Self.signInHint)")
+        throw expired
     }
 
     /// Reads the `oai-auth:onboard` tokens that platform.openai.com keeps in local storage, one pair per profile
@@ -83,11 +93,12 @@ enum OpenAIPlatformSession {
                       let onboard = try? JSONDecoder().decode(Onboard.self, from: Data(value.utf8))
                 else { return nil }
                 self.log.debug("Found OpenAI Platform session in \(profile.id)")
-                let expiry = UsageFetcher.parseJWT(onboard.accessToken)?["exp"] as? Double
+                let claims = UsageFetcher.parseJWT(onboard.accessToken)
                 return Tokens(
                     accessToken: onboard.accessToken,
                     refreshToken: onboard.refreshToken,
-                    expiresAt: expiry.map(Date.init(timeIntervalSince1970:)) ?? .distantFuture)
+                    expiresAt: (claims?["exp"] as? Double).map(Date.init(timeIntervalSince1970:)) ?? .distantFuture,
+                    subject: claims?["sub"] as? String)
             }
     }
 
@@ -103,7 +114,7 @@ enum OpenAIPlatformSession {
 
     /// Persists every new pair, because each refresh rotates the refresh token. Nil when OpenAI rejects it.
     private static func refreshed(
-        _ refreshToken: String,
+        _ source: Tokens,
         transport: any ProviderHTTPTransport) async throws -> Tokens?
     {
         struct Response: Decodable {
@@ -118,14 +129,15 @@ enum OpenAIPlatformSession {
         request.httpBody = try JSONSerialization.data(withJSONObject: [
             "client_id": self.clientID,
             "grant_type": "refresh_token",
-            "refresh_token": refreshToken,
+            "refresh_token": source.refreshToken,
         ])
         guard let data = try await self.send(request, rejecting: [400, 401], transport: transport) else { return nil }
         let response = try OpenAIPlatformCreditGrants.decode(Response.self, from: data, message: self.responseError)
         let tokens = Tokens(
             accessToken: response.accessToken,
-            refreshToken: response.refreshToken ?? refreshToken,
-            expiresAt: Date().addingTimeInterval(response.expiresIn))
+            refreshToken: response.refreshToken ?? source.refreshToken,
+            expiresAt: Date().addingTimeInterval(response.expiresIn),
+            subject: source.subject)
         KeychainCacheStore.store(key: self.storeKey, entry: tokens)
         return tokens
     }

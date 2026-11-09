@@ -71,12 +71,14 @@ enum OpenAIPlatformCreditGrants {
         return UsageSnapshot(
             primary: primary,
             secondary: nil,
-            // The prepaid style shows `used` as the balance, matching Claude Platform credits.
+            // The prepaid style shows `used` as the balance, matching Claude Platform credits. `resetsAt` keeps the
+            // soonest grant expiry as a timestamp, where the legacy billing fallback also puts it.
             providerCost: ProviderCostSnapshot(
                 used: payload.totalAvailable,
                 limit: 0,
                 currencyCode: "USD",
                 period: "Prepaid credits",
+                resetsAt: grants.first?.expiresAt.map(Date.init(timeIntervalSince1970:)),
                 balance: payload.totalAvailable,
                 updatedAt: now),
             details: details,

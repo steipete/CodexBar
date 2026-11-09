@@ -1995,6 +1995,7 @@
 "Shows usage from `tcr`; it does not switch accounts, because tcr picks the account for each request. Credentials stay managed by tcr; CodexBar never reads them." = "Shows usage from `tcr`; it does not switch accounts, because tcr picks the account for each request. Credentials stay managed by tcr; CodexBar never reads them.";
 "Stay Awake" = "Stay Awake";
 "Stored in the CodexBar config file. Reads monthly budget and routed usage from /v1/usage." = "Stored in the CodexBar config file. Reads monthly budget and routed usage from /v1/usage.";
+"Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage; legacy/user keys only get a best-effort balance fallback." = "Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage; legacy/user keys only get a best-effort balance fallback.";
 "Stored in ~/.codexbar/config.json. You can also provide FACTORY_API_KEY or ~/.factory/.env." = "Stored in ~/.codexbar/config.json. You can also provide FACTORY_API_KEY or ~/.factory/.env.";
 "Stored in ~/.codexbar/config.json. You can also set AMP_API_KEY." = "Stored in ~/.codexbar/config.json. You can also set AMP_API_KEY.";
 "SuperGrok OAuth" = "SuperGrok OAuth";
@@ -2831,15 +2832,14 @@
 "In the macOS app, select manual cookie source and supply the matching GitHub Cookie header." = "In the macOS app, select manual cookie source and supply the matching GitHub Cookie header.";
 "Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app." = "Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app.";
 "Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints." = "Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints.";
+"A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback.";
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query.";
 "Mistral session expired or invalid." = "Mistral session expired or invalid.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority.";
-"Auto uses an Admin API key when configured, otherwise your platform.openai.com browser session for API credits." = "Auto uses an Admin API key when configured, otherwise your platform.openai.com browser session for API credits.";
+"Auto uses the API key. Browser session reads API credits from the signed-in platform.openai.com browser session." = "Auto uses the API key. Browser session reads API credits from the signed-in platform.openai.com browser session.";
 "Browser session" = "Browser session";
-"Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage. Optional when using the browser session." = "Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage. Optional when using the browser session.";
-"Sign in at platform.openai.com once in a Chromium browser. CodexBar reads the platform session from that browser's local storage for API credit grants." = "Sign in at platform.openai.com once in a Chromium browser. CodexBar reads the platform session from that browser's local storage for API credit grants.";
+"Opt in with the Browser session usage source or --source web, then sign in at platform.openai.com once in a Chromium browser. CodexBar reads the platform session from that browser's local storage for API credit grants." = "Opt in with the Browser session usage source or --source web, then sign in at platform.openai.com once in a Chromium browser. CodexBar reads the platform session from that browser's local storage for API credit grants.";
 "Other credit grants" = "Other credit grants";
 "Scheduled credit" = "Scheduled credit";
 "ChatGPT subscription credit" = "ChatGPT subscription credit";
 "Credit grant" = "Credit grant";
-"OpenAI usage needs an Admin API key, or a platform.openai.com browser session for API credits." = "OpenAI usage needs an Admin API key, or a platform.openai.com browser session for API credits.";
