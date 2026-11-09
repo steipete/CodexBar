@@ -51,9 +51,9 @@ enum MiniMaxWebSessionDomain: String, CaseIterable, Hashable, Sendable {
     }
 
     func environment(_ environment: [String: String]) -> [String: String] {
-        guard environment[MiniMaxSettingsReader.hostKey] == nil,
-              environment[MiniMaxSettingsReader.codingPlanURLKey] == nil,
-              environment[MiniMaxSettingsReader.remainsURLKey] == nil
+        guard SettingsValue.cleaned(environment[MiniMaxSettingsReader.hostKey]) == nil,
+              SettingsValue.cleaned(environment[MiniMaxSettingsReader.codingPlanURLKey]) == nil,
+              SettingsValue.cleaned(environment[MiniMaxSettingsReader.remainsURLKey]) == nil
         else { return environment }
 
         var result = environment

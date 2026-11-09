@@ -40,22 +40,19 @@ struct MiniMaxBrowserSessionTests {
             domain: domain) == ["storage-token", "cookie-token", nil])
     }
 
-    @Test
-    func `current China optional requests do not send cookies to legacy hosts`() async throws {
+    @Test(arguments: [false, true])
+    func `current China optional requests do not send cookies to legacy hosts`(html: Bool) async throws {
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
             #expect(url.host == "platform.minimax.cn" || url.host == "www.minimax.cn")
             let isPage = url.path == "/console/usage"
-            let body = isPage ? "<html>fixture without usage</html>" : """
-            {"base_resp":{"status_code":0},"model_remains":[{
-              "current_interval_total_count":100,"current_interval_usage_count":25
-            }]}
-            """
+            let quota = html ? "<script id=\"__NEXT_DATA__\">\(Self.quotaJSON)</script>" : Self.quotaJSON
+            let body = isPage ? "<html>fixture without usage</html>" : quota
             return (Data(body.utf8), HTTPURLResponse(
                 url: url,
                 statusCode: 200,
                 httpVersion: nil,
-                headerFields: ["Content-Type": isPage ? "text/html" : "application/json"])!)
+                headerFields: ["Content-Type": isPage || html ? "text/html" : "application/json"])!)
         }
         _ = try await MiniMaxUsageFetcher.fetchUsage(
             cookieHeader: "_token=current-fixture; minimax_group_id_v2=123456",
@@ -86,9 +83,101 @@ struct MiniMaxBrowserSessionTests {
 
         #expect(pageURL.host == "platform.minimaxi.com")
         #expect(pageURL.path == "/user-center/payment/coding-plan")
-        #expect(remainsURLs.count == 1)
+        #expect(remainsURLs.count == 2)
         #expect(remainsURLs[0].host == "platform.minimaxi.com")
         #expect(remainsURLs[0].path == "/v1/api/openplatform/coding_plan/remains")
+        #expect(remainsURLs[1].host == "www.minimaxi.com")
+        #expect(remainsURLs[1].path == "/v1/api/openplatform/coding_plan/remains")
+    }
+
+    @Test(arguments: [
+        MiniMaxSettingsReader.hostKey,
+        MiniMaxSettingsReader.codingPlanURLKey,
+        MiniMaxSettingsReader.remainsURLKey
+    ])
+    func `blank endpoint overrides preserve the selected China realm`(key: String) {
+        for value in ["", " \t\n"] {
+            let environment = MiniMaxWebSessionDomain.legacyChina.environment([key: value])
+            let pageURL = MiniMaxUsageFetcher.resolveCodingPlanURL(region: .chinaMainland, environment: environment)
+            let remainsURLs = MiniMaxUsageFetcher.resolveRemainsURLs(region: .chinaMainland, environment: environment)
+            #expect(pageURL.host == "platform.minimaxi.com")
+            #expect(remainsURLs.map(\.host) == ["platform.minimaxi.com", "www.minimaxi.com"])
+
+            let current = MiniMaxWebSessionDomain.chinaMainland.environment([key: value])
+            #expect(MiniMaxUsageFetcher.resolveRemainsURLs(region: .chinaMainland, environment: current).map(\.host) ==
+                ["www.minimax.cn"])
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func `legacy China quota retries www after platform parse or transport failure`(
+        transportFailure: Bool) async throws
+    {
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            if url.path == "/user-center/payment/coding-plan" {
+                return Self.httpResponse(url: url, body: "<html>fixture without usage</html>", contentType: "text/html")
+            }
+            #expect(url.path == "/v1/api/openplatform/coding_plan/remains")
+            if url.host == "platform.minimaxi.com" {
+                if transportFailure { throw URLError(.cannotConnectToHost) }
+                return Self.httpResponse(url: url, body: "{}", contentType: "application/json")
+            }
+            #expect(url.host == "www.minimaxi.com")
+            return Self.httpResponse(url: url, body: Self.quotaJSON, contentType: "application/json")
+        }
+        let snapshot = try await MiniMaxUsageFetcher.fetchUsage(
+            cookieHeader: "HERTZ-SESSION=legacy-fixture",
+            region: .chinaMainland,
+            environment: MiniMaxWebSessionDomain.legacyChina.environment([:]),
+            includeBillingHistory: false,
+            session: transport)
+
+        #expect(snapshot.usedPercent == 25)
+        #expect(await transport.requests().filter { $0.url?.path.contains("coding_plan/remains") == true }
+            .map { $0.url?.host } == ["platform.minimaxi.com", "www.minimaxi.com"])
+    }
+
+    @Test(arguments: [false, true])
+    func `successful response URL controls enrichment after a redirected quota`(html: Bool) async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            #expect(request.url?.host == "platform.minimaxi.com")
+            let finalURL = URL(string: "https://platform.minimax.cn/console/usage")!
+            let body = html ? "<script id=\"__NEXT_DATA__\">\(Self.quotaJSON)</script>" : Self.quotaJSON
+            return Self.httpResponse(url: finalURL, body: body, contentType: html ? "text/html" : "application/json")
+        }
+        let snapshot = try await MiniMaxUsageFetcher.fetchUsage(
+            cookieHeader: "_token=current-fixture; minimax_group_id_v2=123456",
+            region: .chinaMainland,
+            environment: [MiniMaxSettingsReader.codingPlanURLKey: MiniMaxAPIRegion.chinaMainland.remainsURL
+                .absoluteString],
+            session: transport)
+
+        #expect(snapshot.usedPercent == 25)
+        #expect(await transport.requests().count == 1)
+    }
+
+    @Test
+    func `failed remains enrichment preserves the successful current China HTML origin`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            if url.path == "/console/usage" {
+                return Self.httpResponse(
+                    url: url,
+                    body: "<div>Coding Plan Pro</div><div>Used 25%</div>",
+                    contentType: "text/html")
+            }
+            #expect(url.path.contains("remains"))
+            return Self.httpResponse(url: url, body: "{}", contentType: "application/json")
+        }
+        let snapshot = try await MiniMaxUsageFetcher.fetchUsage(
+            cookieHeader: "_token=current-fixture; minimax_group_id_v2=123456",
+            region: .chinaMainland,
+            environment: [:],
+            session: transport)
+
+        #expect(snapshot.usedPercent == 25)
+        #expect(await transport.requests().count == 4)
     }
 
     @Test
@@ -101,6 +190,23 @@ struct MiniMaxBrowserSessionTests {
         #expect(MiniMaxWebSessionDomain.chinaMainland.environment(explicit) == explicit)
         #expect(MiniMaxWebSessionDomain.legacyChina.environment(explicit) == explicit)
         #expect(MiniMaxUsageFetcher.resolveRemainsURLs(region: .chinaMainland, environment: current).count == 1)
+        let fullRemains =
+            [MiniMaxSettingsReader.remainsURLKey: MiniMaxAPIRegion.chinaMainland.remainsURL.absoluteString]
+        #expect(MiniMaxUsageFetcher.resolveRemainsURLs(region: .chinaMainland, environment: fullRemains).count == 1)
+    }
+
+    private static let quotaJSON = """
+    {"base_resp":{"status_code":0},"model_remains":[{
+      "model_name":"general","current_interval_total_count":100,"current_interval_usage_count":75
+    }]}
+    """
+
+    private static func httpResponse(url: URL, body: String, contentType: String) -> (Data, URLResponse) {
+        (Data(body.utf8), HTTPURLResponse(
+            url: url,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: ["Content-Type": contentType])!)
     }
 
     #if os(macOS)
