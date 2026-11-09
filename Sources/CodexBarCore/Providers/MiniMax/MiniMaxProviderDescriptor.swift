@@ -432,7 +432,6 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
         fetchContext: FetchContext) async throws -> MiniMaxUsageSnapshot
     {
         let normalizedLabel = Self.normalizeStorageLabel(session.sourceLabel)
-        let environment = session.domain.environment(fetchContext.environment)
         let tokenCandidates = (tokenContext.tokensByLabel[normalizedLabel] ?? []).filter { token in
             Self.isCompatibleGroupID(token.groupID, sessionGroupID: session.groupID)
         }
@@ -456,18 +455,13 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
             }()
             Self.log.debug("Trying MiniMax cookies from \(session.sourceLabel)\(tokenLabel)")
             do {
-                let snapshot = try await MiniMaxUsageFetcher.fetchUsage(
-                    cookieHeader: session.cookieHeader,
+                let snapshot = try await MiniMaxUsageFetcher.fetchBrowserUsage(
+                    browserSession: session,
                     authorizationToken: token,
                     groupID: groupID,
                     region: fetchContext.region,
-                    environment: environment,
-                    includeBillingHistory: fetchContext.includeBillingHistory,
-                    session: MiniMaxBrowserSessionTransport(
-                        session: session,
-                        region: fetchContext.region,
-                        environment: environment,
-                        cookieBearer: token == cookieToken ? token : nil))
+                    environment: fetchContext.environment,
+                    includeBillingHistory: fetchContext.includeBillingHistory)
                 Self.log.debug("MiniMax cookies valid from \(session.sourceLabel)")
                 return snapshot
             } catch {

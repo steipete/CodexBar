@@ -12,6 +12,7 @@ public struct MiniMaxUsageFetcher: Sendable {
         let region: MiniMaxAPIRegion
         @ProcessEnvironment private(set) var environment: [String: String]
         let transport: any ProviderHTTPTransport
+        @ProcessEnvironment private(set) var subscriptionEnvironment: [String: String]?
         var successfulQuotaURL: URL?
 
         var usesCurrentChinaEndpoint: Bool {
@@ -30,6 +31,57 @@ public struct MiniMaxUsageFetcher: Sendable {
         session transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         now: Date = Date()) async throws -> MiniMaxUsageSnapshot
     {
+        let context = try self.makeWebFetchContext(
+            cookieHeader: cookieHeader,
+            authorizationToken: authorizationToken,
+            region: region,
+            environment: environment,
+            transport: transport)
+        return try await self.fetchUsage(
+            context: context, groupID: groupID, includeBillingHistory: includeBillingHistory, now: now)
+    }
+
+    static func fetchBrowserUsage(
+        browserSession: MiniMaxWebSession,
+        authorizationToken: String? = nil,
+        groupID: String? = nil,
+        region: MiniMaxAPIRegion = .global,
+        environment: [String: String] = [:],
+        includeBillingHistory: Bool = true,
+        session transport: (any ProviderHTTPTransport)? = nil,
+        now: Date = Date()) async throws -> MiniMaxUsageSnapshot
+    {
+        if let rejectedKey = MiniMaxSettingsReader.rejectedEndpointOverrideKey(environment: environment) {
+            throw ProviderEndpointOverrideError.minimax(rejectedKey)
+        }
+        // Page/quota routing must not replace the subscription endpoint selected by the user or its WWW default.
+        let scopedEnvironment = browserSession.domain.environment(environment)
+        let cookieToken = CookieHeaderNormalizer.pairs(from: browserSession.cookieHeader)
+            .first { $0.name.caseInsensitiveCompare("HERTZ-SESSION") == .orderedSame }?.value
+        let context = try self.makeWebFetchContext(
+            cookieHeader: browserSession.cookieHeader,
+            authorizationToken: authorizationToken,
+            region: region,
+            environment: scopedEnvironment,
+            transport: MiniMaxBrowserSessionTransport(
+                session: browserSession,
+                region: region,
+                environment: scopedEnvironment,
+                cookieBearer: authorizationToken == cookieToken ? authorizationToken : nil,
+                transport: transport),
+            subscriptionEnvironment: environment)
+        return try await self.fetchUsage(
+            context: context, groupID: groupID, includeBillingHistory: includeBillingHistory, now: now)
+    }
+
+    private static func makeWebFetchContext(
+        cookieHeader: String,
+        authorizationToken: String?,
+        region: MiniMaxAPIRegion,
+        environment: [String: String],
+        transport: any ProviderHTTPTransport,
+        subscriptionEnvironment: [String: String]? = nil) throws -> WebFetchContext
+    {
         guard let cookie = MiniMaxCookieHeader.normalized(from: cookieHeader) else {
             throw MiniMaxUsageError.invalidCredentials
         }
@@ -37,12 +89,22 @@ public struct MiniMaxUsageFetcher: Sendable {
             throw ProviderEndpointOverrideError.minimax(rejectedKey)
         }
 
-        var context = WebFetchContext(
+        return WebFetchContext(
             cookie: cookie,
             authorizationToken: authorizationToken,
             region: region,
             environment: environment,
-            transport: transport)
+            transport: transport,
+            subscriptionEnvironment: subscriptionEnvironment)
+    }
+
+    private static func fetchUsage(
+        context: WebFetchContext,
+        groupID: String?,
+        includeBillingHistory: Bool,
+        now: Date) async throws -> MiniMaxUsageSnapshot
+    {
+        var context = context
         do {
             let htmlSnapshot = try await self.fetchCodingPlanHTML(context: &context, now: now)
             if htmlSnapshot.services?.isEmpty != false {

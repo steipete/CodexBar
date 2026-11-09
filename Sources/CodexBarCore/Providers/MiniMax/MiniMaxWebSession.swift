@@ -71,7 +71,7 @@ enum MiniMaxWebSessionDomain: String, CaseIterable, Hashable, Sendable {
         if let combo = try? MiniMaxSubscriptionMetadataFetcher.resolveComboURL(
             region: region, environment: environment), Self.matchesEndpoint(request, combo),
             let canonicalCombo = try? MiniMaxSubscriptionMetadataFetcher.resolveComboURL(
-                region: region, environment: canonical)
+                region: region, environment: [:])
         {
             guard let host = canonicalCombo.host,
                   host == self.rootDomain || host.hasSuffix(".\(self.rootDomain)") else { return nil }
@@ -149,6 +149,13 @@ struct MiniMaxWebSession: Sendable {
         return header.isEmpty ? nil : header
     }
 
+    static func hasAuthenticationCookie(in header: String?, domain: MiniMaxWebSessionDomain) -> Bool {
+        CookieHeaderNormalizer.pairs(from: header ?? "").contains {
+            !$0.value.isEmpty && ($0.name.caseInsensitiveCompare("HERTZ-SESSION") == .orderedSame ||
+                (domain == .chinaMainland && $0.name == "_token"))
+        }
+    }
+
     var groupID: String? {
         MiniMaxCookieHeader.override(from: self.cookieHeader)?.groupID
     }
@@ -209,9 +216,19 @@ struct MiniMaxBrowserSessionTransport: ProviderHTTPTransport {
         let header = self.session.cookieHeader(for: origin)
         let canUseBearer = request.value(forHTTPHeaderField: "Authorization") != nil &&
             (self.cookieBearer == nil || CookieHeaderNormalizer.pairs(from: header ?? "").contains(where: {
-                $0.name == "HERTZ-SESSION" && $0.value == self.cookieBearer
+                $0.name.caseInsensitiveCompare("HERTZ-SESSION") == .orderedSame && $0.value == self.cookieBearer
             }))
-        guard header != nil || canUseBearer else {
+        let isUsageProbe = self.session.domain.cookieURLs(
+            for: self.region,
+            environment: self.environment).contains { endpoint in
+            endpoint.scheme?.lowercased() == origin.scheme?.lowercased() &&
+                endpoint.host?.lowercased() == origin.host?.lowercased() &&
+                (endpoint.port ?? 443) == (origin.port ?? 443) && endpoint.path == origin.path
+        }
+        // Analytics cookies cannot authenticate a page probe before a separately scoped quota request.
+        let canUseCookies = header != nil && (!isUsageProbe || MiniMaxWebSession.hasAuthenticationCookie(
+            in: header, domain: self.session.domain))
+        guard canUseCookies || canUseBearer else {
             throw MiniMaxUsageError.parseFailed("No MiniMax browser credentials match the request URL.")
         }
         var request = request

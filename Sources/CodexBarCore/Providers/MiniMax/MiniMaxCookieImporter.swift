@@ -94,9 +94,13 @@ public enum MiniMaxCookieImporter {
                             host == cookie.domain || (cookie.includesSubdomains && host.hasSuffix(".\(cookie.domain)"))
                         }
                 }
-                guard let header = urls.lazy.compactMap({
+                let headers = urls.compactMap {
                     MiniMaxWebSession.cookieHeader(from: cookies, for: $0)
-                }).first else { return nil }
+                }
+                guard let header = headers.first(where: {
+                    MiniMaxWebSession.hasAuthenticationCookie(in: $0, domain: domain)
+                })
+                    ?? headers.first else { return nil }
                 return MiniMaxWebSession(
                     cookieHeader: header,
                     sourceLabel: self.sourceLabel,

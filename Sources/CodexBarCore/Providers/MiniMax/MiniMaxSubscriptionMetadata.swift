@@ -246,7 +246,7 @@ extension MiniMaxUsageFetcher {
                 cookieHeader: context.cookie,
                 groupID: resolvedGroupID,
                 region: context.region,
-                environment: context.environment,
+                environment: context.subscriptionEnvironment ?? context.environment,
                 transport: context.transport)
             return snapshot.withSubscriptionMetadata(metadata)
         } catch is CancellationError {

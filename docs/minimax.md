@@ -46,7 +46,8 @@ falls back across the provider's supported web requests when needed.
   - `MINIMAX_CODING_PLAN_URL=...` (full URL override)
   - `MINIMAX_REMAINS_URL=...` (full URL override)
 - Security policy: endpoint overrides are only accepted when they use `https://`, omit userinfo, and do not contain encoded host delimiters. Custom HTTPS proxy/test domains continue to work for compatibility, but `http://` endpoints are rejected so cookies and authorization headers are not sent in cleartext.
-- 自动导入保留浏览器的精确主机、子域和路径限制；页面或任一配额接口可用即保留候选。每次请求及同源重定向分别匹配 Cookie，Cookie 派生的 Bearer 也受相同限制。没有适用凭据的接口在本地跳过，保留旧站 WWW 回退及已有 HTML 结果。
+- 自动导入保留浏览器的精确主机、子域和路径限制；页面或任一配额接口可用即保留候选。每次请求及同源重定向分别匹配 Cookie，Cookie 派生的 Bearer 也受相同限制。仅有跟踪 Cookie 的页面或配额请求在本地跳过，继续尝试有认证的接口，保留旧站 WWW 回退及已有 HTML 结果。
+- 自动旧站页面和配额路由不会改变订阅查询的默认 WWW 地址；用户显式设置的主机覆盖仍作用于订阅查询。
 - Strict provider-host mode: set `MINIMAX_REQUIRE_PROVIDER_ENDPOINT_OVERRIDES=true` to additionally reject custom proxy/test domains and only accept MiniMax-owned hosts under `minimax.io`, `minimaxi.com`, or `minimax.cn`.
 
 Transport failures retain their URL error codes and MiniMax diagnostic descriptions, so offline, DNS, and connection
