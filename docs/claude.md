@@ -179,8 +179,8 @@ state can follow a read suppressed by the selected policy. Refresh retries withi
   newer Keychain timestamp says CodexBar isn't allowed to read the changed credentials. The menu then offers
   **Allow reading Claude Code's credentials in Settings…**. After you enable it, a **Refresh** can read the changed
   credentials, subject to the prompt policy. Without it, a menu **Refresh** updates once through the Claude CLI, if
-  it is installed. When a later CLI or Web attempt runs and fails, its own error and recovery action replace this
-  message.
+  it is installed. When a later CLI or Web attempt runs and fails, its error replaces this message; the menu's
+  recovery action follows its existing rules for that error.
   The freshness probe reads only Keychain attributes with UI disabled and the credentials file's modification
   time. It never requests the Keychain credential payload, launches Claude, or grants access in the background.
   A changed timestamp can mean a login or token rotation; it does not prove the credential is valid. Custom
