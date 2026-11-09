@@ -2833,3 +2833,6 @@
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Berikan kunci, endpoint sumber daya HTTPS, dan nama deployment. Versi API opsional. Penyegaran mengirim permintaan validasi yang mungkin dikenakan biaya, bukan kueri riwayat penggunaan.";
 "Mistral session expired or invalid." = "Sesi Mistral telah kedaluwarsa atau tidak valid.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Gunakan kunci API dengan izin user_read untuk melihat penggunaan langganan. Perintah ini menyimpan kunci terpisah; akun kunci API yang dipilih diprioritaskan.";
+/* Google Developer Program provider */
+"Google Developer Program exposes the current monthly Cloud credit, not local token cost history." = "Google Developer Program menampilkan kredit Cloud bulanan saat ini, bukan riwayat biaya token lokal.";
+"Paste a me.developers.google.com Cookie header from a signed-in Google account." = "Tempel header Cookie me.developers.google.com dari akun Google yang sudah masuk.";

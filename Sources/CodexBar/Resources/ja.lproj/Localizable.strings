@@ -2831,3 +2831,6 @@
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "キー、HTTPSリソースエンドポイント、デプロイ名を指定してください。APIバージョンは任意です。更新では使用履歴の照会ではなく、課金される可能性がある検証リクエストを送信します。";
 "Mistral session expired or invalid." = "Mistralのセッションが期限切れか無効です。";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "サブスクリプションの使用状況を取得するには、user_read 権限のある API キーを使用します。このコマンドは単独のキーを保存します。選択中の API キーアカウントが優先されます。";
+/* Google Developer Program provider */
+"Google Developer Program exposes the current monthly Cloud credit, not local token cost history." = "Google Developer Program は今月の Cloud クレジットを表示します。ローカルのトークン費用履歴ではありません。";
+"Paste a me.developers.google.com Cookie header from a signed-in Google account." = "ログイン済みの Google アカウントの me.developers.google.com Cookie ヘッダーを貼り付けてください。";

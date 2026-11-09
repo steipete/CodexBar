@@ -321,11 +321,7 @@ struct QwenCloudTeamPluginTests {
                 #expect(request.value(forHTTPHeaderField: "Origin") == "https://home.qwencloud.com")
                 #expect(request
                     .value(forHTTPHeaderField: "Referer") == "https://home.qwencloud.com/analytics/token-plan/team")
-                let form = try #require(String(data: request.httpBody ?? Data(), encoding: .utf8))
-                let fields = Dictionary(uniqueKeysWithValues: form.split(separator: "&").map { pair in
-                    let parts = pair.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
-                    return (String(parts[0]).removingPercentEncoding!, String(parts[1]).removingPercentEncoding!)
-                })
+                let fields = try BundledPluginTestSupport.formFields(request.httpBody)
                 #expect(fields["sec_token"] == "fixture +&=%")
                 let params = try #require(fields["params"]).data(using: .utf8)!
                 let values = try #require(JSONSerialization.jsonObject(with: params) as? [String: String])

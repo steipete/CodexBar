@@ -2832,3 +2832,6 @@
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Укажіть ключ, HTTPS-адресу ресурсу та назву розгортання. Версія API необов’язкова. Оновлення надсилає потенційно платний запит перевірки, а не запит історії використання.";
 "Mistral session expired or invalid." = "Термін дії сеансу Mistral минув або сеанс недійсний.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Для перегляду використання передплати використовуйте ключ API з дозволом user_read. Команда зберігає окремий ключ; вибраний обліковий запис ключа API має пріоритет.";
+/* Google Developer Program provider */
+"Google Developer Program exposes the current monthly Cloud credit, not local token cost history." = "Google Developer Program показує поточний щомісячний кредит Cloud, а не локальну історію вартості токенів.";
+"Paste a me.developers.google.com Cookie header from a signed-in Google account." = "Вставте заголовок Cookie з me.developers.google.com з облікового запису Google, у який виконано вхід.";

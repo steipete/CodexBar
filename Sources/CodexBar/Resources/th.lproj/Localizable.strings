@@ -2833,3 +2833,6 @@
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "ระบุคีย์ เอนด์พอยต์ทรัพยากร HTTPS และชื่อการปรับใช้ เวอร์ชัน API เป็นตัวเลือก การรีเฟรชจะส่งคำขอตรวจสอบที่อาจมีค่าใช้จ่าย ไม่ใช่การค้นหาประวัติการใช้งาน";
 "Mistral session expired or invalid." = "เซสชัน Mistral หมดอายุหรือไม่ถูกต้อง";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "ใช้คีย์ API ที่มีสิทธิ์ user_read เพื่อดูการใช้งานการสมัครสมาชิก คำสั่งจะบันทึกคีย์แยกต่างหาก โดยบัญชีคีย์ API ที่เลือกจะมีลำดับความสำคัญสูงกว่า";
+/* Google Developer Program provider */
+"Google Developer Program exposes the current monthly Cloud credit, not local token cost history." = "Google Developer Program แสดงเครดิต Cloud รายเดือนปัจจุบัน ไม่ใช่ประวัติค่าใช้จ่ายโทเค็นในเครื่อง";
+"Paste a me.developers.google.com Cookie header from a signed-in Google account." = "วางส่วนหัว Cookie ของ me.developers.google.com จากบัญชี Google ที่ลงชื่อเข้าใช้อยู่";

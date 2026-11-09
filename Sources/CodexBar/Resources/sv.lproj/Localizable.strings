@@ -2830,3 +2830,6 @@
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Ange en nyckel, HTTPS-resursslutpunkt och distributionsnamn. API-version är valfri. Uppdatering skickar en potentiellt debiterbar valideringsbegäran, inte en fråga om användningshistorik.";
 "Mistral session expired or invalid." = "Mistral-sessionen har gått ut eller är ogiltig.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Använd en API-nyckel med behörigheten user_read för att visa abonnemangsanvändningen. Kommandot sparar en separat nyckel; det valda API-nyckelkontot har företräde.";
+/* Google Developer Program provider */
+"Google Developer Program exposes the current monthly Cloud credit, not local token cost history." = "Google Developer Program visar den aktuella månatliga Cloud-krediten, inte den lokala tokenkostnadshistoriken.";
+"Paste a me.developers.google.com Cookie header from a signed-in Google account." = "Klistra in en Cookie-rubrik från me.developers.google.com för ett inloggat Google-konto.";

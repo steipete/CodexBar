@@ -2832,3 +2832,6 @@
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Cung cấp khóa, điểm cuối tài nguyên HTTPS và tên triển khai. Phiên bản API là tùy chọn. Làm mới gửi yêu cầu xác thực có thể tính phí, không phải truy vấn lịch sử sử dụng.";
 "Mistral session expired or invalid." = "Phiên Mistral đã hết hạn hoặc không hợp lệ.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Sử dụng khóa API có quyền user_read để xem mức sử dụng gói đăng ký. Lệnh lưu một khóa riêng; tài khoản khóa API đang chọn được ưu tiên.";
+/* Google Developer Program provider */
+"Google Developer Program exposes the current monthly Cloud credit, not local token cost history." = "Google Developer Program hiển thị tín dụng Cloud hằng tháng hiện tại, không phải lịch sử chi phí token cục bộ.";
+"Paste a me.developers.google.com Cookie header from a signed-in Google account." = "Dán tiêu đề Cookie của me.developers.google.com từ một tài khoản Google đã đăng nhập.";

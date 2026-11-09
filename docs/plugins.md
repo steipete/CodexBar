@@ -119,6 +119,10 @@ nonpersistent cookie sessions use the shared access gate; the existing Gemini CL
 never sees cookie values. It lists organizations, then reads required `prepaid/credits` (a 403 tries the next API
 organization) and optional `current_spend`, whose failures keep the balance. Both plugin engines run it.
 
+[Google Developer Program](googledeveloper.md) uses the same opaque request-scoped Google cookies as the Gemini app
+source. Per signed-in account it reads the benefits page token, then sends one `batchexecute` form POST with
+`ctx.http.post`. It shows only the current monthly Gen AI & Cloud credit grant. Both plugin engines run it.
+
 [OpenDesign](opendesign.md) uses opaque, request-scoped cookies for two read-only GETs: current workspace and
 subscription windows. Its script validates workspace ownership and selects five-hour/weekly quotas by duration.
 

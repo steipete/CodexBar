@@ -2834,3 +2834,6 @@
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Anahtar, HTTPS kaynak uç noktası ve dağıtım adı sağlayın. API sürümü isteğe bağlıdır. Yenileme, kullanım geçmişi sorgusu yerine ücret doğurabilecek bir doğrulama isteği gönderir.";
 "Mistral session expired or invalid." = "Mistral oturumunun süresi doldu veya oturum geçersiz.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Abonelik kullanımını görüntülemek için user_read iznine sahip bir API anahtarı kullanın. Komut bağımsız bir anahtar kaydeder; seçili API anahtarı hesabı önceliklidir.";
+/* Google Developer Program provider */
+"Google Developer Program exposes the current monthly Cloud credit, not local token cost history." = "Google Developer Program yerel token maliyet geçmişini değil, geçerli aylık Cloud kredisini gösterir.";
+"Paste a me.developers.google.com Cookie header from a signed-in Google account." = "Oturum açılmış bir Google hesabından me.developers.google.com Cookie başlığını yapıştırın.";

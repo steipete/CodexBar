@@ -2836,3 +2836,6 @@
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query.";
 "Mistral session expired or invalid." = "Mistral session expired or invalid.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority.";
+/* Google Developer Program provider */
+"Google Developer Program exposes the current monthly Cloud credit, not local token cost history." = "Google Developer Program exposes the current monthly Cloud credit, not local token cost history.";
+"Paste a me.developers.google.com Cookie header from a signed-in Google account." = "Paste a me.developers.google.com Cookie header from a signed-in Google account.";

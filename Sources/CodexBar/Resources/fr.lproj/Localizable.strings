@@ -2830,3 +2830,6 @@
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Fournissez une clé, un point de terminaison de ressource HTTPS et un nom de déploiement. La version de l’API est facultative. L’actualisation envoie une requête de validation potentiellement facturable, pas une requête d’historique d’utilisation.";
 "Mistral session expired or invalid." = "La session Mistral a expiré ou n’est pas valide.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Utilisez une clé API avec l'autorisation user_read pour consulter l'utilisation de l'abonnement. La commande enregistre une clé indépendante ; le compte de clé API sélectionné est prioritaire.";
+/* Google Developer Program provider */
+"Google Developer Program exposes the current monthly Cloud credit, not local token cost history." = "Google Developer Program affiche le crédit Cloud mensuel actuel, et non l'historique local des coûts de jetons.";
+"Paste a me.developers.google.com Cookie header from a signed-in Google account." = "Collez un en-tête Cookie de me.developers.google.com provenant d'un compte Google connecté.";
