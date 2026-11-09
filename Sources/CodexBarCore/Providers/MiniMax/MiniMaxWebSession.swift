@@ -56,18 +56,21 @@ enum MiniMaxWebSessionDomain: String, CaseIterable, Hashable, Sendable {
 
         let environment = self.environment(environment)
         let canonical = self.environment([:])
-        let aliases = [
+        let aliases: [(URL, URL, AliasQueryPolicy)] = [
             (
                 MiniMaxUsageFetcher.resolveCodingPlanURL(region: region, environment: environment),
-                MiniMaxUsageFetcher.resolveCodingPlanURL(region: region, environment: canonical)),
+                MiniMaxUsageFetcher.resolveCodingPlanURL(region: region, environment: canonical),
+                .exact),
+        ] + MiniMaxUsageFetcher.resolveRemainsURLs(region: region, environment: environment).map {
+            ($0, self.quotaURL, .quota)
+        } + [
             (
                 MiniMaxUsageFetcher.resolveBillingHistoryURL(region: region, environment: environment, page: 1),
                 MiniMaxUsageFetcher.originURL(from: self.quotaURL)
-                    .appendingPathComponent(MiniMaxAPIRegion.billingHistoryPath)),
-        ] + MiniMaxUsageFetcher.resolveRemainsURLs(region: region, environment: environment).map {
-            ($0, self.quotaURL)
-        }
-        if let alias = aliases.first(where: { Self.matchesEndpoint(request, $0.0) }) { return alias.1 }
+                    .appendingPathComponent(MiniMaxAPIRegion.billingHistoryPath),
+                .billing),
+        ]
+        if let alias = aliases.first(where: { Self.matchesEndpoint(request, $0.0, policy: $0.2) }) { return alias.1 }
         if let combo = try? MiniMaxSubscriptionMetadataFetcher.resolveComboURL(
             region: region, environment: environment), Self.matchesEndpoint(request, combo),
             let canonicalCombo = try? MiniMaxSubscriptionMetadataFetcher.resolveComboURL(
@@ -80,9 +83,32 @@ enum MiniMaxWebSessionDomain: String, CaseIterable, Hashable, Sendable {
         return nil
     }
 
-    private static func matchesEndpoint(_ lhs: URL, _ rhs: URL) -> Bool {
-        lhs.scheme?.lowercased() == rhs.scheme?.lowercased() && lhs.host?.lowercased() == rhs.host?.lowercased() &&
-            (lhs.port ?? 443) == (rhs.port ?? 443) && lhs.path == rhs.path
+    private enum AliasQueryPolicy {
+        case exact
+        case quota
+        case billing
+    }
+
+    private static func matchesEndpoint(_ lhs: URL, _ rhs: URL, policy: AliasQueryPolicy = .exact) -> Bool {
+        guard lhs.scheme?.lowercased() == rhs.scheme?.lowercased(),
+              lhs.host?.lowercased() == rhs.host?.lowercased(),
+              (lhs.port ?? 443) == (rhs.port ?? 443), lhs.path == rhs.path else { return false }
+        var requested = URLComponents(url: lhs, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        var configured = URLComponents(url: rhs, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        switch policy {
+        case .exact:
+            break
+        case .quota:
+            if requested.count == configured.count + 1, requested.last?.name == "GroupId" {
+                requested.removeLast()
+            }
+        case .billing:
+            // Only the billing resolver owns these parameters; other overrides may use them as route selectors.
+            let pagination = ["page", "limit", "aggregate"]
+            requested = requested.map { pagination.contains($0.name) ? URLQueryItem(name: $0.name, value: nil) : $0 }
+            configured = configured.map { pagination.contains($0.name) ? URLQueryItem(name: $0.name, value: nil) : $0 }
+        }
+        return requested == configured
     }
 
     func environment(_ environment: [String: String]) -> [String: String] {
