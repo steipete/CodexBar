@@ -95,6 +95,11 @@ struct MiniMaxAutomaticCookieRefreshTests {
             await KeychainCacheStore.withServiceOverrideForTesting("minimax-cache-\(UUID())") {
                 await CookieHeaderCache.withLegacyBaseURLOverrideForTesting(directory) {
                     CookieHeaderCache.store(provider: .minimax, cookieHeader: "_token=old-mixed", sourceLabel: "Old")
+                    CookieHeaderCache.store(
+                        provider: .minimax,
+                        scope: .providerVariant("minimax.web-session.v1.chinaMainland"),
+                        cookieHeader: "_token=old-scoped",
+                        sourceLabel: "Old scoped")
                     let context = self.cliContext()
                     #expect(await MiniMaxCodingPlanFetchStrategy().isAvailable(context) == false)
                     let global = MiniMaxWebSessionDomain.global.cacheScope

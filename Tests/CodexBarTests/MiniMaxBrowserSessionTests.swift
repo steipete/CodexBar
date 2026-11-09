@@ -212,13 +212,13 @@ struct MiniMaxBrowserSessionTests {
 
     #if os(macOS)
     @Test
-    func `global host override selects a www only browser cookie`() throws {
+    func `global host override and fallback discover a www only browser cookie`() throws {
         let session = try MiniMaxCookieImporter.SessionInfo(cookies: [
             self.cookie(name: "HERTZ-SESSION", value: "www-session", domain: "www.minimax.io"),
         ], sourceLabel: "Fixture Profile")
         let environment = [MiniMaxSettingsReader.hostKey: "https://www.minimax.io"]
 
-        #expect(session.webSessions(for: .global).isEmpty)
+        #expect(session.webSessions(for: .global).map(\.cookieHeader) == ["HERTZ-SESSION=www-session"])
         let overridden = session.webSessions(for: .global, environment: environment)
         #expect(overridden.map(\.cookieHeader) == ["HERTZ-SESSION=www-session"])
         #expect(overridden.first?.domain == .global)

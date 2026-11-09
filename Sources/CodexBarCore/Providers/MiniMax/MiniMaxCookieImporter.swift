@@ -43,10 +43,37 @@ public enum MiniMaxCookieImporter {
     public struct SessionInfo: Sendable {
         public let cookies: [HTTPCookie]
         public let sourceLabel: String
+        private let requestCookies: [MiniMaxBrowserCookie]
 
         public init(cookies: [HTTPCookie], sourceLabel: String) {
             self.cookies = cookies
             self.sourceLabel = sourceLabel
+            self.requestCookies = cookies.map {
+                MiniMaxBrowserCookie(
+                    domain: $0.domain.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: ".")),
+                    includesSubdomains: $0.domain.hasPrefix("."),
+                    path: $0.path,
+                    name: $0.name,
+                    value: $0.value,
+                    expires: $0.expiresDate,
+                    isSecure: $0.isSecure)
+            }
+        }
+
+        init(records: [BrowserCookieRecord], sourceLabel: String) {
+            self.cookies = BrowserCookieClient.makeHTTPCookies(records)
+            self.sourceLabel = sourceLabel
+            // HTTPCookie conversion loses the browser's host-only flag; retain the original record scope.
+            self.requestCookies = records.map {
+                MiniMaxBrowserCookie(
+                    domain: $0.domain.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: ".")),
+                    includesSubdomains: $0.scope == .domain,
+                    path: $0.path,
+                    name: $0.name,
+                    value: $0.value,
+                    expires: $0.expires,
+                    isSecure: $0.isSecure)
+            }
         }
 
         public var cookieHeader: String {
@@ -58,31 +85,23 @@ public enum MiniMaxCookieImporter {
             environment: [String: String] = [:]) -> [MiniMaxWebSession]
         {
             MiniMaxWebSessionDomain.candidates(for: region).compactMap { domain in
-                guard let url = domain.cookieURL(for: region, environment: environment) else { return nil }
-                let host = url.host?.lowercased() ?? domain.rootDomain
-                let cookies = self.cookies.filter { cookie in
-                    let cookieDomain = cookie.domain.lowercased()
-                        .trimmingCharacters(in: CharacterSet(charactersIn: "."))
-                    guard host == cookieDomain || host.hasSuffix(".\(cookieDomain)") else { return false }
-                    let path = cookie.path
-                    return url.path == path || (url.path.hasPrefix(path) &&
-                        (path.hasSuffix("/") || url.path.dropFirst(path.count).hasPrefix("/")))
-                }.sorted { lhs, rhs in
-                    if lhs.path.count != rhs.path.count { return lhs.path.count > rhs.path.count }
-                    return lhs.domain.count > rhs.domain.count
+                let urls = domain.cookieURLs(for: region, environment: environment)
+                let hosts = urls.compactMap(\.host) + domain.storageOrigins.compactMap { URL(string: $0)?.host }
+                let cookies = self.requestCookies.filter {
+                    let cookie = $0
+                    return (cookie.domain == domain.rootDomain || cookie.domain.hasSuffix(".\(domain.rootDomain)")) &&
+                        hosts.contains { host in
+                            host == cookie.domain || (cookie.includesSubdomains && host.hasSuffix(".\(cookie.domain)"))
+                        }
                 }
-                var names = Set<String>()
-                let matching = cookies.filter { cookie in
-                    let cookieDomain = cookie.domain.lowercased()
-                        .trimmingCharacters(in: CharacterSet(charactersIn: "."))
-                    return (cookieDomain == host || cookieDomain == domain.rootDomain) &&
-                        names.insert(cookie.name).inserted
-                }
-                guard !matching.isEmpty else { return nil }
+                guard let header = urls.lazy.compactMap({
+                    MiniMaxWebSession.cookieHeader(from: cookies, for: $0)
+                }).first else { return nil }
                 return MiniMaxWebSession(
-                    cookieHeader: matching.map { "\($0.name)=\($0.value)" }.joined(separator: "; "),
+                    cookieHeader: header,
                     sourceLabel: self.sourceLabel,
-                    domain: domain)
+                    domain: domain,
+                    cookies: cookies)
             }
         }
     }
@@ -136,16 +155,20 @@ public enum MiniMaxCookieImporter {
         let log: (String) -> Void = { message in self.emit(message, logger: logger) }
         let query = self.cookieQuery(for: region)
         let records = try self.cookieClient.codexBarRecords(matching: query, in: browserSource, logger: log)
-        let profiles = BrowserCookieImportSupport.httpCookieProfiles(from: records, origin: query.origin)
+        let profiles = BrowserCookieProfiles.merge(records)
         var sessions: [SessionInfo] = []
-        for (label, httpCookies) in profiles {
+        for profile in profiles {
+            let session = SessionInfo(records: profile.records, sourceLabel: profile.label)
+            let httpCookies = session.cookies
+            guard !httpCookies.isEmpty else { continue }
+            let label = profile.label
             log("Found \(httpCookies.count) MiniMax cookies in \(label)")
             log("\(label) cookie names: \(self.cookieNames(from: httpCookies))")
             if let token = httpCookies.first(where: { $0.name == "HERTZ-SESSION" })?.value {
                 let hint = token.contains(".") ? "jwt" : "opaque"
                 log("\(label) HERTZ-SESSION: \(token.count) chars (\(hint))")
             }
-            sessions.append(SessionInfo(cookies: httpCookies, sourceLabel: label))
+            sessions.append(session)
         }
         return sessions
     }

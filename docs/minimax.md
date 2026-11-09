@@ -23,7 +23,7 @@ falls back across the provider's supported web requests when needed.
 
 2) **Cached/imported browser session** (automatic web path)
    - Uses CodexBar's standard cookie cache and browser import flow.
-   - 自动会话按全球站、中国当前站和旧中国站隔离缓存。旧版无域名信息的缓存不会迁移；升级后首次刷新会重新读取浏览器当前有效会话，手动 Cookie 配置保持不变。
+   - 自动会话按全球站、中国当前站和旧中国站隔离。仅整组 Cookie 都适用于该根域及全部路径时缓存；限定主机或路径的会话在每次刷新时通过原有无弹窗机制重新导入，避免缓存 Header 丢失作用范围。旧版缓存不会迁移，手动 Cookie 配置保持不变。
    - 缓存认证失效时会重新导入；后台读取继续受共享无交互权限检查保护。网络失败不会删除有效凭据，浏览器本身退出登录后仍需重新登录官网。
 
 3) **Browser cookie import** (automatic)
@@ -32,6 +32,7 @@ falls back across the provider's supported web requests when needed.
      follows the shared Chromium catalog, including Comet and Yandex, and only visits browsers with profile data.
      It tries localStorage first, then sessionStorage, then MiniMax-origin IndexedDB when earlier stores yield no
      tokens. These raw-storage reads do not decrypt cookies or request Keychain access.
+   - 同一刷新中，同一域名族的存储令牌及 Group ID 只扫描一次；中国当前站的 `_token` 会话继续跳过存储扫描。
 
 4) **Manual session cookie header** (optional web-path override)
    - Stored in `~/.codexbar/config.json` via Preferences → Providers → MiniMax (Cookie source → Manual).
@@ -45,6 +46,7 @@ falls back across the provider's supported web requests when needed.
   - `MINIMAX_CODING_PLAN_URL=...` (full URL override)
   - `MINIMAX_REMAINS_URL=...` (full URL override)
 - Security policy: endpoint overrides are only accepted when they use `https://`, omit userinfo, and do not contain encoded host delimiters. Custom HTTPS proxy/test domains continue to work for compatibility, but `http://` endpoints are rejected so cookies and authorization headers are not sent in cleartext.
+- 自动导入保留浏览器的精确主机、子域和路径限制；页面或任一配额接口可用即保留候选。每次请求及同源重定向分别匹配 Cookie，Cookie 派生的 Bearer 也受相同限制。没有适用凭据的接口在本地跳过，保留旧站 WWW 回退及已有 HTML 结果。
 - Strict provider-host mode: set `MINIMAX_REQUIRE_PROVIDER_ENDPOINT_OVERRIDES=true` to additionally reject custom proxy/test domains and only accept MiniMax-owned hosts under `minimax.io`, `minimaxi.com`, or `minimax.cn`.
 
 Transport failures retain their URL error codes and MiniMax diagnostic descriptions, so offline, DNS, and connection

@@ -254,12 +254,15 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
             guard let entry = observations[domain]?.entry else { return nil }
             return MiniMaxWebSession(cookieHeader: entry.cookieHeader, sourceLabel: entry.sourceLabel, domain: domain)
         }
+        // Storage imports already cover all profiles; reuse each domain's result only for this refresh.
+        var tokenContexts = TokenContextMemo<TokenContext>()
         let snapshot = try await Self.fetchAutomatic(
             cached: cached,
             fetchSession: { session in
-                let tokenContext = session.usesTokenCookie
-                    ? TokenContext(tokensByLabel: [:], groupIDByLabel: [:])
-                    : Self.loadTokenContext(browserDetection: context.browserDetection, domain: session.domain)
+                let tokenContext = tokenContexts.value(
+                    for: session,
+                    cookieOnly: TokenContext(tokensByLabel: [:], groupIDByLabel: [:]),
+                    load: { Self.loadTokenContext(browserDetection: context.browserDetection, domain: $0) })
                 return try await Self.fetchSession(session, tokenContext: tokenContext, fetchContext: fetchContext)
             },
             browserSessions: {
@@ -278,12 +281,13 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
                 }
             },
             storeResolved: { session in
-                guard let observation = observations[session.domain] else { return }
+                guard let observation = observations[session.domain],
+                      let header = session.cacheableCookieHeader else { return }
                 CookieHeaderCache.storeIfObservationCurrent(
                     provider: .minimax,
                     scope: session.domain.cacheScope,
                     expected: observation,
-                    cookieHeader: session.cookieHeader,
+                    cookieHeader: header,
                     sourceLabel: session.sourceLabel)
             })
         return self.makeResult(usage: snapshot.toUsageSnapshot(), sourceLabel: "web")
@@ -332,6 +336,22 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
         }
         if let lastError { throw lastError }
         throw MiniMaxSettingsError.missingCookie
+    }
+
+    struct TokenContextMemo<Value> {
+        private var values: [MiniMaxWebSessionDomain: Value] = [:]
+
+        mutating func value(
+            for session: MiniMaxWebSession,
+            cookieOnly: Value,
+            load: (MiniMaxWebSessionDomain) -> Value) -> Value
+        {
+            if session.usesTokenCookie { return cookieOnly }
+            if let value = self.values[session.domain] { return value }
+            let value = load(session.domain)
+            self.values[session.domain] = value
+            return value
+        }
     }
 
     private struct TokenContext {
@@ -442,7 +462,12 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
                     groupID: groupID,
                     region: fetchContext.region,
                     environment: environment,
-                    includeBillingHistory: fetchContext.includeBillingHistory)
+                    includeBillingHistory: fetchContext.includeBillingHistory,
+                    session: MiniMaxBrowserSessionTransport(
+                        session: session,
+                        region: fetchContext.region,
+                        environment: environment,
+                        cookieBearer: token == cookieToken ? token : nil))
                 Self.log.debug("MiniMax cookies valid from \(session.sourceLabel)")
                 return snapshot
             } catch {
