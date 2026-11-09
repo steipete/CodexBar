@@ -267,7 +267,7 @@ enum ProviderPluginHTTPResponse {
         if enforcesUserResponsePolicy {
             request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
         }
-        if method == "POST" {
+        if method == "POST", request.value(forHTTPHeaderField: "Content-Type") == nil {
             request.setValue(
                 options["form"] == nil ? "application/json" : "application/x-www-form-urlencoded",
                 forHTTPHeaderField: "Content-Type")

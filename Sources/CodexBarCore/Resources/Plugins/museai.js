@@ -13,7 +13,8 @@ defineProvider({
     if (policy === "off") throw ctx.fail.missingCredential("muse.ai cookies are disabled.");
     const signedOut = (r) =>
       r.status === 401 || r.status === 403 || (r.headers["location"] ?? "").startsWith("https://auth.muse.ai/");
-    const staleAction = (r) => r.status === 404 && /server action not found/i.test(r.bodyText);
+    const actionNeedsRediscovery = (r) =>
+      !signedOut(r) && r.status >= 400 && r.status < 500 && r.status !== 429;
     const discoveryFailure = () =>
       ctx.fail.parseFailure(
         "Could not find a working muse.ai subscription action. muse.ai may have changed. Refresh to retry.",
@@ -30,6 +31,7 @@ defineProvider({
           "Sec-Fetch-Site": "same-origin",
           "Sec-Fetch-Mode": "cors",
           "Sec-Fetch-Dest": "empty",
+          "Content-Type": "text/plain;charset=UTF-8",
           "User-Agent": userAgent,
         },
       });
@@ -80,7 +82,7 @@ defineProvider({
     let actionID = ctx.storage.get("actionID");
     const subscription = async (cookie) => {
       const response = actionID ? await post(cookie, actionID) : undefined;
-      if (response && !staleAction(response)) {
+      if (response && !actionNeedsRediscovery(response)) {
         return signedOut(response) ? undefined : response;
       }
       ctx.storage.remove("actionID");
