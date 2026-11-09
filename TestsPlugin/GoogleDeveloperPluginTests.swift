@@ -133,15 +133,15 @@ struct GoogleDeveloperPluginTests {
         #expect(await fixture.rejections == 0)
     }
 
-    @Test(arguments: ["redirect", "unauthorized", "missing at"], BundledPluginTestSupport.engines)
-    func `signed out sessions are rejected before any benefits request`(
-        signedOut: String, engine: ProviderPluginEngineKind) async
+    @Test(
+        arguments: [
+            Account(pageStatus: 302), Account(pageStatus: 401), Account(token: nil),
+            Account(postStatus: 401), Account(postStatus: 403),
+        ],
+        BundledPluginTestSupport.engines)
+    func `signed out pages and RPCs reject the session and try the next profile`(
+        account: Account, engine: ProviderPluginEngineKind) async
     {
-        let account = switch signedOut {
-        case "redirect": Account(pageStatus: 302)
-        case "unauthorized": Account(pageStatus: 401)
-        default: Account(token: nil)
-        }
         let fixture = Fixture([[account], [account]])
         await #expect {
             try await Self.fetch(engine, fixture: fixture)
@@ -150,7 +150,8 @@ struct GoogleDeveloperPluginTests {
             return failure?.kind == .authenticationExpired
                 && failure?.message.contains("Sign in at me.developers.google.com") == true
         }
-        #expect(await fixture.requests == ["GET 1/0", "GET 2/0"])
+        let requests = ["GET 1/0", "POST 1/0", "GET 2/0", "POST 2/0"]
+        #expect(await fixture.requests == requests.filter { account.postStatus != 200 || $0.hasPrefix("GET") })
         #expect(await fixture.rejections == 2)
         #expect(await fixture.sessions == 3)
     }

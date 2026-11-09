@@ -50,7 +50,10 @@ defineProvider({
       const literal = ctx.html.matchFirst(html, `"${key}":("(?:[^"\\\\]|\\\\.)*")`);
       return literal ? (json(literal, "benefits page") as string) : undefined;
     };
-    const check = (response: CodexBarHTTPTextResponse): void => {
+    // Signed-out requests redirect to accounts.google.com, which the host refuses, or answer 401 or 403.
+    const denied = (response: CodexBarHTTPTextResponse): boolean => {
+      if ((response.status >= 300 && response.status < 400) || response.status === 401 || response.status === 403)
+        return true;
       if (response.status === 429) {
         throw ctx.fail.rateLimited("Google Developer Program requests are rate limited. Try again in a few minutes.");
       }
@@ -62,6 +65,7 @@ defineProvider({
           `Google Developer Program returned HTTP ${response.status}. Try again later or report this.`,
         );
       }
+      return false;
     };
     let unapplied: string | undefined;
     let signedIn = false;
@@ -75,20 +79,11 @@ defineProvider({
           headers: { Accept: "text/html" },
           retryPolicy: "transientIdempotent",
         });
-        // Signed-out pages redirect to accounts.google.com, which the host refuses, or omit the page tokens.
-        const denied = (page.status >= 300 && page.status < 400) || page.status === 401 || page.status === 403;
-        if (!denied) check(page);
+        if (denied(page)) break;
+        // Signed-out pages also omit the page tokens.
         const token = pageValue(page.bodyText, "SNlM0e");
         const email = pageValue(page.bodyText, "oPEP7c");
-        if (denied || !token || !email || emails.includes(email)) {
-          if (account === 0) {
-            ctx.browser.rejectCookie(domain, session);
-            rejected = true;
-          }
-          break;
-        }
-        emails.push(email);
-        signedIn = true;
+        if (!token || !email || emails.includes(email)) break;
 
         const response = await ctx.http.post(
           `${origin}/_/GoogleDeveloperProfile/data/batchexecute` +
@@ -99,7 +94,9 @@ defineProvider({
             headers: { Origin: origin, Referer: `${origin}/benefits` },
           },
         );
-        check(response);
+        if (denied(response)) break;
+        emails.push(email);
+        signedIn = true;
         // The chunked envelope alternates length lines with JSON chunks. Only the Ro0AYc result matters.
         const result = response.bodyText
           .split("\n")
@@ -150,6 +147,9 @@ defineProvider({
         };
       }
       if (signedIn) break;
+      // A session whose first account fails the page or the RPC is signed out.
+      ctx.browser.rejectCookie(domain, session);
+      rejected = true;
     }
     if (unapplied) {
       return {
