@@ -89,7 +89,7 @@ defineProvider({
       actionID = await discover(cookie);
       if (!actionID) return undefined;
       const fresh = await post(cookie, actionID);
-      if (staleAction(fresh)) throw discoveryFailure();
+      if (actionNeedsRediscovery(fresh)) throw discoveryFailure();
       return signedOut(fresh) ? undefined : fresh;
     };
 
