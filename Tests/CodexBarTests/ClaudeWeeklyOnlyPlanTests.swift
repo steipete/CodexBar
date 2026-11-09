@@ -113,4 +113,33 @@ struct ClaudeWeeklyOnlyPlanTests {
                 .usedPercent == 17)
         }
     }
+
+    @Test
+    func `weekly only claude plan renders a single icon meter`() {
+        let now = Date(timeIntervalSince1970: 1_793_000_000)
+        let weekly = RateWindow(
+            usedPercent: 12,
+            windowMinutes: 7 * 24 * 60,
+            resetsAt: now.addingTimeInterval(3 * 24 * 60 * 60),
+            resetDescription: nil)
+        let snapshot = UsageSnapshot(primary: nil, secondary: weekly, updatedAt: now)
+
+        let windows = IconRemainingResolver.resolvedWindows(snapshot: snapshot, style: .claude, now: now)
+        #expect(windows.primary?.usedPercent == 12)
+        #expect(windows.secondary == nil)
+        #expect(!IconRenderer.QuotaLayoutPolicy.provider(.claude, snapshot: snapshot).reservesMissingSecondaryLane)
+    }
+
+    @Test
+    func `claude session plus weekly keeps two icon meters`() {
+        let now = Date(timeIntervalSince1970: 1_793_000_000)
+        let session = RateWindow(usedPercent: 40, windowMinutes: 300, resetsAt: nil, resetDescription: nil)
+        let weekly = RateWindow(usedPercent: 12, windowMinutes: 7 * 24 * 60, resetsAt: nil, resetDescription: nil)
+        let snapshot = UsageSnapshot(primary: session, secondary: weekly, updatedAt: now)
+
+        let windows = IconRemainingResolver.resolvedWindows(snapshot: snapshot, style: .claude, now: now)
+        #expect(windows.primary?.usedPercent == 40)
+        #expect(windows.secondary?.usedPercent == 12)
+        #expect(IconRenderer.QuotaLayoutPolicy.provider(.claude, snapshot: snapshot).reservesMissingSecondaryLane)
+    }
 }

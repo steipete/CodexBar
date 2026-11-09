@@ -250,6 +250,11 @@ public enum ClaudeProviderDescriptor {
         sessionPaceWindowRule: .custom { _, _ in true })
 
     private static func iconWindows(context: ProviderIconWindowContext) -> ProviderUsageWindowPair {
+        // Weekly-only plans (OAuth `five_hour: null`, e.g. Ultra) have no session window. Promote the
+        // weekly window into the primary lane so the icon draws one meter instead of a blank top lane.
+        if context.snapshot.primary?.measured == nil, let weekly = context.snapshot.secondary?.measured {
+            return .init(primary: weekly, secondary: nil)
+        }
         let resolution = self.menuBarWindow(context: .init(
             metric: .automatic,
             snapshot: context.snapshot,

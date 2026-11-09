@@ -11,6 +11,7 @@
 
 ### Fixed
 
+- Claude: draw weekly-only plans (no five-hour window, e.g. Ultra) as a single menu bar meter instead of an empty session lane above the weekly bar; follow-up to #4914. Thanks @wizaj!
 - CLI: reject unknown `--provider` values for usage, cost, and cards with an argument error instead of silently falling back to enabled providers (#5017, #5019). Thanks @coygeek and @harjothkhara!
 - Ollama: support legacy API session and weekly balances while preserving monthly credits. (#5005, #5006) Thanks @Colafornia!
 - Mistral: recover from expired sessions that redirect to sign-in instead of returning HTTP 401/403. (#5000, #5002) Thanks @enieuwy!
