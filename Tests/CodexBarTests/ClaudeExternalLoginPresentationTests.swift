@@ -165,8 +165,12 @@ struct ClaudeExternalLoginPresentationTests {
     @MainActor
     func `render synthetic external login guidance`() throws {
         guard let directory = ProcessInfo.processInfo.environment["CODEXBAR_CLAUDE_RELOGIN_PROOF_DIR"] else { return }
-        let after = ClaudeOAuthCredentialsError.credentialsChanged(Date(timeIntervalSinceNow: -120))
-        for (name, error) in [("before", ClaudeOAuthCredentialsError.notFound), ("after", after)] {
+        // Consent off: main claimed Refresh re-grants access; this change names the read-consent setting instead.
+        let changedAt = Date(timeIntervalSinceNow: -5 * 60 * 60)
+        for (name, error) in [
+            ("claude-consent-before", ClaudeOAuthCredentialsError.credentialsChanged(changedAt)),
+            ("claude-consent-after", .directKeychainReadNotAllowed(changedAt)),
+        ] {
             let hosting = NSHostingView(rootView: UsageMenuCardView(
                 model: Self.model(message: error.localizedDescription), width: 340)
                 .padding(16)
