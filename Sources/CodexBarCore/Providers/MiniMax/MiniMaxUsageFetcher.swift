@@ -12,6 +12,12 @@ public struct MiniMaxUsageFetcher: Sendable {
         let region: MiniMaxAPIRegion
         @ProcessEnvironment private(set) var environment: [String: String]
         let transport: any ProviderHTTPTransport
+        var successfulQuotaURL: URL?
+
+        var usesCurrentChinaEndpoint: Bool {
+            guard let host = self.successfulQuotaURL?.host?.lowercased() else { return false }
+            return host == "minimax.cn" || host.hasSuffix(".minimax.cn")
+        }
     }
 
     public static func fetchUsage(
@@ -31,19 +37,19 @@ public struct MiniMaxUsageFetcher: Sendable {
             throw ProviderEndpointOverrideError.minimax(rejectedKey)
         }
 
-        let context = WebFetchContext(
+        var context = WebFetchContext(
             cookie: cookie,
             authorizationToken: authorizationToken,
             region: region,
             environment: environment,
             transport: transport)
         do {
-            let htmlSnapshot = try await self.fetchCodingPlanHTML(context: context, now: now)
+            let htmlSnapshot = try await self.fetchCodingPlanHTML(context: &context, now: now)
             if htmlSnapshot.services?.isEmpty != false {
                 do {
                     Self.log.debug("MiniMax coding plan HTML lacks service quota data, trying remains API")
                     let remainsSnapshot = try await self.fetchCodingPlanRemains(
-                        context: context,
+                        context: &context,
                         groupID: groupID,
                         now: now)
                         .withPlanNameIfMissing(htmlSnapshot.planName)
@@ -85,11 +91,12 @@ public struct MiniMaxUsageFetcher: Sendable {
                 throw error
             }
             Self.log.debug("MiniMax coding plan page unavailable, trying remains API")
+            let remainsSnapshot = try await self.fetchCodingPlanRemains(
+                context: &context,
+                groupID: groupID,
+                now: now)
             let snapshot = try await self.attachingSubscriptionMetadataIfAvailable(
-                to: self.fetchCodingPlanRemains(
-                    context: context,
-                    groupID: groupID,
-                    now: now),
+                to: remainsSnapshot,
                 context: context,
                 groupID: groupID)
             return try await self.attachingOptionalUsageIfAvailable(
@@ -286,7 +293,7 @@ public struct MiniMaxUsageFetcher: Sendable {
     }
 
     private static func fetchCodingPlanHTML(
-        context: WebFetchContext,
+        context: inout WebFetchContext,
         now: Date) async throws -> MiniMaxUsageSnapshot
     {
         let url = self.resolveCodingPlanURL(region: context.region, environment: context.environment)
@@ -299,7 +306,9 @@ public struct MiniMaxUsageFetcher: Sendable {
         if let contentType = response.response.value(forHTTPHeaderField: "Content-Type"),
            contentType.lowercased().contains("application/json")
         {
-            return try self.parseRemainsResponse(response.data, now: now)
+            let snapshot = try self.parseRemainsResponse(response.data, now: now)
+            context.successfulQuotaURL = response.response.url ?? url
+            return snapshot
         }
 
         let html = String(data: response.data, encoding: .utf8) ?? ""
@@ -309,11 +318,13 @@ public struct MiniMaxUsageFetcher: Sendable {
         if self.looksSignedOut(html: html) {
             throw MiniMaxUsageError.invalidCredentials
         }
-        return try MiniMaxUsageParser.parse(html: html, now: now)
+        let snapshot = try MiniMaxUsageParser.parse(html: html, now: now)
+        context.successfulQuotaURL = response.response.url ?? url
+        return snapshot
     }
 
     private static func fetchCodingPlanRemains(
-        context: WebFetchContext,
+        context: inout WebFetchContext,
         groupID: String?,
         now: Date) async throws -> MiniMaxUsageSnapshot
     {
@@ -322,7 +333,7 @@ public struct MiniMaxUsageFetcher: Sendable {
             do {
                 return try await self.fetchCodingPlanRemainsOnce(
                     baseRemainsURL: baseRemainsURL,
-                    context: context,
+                    context: &context,
                     groupID: groupID,
                     now: now)
             } catch {
@@ -337,7 +348,7 @@ public struct MiniMaxUsageFetcher: Sendable {
 
     private static func fetchCodingPlanRemainsOnce(
         baseRemainsURL: URL,
-        context: WebFetchContext,
+        context: inout WebFetchContext,
         groupID: String?,
         now: Date) async throws -> MiniMaxUsageSnapshot
     {
@@ -360,14 +371,18 @@ public struct MiniMaxUsageFetcher: Sendable {
         if let contentType = response.response.value(forHTTPHeaderField: "Content-Type"),
            contentType.lowercased().contains("application/json")
         {
-            return try self.parseRemainsResponse(response.data, now: now)
+            let snapshot = try self.parseRemainsResponse(response.data, now: now)
+            context.successfulQuotaURL = response.response.url ?? remainsURL
+            return snapshot
         }
 
         let html = String(data: response.data, encoding: .utf8) ?? ""
         if self.looksSignedOut(html: html) {
             throw MiniMaxUsageError.invalidCredentials
         }
-        return try MiniMaxUsageParser.parse(html: html, now: now)
+        let snapshot = try MiniMaxUsageParser.parse(html: html, now: now)
+        context.successfulQuotaURL = response.response.url ?? remainsURL
+        return snapshot
     }
 
     private static func normalizedTransportError(_ error: Error) -> Error {

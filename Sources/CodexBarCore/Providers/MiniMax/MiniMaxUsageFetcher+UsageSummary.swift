@@ -30,6 +30,7 @@ extension MiniMaxUsageFetcher {
         // Keep console-session credentials on the current China host. Legacy sessions and
         // custom endpoints retain their existing billing path.
         guard context.region == .chinaMainland,
+              context.usesCurrentChinaEndpoint,
               CookieHeaderNormalizer.pairs(from: context.cookie).contains(where: {
                   $0.name == "_token" && !$0.value.isEmpty
               }),

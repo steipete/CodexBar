@@ -89,6 +89,59 @@ struct MiniMaxUsageSummaryFetchTests {
         #expect(scopedRequests.allSatisfy { $0.value(forHTTPHeaderField: "X-Group-Id") == "5678" })
     }
 
+    @Test(arguments: ["platform.minimaxi.com", "www.minimaxi.com"])
+    func `legacy quota fallback retains billing instead of requesting China statistics`(host: String) async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            switch url.path {
+            case "/console/usage":
+                return Self.response(url: url, body: "<html></html>", contentType: "text/html")
+            case "/v1/api/openplatform/coding_plan/remains" where url.host == host:
+                return Self.response(url: url, body: Self.quotaJSON)
+            case "/account/amount":
+                return Self.response(
+                    url: url,
+                    body: #"{"base_resp":{"status_code":0},"charge_records":[],"total_cnt":0}"#)
+            case "/backend/account/token_plan/usage_summary":
+                Issue.record("A legacy quota source must not request current China statistics")
+                return Self.response(url: url, body: Self.summaryJSON)
+            default:
+                return Self.response(url: url, body: "{}", status: 404)
+            }
+        }
+        let snapshot = try await Self.fetch(transport: transport)
+
+        #expect(snapshot.toUsageSnapshot().primary?.usedPercent == 4)
+        #expect(snapshot.usageSummary == nil)
+        #expect(snapshot.billingSummary != nil)
+        let requests = await transport.requests()
+        #expect(requests.contains { $0.url?.path == "/account/amount" })
+        #expect(requests.allSatisfy { $0.url?.path.hasSuffix("usage_summary") != true })
+    }
+
+    @Test
+    func `coarse HTML keeps its successful source when remains requests fail`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            switch url.path {
+            case "/console/usage":
+                return Self.response(
+                    url: url,
+                    body: "<html><main>Coding Plan Plus available usage 1000 prompts / 5 hours</main></html>",
+                    contentType: "text/html")
+            case "/backend/account/token_plan/usage_summary":
+                return Self.response(url: url, body: Self.summaryJSON)
+            default:
+                return Self.response(url: url, body: "{}", status: 404)
+            }
+        }
+        let snapshot = try await Self.fetch(transport: transport)
+
+        #expect(snapshot.planName == "Plus")
+        #expect(snapshot.usageSummary != nil)
+        #expect(await transport.requests().allSatisfy { $0.url?.path != "/account/amount" })
+    }
+
     @Test
     func `statistics endpoint excludes legacy global and custom hosts`() {
         let cases: [(MiniMaxAPIRegion, String, [String: String])] = [
@@ -104,19 +157,22 @@ struct MiniMaxUsageSummaryFetchTests {
                 [MiniMaxSettingsReader.billingHistoryURLKey: "https://proxy.example/billing"]),
         ]
         for (region, cookie, environment) in cases {
-            let context = MiniMaxUsageFetcher.WebFetchContext(
+            var context = MiniMaxUsageFetcher.WebFetchContext(
                 cookie: cookie,
                 authorizationToken: nil,
                 region: region,
                 environment: environment,
                 transport: Self.transport())
+            context.successfulQuotaURL = MiniMaxUsageFetcher.resolveRemainsURLs(
+                region: region,
+                environment: environment).first
             #expect(MiniMaxUsageFetcher.usageSummaryURL(context: context) == nil)
         }
     }
 
     @Test
     func `statistics accepts the canonical endpoints used by automatic import`() {
-        let context = MiniMaxUsageFetcher.WebFetchContext(
+        var context = MiniMaxUsageFetcher.WebFetchContext(
             cookie: Self.cookie,
             authorizationToken: nil,
             region: .chinaMainland,
@@ -126,8 +182,20 @@ struct MiniMaxUsageSummaryFetchTests {
                     "https://www.minimax.cn/backend/account/token_plan/remains_percent",
             ],
             transport: Self.transport())
+        context.successfulQuotaURL = URL(string: "https://www.minimax.cn/backend/account/token_plan/remains_percent")
         #expect(MiniMaxUsageFetcher.usageSummaryURL(context: context)?.path
             == "/backend/account/token_plan/usage_summary")
+    }
+
+    @Test
+    func `statistics requires an authenticated quota source`() {
+        let context = MiniMaxUsageFetcher.WebFetchContext(
+            cookie: Self.cookie,
+            authorizationToken: nil,
+            region: .chinaMainland,
+            environment: [:],
+            transport: Self.transport())
+        #expect(MiniMaxUsageFetcher.usageSummaryURL(context: context) == nil)
     }
 
     @Test
