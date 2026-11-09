@@ -174,6 +174,7 @@ struct MiniMaxBrowserSessionTests {
             cookieHeader: "_token=current-fixture; minimax_group_id_v2=123456",
             region: .chinaMainland,
             environment: [:],
+            includeBillingHistory: false,
             session: transport)
 
         #expect(snapshot.usedPercent == 25)
