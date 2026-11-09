@@ -176,11 +176,11 @@ state can follow a read suppressed by the selected policy. Refresh retries withi
   credentials file, or a newer Keychain item with direct-read consent on, shows **Claude Code credentials changed**
   and a **Refresh** instruction in the menu and OAuth CLI output. Click the existing menu **Refresh** action to
   retry; the prompt policy still controls access. With consent off, Refresh cannot read the Keychain item, so a
-  newer Keychain timestamp says CodexBar isn't allowed to read the changed credentials. The menu then offers
-  **Allow reading Claude Code's credentials in Settings…**. After you enable it, a **Refresh** can read the changed
-  credentials, subject to the prompt policy. Without it, a menu **Refresh** updates once through the Claude CLI, if
-  it is installed. When a later CLI or Web attempt runs and fails, its error replaces this message; the menu's
-  recovery action follows its existing rules for that error.
+  newer Keychain timestamp says CodexBar can't read Claude Code's new credentials and names the setting. The menu
+  then offers **Allow reading Claude Code's credentials in Settings…**. After you enable it, a **Refresh** can read
+  the changed credentials, subject to the prompt policy. Without it, a menu **Refresh** updates once through the
+  Claude CLI, if it is installed. When a later CLI or Web attempt runs and fails, its error replaces this message;
+  the menu's recovery action follows its existing rules for that error.
   The freshness probe reads only Keychain attributes with UI disabled and the credentials file's modification
   time. It never requests the Keychain credential payload, launches Claude, or grants access in the background.
   A changed timestamp can mean a login or token rotation; it does not prove the credential is valid. Custom

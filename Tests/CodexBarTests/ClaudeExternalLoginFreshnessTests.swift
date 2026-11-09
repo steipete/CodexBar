@@ -24,10 +24,10 @@ struct ClaudeExternalLoginFreshnessTests {
                     }
                     let message = error.localizedDescription
                     #expect(changedAt == Self.loginDate)
-                    #expect(message.contains("Claude Code credentials changed"))
+                    #expect(message.hasPrefix("Can't read Claude Code's new credentials"))
                     #expect(message.contains("Allow reading Claude Code's credentials"))
                     #expect(!message.contains("re-grant"))
-                    #expect(message.contains("then click Refresh to read them"))
+                    #expect(message.contains("then Refresh."))
                     #expect(message.contains("updates once through the Claude CLI, if it is installed"))
                     #expect(!message.localizedCaseInsensitiveContains("background"))
                     #expect(!message.contains("Run `claude`"))
