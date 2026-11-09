@@ -27,7 +27,7 @@ struct ClaudeExternalLoginFreshnessTests {
                     #expect(message.contains("Claude Code credentials changed"))
                     #expect(message.contains("Allow reading Claude Code's credentials"))
                     #expect(!message.contains("re-grant"))
-                    #expect(!message.contains("Click Refresh"))
+                    #expect(message.contains("update once through the Claude CLI"))
                     #expect(!message.contains("Run `claude`"))
                     #expect(ClaudeOAuthCredentialsError.isDirectKeychainReadNotAllowed(description: message))
                     #expect(ClaudeOAuthDefaultsFixtures.defaults.object(forKey: key) as? Date == Self.failureDate)

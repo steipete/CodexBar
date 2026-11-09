@@ -20,8 +20,8 @@ struct ClaudeExternalLoginPresentationTests {
         return readable ? .credentialsChanged(date) : .directKeychainReadNotAllowed(date)
     }
 
-    @Test(arguments: ["cli", "web", "failed-web", "cancelled-web"], [true, false])
-    func `Auto continues after changed credentials and preserves guidance if fallback fails`(
+    @Test(arguments: ["cli", "web", "failed-web", "cancelled-web", "unavailable"], [true, false])
+    func `Auto continues after changed credentials and surfaces the right failure`(
         fallback: String,
         readable: Bool) async throws
     {
@@ -47,7 +47,7 @@ struct ClaudeExternalLoginPresentationTests {
             settings: .make(claude: .init(
                 usageDataSource: .auto,
                 webExtrasEnabled: false,
-                cookieSource: .manual,
+                cookieSource: fallback == "unavailable" ? .off : .manual,
                 manualCookieHeader: "sessionKey=sk-ant-synthetic-session")),
             fetcher: UsageFetcher(environment: environment),
             claudeFetcher: StubCLI(usage: usage),
@@ -90,14 +90,22 @@ struct ClaudeExternalLoginPresentationTests {
         }
         #expect(outcome.attempts.first?.strategyID == "claude.oauth")
         #expect(outcome.attempts.first?.errorDescription == changed.localizedDescription)
-        if fallback == "failed-web" || fallback == "cancelled-web" {
+        if fallback == "failed-web" || fallback == "cancelled-web" || fallback == "unavailable" {
             guard case let .failure(error) = outcome.result else {
-                Issue.record("Both live sources should have failed")
+                Issue.record("No live source should have succeeded")
                 return
             }
-            if fallback == "cancelled-web" {
+            switch fallback {
+            case "cancelled-web":
                 #expect(ClaudeOAuthFetchError.isCancellation(error))
-            } else {
+            case "failed-web":
+                // Only Refresh-actionable guidance outranks a source that actually ran; the consent error must not
+                // hide the Web recovery action.
+                let expected = readable ? changed.localizedDescription
+                    : ClaudeWebAPIFetcher.FetchError.unauthorized.localizedDescription
+                #expect(error.localizedDescription == expected)
+            default:
+                #expect(outcome.attempts.dropFirst().map(\.wasAvailable) == [false, false])
                 #expect(error.localizedDescription == changed.localizedDescription)
             }
         } else {
