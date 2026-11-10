@@ -14,6 +14,17 @@ final class HelmcodeScreenshotRenderTests: XCTestCase {
         XCTAssertTrue(model.metrics.first?.detailText?.contains("helm-monthly") == true)
     }
 
+    func test_creditPlanRendersASingleCreditsMetric() async throws {
+        let snapshot = try await HelmcodePluginTests.fetch(
+            engine: .quickJS,
+            available: ["nan.builders"],
+            usageCredits: HelmcodePluginTests.fixture("credits-usage")).usage
+        let model = try Self.model(snapshot)
+        XCTAssertEqual(model.metrics.count, 1)
+        XCTAssertEqual(model.metrics.first?.title, "Credits")
+        XCTAssertNil(model.providerCost)
+    }
+
     func test_renderSyntheticPremiumEligibilityComparison() async throws {
         guard let path = ProcessInfo.processInfo.environment["CODEXBAR_HELMCODE_SCREENSHOT_DIR"] else {
             throw XCTSkip("Set CODEXBAR_HELMCODE_SCREENSHOT_DIR to render synthetic Helmcode cards.")

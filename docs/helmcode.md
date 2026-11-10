@@ -43,8 +43,8 @@ token caps it had before the switch, frozen at the last legacy request. The plug
 allowance is credited per billing period rather than per calendar month, so the primary **Credits** window uses
 `usedCredits / allowanceCredits` with the plan's own `periodEnd` as its reset, and carries the absolute allowance as
 `quotaLimit`/`quotaUnit: "credits"`. Each model's `creditsThisMonth` and `approxCreditsPerMTokens` weight become detail
-rows, and a purchased pack or a paused plan adds its own row. A tenant that answers 404 or `enabled: false` keeps the
-token quotas below.
+rows, and a purchased pack or a paused plan adds its own row. The window is labelled **Credits**; a tenant that answers
+404 or `enabled: false` keeps the token quotas below and the `Model quota` label.
 
 Positive model caps become rate windows, ordered by utilization. Each model's `periodEnd` supplies its reset, falling
 back to the first day of the month after `periodStart`. Rolling tiers retain `windowHours` as their window length and
