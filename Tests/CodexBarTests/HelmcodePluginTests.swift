@@ -216,6 +216,20 @@ struct HelmcodePluginTests {
         }
     }
 
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `a credit plan labels the primary window as Credits`(engine: ProviderPluginEngineKind) async throws {
+        let credits = try await Self.fetch(
+            engine: engine,
+            available: ["nan.builders"],
+            usageCredits: Self.fixture("credits-usage")).usage
+        let tokens = try await Self.fetch(engine: engine).usage
+        let descriptor = HelmcodeProviderDescriptor.descriptor
+        #expect(descriptor.presentation.rateWindowLabels(metadata: descriptor.metadata, snapshot: credits).primary
+            == "Credits")
+        #expect(descriptor.presentation.rateWindowLabels(metadata: descriptor.metadata, snapshot: tokens).primary
+            == "Model quota")
+    }
+
     @Test
     func `descriptor uses the plugin and preserves cookie configuration`() {
         let descriptor = HelmcodeProviderDescriptor.descriptor
