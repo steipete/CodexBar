@@ -45,7 +45,7 @@ struct HelmcodePluginTests {
         #expect(usage.identity?.providerID == .helmcode)
         #expect(usage.identity?.accountOrganization == "Helmcode Cloud")
         #expect(usage.dataConfidence == .exact)
-        #expect(result.requests.count == 3)
+        #expect(result.requests.count == 4)
         #expect(result.domains == ["cloud-api.helmcode.com"])
         #expect(HelmcodeProviderDescriptor.dashboardURL(snapshot: usage).absoluteString
             == "https://cloud.helmcode.com/dashboard")
@@ -54,7 +54,7 @@ struct HelmcodePluginTests {
     @Test(arguments: BundledPluginTestSupport.engines)
     func `NaN session stays on NaN and never requests prepaid balance`(engine: ProviderPluginEngineKind) async throws {
         let result = try await Self.fetch(engine: engine, available: ["nan.builders"])
-        #expect(result.requests.count == 2)
+        #expect(result.requests.count == 3)
         #expect(result.requests.allSatisfy { $0.url?.host == "cloud-api.nan.builders" })
         #expect(result.usage.providerCost == nil)
         #expect(result.usage.identity?.accountOrganization == "NaN Builders")
@@ -90,14 +90,14 @@ struct HelmcodePluginTests {
         #expect(result.rejected == ["cloud-api.helmcode.com"])
         #expect(result.domains == ["cloud-api.helmcode.com", "helmcode.com", "nan.builders"])
         #expect(result.usage.identity?.accountOrganization == "NaN Builders")
-        #expect(result.requests.count == 3)
+        #expect(result.requests.count == 4)
     }
 
     @Test(arguments: BundledPluginTestSupport.engines)
     func `manual cookie uses only its selected tenant`(engine: ProviderPluginEngineKind) async throws {
         let result = try await Self.fetch(engine: engine, source: .manual, tenant: "nanBuilders")
         #expect(result.domains == ["nan.builders"])
-        #expect(result.requests.count == 2)
+        #expect(result.requests.count == 3)
         await Self.expectFailure(.authenticationExpired) {
             try await Self.fetch(engine: engine, source: .manual, cloudStatus: 401).usage
         }
@@ -217,6 +217,25 @@ struct HelmcodePluginTests {
     }
 
     @Test(arguments: BundledPluginTestSupport.engines)
+    func `a failing credit probe fails instead of returning frozen token quotas`(
+        engine: ProviderPluginEngineKind) async
+    {
+        for (status, kind) in [
+            (429, ProviderFetchClassifiedError.Kind.rateLimited),
+            (500, .providerUnavailable),
+            (403, .authenticationExpired),
+            (400, .apiFailure),
+        ] {
+            await Self.expectFailure(kind) {
+                try await Self.fetch(
+                    engine: engine,
+                    available: ["nan.builders"],
+                    usageCreditsStatus: status).usage
+            }
+        }
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
     func `a credit plan labels the primary window as Credits`(engine: ProviderPluginEngineKind) async throws {
         let credits = try await Self.fetch(
             engine: engine,
@@ -289,7 +308,7 @@ struct HelmcodePluginTests {
         try #require(fixtureHeader == "session=fixture-cloud-session")
         let result = try await Self.fetch(engine: engine, cookieResolver: cookieHeader)
         #expect(result.usage.identity?.accountOrganization == "Helmcode Cloud")
-        #expect(result.requests.count == 3)
+        #expect(result.requests.count == 4)
         #expect(result.requests.allSatisfy { $0.url?.host == "cloud-api.helmcode.com" })
         #expect(result.requests.allSatisfy {
             $0.value(forHTTPHeaderField: "Cookie") == "session=fixture-cloud-session"
@@ -308,6 +327,7 @@ struct HelmcodePluginTests {
         billing: String? = nil,
         credits: String? = nil,
         usageCredits: String? = nil,
+        usageCreditsStatus: Int? = nil,
         optionalStatus: Int = 200,
         cookieResolver: (@Sendable (String) throws -> String)? = nil) async throws
         -> (usage: UsageSnapshot, requests: [URLRequest], domains: [String], rejected: [String])
@@ -336,7 +356,7 @@ struct HelmcodePluginTests {
             case "/api/billing": body = billingBody
             case "/api/usage/credits":
                 // NaN answers 404 until the tenant switches to credit metering.
-                code = usageCredits == nil ? 404 : 200
+                code = usageCreditsStatus ?? (usageCredits == nil ? 404 : 200)
                 body = usageCredits ?? "{}"
             case "/api/billing/credits":
                 #expect(domain == "helmcode.com")

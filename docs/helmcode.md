@@ -52,10 +52,12 @@ appear only when billing explicitly reports `subscription.premium: true`. Missin
 therefore hides premium tiers. Unlimited models have no invented percentage. Optional credit-funded tokens appear in
 the detail text, and Cloud prepaid micros are converted to the reported currency (EUR when omitted).
 
-Quota schema changes fail visibly. Quota requests have an eight-second deadline; billing and credits are best-effort
-with two-second deadlines, so their failure cannot hide valid quota. The credit plan is fetched before billing, which a
-credit-metered tenant does not need. A credit plan with nonnumeric or nonpositive totals fails as a parse error instead
-of rendering as an empty allowance.
+Quota and credit-plan requests have an eight-second deadline; billing is best-effort with a two-second deadline, so its
+failure cannot hide valid quota. The credit plan is read before billing, which a credit-metered tenant does not need.
+Because that plan decides the whole snapshot, only a 404 or `enabled: false` falls back to token quotas: a timeout, a
+rate limit, a 5xx or a malformed plan fails the refresh instead of republishing the frozen windows. A plan with
+nonnumeric or nonpositive totals fails as a parse error instead of rendering as an empty allowance.
+
 All identity and tenant fields come from this provider. The dashboard contract is unversioned; synthetic fixtures cover
 both tenants, premium eligibility, per-model resets, optional billing failures, credit metering, and malformed quota responses.
 

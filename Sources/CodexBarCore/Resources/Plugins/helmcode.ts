@@ -98,7 +98,23 @@ defineProvider({
       // frozen at the last legacy request, so those windows are history for any
       // tenant that reports a credit plan. The plan is credited per billing
       // period, not per calendar month, and each model spends at its own weight.
-      const creditUsage = await optional("/api/usage/credits");
+      // Only an absent endpoint or an explicit `enabled: false` means token
+      // metering: once the plan decides the whole snapshot, a timeout, a 5xx or
+      // malformed JSON must fail the refresh instead of resurrecting those
+      // frozen windows as exact usage.
+      const creditResponse = await get("/api/usage/credits");
+      const creditUsage = creditResponse.status === 200 ? parse(creditResponse.bodyText) : undefined;
+      if (creditUsage === undefined && creditResponse.status !== 404) {
+        if (creditResponse.status === 401 || creditResponse.status === 403)
+          throw ctx.fail.authenticationExpired("Helmcode dashboard session expired. Sign in again.");
+        const creditSeconds = Number(creditResponse.headers["retry-after"] ?? 1);
+        const creditRetry = Number.isFinite(creditSeconds) && creditSeconds >= 0 ? Math.min(10, creditSeconds) : 1;
+        if (creditResponse.status === 429)
+          throw ctx.fail.rateLimited("Helmcode rate limit reached.", { retryAfterSeconds: creditRetry });
+        if (creditResponse.status === 408 || creditResponse.status >= 500)
+          throw ctx.fail.providerUnavailable("Helmcode dashboard is unavailable.", { retryAfterSeconds: creditRetry });
+        throw ctx.fail.apiFailure(`Helmcode dashboard returned HTTP ${creditResponse.status}.`);
+      }
       if (creditUsage?.enabled === true) {
         const allowance = decimal(creditUsage.allowanceCredits, "allowanceCredits");
         const spent = decimal(creditUsage.usedCredits, "usedCredits");
