@@ -2823,3 +2823,5 @@
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "提供密钥、HTTPS 资源端点和部署名称。API 版本为可选项。刷新会发送可能计费的验证请求，而不是用量历史查询。";
 "Mistral session expired or invalid." = "Mistral 会话已过期或无效。";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "使用具有 user_read 权限的 API 密钥查看订阅用量。此命令保存独立密钥；所选 API 密钥账户优先。";
+
+"Icon usage circle" = "用量环图标";

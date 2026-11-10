@@ -598,6 +598,7 @@ final class MenuBarLayoutRenderer {
               data.automatic?.resetDescription == balance,
               lines.joined().contains(.percent(window: .automatic))
               || lines.joined().contains(.progressBar(window: .automatic))
+              || lines.joined().contains(.iconUsageCircle(window: .automatic))
         else { return }
         func isSpacing(_ token: MenuBarLayoutToken) -> Bool {
             token.isVisibleSeparator || token == .space
@@ -771,6 +772,7 @@ final class MenuBarLayoutRenderer {
         if let rendered = self.renderUsageMeterItem(
             item,
             data: data,
+            icon: icon,
             style: style,
             options: options)
         {
@@ -886,7 +888,7 @@ final class MenuBarLayoutRenderer {
         case .providerName, .accountLabel, .lanePercent, .extraPercent, .tokensPerMinute, .tokensSparkline,
              .spendAmount, .spendBudget:
             preconditionFailure("Provider text, throughput, and spend tokens should render before the main switch")
-        case .usageBar, .progressBar:
+        case .usageBar, .progressBar, .iconUsageCircle:
             preconditionFailure("Usage meter tokens should render before the main switch")
         }
     }
@@ -896,6 +898,7 @@ final class MenuBarLayoutRenderer {
     private static func renderUsageMeterItem(
         _ item: MenuBarLayoutToken,
         data: MenuBarLayoutRenderData,
+        icon: NSImage?,
         style: TokenStyle,
         options: MenuBarLayoutRenderOptions)
         -> (value: NSAttributedString, accessibilityText: String?)?
@@ -915,6 +918,14 @@ final class MenuBarLayoutRenderer {
                 value,
                 accessibilityText: L("Usage bar, %d of 3 filled", filled),
                 attributes: style.attributes)
+        case let .iconUsageCircle(window):
+            return self.progressBarToken(
+                window,
+                data: data,
+                style: style,
+                options: options,
+                circleIcon: icon ?? data.provider.firstPartyProvider.flatMap { ProviderBrandIcon.image(for: $0) },
+                isCircle: true)
         case let .progressBar(window):
             return self.progressBarToken(
                 window,
@@ -1430,7 +1441,9 @@ extension MenuBarLayoutRenderer {
         _ window: PercentWindow,
         data: MenuBarLayoutRenderData,
         style: TokenStyle,
-        options: MenuBarLayoutRenderOptions)
+        options: MenuBarLayoutRenderOptions,
+        circleIcon: NSImage? = nil,
+        isCircle: Bool = false)
         -> (value: NSAttributedString, accessibilityText: String?)
     {
         let accessibilityPrefix = self.windowAccessibilityLabel(window, data: data)
@@ -1450,12 +1463,16 @@ extension MenuBarLayoutRenderer {
         }
         let percent = options.showUsed ? rateWindow.usedPercent : rateWindow.remainingPercent
         let clamped = percent.clamped(to: 0...100)
-        let barSize = self.progressBarSize(size: options.size, font: style.font)
-        let image = self.progressBarImage(
-            fillPercent: clamped,
-            size: barSize,
-            tint: style.foregroundColor,
-            stale: options.isStale)
+        let diameter: CGFloat = style.iconHeight <= 9 ? (options.size == .large ? 10 : 9) : 20
+        let barSize = isCircle ? NSSize(width: diameter, height: diameter)
+            : self.progressBarSize(size: options.size, font: style.font)
+        let image = isCircle ? self.usageCircleImage(
+            fillPercent: clamped, size: diameter, icon: circleIcon, tint: style.foregroundColor, stale: options.isStale)
+            : self.progressBarImage(
+                fillPercent: clamped,
+                size: barSize,
+                tint: style.foregroundColor,
+                stale: options.isStale)
         let attachment = NSTextAttachment()
         attachment.image = image
         attachment.bounds = NSRect(

@@ -2829,3 +2829,5 @@
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Introduce una clave, un endpoint de recurso HTTPS y un nombre de despliegue. La versión de API es opcional. Actualizar envía una solicitud de validación potencialmente facturable, no una consulta del historial de uso.";
 "Mistral session expired or invalid." = "La sesión de Mistral ha caducado o no es válida.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Usa una clave API con el permiso user_read para consultar el uso de la suscripción. El comando guarda una clave independiente; la cuenta de clave API seleccionada tiene prioridad.";
+
+"Icon usage circle" = "Icono con círculo de uso";

@@ -58,6 +58,10 @@ enum MenuBarLayoutPaletteTokens {
                 .progressBar(window: .weekly),
                 .progressBar(window: .scopedWeekly),
                 .progressBar(window: .automatic),
+                .iconUsageCircle(window: .session),
+                .iconUsageCircle(window: .weekly),
+                .iconUsageCircle(window: .scopedWeekly),
+                .iconUsageCircle(window: .automatic),
                 .tokensPerMinute,
                 .tokensSparkline,
                 .pace(window: .session),
@@ -94,6 +98,10 @@ enum MenuBarLayoutPaletteTokens {
         .progressBar(window: .weekly),
         .progressBar(window: .scopedWeekly),
         .progressBar(window: .automatic),
+        .iconUsageCircle(window: .session),
+        .iconUsageCircle(window: .weekly),
+        .iconUsageCircle(window: .scopedWeekly),
+        .iconUsageCircle(window: .automatic),
         .pace(window: .session),
         .pace(window: .weekly),
         .pace(window: .automatic),
@@ -1169,7 +1177,7 @@ extension MenuBarLayoutToken {
         let window: PercentWindow? = switch self {
         case let .percent(window), let .pace(window),
              let .windowResetCountdown(window), let .windowResetAbsolute(window),
-             let .progressBar(window): window
+             let .progressBar(window), let .iconUsageCircle(window): window
         default: nil
         }
         guard let window, let provider else { return nil }
@@ -1188,6 +1196,8 @@ extension MenuBarLayoutToken {
             L("%@: %@", localizedLabel, L("menu_bar_layout_token_resets_in"))
         case .windowResetAbsolute:
             L("%@: %@", localizedLabel, L("menu_bar_layout_token_reset_at"))
+        case .iconUsageCircle:
+            L("%@ %@", localizedLabel, L("Icon usage circle"))
         case .progressBar:
             L("%@ %@", localizedLabel, L("menu_bar_layout_token_bar"))
         default: nil
@@ -1212,6 +1222,8 @@ extension MenuBarLayoutToken {
         case .pace(window: .automatic): L("menu_bar_layout_token_auto_pace")
         case .pace(window: .spend): L("menu_bar_layout_token_spend_pace")
         case .usageBar: L("menu_bar_layout_token_bar")
+        case let .iconUsageCircle(window):
+            L("%@ %@", Self.resetWindowLabel(window), L("Icon usage circle"))
         case let .progressBar(window):
             L("%@ %@", Self.resetWindowLabel(window), L("menu_bar_layout_token_bar"))
         case .resetCountdown: L("menu_bar_layout_token_resets_in")
@@ -1275,6 +1287,7 @@ extension MenuBarLayoutToken {
         case .accountLabel: "person.crop.circle"
         case .percent, .lanePercent, .extraPercent: "percent"
         case .pace: "speedometer"
+        case .iconUsageCircle: "circle.dotted"
         case .usageBar, .progressBar: "chart.bar.fill"
         case .resetCountdown, .windowResetCountdown: "timer"
         case .resetAbsolute, .windowResetAbsolute: "clock"

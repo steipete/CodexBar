@@ -2833,3 +2833,5 @@
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Berikan kunci, endpoint sumber daya HTTPS, dan nama deployment. Versi API opsional. Penyegaran mengirim permintaan validasi yang mungkin dikenakan biaya, bukan kueri riwayat penggunaan.";
 "Mistral session expired or invalid." = "Sesi Mistral telah kedaluwarsa atau tidak valid.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Gunakan kunci API dengan izin user_read untuk melihat penggunaan langganan. Perintah ini menyimpan kunci terpisah; akun kunci API yang dipilih diprioritaskan.";
+
+"Icon usage circle" = "Ikon dengan lingkaran penggunaan";

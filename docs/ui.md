@@ -7,6 +7,10 @@ read_when:
 
 # UI & icon
 
+## Icon usage circle
+
+The menu bar layout editor offers Icon usage circle for Session, Weekly, Scoped weekly, and Automatic, alongside the corresponding usage bars. Each circle centers the selected provider’s brand glyph inside a thin clockwise ring starting at the top. Single-row circles are 20pt; stacked circles fit their 9pt or 10pt rows. The glyph scales its visible artwork to the circular interior, ignoring transparent asset padding while keeping a gap equal to the ring’s stroke thickness. It shares the native title tint, stale-state dimming, window labels, unavailable-window fallback, and used/remaining preference with the bars. Automatic circles follow the same balance-text override as graphical automatic bars. V8 settings retain circle choices while older settings keys receive compatible bars.
+
 ## Settings
 
 Closing Settings releases its hosted panes so hidden content stops reacting to updates. Reopening restores the window frame, selected pane, and in-session Back/Forward history; Usage & Spend keeps its shared data and reporting-period selection. The pane views are rebuilt when reopened.
