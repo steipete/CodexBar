@@ -115,6 +115,9 @@ defineProvider({
           throw ctx.fail.providerUnavailable("Helmcode dashboard is unavailable.", { retryAfterSeconds: creditRetry });
         throw ctx.fail.apiFailure(`Helmcode dashboard returned HTTP ${creditResponse.status}.`);
       }
+      // A 200 that does not answer "is this tenant metered in credits?" is drift,
+      // not token metering: only an explicit boolean may choose the fallback.
+      if (creditUsage !== undefined && typeof creditUsage.enabled !== "boolean") return fail("enabled");
       if (creditUsage?.enabled === true) {
         const allowance = decimal(creditUsage.allowanceCredits, "allowanceCredits");
         const spent = decimal(creditUsage.usedCredits, "usedCredits");

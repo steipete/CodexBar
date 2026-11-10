@@ -16,7 +16,7 @@ struct HelmcodeCookieCompatibilityTests {
             let result = try await Self.fetch(engine: engine, broker: broker)
 
             #expect(result.usage.identity?.accountOrganization == "Helmcode Cloud")
-            #expect(result.requests.count == 3)
+            #expect(result.requests.count == 4)
             #expect(result.requests.allSatisfy { $0.url?.host == "cloud-api.helmcode.com" })
             #expect(result.requests.allSatisfy { $0.value(forHTTPHeaderField: "Cookie") == cloud.cookieHeader })
             #expect(imports.value.isEmpty)
@@ -42,7 +42,7 @@ struct HelmcodeCookieCompatibilityTests {
             })
 
             #expect(result.usage.identity?.accountOrganization == "Helmcode Cloud")
-            #expect(result.requests.count == 4)
+            #expect(result.requests.count == 5)
             #expect(result.requests.last?.value(forHTTPHeaderField: "Cookie") == cloud.cookieHeader)
             #expect(imports.value.isEmpty)
             #expect(Self.cached("helmcode.com") == nil)
@@ -88,7 +88,7 @@ struct HelmcodeCookieCompatibilityTests {
             let result = try await Self.fetch(engine: engine, broker: broker)
 
             #expect(result.usage.identity?.accountOrganization == "NaN Builders")
-            #expect(result.requests.count == 2)
+            #expect(result.requests.count == 3)
             #expect(result.requests.allSatisfy { $0.url?.host == "cloud-api.nan.builders" })
             #expect(result.requests.allSatisfy { $0.value(forHTTPHeaderField: "Cookie") == nan.cookieHeader })
             #expect(imports.value == ["cloud-api.helmcode.com", "helmcode.com"])
@@ -185,6 +185,10 @@ struct HelmcodeCookieCompatibilityTests {
             case "/api/usage/quota":
                 body = quota
                 status = context.perform { quotaStatus(request) }
+            case "/api/usage/credits":
+                // The compatibility fixtures only cover token-metered tenants.
+                body = "{}"
+                status = 404
             case "/api/billing":
                 body = billing
                 status = 200

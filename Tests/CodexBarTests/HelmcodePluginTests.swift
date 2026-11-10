@@ -209,6 +209,9 @@ struct HelmcodePluginTests {
             #"{"enabled":true,"allowanceCredits":"7000","usedCredits":1}"#,
             #"{"enabled":true,"allowanceCredits":0,"usedCredits":1}"#,
             #"{"enabled":true,"allowanceCredits":7000,"usedCredits":-1}"#,
+            #"{}"#,
+            #"{"enabled":null}"#,
+            #"{"enabled":"true"}"#,
         ] {
             await Self.expectFailure(.parseFailure) {
                 try await Self.fetch(engine: engine, available: ["nan.builders"], usageCredits: body).usage
@@ -346,7 +349,8 @@ struct HelmcodePluginTests {
             }
             #expect(request.value(forHTTPHeaderField: "Origin") == "https://cloud.\(domain)")
             #expect(request.value(forHTTPHeaderField: "Referer") == "https://cloud.\(domain)/dashboard")
-            #expect(request.timeoutInterval == (url.path == "/api/usage/quota" ? 8 : 2))
+            #expect(request.timeoutInterval == (
+                url.path == "/api/usage/quota" || url.path == "/api/usage/credits" ? 8 : 2))
             var code = optionalStatus
             let body: String
             switch url.path {
