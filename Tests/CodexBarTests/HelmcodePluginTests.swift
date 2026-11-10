@@ -163,6 +163,59 @@ struct HelmcodePluginTests {
         #expect(result.usage.providerCost == nil)
     }
 
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `a credit plan replaces the frozen NaN token quotas`(engine: ProviderPluginEngineKind) async throws {
+        let result = try await Self.fetch(
+            engine: engine,
+            available: ["nan.builders"],
+            usageCredits: Self.fixture("credits-usage"))
+        let primary = try #require(result.usage.primary)
+        #expect(primary.title == "Credits")
+        #expect(primary.usedPercent == 10.6 / 7000 * 100)
+        #expect(primary.quotaLimit == 7000)
+        #expect(primary.quotaUnit == "credits")
+        #expect(primary.resetDescription?.contains("10.6 / 7,000 credits") == true)
+        #expect(primary.windowMinutes == 43200)
+        #expect(primary.resetsAt == ISO8601DateFormatter().date(from: "2026-12-06T16:01:55Z"))
+        #expect(result.usage.extraRateWindows?.isEmpty != false)
+        #expect(result.usage.providerCost == nil)
+        #expect(result.requests.compactMap(\.url?.path) == ["/api/usage/quota", "/api/usage/credits"])
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `credit details carry per-model weights and the purchased pack`(engine: ProviderPluginEngineKind) async throws {
+        let usage = try await Self.fetch(
+            engine: engine,
+            available: ["nan.builders"],
+            usageCredits: Self.fixture("credits-usage")).usage
+        let rows = try #require(usage.details.first?.rows)
+        #expect(rows.first { $0.label == "helm-credit-a" }?.value == "10.6 credits")
+        #expect(rows.first { $0.label == "helm-credit-a" }?.secondaryValue == "1.075 per million tokens")
+        #expect(rows.first { $0.label == "helm-credit-b" }?.value == "0 credits")
+        #expect(rows.first { $0.label == "Credit pack" }?.value == "25 credits")
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `a tenant without a credit plan keeps its token quotas`(engine: ProviderPluginEngineKind) async throws {
+        let usage = try await Self.fetch(engine: engine, usageCredits: #"{"enabled":false}"#).usage
+        #expect(usage.primary?.title != "Credits")
+        #expect(usage.primary?.quotaUnit == nil)
+        #expect(usage.extraRateWindows?.count == 3)
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `malformed credit totals fail instead of reporting an empty plan`(engine: ProviderPluginEngineKind) async {
+        for body in [
+            #"{"enabled":true,"allowanceCredits":"7000","usedCredits":1}"#,
+            #"{"enabled":true,"allowanceCredits":0,"usedCredits":1}"#,
+            #"{"enabled":true,"allowanceCredits":7000,"usedCredits":-1}"#,
+        ] {
+            await Self.expectFailure(.parseFailure) {
+                try await Self.fetch(engine: engine, available: ["nan.builders"], usageCredits: body).usage
+            }
+        }
+    }
+
     @Test
     func `descriptor uses the plugin and preserves cookie configuration`() {
         let descriptor = HelmcodeProviderDescriptor.descriptor
@@ -240,6 +293,7 @@ struct HelmcodePluginTests {
         quota: String? = nil,
         billing: String? = nil,
         credits: String? = nil,
+        usageCredits: String? = nil,
         optionalStatus: Int = 200,
         cookieResolver: (@Sendable (String) throws -> String)? = nil) async throws
         -> (usage: UsageSnapshot, requests: [URLRequest], domains: [String], rejected: [String])
@@ -266,6 +320,10 @@ struct HelmcodePluginTests {
                 code = domain == "helmcode.com" ? cloudStatus : 200
                 body = quotaBody
             case "/api/billing": body = billingBody
+            case "/api/usage/credits":
+                // NaN answers 404 until the tenant switches to credit metering.
+                code = usageCredits == nil ? 404 : 200
+                body = usageCredits ?? "{}"
             case "/api/billing/credits":
                 #expect(domain == "helmcode.com")
                 body = creditsBody

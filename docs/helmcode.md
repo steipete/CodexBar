@@ -1,5 +1,5 @@
 ---
-summary: "Helmcode plugin: Cloud and NaN Builders sessions, model quotas, and prepaid balances."
+summary: "Helmcode plugin: Cloud and NaN Builders sessions, credit plans, model quotas, and prepaid balances."
 read_when:
   - Setting up or changing the Helmcode provider
   - Debugging Helmcode tenant selection or quota parsing
@@ -37,6 +37,15 @@ The plugin requests `/api/usage/quota` for model usage and `/api/billing` for pr
 The complete cookie header is used for these endpoints. No endpoint rejection requiring request-path filtering has
 been established; path-aware cookie filtering is outside this implementation.
 
+NaN metered inference in credits from 10 November 2026, and `/api/usage/quota` kept answering with the per-model
+token caps it had before the switch, frozen at the last legacy request. The plugin therefore asks
+`/api/usage/credits` first; when the tenant reports `enabled: true` that plan replaces the token windows entirely. Its
+allowance is credited per billing period rather than per calendar month, so the primary **Credits** window uses
+`usedCredits / allowanceCredits` with the plan's own `periodEnd` as its reset, and carries the absolute allowance as
+`quotaLimit`/`quotaUnit: "credits"`. Each model's `creditsThisMonth` and `approxCreditsPerMTokens` weight become detail
+rows, and a purchased pack or a paused plan adds its own row. A tenant that answers 404 or `enabled: false` keeps the
+token quotas below.
+
 Positive model caps become rate windows, ordered by utilization. Each model's `periodEnd` supplies its reset, falling
 back to the first day of the month after `periodStart`. Rolling tiers retain `windowHours` as their window length and
 appear only when billing explicitly reports `subscription.premium: true`. Missing, malformed, or unavailable billing
@@ -44,6 +53,9 @@ therefore hides premium tiers. Unlimited models have no invented percentage. Opt
 the detail text, and Cloud prepaid micros are converted to the reported currency (EUR when omitted).
 
 Quota schema changes fail visibly. Quota requests have an eight-second deadline; billing and credits are best-effort
-with two-second deadlines, so their failure cannot hide valid quota.
+with two-second deadlines, so their failure cannot hide valid quota. The credit plan is fetched before billing, which a
+credit-metered tenant does not need. A credit plan with nonnumeric or nonpositive totals fails as a parse error instead
+of rendering as an empty allowance.
 All identity and tenant fields come from this provider. The dashboard contract is unversioned; synthetic fixtures cover
-both tenants, premium eligibility, per-model resets, optional billing failures, and malformed quota responses.
+both tenants, premium eligibility, per-model resets, optional billing failures, credit metering, and malformed quota responses.
+

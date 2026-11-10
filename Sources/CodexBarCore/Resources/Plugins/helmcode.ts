@@ -33,6 +33,12 @@ defineProvider({
       if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) return fail(field);
       return value;
     };
+    /** Credits are fractional (10.6 of 7,000), so they cannot use `integer`. */
+    const decimal = (value: unknown, field: string): number => {
+      if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return fail(field);
+      return value;
+    };
+
     async function* sessions() {
       for (const tenant of candidates) {
         const domains =
@@ -87,6 +93,75 @@ defineProvider({
           return undefined;
         }
       };
+      // NaN metered inference in credits from 10 Nov 2026. `/api/usage/quota`
+      // keeps answering with the per-model token caps it had before the switch,
+      // frozen at the last legacy request, so those windows are history for any
+      // tenant that reports a credit plan. The plan is credited per billing
+      // period, not per calendar month, and each model spends at its own weight.
+      const creditUsage = await optional("/api/usage/credits");
+      if (creditUsage?.enabled === true) {
+        const allowance = decimal(creditUsage.allowanceCredits, "allowanceCredits");
+        const spent = decimal(creditUsage.usedCredits, "usedCredits");
+        if (allowance <= 0) return fail("allowanceCredits");
+        const periodStart =
+          typeof creditUsage.periodStart === "string" ? ctx.date.iso(creditUsage.periodStart) : undefined;
+        const periodEnd = typeof creditUsage.periodEnd === "string" ? ctx.date.iso(creditUsage.periodEnd) : undefined;
+        const minutes =
+          periodStart && periodEnd && periodEnd.getTime() > periodStart.getTime()
+            ? Math.round((periodEnd.getTime() - periodStart.getTime()) / 60000)
+            : undefined;
+        const weights = (Array.isArray(creditUsage.models) ? creditUsage.models : [])
+          .map((value: unknown) => {
+            const row = object(value) ?? fail("credit model");
+            if (typeof row.model !== "string" || !ctx.isDetailLabel(row.model)) return fail("credit model name");
+            return {
+              name: row.model,
+              spent: row.creditsThisMonth == null ? 0 : decimal(row.creditsThisMonth, "creditsThisMonth"),
+              weight:
+                row.approxCreditsPerMTokens == null
+                  ? undefined
+                  : decimal(row.approxCreditsPerMTokens, "approxCreditsPerMTokens"),
+            };
+          })
+          .sort((a, b) => b.spent - a.spent || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+        const rows: Array<{ label: string; value: string; secondaryValue?: string }> = weights
+          .slice(0, 20)
+          .map((row) => ({
+            label: row.name,
+            value: `${ctx.format.number(row.spent, { maximumFractionDigits: 2 })} credits`,
+            secondaryValue:
+              row.weight === undefined
+                ? undefined
+                : `${ctx.format.number(row.weight, { maximumFractionDigits: 3 })} per million tokens`,
+          }));
+
+        if (weights.length > rows.length) rows.push({
+          label: "Other models",
+          value: `${weights.length - rows.length} more`,
+        });
+        if (creditUsage.packCredits != null) {
+          const pack = decimal(creditUsage.packCredits, "packCredits");
+          if (pack > 0) rows.push({
+            label: "Credit pack",
+            value: `${ctx.format.number(pack, { maximumFractionDigits: 2 })} credits`,
+          });
+        }
+        if (creditUsage.frozen === true) rows.push({ label: "Credits", value: "Paused during grace period" });
+        return {
+          primary: {
+            title: "Credits",
+            usedPercent: ctx.pct(spent, allowance),
+            resetsAt: periodEnd,
+            windowMinutes: minutes,
+            quotaLimit: allowance,
+            quotaUnit: "credits",
+            resetDescription: `${ctx.format.number(spent, { maximumFractionDigits: 2 })} / ${ctx.format.number(allowance)} credits`,
+          },
+          details: [{ title: "Credits by model", rows }],
+          identity: { organization: tenant.name, loginMethod: "Dashboard session" },
+          dataConfidence: "exact",
+        };
+      }
       const billing = await optional("/api/billing");
       const premium = object(billing?.subscription)?.premium === true;
       const start = /^(\d{4})-(\d{2})-(\d{2})(?:T|$)/.exec(quota.periodStart);
