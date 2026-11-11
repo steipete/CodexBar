@@ -18,6 +18,7 @@
 - Claude: show Enterprise extra-usage limits in the provider switcher while preserving provider identity boundaries. (#4989) Thanks @jey3dayo!
 - Alibaba: read Team CLI seat quotas, retain browser fallback for unavailable credits, and recognize mainland Qwen aliases. (#5008) Thanks @yinjialu!
 - Share Stats: replace faint provider markers with recognizable provider icons in light and dark cards. (#5011) Thanks @Chipagosfinest!
+- DeepSeek: project Platform-reported daily cost and token buckets into cost usage so the menu bar's today-cost and history-window tokens show spend instead of a dash, while keeping the month-to-date label when only the monthly fallback is available.
 
 ### Changed
 

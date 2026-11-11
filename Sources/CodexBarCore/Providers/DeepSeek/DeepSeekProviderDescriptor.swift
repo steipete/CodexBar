@@ -102,8 +102,15 @@ public enum DeepSeekProviderDescriptor {
                     ProviderColor(hex: 0x020E36),
                 ]),
             tokenCost: ProviderTokenCostConfig(
-                supportsTokenCost: false,
-                noDataMessage: { "DeepSeek per-day cost history is not available via API." }),
+                supportsTokenCost: true,
+                noDataMessage: {
+                    "DeepSeek today's spend needs detailed Platform usage. Sign in to DeepSeek Platform in a " +
+                        "Chromium-based browser."
+                },
+                menuHintLines: [.literal("Reported by DeepSeek Platform usage.")],
+                showsCostMenuSection: false,
+                primaryValue: .latestDaily,
+                showsRequestHistory: false),
             presentation: ProviderUsagePresentation(
                 menuCard: ProviderMenuCardPresentation(
                     usageNotesResolver: { context in

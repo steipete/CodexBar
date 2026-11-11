@@ -199,11 +199,15 @@ public struct DeepSeekUsageSnapshot: Sendable {
         }
 
         let details = self.usageSummary.map(Self.detailSections) ?? []
+        // Platform buckets are vendor-metered daily spend, so menu-bar cost tokens can read them
+        // once the summary is projected into the shared cost-usage shape.
+        let costUsage = self.usageSummary?.toCostUsageTokenSnapshot()
         return UsageSnapshot(
             primary: balanceWindow,
             secondary: nil,
             tertiary: nil,
             providerCost: nil,
+            costUsage: costUsage,
             details: details,
             deepseekDetailedUsageState: self.detailedUsageState,
             deepseekPlatformProfiles: self.platformProfiles,

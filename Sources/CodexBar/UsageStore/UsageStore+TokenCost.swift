@@ -746,7 +746,8 @@ extension UsageStore {
                 usage.daily.isEmpty ? nil : usage
                     .toCostUsageTokenSnapshot(historyDays: windowDays)
             }
-        case .openrouter:
+        case .openrouter, .deepseek:
+            // DeepSeek Platform reports per-day vendor spend; the fetcher projects it onto `costUsage`.
             snapshot?.costUsage
         case .xai:
             snapshot.flatMap { XAICostUsageMapping.tokenSnapshot(from: $0, historyDays: windowDays) }
@@ -766,7 +767,7 @@ extension UsageStore {
         // Provider-specific by design: these providers project live usage snapshots into the
         // shared spend catalog instead of running the local CostUsageFetcher JSONL pipeline.
         switch provider {
-        case .grok, .mistral, .openai, .opencodego, .openrouter, .xai:
+        case .grok, .mistral, .openai, .opencodego, .openrouter, .xai, .deepseek:
             true
         default:
             false
