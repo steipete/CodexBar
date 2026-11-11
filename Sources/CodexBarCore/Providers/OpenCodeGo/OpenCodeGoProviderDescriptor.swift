@@ -223,17 +223,41 @@ struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let local = try await self.boundedLocalSnapshot(context: context) else {
-            // Unfinished local work is never published; only an authoritative remote quota answers now.
-            let result = try await self.snapshot(context: context, local: Self.unscannedHistory())
-            guard result.quotaIsAuthoritative, result.sourceLabel.hasPrefix("local+") else {
-                throw OpenCodeGoLocalUsageError.historyUnavailable("still scanning; a later refresh can use it")
+        let loader = self.localSnapshotLoader
+        // The scan has no resume point, so neither the budget nor cancellation interrupts it; it fills
+        // the reader's cache for a later refresh.
+        let scan = Task { try loader(context) }
+        let result: SnapshotResult
+        switch await Self.join(scan, timeout: self.localHistoryJoinTimeout) {
+        case let .value(local):
+            result = try await self.snapshot(context: context, local: local)
+        case let .failure(error):
+            throw error
+        case .timedOut:
+            // Unfinished local work is never published; an authoritative remote quota answers now.
+            let remote: SnapshotResult
+            do {
+                remote = try await self.snapshot(context: context, local: Self.unscannedHistory())
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                // Report what a full scan followed by the same remote attempt would report.
+                _ = try await Self.finishedScan(scan)
+                throw error
             }
-            return self.makeResult(
-                usage: result.snapshot.toUsageSnapshot(),
-                sourceLabel: String(result.sourceLabel.dropFirst("local+".count)))
+            if remote.quotaIsAuthoritative, remote.sourceLabel.hasPrefix("local+") {
+                return self.makeResult(
+                    usage: remote.snapshot.toUsageSnapshot(),
+                    sourceLabel: String(remote.sourceLabel.dropFirst("local+".count)))
+            }
+            // Without authoritative quota, the finished local estimate is still the answer. A
+            // non-authoritative remote result only contributes the optional Zen balance.
+            let local = try await Self.finishedScan(scan)
+            result = SnapshotResult(
+                snapshot: local.withZenBalanceUSD(remote.snapshot.zenBalanceUSD),
+                sourceLabel: remote.sourceLabel,
+                quotaIsAuthoritative: false)
         }
-        let result = try await self.snapshot(context: context, local: local)
         let usage = result.snapshot.toUsageSnapshot()
         return self.makeResult(
             usage: result.quotaIsAuthoritative ? usage : usage.withDataConfidence(.estimated),
@@ -361,20 +385,26 @@ struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
         return fallback
     }
 
-    /// A cold scan of a large history must not hold back remote quota. Returns nil when the scan outlasts
-    /// the budget. The scan has no resume point, so it keeps running and fills the reader's cache for a
-    /// later refresh instead of being interrupted.
-    private func boundedLocalSnapshot(context: ProviderFetchContext) async throws -> OpenCodeGoUsageSnapshot? {
-        let loader = self.localSnapshotLoader
-        let scan = Task { try loader(context) }
-        switch await BoundedTaskJoin(sourceTask: scan).value(joinGrace: self.localHistoryJoinTimeout) {
+    /// Waits for the same scan that outlasted the budget; refresh cancellation stops the wait.
+    private static func finishedScan(
+        _ scan: Task<OpenCodeGoUsageSnapshot, Error>) async throws -> OpenCodeGoUsageSnapshot
+    {
+        switch await self.join(scan, timeout: nil) {
         case let .value(snapshot):
             return snapshot
         case let .failure(error):
             throw error
         case .timedOut:
-            return nil
+            throw CancellationError()
         }
+    }
+
+    /// Joins through a proxy so a timeout or cancelled wait never cancels the scan itself.
+    private static func join(
+        _ scan: Task<OpenCodeGoUsageSnapshot, Error>,
+        timeout: Duration?) async -> BoundedTaskJoinOutcome<OpenCodeGoUsageSnapshot>
+    {
+        await BoundedTaskJoin(sourceTask: Task { try await scan.value }).value(joinGrace: timeout)
     }
 
     /// Carries no quota windows or history; remote overlays replace the windows when available.

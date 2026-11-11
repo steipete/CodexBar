@@ -60,9 +60,9 @@ Moving quota windows and resets remain live. Aggregate reuse ends at calendar or
 backward clock changes, or a wider requested history range; changed sources always rescan. Payloads exceeding the
 budget remain readable without being retained. Separate CLI invocations each perform their own initial scan.
 Auto waits at most 5 seconds for local history. A slower scan keeps running to fill this cache, while the refresh
-uses the configured API key, a browser session, or the CLI login for quota without local history, or falls back to
-the remaining sources. Partial history is never shown. Later app or server refreshes reuse the finished scan; a CLI
-process that exits first discards it.
+uses the configured API key, a browser session, or the CLI login for quota without local history. Without any of
+those, the refresh waits for the same scan and returns the local estimate. Partial history is never shown. Later app
+or server refreshes reuse the finished scan; a CLI process that exits first discards it.
 
 The shared [OpenCode guide](opencode.md) documents authentication, scoped source selection, usage mapping, and the
 boundary between device-local estimates and account quota. Keep those details there so the two guides do not drift.

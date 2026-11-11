@@ -111,10 +111,11 @@ struct OpenCodeGoAutoScanBudgetTests {
     }
 
     @Test
-    func `exhausted auto scan budget without remote quota falls through without local history`() async throws {
+    func `exhausted auto scan budget without remote quota returns the same scan as local usage`() async throws {
         let env = try Self.makeDatabase()
         defer { try? FileManager.default.removeItem(at: env.root) }
         let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+        let scans = Counter()
         let release = DispatchSemaphore(value: 0)
         defer { release.signal() }
         let pipeline = Self.pipeline(
@@ -122,16 +123,64 @@ struct OpenCodeGoAutoScanBudgetTests {
             budget: .milliseconds(100),
             completedScans: Counter(),
             cliCredential: nil)
-        let observer: @Sendable () -> Void = { _ = release.wait(timeout: .now() + 3) }
+        let observer: @Sendable () -> Void = {
+            scans.increment()
+            _ = release.wait(timeout: .now() + 3)
+        }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.4) { release.signal() }
 
         let started = ContinuousClock.now
         let outcome = await OpenCodeGoLocalUsageReader.$scanObserverForTesting.withValue(observer) {
             await pipeline.fetch(context: Self.makeContext(), provider: .opencodego)
         }
+        let elapsed = started.duration(to: ContinuousClock.now)
+        let result = try outcome.result.get()
 
+        #expect(elapsed >= .milliseconds(400))
+        #expect(elapsed < .seconds(3))
+        #expect(scans.value == 1)
+        #expect(outcome.attempts.map(\.strategyID) == ["opencodego.local"])
+
+        // Matches an unbounded wait for the same history.
+        let unbounded = try await Self.pipeline(
+            reader: OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL),
+            budget: .seconds(60),
+            completedScans: Counter(),
+            cliCredential: nil).fetch(context: Self.makeContext(), provider: .opencodego).result.get()
+        #expect(result.sourceLabel == "local")
+        #expect(result.sourceLabel == unbounded.sourceLabel)
+        #expect(result.usage.dataConfidence == .estimated)
+        #expect(result.usage.dataConfidence == unbounded.usage.dataConfidence)
+        #expect(result.usage.primary?.usedPercent == unbounded.usage.primary?.usedPercent)
+        #expect(result.usage.opencodegoUsage?.daily.map(\.costUSD) == [3])
+        #expect(result.usage.opencodegoUsage?.daily.map(\.costUSD) == unbounded.usage.opencodegoUsage?.daily
+            .map(\.costUSD))
+        #expect(result.usage.opencodegoUsage?.zenBalanceUSD == unbounded.usage.opencodegoUsage?.zenBalanceUSD)
+        #expect(result.usage.secondary?.usedPercent == unbounded.usage.secondary?.usedPercent)
+        #expect(result.usage.tertiary?.usedPercent == unbounded.usage.tertiary?.usedPercent)
+    }
+
+    @Test
+    func `cancelling a refresh that waits on the local scan stops the wait`() async throws {
+        let release = DispatchSemaphore(value: 0)
+        defer { release.signal() }
+        let strategy = OpenCodeGoLocalUsageFetchStrategy(
+            localSnapshotLoader: { _ in
+                _ = release.wait(timeout: .now() + 5)
+                throw OpenCodeGoLocalUsageError.notDetected
+            },
+            webUsageOverlayFetcher: { _, _ in nil },
+            apiUsageOverlayFetcher: { _, _ in throw URLError(.notConnectedToInternet) },
+            cliCredentialLoader: { _ in nil },
+            localHistoryJoinTimeout: .milliseconds(50))
+        let context = Self.makeContext()
+        let refresh = Task { try await strategy.fetch(context) }
+        try await Task.sleep(for: .milliseconds(300))
+        let started = ContinuousClock.now
+        refresh.cancel()
+
+        await #expect(throws: CancellationError.self) { _ = try await refresh.value }
         #expect(started.duration(to: ContinuousClock.now) < .seconds(1))
-        #expect(outcome.attempts.map(\.strategyID) == ["opencodego.local", "opencodego.web", "opencodego.api"])
-        #expect(throws: OpenCodeGoSettingsError.self) { try outcome.result.get() }
     }
 
     private static func pipeline(
