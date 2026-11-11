@@ -11,6 +11,7 @@
 
 ### Fixed
 
+- Codex cost: stop rewriting every archived (`.jsonl.zst`) rollout in the cost cache on each save, which wrote about 100 MB per save on stores with a few thousand archived sessions (#5049). Thanks @oldcai!
 - CLI: reject unknown `--provider` values for usage, cost, and cards with an argument error instead of silently falling back to enabled providers (#5017, #5019). Thanks @coygeek and @harjothkhara!
 - Ollama: support legacy API session and weekly balances while preserving monthly credits. (#5005, #5006) Thanks @Colafornia!
 - Mistral: recover from expired sessions that redirect to sign-in instead of returning HTTP 401/403. (#5000, #5002) Thanks @enieuwy!
