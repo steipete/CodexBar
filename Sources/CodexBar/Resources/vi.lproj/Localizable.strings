@@ -2839,3 +2839,10 @@
 "Required with the access key ID. Saved in the local config file. Or set ANTHROPIC_AWS_SECRET_ACCESS_KEY." = "Bắt buộc cùng với ID khóa truy cập. Được lưu trong tệp cấu hình cục bộ. Hoặc đặt ANTHROPIC_AWS_SECRET_ACCESS_KEY.";
 "Required. Comma-separated AWS regions that hold your workspaces. Or set ANTHROPIC_AWS_REGIONS." = "Bắt buộc. Các khu vực AWS chứa không gian làm việc của bạn, phân tách bằng dấu phẩy. Hoặc đặt ANTHROPIC_AWS_REGIONS.";
 "Claude Platform on AWS spend history needs the cost and usage analytics permissions." = "Lịch sử chi tiêu của Claude Platform on AWS cần các quyền phân tích chi phí và mức sử dụng.";
+"Daily budget" = "Ngân sách hằng ngày";
+"Optional, in USD. Compares this month's spend with the amount; it does not cap AWS billing. Or set ANTHROPIC_AWS_MONTHLY_BUDGET." = "Không bắt buộc, tính bằng USD. So sánh chi tiêu tháng này với số tiền; không giới hạn hóa đơn AWS. Hoặc đặt ANTHROPIC_AWS_MONTHLY_BUDGET.";
+"Optional, in USD. Compares today's spend with the amount. Or set ANTHROPIC_AWS_DAILY_BUDGET." = "Không bắt buộc, tính bằng USD. So sánh chi tiêu hôm nay với số tiền. Hoặc đặt ANTHROPIC_AWS_DAILY_BUDGET.";
+"Time zone" = "Múi giờ";
+"Where days and months begin: local (default, this Mac's time zone) or utc. Or set ANTHROPIC_AWS_TIME_ZONE." = "Nơi ngày và tháng bắt đầu: local (mặc định, múi giờ của máy Mac này) hoặc utc. Hoặc đặt ANTHROPIC_AWS_TIME_ZONE.";
+"local" = "local";
+"Anthropic analytics figures · may differ from your AWS invoice" = "Số liệu phân tích của Anthropic · có thể khác với hóa đơn AWS của bạn";

@@ -2838,3 +2838,10 @@
 "Required with the access key ID. Saved in the local config file. Or set ANTHROPIC_AWS_SECRET_ACCESS_KEY." = "アクセスキーIDとあわせて必要です。ローカルの設定ファイルに保存されます。またはANTHROPIC_AWS_SECRET_ACCESS_KEYを設定します。";
 "Required. Comma-separated AWS regions that hold your workspaces. Or set ANTHROPIC_AWS_REGIONS." = "必須。ワークスペースがあるAWSリージョンをカンマ区切りで指定します。またはANTHROPIC_AWS_REGIONSを設定します。";
 "Claude Platform on AWS spend history needs the cost and usage analytics permissions." = "Claude Platform on AWSの支出履歴には、コストと使用量の分析権限が必要です。";
+"Daily budget" = "1日の予算";
+"Optional, in USD. Compares this month's spend with the amount; it does not cap AWS billing. Or set ANTHROPIC_AWS_MONTHLY_BUDGET." = "任意、USD。今月の支出をこの金額と比較します。AWSの請求を制限するものではありません。またはANTHROPIC_AWS_MONTHLY_BUDGETを設定します。";
+"Optional, in USD. Compares today's spend with the amount. Or set ANTHROPIC_AWS_DAILY_BUDGET." = "任意、USD。今日の支出をこの金額と比較します。またはANTHROPIC_AWS_DAILY_BUDGETを設定します。";
+"Time zone" = "タイムゾーン";
+"Where days and months begin: local (default, this Mac's time zone) or utc. Or set ANTHROPIC_AWS_TIME_ZONE." = "日と月の区切り：local（デフォルト、このMacのタイムゾーン）またはutc。またはANTHROPIC_AWS_TIME_ZONEを設定します。";
+"local" = "local";
+"Anthropic analytics figures · may differ from your AWS invoice" = "Anthropicの分析値 · AWSの請求額と異なる場合があります";

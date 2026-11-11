@@ -746,8 +746,10 @@ extension UsageStore {
                 usage.daily.isEmpty ? nil : usage
                     .toCostUsageTokenSnapshot(historyDays: windowDays)
             }
-        case .openrouter, .claudeplatformaws:
+        case .openrouter:
             snapshot?.costUsage
+        case .claudeplatformaws:
+            snapshot.flatMap { ClaudePlatformAWSCostUsageMapping.tokenSnapshot(from: $0) }
         case .xai:
             snapshot.flatMap { XAICostUsageMapping.tokenSnapshot(from: $0, historyDays: windowDays) }
         case .grok:

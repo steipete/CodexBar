@@ -2836,3 +2836,10 @@
 "Required with the access key ID. Saved in the local config file. Or set ANTHROPIC_AWS_SECRET_ACCESS_KEY." = "Zusammen mit der Zugriffsschlüssel-ID erforderlich. Wird in der lokalen Konfigurationsdatei gespeichert. Oder ANTHROPIC_AWS_SECRET_ACCESS_KEY setzen.";
 "Required. Comma-separated AWS regions that hold your workspaces. Or set ANTHROPIC_AWS_REGIONS." = "Erforderlich. Kommagetrennte AWS-Regionen, in denen deine Workspaces liegen. Oder ANTHROPIC_AWS_REGIONS setzen.";
 "Claude Platform on AWS spend history needs the cost and usage analytics permissions." = "Der Ausgabenverlauf von Claude Platform on AWS benötigt die Berechtigungen für Kosten- und Nutzungsanalysen.";
+"Daily budget" = "Tagesbudget";
+"Optional, in USD. Compares this month's spend with the amount; it does not cap AWS billing. Or set ANTHROPIC_AWS_MONTHLY_BUDGET." = "Optional, in USD. Vergleicht die Ausgaben dieses Monats mit dem Betrag; begrenzt die AWS-Abrechnung nicht. Oder ANTHROPIC_AWS_MONTHLY_BUDGET setzen.";
+"Optional, in USD. Compares today's spend with the amount. Or set ANTHROPIC_AWS_DAILY_BUDGET." = "Optional, in USD. Vergleicht die heutigen Ausgaben mit dem Betrag. Oder ANTHROPIC_AWS_DAILY_BUDGET setzen.";
+"Time zone" = "Zeitzone";
+"Where days and months begin: local (default, this Mac's time zone) or utc. Or set ANTHROPIC_AWS_TIME_ZONE." = "Wo Tage und Monate beginnen: local (Standard, die Zeitzone dieses Macs) oder utc. Oder ANTHROPIC_AWS_TIME_ZONE setzen.";
+"local" = "local";
+"Anthropic analytics figures · may differ from your AWS invoice" = "Analysezahlen von Anthropic · können von deiner AWS-Rechnung abweichen";

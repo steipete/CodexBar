@@ -2962,10 +2962,10 @@ struct ProviderArchitectureGatekeeperTests {
                 "openai@0",
                 "mistral@2",
                 "opencodego@4",
-                "claudeplatformaws@12",
                 "openrouter@12",
-                "xai@14",
-                "grok@16",
+                "claudeplatformaws@14",
+                "xai@16",
+                "grok@18",
             ],
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(

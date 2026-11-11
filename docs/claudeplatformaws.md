@@ -25,6 +25,12 @@ Enable **Claude Platform on AWS** in Settings → Providers and enter:
   `ANTHROPIC_AWS_REGIONS`. Each regional endpoint reports only the workspaces bound to its region, so CodexBar reads
   every listed region and sums them.
 
+- **Monthly budget** and **Daily budget** (optional, USD): amounts to compare spend with, or set
+  `ANTHROPIC_AWS_MONTHLY_BUDGET` and `ANTHROPIC_AWS_DAILY_BUDGET`. They add the Today and This month usage bars and
+  never cap AWS billing.
+- **Time zone** (optional): `local` (the default, this Mac's time zone) or `utc`, or set `ANTHROPIC_AWS_TIME_ZONE`.
+  It decides where days and months begin for every figure below.
+
 CodexBar deliberately does not read the standard `AWS_ACCESS_KEY_ID` variables or an AWS profile, so ambient AWS
 credentials are never sent to this service by accident.
 
@@ -51,18 +57,29 @@ plugin host has no AWS credential or SigV4 support, and sends them only to
 
 - **This month**: month-to-date cost from `GET /v1/organizations/analytics/cost`, grouped by workspace and summed
   across regions. This is also the cost meter.
-- **Today**: the month total less this month's completed UTC days.
+- **Today**: spend for the current day so far, in the configured time zone (the API rounds it down to the hour).
 - **Projected this month**: the month so far plus the average of the last seven completed days for the time left
   after the data watermark. Shown only when at least three of those days had spend; it never changes the reported
   spend or the cost meter.
-- **30-day history**: daily cost, requests, and input and output tokens (from `/v1/organizations/analytics/usage`),
-  shown in the inline spend dashboard and in Usage & Spend. Days are UTC days.
-- **By region** (with more than one region) and **By workspace** (top ten by spend).
+- **30-day history**: daily cost, requests, and input and output tokens (from `/v1/organizations/analytics/usage`)
+  per model, shown in the inline spend dashboard and in Usage & Spend. Days follow the configured time zone.
+- **By region** (with more than one region).
+- **By model / By workspace**: one breakdown at a time, chosen with two pickers on the card: **Model** (top eight;
+  spend without a model, such as code execution, is listed as Other usage) or **Workspace** (top ten), over
+  **30d** (the last 30 days), **MTD** (month to date), **7d** (the last seven days including today), or **Today**.
+  Percentages are shares of the selected period. The choice is remembered. The CLI lists all eight breakdowns.
+- **Today** and **This month** usage bars when the optional budgets are set, plus the date a monthly budget would
+  run out at the seven-day average.
 - **At list prices** when it differs from the charged amount, the request count, **Data as of** (the oldest
   refresh watermark among the regions), and **Next data expected** (four hours after that watermark).
 
-Missing daily or token series leave the month total in place and omit the 30-day history rather than inventing
-zeros. A region that fails its month-total request fails the refresh and is named in the error, because a partial
+The API buckets days in UTC. With `utc`, CodexBar reads daily buckets plus today as its own range. With `local`, it
+reads hourly buckets and cuts days at local midnight, which takes more rows and, for busy accounts, more pages per
+refresh; zones with a half-hour offset are approximated to the hour for the month total. Series longer than one
+page are read by following the cursor, up to 20 pages.
+
+Missing daily or token series leave the month total in place and omit the 30-day history, and every breakdown
+period except the month to date, rather than inventing zeros. A region that fails its month-total request fails the refresh and is named in the error, because a partial
 sum would understate spend.
 
 ## Refresh behavior
@@ -72,10 +89,11 @@ re-read identical numbers. Each region's last complete result is therefore kept 
 
 - Until four hours after the watermark, refreshes reuse it and re-check the region at most once an hour.
 - After that, a single month-total request (at most every ten minutes) looks for a newer watermark.
-- Only a newer watermark triggers the daily cost and token requests.
+- Only a newer watermark triggers the cost and token series requests (four per region with `utc`, two with
+  `local`, plus any further pages).
 
 Four hours is the documented typical cadence, used as a hint for when to look, not as a schedule. The kept result
-is dropped at UTC midnight and when CodexBar restarts, is never written to disk, and is not used when its daily or
+is dropped at midnight in the configured time zone and when CodexBar restarts, is never written to disk, and is not used when its daily or
 token series was unavailable. A manual refresh follows the same rules, so during the quiet period it can show data
 up to an hour older than the API has.
 

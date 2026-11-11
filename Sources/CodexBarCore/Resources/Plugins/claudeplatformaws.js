@@ -142,6 +142,9 @@ defineProvider({
     { key: "ANTHROPIC_AWS_ACCESS_KEY_ID", title: "AWS access key ID", type: "secure" },
     { key: "ANTHROPIC_AWS_SECRET_ACCESS_KEY", title: "AWS secret access key", type: "secure" },
     { key: "ANTHROPIC_AWS_REGIONS", title: "Regions", type: "plain" },
+    { key: "ANTHROPIC_AWS_MONTHLY_BUDGET", title: "Monthly budget", type: "plain" },
+    { key: "ANTHROPIC_AWS_DAILY_BUDGET", title: "Daily budget", type: "plain" },
+    { key: "ANTHROPIC_AWS_TIME_ZONE", title: "Time zone", type: "plain" },
   ],
   capabilities: ["http-status"],
   async fetchUsage(ctx) {
@@ -165,6 +168,24 @@ defineProvider({
     if (!credentials.id || !credentials.secret) {
       throw ctx.fail.missingCredential("Claude Platform on AWS requires an AWS access key ID and secret access key.");
     }
+    // Budgets are display-only comparisons; they never cap AWS billing.
+    const budgetSetting = (key, name) => {
+      const text = (ctx.settings.get(key) || "").trim().replace(/^\$/, "").replace(/,/g, "");
+      if (!text) return undefined;
+      const amount = Number(text);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        throw ctx.fail.apiFailure(`The Claude Platform on AWS ${name} must be a positive USD amount.`);
+      }
+      return amount;
+    };
+    const monthlyBudget = budgetSetting("ANTHROPIC_AWS_MONTHLY_BUDGET", "monthly budget");
+    const dailyBudget = budgetSetting("ANTHROPIC_AWS_DAILY_BUDGET", "daily budget");
+    // Days and months begin at midnight in this Mac's time zone, or in UTC when the setting says so.
+    const zone = (ctx.settings.get("ANTHROPIC_AWS_TIME_ZONE") || "").trim().toLowerCase() || "local";
+    if (zone !== "local" && zone !== "utc") {
+      throw ctx.fail.apiFailure("The Claude Platform on AWS time zone must be local or utc.");
+    }
+    const local = zone === "local";
 
     const analyticsHeaders = {
       "anthropic-version": "2026-10-21",
@@ -181,27 +202,60 @@ defineProvider({
       if (error && error.transportClass === "cancelled") throw error;
     };
 
-    // Days and months are UTC, the granularity the analytics API buckets by.
+    // Calendar math runs on the engine's own local-time Date methods, or their UTC twins.
+    const calendar = (millis) => {
+      const date = new Date(millis);
+      return local
+        ? [date.getFullYear(), date.getMonth(), date.getDate(), date.getHours(), date.getMinutes()]
+        : [date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), date.getUTCHours(), date.getUTCMinutes()];
+    };
+    const midnight = (year, month, day) => (local ? new Date(year, month, day).getTime() : Date.UTC(year, month, day));
+    const pad = (value) => (value < 10 ? `0${value}` : String(value));
+    const dayLabel = (millis) => {
+      const [year, month, day] = calendar(millis);
+      return `${year}-${pad(month + 1)}-${pad(day)}`;
+    };
+    const stamp = (millis) => new Date(millis).toISOString().replace(/\.\d+Z$/, "Z");
+    const clock = (millis) => {
+      const parts = calendar(millis);
+      return `${dayLabel(millis)} ${pad(parts[3])}:${pad(parts[4])}${local ? "" : " UTC"}`;
+    };
+
     // The host refresh clock drives the calendar and the cache; signing above uses the wall clock.
     const now = ctx.date.nowMillis();
-    const today = new Date(now);
-    const monthStart = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1);
-    const nextMonthStart = Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 1);
-    const dayStart = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+    const [year, month, dayOfMonth] = calendar(now);
+    const monthStart = midnight(year, month, 1);
+    const nextMonthStart = midnight(year, month + 1, 1);
+    // Day boundaries come from the calendar, not from 24-hour steps, so they survive daylight saving changes.
+    const daysAgo = (count) => midnight(year, month, dayOfMonth - count);
+    const dayStart = daysAgo(0);
     const dayMillis = 86400000;
-    const stamp = (millis) => new Date(millis).toISOString().replace(/\.\d+Z$/, "Z");
-    const dayLabel = (millis) => new Date(millis).toISOString().slice(0, 10);
-    // One daily series serves both the 30-day history and the month split; the API has no data before 2026.
+    // One series serves the 30-day history, the forecast, and the period breakdowns; the API has no data
+    // before 2026.
     const historyDays = 30;
-    const windowStart = dayStart - (historyDays - 1) * dayMillis;
-    const seriesStart = Math.max(Math.min(monthStart, windowStart), Date.UTC(2026, 0, 1));
-    const monthLabel = dayLabel(monthStart);
+    const windowStart = daysAgo(historyDays - 1);
+    const seriesStart = Math.max(windowStart, Date.UTC(2026, 0, 1));
     const todayLabel = dayLabel(dayStart);
     const identity = { loginMethod: "AWS access key" };
+    const dailyWindow = (spentToday) =>
+      dailyBudget && spentToday != null
+        ? {
+            usedPercent: ctx.pct(spentToday, dailyBudget),
+            windowMinutes: 1440,
+            resetsAt: stamp(daysAgo(-1)),
+          }
+        : null;
+    const monthlyWindow = (spent) =>
+      monthlyBudget ? { usedPercent: ctx.pct(spent, monthlyBudget), resetsAt: stamp(nextMonthStart) } : null;
 
     // The API rounds both ends down to the hour, so the first hour of a month has no queryable range yet.
     if (now - monthStart < 3600000) {
-      return { cost: { used: 0, currency: "USD", period: "This month" }, identity };
+      return {
+        primary: dailyWindow(0),
+        secondary: monthlyWindow(0),
+        cost: { used: 0, currency: "USD", period: "This month" },
+        identity,
+      };
     }
 
     // Amounts are decimal strings in cents: "41280.000000" is $412.80.
@@ -224,16 +278,19 @@ defineProvider({
       }
       return root && typeof root === "object" && Array.isArray(root.data) ? root : null;
     };
+    const dimension = (row, name) => (row.group && typeof row.group[name] === "string" ? row.group[name] : null);
     const parseCost = (bodyText) => {
       const root = page(bodyText);
       if (!root) return null;
       const rows = [];
       for (const row of root.data) {
         const amount = row && row.cost ? dollars(row.cost.amount) : null;
-        if (amount == null || typeof row.starting_at !== "string") return null;
+        const start = row && typeof row.starting_at === "string" ? Date.parse(row.starting_at) : NaN;
+        if (amount == null || !Number.isFinite(start)) return null;
         rows.push({
-          day: row.starting_at.slice(0, 10),
-          workspace: row.group && typeof row.group.workspace_id === "string" ? row.group.workspace_id : null,
+          day: dayLabel(start),
+          workspace: dimension(row, "workspace_id"),
+          model: dimension(row, "model"),
           amount,
           list: dollars(row.cost.list_amount),
           requests: typeof row.cost.requests === "number" ? row.cost.requests : null,
@@ -242,21 +299,24 @@ defineProvider({
       return {
         rows,
         hasMore: root.has_more === true,
+        nextPage: typeof root.next_page === "string" && root.next_page ? root.next_page : null,
         refreshedAt: typeof root.data_refreshed_at === "string" ? root.data_refreshed_at : null,
       };
     };
     const parseUsage = (bodyText) => {
       const root = page(bodyText);
-      if (!root || root.has_more === true) return null;
+      if (!root) return null;
       const count = (value) =>
         typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.round(value) : 0;
       const rows = [];
       for (const row of root.data) {
         const usage = row && row.usage;
-        if (!usage || typeof usage !== "object" || typeof row.starting_at !== "string") return null;
+        const start = row && typeof row.starting_at === "string" ? Date.parse(row.starting_at) : NaN;
+        if (!usage || typeof usage !== "object" || !Number.isFinite(start)) return null;
         const creation = usage.cache_creation || {};
         rows.push({
-          day: row.starting_at.slice(0, 10),
+          day: dayLabel(start),
+          model: dimension(row, "model"),
           // Input counts every prompt token, whether uncached, read from cache, or written to it.
           input:
             count(usage.uncached_input_tokens) +
@@ -266,14 +326,19 @@ defineProvider({
           output: count(usage.output_tokens),
         });
       }
-      return rows;
+      return {
+        rows,
+        hasMore: root.has_more === true,
+        nextPage: typeof root.next_page === "string" && root.next_page ? root.next_page : null,
+      };
     };
     const sum = (rows, field) => rows.reduce((total, row) => total + (row[field] || 0), 0);
 
     const cost = "/v1/organizations/analytics/cost";
+    const usage = "/v1/organizations/analytics/usage";
     // A failed region fails the refresh: a partial sum would silently understate the month.
     const fetchTotal = async (region) => {
-      // Grouped by workspace so one read gives both the breakdown and, summed, the month total.
+      // Grouped by workspace and model so one read gives both breakdowns and, summed, the month total.
       const response = await get(
         region,
         cost,
@@ -281,6 +346,7 @@ defineProvider({
           ["starting_at", stamp(monthStart)],
           ["ending_at", stamp(now)],
           ["group_by[]", "workspace_id"],
+          ["group_by[]", "model"],
           ["limit", "1000"],
         ],
         analyticsHeaders,
@@ -308,58 +374,83 @@ defineProvider({
         throw ctx.fail.parseFailure(`Claude Platform on AWS (${region}) returned an unrecognized cost response.`);
       }
       if (total.hasMore) {
-        throw ctx.fail.apiFailure(`More than 1,000 workspaces have spend in ${region}; the total would be incomplete.`);
+        throw ctx.fail.apiFailure(
+          `More than 1,000 workspace and model combinations have spend in ${region}; the total would be incomplete.`,
+        );
       }
       return total;
     };
 
     const fetchSeries = async (region, total) => {
-      // The series below are best effort: without them the month total still stands, minus today's split
-      // and the 30-day history.
-      const optional = async (path, parameters) => {
-        try {
-          const series = await get(region, path, parameters, analyticsHeaders);
-          return series.status === 200 ? series.bodyText : null;
-        } catch (error) {
-          rethrowCancellation(error);
-          return null;
+      // The series below are best effort: without them the month total still stands, minus today's figure,
+      // the forecast, the 30-day history, and every breakdown period except the month to date.
+      // A series is read whole by following its cursor; one that fails or runs past the page cap is dropped.
+      const series = async (path, parameters, parse) => {
+        const rows = [];
+        let cursor = null;
+        for (let pages = 0; pages < 20; pages += 1) {
+          let parsed = null;
+          try {
+            const response = await get(
+              region,
+              path,
+              cursor ? parameters.concat([["page", cursor]]) : parameters,
+              analyticsHeaders,
+            );
+            if (response.status === 200) parsed = parse(response.bodyText);
+          } catch (error) {
+            rethrowCancellation(error);
+          }
+          if (!parsed) return null;
+          for (const row of parsed.rows) rows.push(row);
+          if (!parsed.hasMore) return rows;
+          if (!parsed.nextPage) return null;
+          cursor = parsed.nextPage;
         }
+        return null;
       };
-      // Daily buckets end at today's UTC midnight: a later end would be rounded down to it anyway.
-      const completedDays = [
+      const bucketed = (end, width) => [
         ["starting_at", stamp(seriesStart)],
-        ["ending_at", stamp(dayStart)],
-        ["time_bucket_width", "1d"],
+        ["ending_at", stamp(end)],
+        ["time_bucket_width", width],
         ["order_by", "time"],
         ["order", "asc"],
-        ["limit", "31"],
+        ["limit", "1000"],
       ];
-      const seriesBody = await optional(cost, completedDays);
-      const series = seriesBody ? parseCost(seriesBody) : null;
-      const daily = series && !series.hasMore ? series : null;
-
-      // Token counts come from the usage endpoint: completed days, then today so far as one unbucketed row.
-      let tokens = null;
-      const usage = "/v1/organizations/analytics/usage";
-      const usageBody = daily ? await optional(usage, completedDays) : null;
-      const usageRows = usageBody ? parseUsage(usageBody) : null;
-      if (usageRows) {
-        let todayRows = [];
-        if (now - dayStart >= 3600000) {
-          const todayBody = await optional(usage, [
+      // The API buckets days in UTC. UTC days are read as daily buckets, which end at today's midnight (a later
+      // end would be rounded down to it anyway), plus today as one unbucketed range, rounded down to the hour.
+      // Local days are cut from hourly buckets instead, which takes more rows and so more pages.
+      const ranges = local ? [{ parameters: bucketed(now, "1h") }] : [{ parameters: bucketed(dayStart, "1d") }];
+      if (!local && now - dayStart >= 3600000) {
+        ranges.push({
+          parameters: [
             ["starting_at", stamp(dayStart)],
             ["ending_at", stamp(now)],
-          ]);
-          todayRows = todayBody ? parseUsage(todayBody) : null;
-        }
-        if (todayRows) tokens = usageRows.concat(todayRows.map((row) => ({ ...row, day: todayLabel })));
+            ["limit", "1000"],
+          ],
+          today: true,
+        });
       }
+      const read = async (path, dimensions, parse) => {
+        let rows = [];
+        for (const range of ranges) {
+          const grouped = range.parameters.concat(dimensions.map((name) => ["group_by[]", name]));
+          const part = await series(path, grouped, parse);
+          if (!part) return null;
+          rows = rows.concat(range.today ? part.map((row) => ({ ...row, day: todayLabel })) : part);
+        }
+        return rows;
+      };
+
+      // Cost per workspace and model gives every breakdown period; token counts only exist per model.
+      const daily = await read(cost, ["workspace_id", "model"], parseCost);
+      const tokens = daily ? await read(usage, ["model"], parseUsage) : null;
 
       // Names are best effort and cached: listing is an extra permission and a CloudTrail management event.
-      const spenders = total.rows.filter((row) => row.amount > 0 && row.workspace).map((row) => row.workspace);
+      const hasWorkspaces = total.rows.some((row) => row.amount > 0 && row.workspace);
       const cacheKey = `workspaces-${region}`;
       let names = ctx.cache.get(cacheKey);
-      if (spenders.length && !names) {
+      if (hasWorkspaces && !names) {
         names = {};
         let ttl = 3600;
         try {
@@ -398,8 +489,9 @@ defineProvider({
     const quietCheckMillis = 3600000;
     const dueCheckMillis = 600000;
     const fetchRegion = async (region) => {
-      // Keyed by day so today and the month never outlive midnight, and by key so accounts never mix.
-      const cacheKey = `spend|${region}|${hex(sha256(utf8(credentials.id))).slice(0, 12)}|${todayLabel}`;
+      // Keyed by day so today and the month never outlive midnight, by key so accounts never mix, and by time
+      // zone because it decides how days are cut.
+      const cacheKey = `spend|${region}|${hex(sha256(utf8(credentials.id))).slice(0, 12)}|${zone}|${todayLabel}`;
       const cached = ctx.cache.get(cacheKey);
       if (cached) {
         const due = !(now - Date.parse(cached.watermark) < quietMillis);
@@ -423,7 +515,7 @@ defineProvider({
     const used = sum(totalRows, "amount");
     const list = sum(totalRows, "list");
     const requests = totalRows.some((row) => row.requests != null) ? sum(totalRows, "requests") : null;
-    const dailyRows = results.every((result) => result.daily) ? results.flatMap((result) => result.daily.rows) : null;
+    const dailyRows = results.every((result) => result.daily) ? results.flatMap((result) => result.daily) : null;
     const tokenRows = results.every((result) => result.tokens) ? results.flatMap((result) => result.tokens) : null;
     // The oldest watermark bounds how current the combined figure is.
     const refreshed = results
@@ -431,21 +523,35 @@ defineProvider({
       .filter(Boolean)
       .sort();
 
-    const rows = [{ label: "This month", value: ctx.format.usd(used), usageValue: used }];
+    const rows = [
+      {
+        label: "This month",
+        value: monthlyBudget ? `${ctx.format.usd(used)} of ${ctx.format.usd(monthlyBudget)}` : ctx.format.usd(used),
+        progress: monthlyBudget ? Math.min(1, Math.max(0, used / monthlyBudget)) : undefined,
+        // Even spending through the month would have consumed this fraction of the budget by now.
+        pace: monthlyBudget ? Math.min(1, Math.max(0, (now - monthStart) / (nextMonthStart - monthStart))) : undefined,
+        usageValue: used,
+      },
+    ];
+    let spentToday = null;
     let costUsage;
     if (dailyRows) {
-      // Today is the month total less this month's completed days; revisions between the two reads can only
-      // shrink it to zero.
-      const monthRows = dailyRows.filter((row) => row.day >= monthLabel);
-      const todaySpend = Math.max(0, Math.round((used - sum(monthRows, "amount")) * 1e6) / 1e6);
-      rows.push({ label: "Today", value: ctx.format.usd(todaySpend), secondaryValue: "UTC, so far" });
+      const byDay = {};
+      for (const row of dailyRows) byDay[row.day] = (byDay[row.day] || 0) + Math.max(0, row.amount);
+      spentToday = Math.round((byDay[todayLabel] || 0) * 1e6) / 1e6;
+      rows.push({
+        label: "Today",
+        value: dailyBudget
+          ? `${ctx.format.usd(spentToday)} of ${ctx.format.usd(dailyBudget)}`
+          : ctx.format.usd(spentToday),
+        secondaryValue: local ? "So far" : "UTC, so far",
+        progress: dailyBudget ? Math.min(1, Math.max(0, spentToday / dailyBudget)) : undefined,
+      });
 
       // Forecast: the month so far plus the average of the last seven completed days for the time left after
       // the watermark. Shown only when at least three of those days had spend.
-      const byDay = {};
-      for (const row of dailyRows) byDay[row.day] = (byDay[row.day] || 0) + row.amount;
       const recent = [];
-      for (let offset = 1; offset <= 7; offset += 1) recent.push(byDay[dayLabel(dayStart - offset * dayMillis)] || 0);
+      for (let offset = 1; offset <= 7; offset += 1) recent.push(byDay[dayLabel(daysAgo(offset))] || 0);
       if (recent.filter((amount) => amount > 0).length >= 3) {
         const dailyAverage = recent.reduce((total, amount) => total + amount, 0) / recent.length;
         const watermark = refreshed.length ? Date.parse(refreshed[0]) : now;
@@ -455,93 +561,143 @@ defineProvider({
           value: ctx.format.usd(used + (dailyAverage * (nextMonthStart - from)) / dayMillis),
           secondaryValue: `${ctx.format.usd(dailyAverage)} a day, 7-day average`,
         });
+        if (monthlyBudget && used < monthlyBudget) {
+          const runsOut = from + ((monthlyBudget - used) / dailyAverage) * dayMillis;
+          rows.push({
+            label: "Monthly budget lasts",
+            value: runsOut < nextMonthStart ? `Until about ${dayLabel(runsOut)}` : "Through the month",
+            severity: runsOut < nextMonthStart ? "warning" : undefined,
+          });
+        }
       }
+
       if (tokenRows) {
-        const days = {};
-        const entry = (day) =>
-          days[day] || (days[day] = { date: day, inputTokens: 0, outputTokens: 0, requests: 0, cost: 0 });
+        // One entry per day and model; rows without a model (such as code execution) stay unattributed.
+        const entries = {};
+        const entry = (row) => {
+          const key = `${row.day}|${row.model || ""}`;
+          if (!entries[key]) {
+            entries[key] = { date: row.day, inputTokens: 0, outputTokens: 0, requests: 0, cost: 0 };
+            if (row.model) entries[key].model = row.model.slice(0, 120);
+          }
+          return entries[key];
+        };
         const firstDay = dayLabel(windowStart);
-        for (const row of dailyRows) {
-          if (row.day < firstDay || row.day >= todayLabel) continue;
-          entry(row.day).cost += Math.max(0, row.amount);
-          entry(row.day).requests += Math.max(0, Math.round(row.requests || 0));
+        const inWindow = (row) => row.day >= firstDay && row.day <= todayLabel;
+        for (const row of dailyRows.filter(inWindow)) {
+          entry(row).cost += Math.max(0, row.amount);
+          entry(row).requests += Math.max(0, Math.round(row.requests || 0));
         }
-        entry(todayLabel).cost += todaySpend;
-        if (requests != null) {
-          entry(todayLabel).requests += Math.max(0, Math.round(requests - sum(monthRows, "requests")));
-        }
-        for (const row of tokenRows) {
-          if (row.day < firstDay || row.day > todayLabel) continue;
-          entry(row.day).inputTokens += row.input;
-          entry(row.day).outputTokens += row.output;
+        for (const row of tokenRows.filter(inWindow)) {
+          entry(row).inputTokens += row.input;
+          entry(row).outputTokens += row.output;
         }
         costUsage = {
           currency: "USD",
           historyDays,
-          historyLabel: "Last 30 days (UTC)",
+          // The host reads the day convention from this label.
+          historyLabel: local ? "Last 30 days (local time)" : "Last 30 days (UTC)",
           windowEnd: todayLabel,
-          entries: Object.keys(days)
+          entries: Object.keys(entries)
             .sort()
-            .map((day) => days[day]),
+            .map((key) => entries[key]),
         };
       }
     }
     if (Math.abs(list - used) >= 0.005) rows.push({ label: "At list prices", value: ctx.format.usd(list) });
     if (requests != null) rows.push({ label: "Requests", value: ctx.format.number(requests) });
-    rows.push({
-      label: "Data as of",
-      value: refreshed.length ? `${refreshed[0].slice(0, 16).replace("T", " ")} UTC` : "No data yet",
-    });
-    const nextData = refreshed.length ? Date.parse(refreshed[0]) + quietMillis : NaN;
+    const dataAsOf = refreshed.length ? Date.parse(refreshed[0]) : NaN;
+    rows.push({ label: "Data as of", value: Number.isFinite(dataAsOf) ? clock(dataAsOf) : "No data yet" });
+    const nextData = dataAsOf + quietMillis;
     if (Number.isFinite(nextData)) {
       rows.push({
         label: "Next data expected",
-        value: nextData > now ? `About ${stamp(nextData).slice(0, 16).replace("T", " ")} UTC` : "Due now",
+        value: nextData > now ? `About ${clock(nextData)}` : "Due now",
       });
     }
 
     const details = [{ title: "Spend", rows }];
-    const share = (amount) => (used > 0 ? `${Math.round((amount / used) * 100)}%` : undefined);
+    const share = (amount, total) => (total > 0 ? `${Math.round((amount / total) * 100)}%` : undefined);
     if (regions.length > 1) {
       details.push({
         title: "By region",
         rows: results.map((result) => ({
           label: result.region,
           value: ctx.format.usd(result.used),
-          secondaryValue: share(result.used),
+          secondaryValue: share(result.used, used),
           usageValue: result.used,
         })),
       });
     }
-    const spenders = results
-      .flatMap((result) =>
-        result.total.rows.map((row) => ({
-          label: row.workspace ? result.names[row.workspace] || row.workspace : `No workspace in ${result.region}`,
+
+    // Spend by model and by workspace, each over four periods. The sections are variants of one another, so
+    // the card shows one at a time behind two pickers; shares are of the period's own total.
+    const labelled = (rowsOf) =>
+      results.flatMap((result) =>
+        rowsOf(result).map((row) => ({
+          day: row.day,
           amount: row.amount,
+          model: row.model && ctx.isDetailLabel(row.model) ? row.model : "Other usage",
+          workspace: row.workspace ? result.names[row.workspace] || row.workspace : `No workspace in ${result.region}`,
         })),
-      )
-      .filter((row) => row.amount > 0)
-      .sort((left, right) => right.amount - left.amount);
-    if (spenders.length) {
-      const shown = spenders.slice(0, 10);
-      const workspaceRows = shown.map((row) => ({
+      );
+    // The month to date comes from the month-total read, so it always matches the cost meter; the other
+    // periods need the series.
+    const periods = [{ pick: "MTD", title: "Month to date", rows: labelled((result) => result.total.rows) }];
+    if (dailyRows) {
+      const series = labelled((result) => result.daily);
+      const since = (start) => {
+        const first = dayLabel(start);
+        return series.filter((row) => row.day >= first && row.day <= todayLabel);
+      };
+      periods.unshift({ pick: "30d", title: "Last 30 days", rows: since(windowStart) });
+      periods.push({ pick: "7d", title: "Last 7 days", rows: since(daysAgo(6)) });
+      periods.push({ pick: "Today", title: "Today", rows: since(dayStart) });
+    }
+    // Sums spend per label and lists the largest, folding the remainder into one row.
+    const breakdown = (period, field, limit) => {
+      const totals = {};
+      for (const row of period.rows) totals[row[field]] = (totals[row[field]] || 0) + row.amount;
+      const ranked = Object.keys(totals)
+        .map((label) => ({ label, amount: totals[label] }))
+        .filter((row) => row.amount > 0)
+        .sort((left, right) => right.amount - left.amount || (left.label < right.label ? -1 : 1));
+      const total = sum(ranked, "amount");
+      const shown = ranked.slice(0, limit);
+      const sectionRows = shown.map((row) => ({
         label: row.label,
         value: ctx.format.usd(row.amount),
-        secondaryValue: share(row.amount),
+        secondaryValue: share(row.amount, total),
         usageValue: row.amount,
       }));
-      if (spenders.length > shown.length) {
-        const rest = sum(spenders.slice(shown.length), "amount");
-        workspaceRows.push({
-          label: `${spenders.length - shown.length} more`,
+      if (ranked.length > shown.length) {
+        const rest = sum(ranked.slice(shown.length), "amount");
+        sectionRows.push({
+          label: `${ranked.length - shown.length} more`,
           value: ctx.format.usd(rest),
-          secondaryValue: share(rest),
+          secondaryValue: share(rest, total),
         });
       }
-      details.push({ title: "By workspace", rows: workspaceRows });
+      // An empty period still gets its section, so every picker combination has something to show.
+      return sectionRows.length ? sectionRows : [{ label: "No spend", value: ctx.format.usd(0) }];
+    };
+    for (const dimension of [
+      { pick: "Model", title: "By model", field: "model", limit: 8 },
+      { pick: "Workspace", title: "By workspace", field: "workspace", limit: 10 },
+    ]) {
+      for (const period of periods) {
+        details.push({
+          title: `${dimension.title} · ${period.title}`,
+          variant: [dimension.pick, period.pick],
+          rows: breakdown(period, dimension.field, dimension.limit),
+        });
+      }
     }
 
     const snapshot = {
+      primary: dailyWindow(spentToday),
+      secondary: monthlyWindow(used),
+      // The monthly budget is drawn by the window above; a limit here would add a second, identical bar.
       cost: { used, currency: "USD", period: "This month" },
       identity,
       dataConfidence: "exact",

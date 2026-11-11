@@ -4,27 +4,48 @@ public enum ClaudePlatformAWSProviderDescriptor {
     public static let accessKeyIDEnvironmentKey = "ANTHROPIC_AWS_ACCESS_KEY_ID"
     public static let secretAccessKeyEnvironmentKey = "ANTHROPIC_AWS_SECRET_ACCESS_KEY"
     public static let regionsEnvironmentKey = "ANTHROPIC_AWS_REGIONS"
-    /// Each configured region costs up to five sequential requests.
-    static let timeout: TimeInterval = 60
+    public static let monthlyBudgetEnvironmentKey = "ANTHROPIC_AWS_MONTHLY_BUDGET"
+    public static let dailyBudgetEnvironmentKey = "ANTHROPIC_AWS_DAILY_BUDGET"
+    /// `local` (the default) or `utc`: where days and months begin.
+    public static let timeZoneEnvironmentKey = "ANTHROPIC_AWS_TIME_ZONE"
+    /// Each configured region costs a handful of sequential requests, and more when a series spans several
+    /// pages, as the hourly series behind local-time days can.
+    static let timeout: TimeInterval = 120
 
     public static let spec = PluginProviderSpec(
         id: .claudeplatformaws,
         displayName: "Claude Platform on AWS",
-        sessionLabel: "Spend",
-        weeklyLabel: "Spend",
+        // Windows exist only when the optional budgets are set: today's spend, then the month's.
+        sessionLabel: "Today",
+        weeklyLabel: "This month",
         dashboardURL: nil,
         color: .init(hex: 0xD97757),
         confetti: [0xD97757, 0xFF9900],
         noDataMessage: "Claude Platform on AWS spend history needs the cost and usage analytics permissions.",
         supportsTokenCost: true,
+        // The history is the analytics API's own figures, not an estimate from local logs.
+        tokenCostHintLines: [.literal("Anthropic analytics figures · may differ from your AWS invoice")],
         environmentKey: Self.accessKeyIDEnvironmentKey,
         missingCredentialMessage: { _ in
             "Set an AWS access key ID, secret access key, and regions for Claude Platform on AWS in Settings."
         },
-        additionalProjections: [.init(
-            key: Self.secretAccessKeyEnvironmentKey,
-            value: { $0.pluginSecrets?[Self.secretAccessKeyEnvironmentKey] })],
-        menuBarMetrics: .init(supported: [.automatic]),
+        additionalProjections: [
+            .init(
+                key: Self.secretAccessKeyEnvironmentKey,
+                value: { $0.pluginSecrets?[Self.secretAccessKeyEnvironmentKey] }),
+            .init(
+                key: Self.monthlyBudgetEnvironmentKey,
+                value: { $0.pluginSettings?[Self.monthlyBudgetEnvironmentKey] }),
+            .init(
+                key: Self.dailyBudgetEnvironmentKey,
+                value: { $0.pluginSettings?[Self.dailyBudgetEnvironmentKey] }),
+            .init(
+                key: Self.timeZoneEnvironmentKey,
+                value: { $0.pluginSettings?[Self.timeZoneEnvironmentKey] }),
+        ],
+        // The projected 30-day history drives the inline spend chart and its Today/30-day summary.
+        presentation: ProviderUsagePresentation(menuCard: ProviderMenuCardPresentation(
+            supportsInlineTokenCostDashboard: true)),
         apiKeyField: .init(
             id: "claudeplatformaws-access-key-id",
             title: "Access key ID",
@@ -65,7 +86,12 @@ public enum ClaudePlatformAWSProviderDescriptor {
         resolveValues: { context in
             let cleaned: (String) -> String? = { SettingsValue.cleaned(context.env[$0]) }
             return .init(
-                settings: [Self.regionsEnvironmentKey: cleaned(Self.regionsEnvironmentKey) ?? ""],
+                settings: [
+                    Self.regionsEnvironmentKey,
+                    Self.monthlyBudgetEnvironmentKey,
+                    Self.dailyBudgetEnvironmentKey,
+                    Self.timeZoneEnvironmentKey,
+                ].reduce(into: [:]) { values, key in values[key] = cleaned(key) ?? "" },
                 secrets: [Self.accessKeyIDEnvironmentKey, Self.secretAccessKeyEnvironmentKey]
                     .reduce(into: [:]) { values, key in values[key] = cleaned(key) })
         },

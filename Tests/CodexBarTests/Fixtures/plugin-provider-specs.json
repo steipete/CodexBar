@@ -732,7 +732,7 @@
     "cliResolution": {"CLAUDEPLATFORMAWS": ["claudeplatformaws"]},
     "enterpriseHost": false,
     "environmentAvailability": [[true, true], [true, true], [true, true], [true, true]],
-    "fields": ["secure", "secure", "plain"],
+    "fields": ["secure", "secure", "plain", "plain", "plain", "plain"],
     "id": "claudeplatformaws",
     "projectToken": "",
     "projections": {"ANTHROPIC_AWS_ACCESS_KEY_ID": "fixture-key", "ANTHROPIC_AWS_REGIONS": "fixture-project"},

@@ -2806,3 +2806,10 @@
 "Required with the access key ID. Saved in the local config file. Or set ANTHROPIC_AWS_SECRET_ACCESS_KEY." = "액세스 키 ID와 함께 필요합니다. 로컬 설정 파일에 저장됩니다. 또는 ANTHROPIC_AWS_SECRET_ACCESS_KEY를 설정하세요.";
 "Required. Comma-separated AWS regions that hold your workspaces. Or set ANTHROPIC_AWS_REGIONS." = "필수. 워크스페이스가 있는 AWS 리전을 쉼표로 구분해 입력하세요. 또는 ANTHROPIC_AWS_REGIONS를 설정하세요.";
 "Claude Platform on AWS spend history needs the cost and usage analytics permissions." = "Claude Platform on AWS 지출 내역에는 비용 및 사용량 분석 권한이 필요합니다.";
+"Daily budget" = "일일 예산";
+"Optional, in USD. Compares this month's spend with the amount; it does not cap AWS billing. Or set ANTHROPIC_AWS_MONTHLY_BUDGET." = "선택 사항, USD 기준. 이번 달 지출을 이 금액과 비교합니다. AWS 청구를 제한하지는 않습니다. 또는 ANTHROPIC_AWS_MONTHLY_BUDGET을 설정하세요.";
+"Optional, in USD. Compares today's spend with the amount. Or set ANTHROPIC_AWS_DAILY_BUDGET." = "선택 사항, USD 기준. 오늘 지출을 이 금액과 비교합니다. 또는 ANTHROPIC_AWS_DAILY_BUDGET을 설정하세요.";
+"Time zone" = "시간대";
+"Where days and months begin: local (default, this Mac's time zone) or utc. Or set ANTHROPIC_AWS_TIME_ZONE." = "일과 월이 시작되는 기준: local(기본값, 이 Mac의 시간대) 또는 utc. 또는 ANTHROPIC_AWS_TIME_ZONE을 설정하세요.";
+"local" = "local";
+"Anthropic analytics figures · may differ from your AWS invoice" = "Anthropic 분석 수치 · AWS 청구서와 다를 수 있음";

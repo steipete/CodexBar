@@ -2816,3 +2816,10 @@
 "Required with the access key ID. Saved in the local config file. Or set ANTHROPIC_AWS_SECRET_ACCESS_KEY." = "需與存取金鑰 ID 一起使用。儲存在本機設定檔中。或設定 ANTHROPIC_AWS_SECRET_ACCESS_KEY。";
 "Required. Comma-separated AWS regions that hold your workspaces. Or set ANTHROPIC_AWS_REGIONS." = "必填。包含你的工作區的 AWS 區域，以逗號分隔。或設定 ANTHROPIC_AWS_REGIONS。";
 "Claude Platform on AWS spend history needs the cost and usage analytics permissions." = "Claude Platform on AWS 支出記錄需要成本與用量分析權限。";
+"Daily budget" = "每日預算";
+"Optional, in USD. Compares this month's spend with the amount; it does not cap AWS billing. Or set ANTHROPIC_AWS_MONTHLY_BUDGET." = "選填，以美元計。將本月支出與該金額比較；不會限制 AWS 帳單。或設定 ANTHROPIC_AWS_MONTHLY_BUDGET。";
+"Optional, in USD. Compares today's spend with the amount. Or set ANTHROPIC_AWS_DAILY_BUDGET." = "選填，以美元計。將今日支出與該金額比較。或設定 ANTHROPIC_AWS_DAILY_BUDGET。";
+"Time zone" = "時區";
+"Where days and months begin: local (default, this Mac's time zone) or utc. Or set ANTHROPIC_AWS_TIME_ZONE." = "日與月的起始位置：local（預設，此 Mac 的時區）或 utc。或設定 ANTHROPIC_AWS_TIME_ZONE。";
+"local" = "local";
+"Anthropic analytics figures · may differ from your AWS invoice" = "Anthropic 分析數據 · 可能與 AWS 帳單不同";
