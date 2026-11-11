@@ -46,30 +46,32 @@ public enum ClaudePlatformAWSProviderDescriptor {
         Self.regionsEnvironmentKey,
     ]
 
+    /// One strategy for the process: it owns the plugin runtime, whose in-memory cache holds each region's last
+    /// result between refreshes. A strategy per refresh would start every refresh with an empty cache.
+    private static let strategy = ScriptFetchStrategy(
+        id: "claudeplatformaws.js",
+        provider: .claudeplatformaws,
+        bundledPlugin: "claudeplatformaws",
+        sourceLabel: "api",
+        timeout: Self.timeout,
+        validateContext: { context in
+            guard Self.requiredKeys.allSatisfy({ SettingsValue.cleaned(context.env[$0]) != nil }) else {
+                throw ProviderFetchClassifiedError(
+                    kind: .missingCredential,
+                    message: "Claude Platform on AWS requires an AWS access key ID, secret access key, "
+                        + "and at least one region.")
+            }
+        },
+        resolveValues: { context in
+            let cleaned: (String) -> String? = { SettingsValue.cleaned(context.env[$0]) }
+            return .init(
+                settings: [Self.regionsEnvironmentKey: cleaned(Self.regionsEnvironmentKey) ?? ""],
+                secrets: [Self.accessKeyIDEnvironmentKey, Self.secretAccessKeyEnvironmentKey]
+                    .reduce(into: [:]) { values, key in values[key] = cleaned(key) })
+        },
+        isEnabled: { _ in true })
+
     public static let descriptor = Self.spec.makeDescriptor(fetchPlan: ProviderFetchPlan(
         sourceModes: [.auto, .api],
-        pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
-            [ScriptFetchStrategy(
-                id: "claudeplatformaws.js",
-                provider: .claudeplatformaws,
-                bundledPlugin: "claudeplatformaws",
-                sourceLabel: "api",
-                timeout: Self.timeout,
-                validateContext: { context in
-                    guard Self.requiredKeys.allSatisfy({ SettingsValue.cleaned(context.env[$0]) != nil }) else {
-                        throw ProviderFetchClassifiedError(
-                            kind: .missingCredential,
-                            message: "Claude Platform on AWS requires an AWS access key ID, secret access key, "
-                                + "and at least one region.")
-                    }
-                },
-                resolveValues: { context in
-                    let cleaned: (String) -> String? = { SettingsValue.cleaned(context.env[$0]) }
-                    return .init(
-                        settings: [Self.regionsEnvironmentKey: cleaned(Self.regionsEnvironmentKey) ?? ""],
-                        secrets: [Self.accessKeyIDEnvironmentKey, Self.secretAccessKeyEnvironmentKey]
-                            .reduce(into: [:]) { values, key in values[key] = cleaned(key) })
-                },
-                isEnabled: { _ in true })]
-        })))
+        pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [Self.strategy] })))
 }

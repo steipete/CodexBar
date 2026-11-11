@@ -52,15 +52,32 @@ plugin host has no AWS credential or SigV4 support, and sends them only to
 - **This month**: month-to-date cost from `GET /v1/organizations/analytics/cost`, grouped by workspace and summed
   across regions. This is also the cost meter.
 - **Today**: the month total less this month's completed UTC days.
+- **Projected this month**: the month so far plus the average of the last seven completed days for the time left
+  after the data watermark. Shown only when at least three of those days had spend; it never changes the reported
+  spend or the cost meter.
 - **30-day history**: daily cost, requests, and input and output tokens (from `/v1/organizations/analytics/usage`),
   shown in the inline spend dashboard and in Usage & Spend. Days are UTC days.
 - **By region** (with more than one region) and **By workspace** (top ten by spend).
-- **At list prices** when it differs from the charged amount, the request count, and **Data as of**, the oldest
-  refresh watermark among the regions.
+- **At list prices** when it differs from the charged amount, the request count, **Data as of** (the oldest
+  refresh watermark among the regions), and **Next data expected** (four hours after that watermark).
 
 Missing daily or token series leave the month total in place and omit the 30-day history rather than inventing
 zeros. A region that fails its month-total request fails the refresh and is named in the error, because a partial
 sum would understate spend.
+
+## Refresh behavior
+
+Analytics data changes only when its watermark advances, typically every four hours, so most refreshes would
+re-read identical numbers. Each region's last complete result is therefore kept in memory:
+
+- Until four hours after the watermark, refreshes reuse it and re-check the region at most once an hour.
+- After that, a single month-total request (at most every ten minutes) looks for a newer watermark.
+- Only a newer watermark triggers the daily cost and token requests.
+
+Four hours is the documented typical cadence, used as a hint for when to look, not as a schedule. The kept result
+is dropped at UTC midnight and when CodexBar restarts, is never written to disk, and is not used when its daily or
+token series was unavailable. A manual refresh follows the same rules, so during the quiet period it can show data
+up to an hour older than the API has.
 
 ## Limits
 

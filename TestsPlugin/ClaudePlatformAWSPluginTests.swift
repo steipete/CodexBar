@@ -33,6 +33,7 @@ struct ClaudePlatformAWSPluginTests {
             ]),
         ]
         var dailyCode = 200
+        var extraWestDailyRows: [String] = []
         var usageCode = 200
         var workspaceCode = ["us-west-2": 200, "us-east-1": 403]
     }
@@ -52,8 +53,13 @@ struct ClaudePlatformAWSPluginTests {
 
         #expect(snapshot.details.map(\.title) == ["Spend", "By region", "By workspace"])
         let spend = snapshot.details[0].rows
-        #expect(spend.map(\.label) == ["This month", "Today", "At list prices", "Requests", "Data as of"])
-        #expect(spend.map(\.value) == ["$485.60", "$135.60", "$588.80", "1,450", "2026-11-11 12:02 UTC"])
+        // One day with spend in the last seven is too little history for a projection.
+        #expect(spend.map(\.label) == [
+            "This month", "Today", "At list prices", "Requests", "Data as of", "Next data expected",
+        ])
+        #expect(spend.map(\.value) == [
+            "$485.60", "$135.60", "$588.80", "1,450", "2026-11-11 12:02 UTC", "About 2026-11-11 16:02 UTC",
+        ])
         #expect(snapshot.details[1].rows.map(\.label) == ["us-west-2", "us-east-1"])
         #expect(snapshot.details[1].rows.map(\.value) == ["$412.80", "$72.80"])
         #expect(snapshot.details[1].rows.map(\.secondaryValue) == ["85%", "15%"])
@@ -88,6 +94,60 @@ struct ClaudePlatformAWSPluginTests {
     }
 
     @Test(arguments: BundledPluginTestSupport.engines)
+    func `three recent spending days project the month from the seven day average`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        var fixture = Fixture()
+        fixture.extraWestDailyRows = [
+            Self.costRow("2026-11-08T00:00:00Z", amount: "2100.000000", requests: 10),
+            Self.costRow("2026-11-09T00:00:00Z", amount: "3500.000000", requests: 10),
+            Self.costRow("2026-11-10T00:00:00Z", amount: "1400.000000", requests: 10),
+        ]
+        let snapshot = try await Self.usage(Self.runtime(engine: engine, fixture: fixture), regions: "us-west-2")
+        let row = try #require(snapshot.details[0].rows.first { $0.label == "Projected this month" })
+        // Seven completed days total $370.00 ($300 + $21 + $35 + $14), so $52.86 a day. That rate for the
+        // 19.4985 days after the 12:02:11Z watermark is added to the $412.80 spent so far.
+        #expect(row.value == "$1,443.43")
+        #expect(row.secondaryValue == "$52.86 a day, 7-day average")
+        // The projection never changes the reported spend.
+        #expect(abs((snapshot.providerCost?.used ?? 0) - 412.8) < 0.000_001)
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `refreshes reuse a region until its watermark is due and then advances`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let recorder = Recorder()
+        let runtime = try Self.runtime(engine: engine, recorder: recorder)
+        let at: (TimeInterval) -> Date = { Self.wallClock.addingTimeInterval($0) }
+        let series = ["cost:daily", "usage:daily", "usage:plain"]
+
+        // 15:30:10, watermark 12:02:11: a full read.
+        let first = try await Self.usage(runtime, regions: "us-west-2", now: at(0))
+        #expect(await recorder.drain() == ["cost:total"] + series + ["workspaces:plain"])
+
+        // Quiet: under four hours since the watermark and under an hour since the last check.
+        let quiet = try await Self.usage(runtime, regions: "us-west-2", now: at(30 * 60))
+        #expect(await recorder.drain().isEmpty)
+        #expect(quiet.providerCost?.used == first.providerCost?.used)
+
+        // Due at 16:10: one month-total read finds the same watermark and keeps the cached series.
+        _ = try await Self.usage(runtime, regions: "us-west-2", now: at(40 * 60))
+        #expect(await recorder.drain() == ["cost:total"])
+        // Due checks are spaced ten minutes apart.
+        _ = try await Self.usage(runtime, regions: "us-west-2", now: at(45 * 60))
+        #expect(await recorder.drain().isEmpty)
+
+        // A newer watermark triggers the series reads; workspace names stay cached.
+        await recorder.advanceWatermark(to: "2026-11-11T16:05:00Z")
+        let advanced = try await Self.usage(runtime, regions: "us-west-2", now: at(51 * 60))
+        #expect(await recorder.drain() == ["cost:total"] + series)
+        #expect(advanced.details[0].rows.first { $0.label == "Data as of" }?.value == "2026-11-11 16:05 UTC")
+        #expect(advanced.details[0].rows.first { $0.label == "Next data expected" }?.value
+            == "About 2026-11-11 20:05 UTC")
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
     func `unavailable history keeps the month total without inventing daily spend`(
         engine: ProviderPluginEngineKind) async throws
     {
@@ -96,7 +156,7 @@ struct ClaudePlatformAWSPluginTests {
         let withoutDaily = try await Self.fetch(engine: engine, fixture: fixture)
         #expect(withoutDaily.costUsage == nil)
         #expect(withoutDaily.details[0].rows.map(\.label) == [
-            "This month", "At list prices", "Requests", "Data as of",
+            "This month", "At list prices", "Requests", "Data as of", "Next data expected",
         ])
         #expect(abs((withoutDaily.providerCost?.used ?? 0) - 485.6) < 0.000_001)
 
@@ -232,7 +292,30 @@ struct ClaudePlatformAWSPluginTests {
         regions: String = "us-west-2, US-EAST-1, us-west-2",
         fixture: Fixture = Fixture()) async throws -> UsageSnapshot
     {
-        let runtime = try BundledPluginTestSupport.runtime(
+        try await self.usage(self.runtime(engine: engine, fixture: fixture), regions: regions)
+    }
+
+    private static func usage(
+        _ runtime: ProviderPluginRuntime,
+        regions: String,
+        now: Date = ClaudePlatformAWSPluginTests.wallClock) async throws -> UsageSnapshot
+    {
+        try await runtime.fetchUsage(
+            settings: ["ANTHROPIC_AWS_REGIONS": regions],
+            secrets: [
+                "ANTHROPIC_AWS_ACCESS_KEY_ID": "AKIAFIXTURE",
+                "ANTHROPIC_AWS_SECRET_ACCESS_KEY": "fixture-secret",
+            ],
+            now: now)
+    }
+
+    /// A recorder makes the refresh clock and watermark movable, so exact first-refresh queries are not asserted.
+    private static func runtime(
+        engine: ProviderPluginEngineKind,
+        fixture: Fixture = Fixture(),
+        recorder: Recorder? = nil) throws -> ProviderPluginRuntime
+    {
+        try BundledPluginTestSupport.runtime(
             "claudeplatformaws", engine: engine, wallClock: Self.wallClock,
             transport: ProviderHTTPTransportHandler { request in
                 let url = try #require(request.url)
@@ -255,7 +338,7 @@ struct ClaudePlatformAWSPluginTests {
                 switch url.path {
                 case "/v1/organizations/analytics/cost" where query.contains("group_by%5B%5D=workspace_id"):
                     #expect(request.value(forHTTPHeaderField: "anthropic-beta") == "analytics-usage-cost-2026-08-24")
-                    if west {
+                    if west, recorder == nil {
                         #expect(query == "ending_at=2026-11-11T15%3A30%3A10Z&group_by%5B%5D=workspace_id"
                             + "&limit=1000&starting_at=2026-11-01T00%3A00%3A00Z")
                         #expect(authorization == Self.westTotalAuthorization)
@@ -268,7 +351,7 @@ struct ClaudePlatformAWSPluginTests {
                         ? [
                             Self.costRow("2026-10-20T00:00:00Z", amount: "1500.000000", requests: 40),
                             Self.costRow("2026-11-05T00:00:00Z", amount: "30000.000000", requests: 900),
-                        ]
+                        ] + fixture.extraWestDailyRows
                         : [Self.costRow("2026-11-05T00:00:00Z", amount: "5000.000000", requests: 100)]
                     (body, status) = (Self.page(rows), fixture.dailyCode)
                 case "/v1/organizations/analytics/usage" where query.contains("time_bucket_width=1d"):
@@ -282,7 +365,9 @@ struct ClaudePlatformAWSPluginTests {
                         : []
                     (body, status) = (Self.page(rows), fixture.usageCode)
                 case "/v1/organizations/analytics/usage":
-                    #expect(query == "ending_at=2026-11-11T15%3A30%3A10Z&starting_at=2026-11-11T00%3A00%3A00Z")
+                    if recorder == nil {
+                        #expect(query == "ending_at=2026-11-11T15%3A30%3A10Z&starting_at=2026-11-11T00%3A00%3A00Z")
+                    }
                     let rows = west ? [Self.usageRow("2026-11-11T00:00:00Z", uncached: 400, output: 50)] : []
                     (body, status) = (Self.page(rows), fixture.usageCode)
                 case "/v1/organizations/workspaces":
@@ -296,18 +381,34 @@ struct ClaudePlatformAWSPluginTests {
                     Issue.record("Unexpected request path \(url.path)")
                     (body, status) = ("{}", 404)
                 }
+                let kind = query.contains("group_by") ? "total" : query.contains("time_bucket_width") ? "daily" : "plain"
+                let watermark = await recorder?.record("\(url.lastPathComponent):\(kind)")
+                let served = watermark.map { body.replacingOccurrences(of: Self.refreshedAt, with: $0) } ?? body
                 let response = try #require(HTTPURLResponse(
                     url: url,
                     statusCode: status,
                     httpVersion: nil,
                     headerFields: ["Content-Type": "application/json", "Retry-After": "0"]))
-                return (Data(body.utf8), response)
+                return (Data(served.utf8), response)
             })
-        return try await runtime.fetchUsage(
-            settings: ["ANTHROPIC_AWS_REGIONS": regions],
-            secrets: [
-                "ANTHROPIC_AWS_ACCESS_KEY_ID": "AKIAFIXTURE",
-                "ANTHROPIC_AWS_SECRET_ACCESS_KEY": "fixture-secret",
-            ])
+    }
+
+    private actor Recorder {
+        private var requests: [String] = []
+        private var watermark = ClaudePlatformAWSPluginTests.refreshedAt
+
+        func record(_ request: String) -> String {
+            self.requests.append(request)
+            return self.watermark
+        }
+
+        func advanceWatermark(to watermark: String) {
+            self.watermark = watermark
+        }
+
+        func drain() -> [String] {
+            defer { self.requests = [] }
+            return self.requests
+        }
     }
 }

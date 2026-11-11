@@ -182,9 +182,11 @@ defineProvider({
     };
 
     // Days and months are UTC, the granularity the analytics API buckets by.
-    const now = Date.now();
+    // The host refresh clock drives the calendar and the cache; signing above uses the wall clock.
+    const now = ctx.date.nowMillis();
     const today = new Date(now);
     const monthStart = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1);
+    const nextMonthStart = Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 1);
     const dayStart = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
     const dayMillis = 86400000;
     const stamp = (millis) => new Date(millis).toISOString().replace(/\.\d+Z$/, "Z");
@@ -268,9 +270,9 @@ defineProvider({
     };
     const sum = (rows, field) => rows.reduce((total, row) => total + (row[field] || 0), 0);
 
+    const cost = "/v1/organizations/analytics/cost";
     // A failed region fails the refresh: a partial sum would silently understate the month.
-    const fetchRegion = async (region) => {
-      const cost = "/v1/organizations/analytics/cost";
+    const fetchTotal = async (region) => {
       // Grouped by workspace so one read gives both the breakdown and, summed, the month total.
       const response = await get(
         region,
@@ -308,7 +310,10 @@ defineProvider({
       if (total.hasMore) {
         throw ctx.fail.apiFailure(`More than 1,000 workspaces have spend in ${region}; the total would be incomplete.`);
       }
+      return total;
+    };
 
+    const fetchSeries = async (region, total) => {
       // The series below are best effort: without them the month total still stands, minus today's split
       // and the 30-day history.
       const optional = async (path, parameters) => {
@@ -385,6 +390,32 @@ defineProvider({
       return { region, total, daily, tokens, names: names || {}, used: sum(total.rows, "amount") };
     };
 
+    // Analytics data only moves when its watermark does, typically every four hours. Until an update is due
+    // the last complete result is reused; after that a single month-total read looks for a newer watermark,
+    // and only a newer one triggers the series reads. Four hours is a hint for when to look, not a schedule,
+    // so a quiet region is still checked hourly.
+    const quietMillis = 4 * 3600000;
+    const quietCheckMillis = 3600000;
+    const dueCheckMillis = 600000;
+    const fetchRegion = async (region) => {
+      // Keyed by day so today and the month never outlive midnight, and by key so accounts never mix.
+      const cacheKey = `spend|${region}|${hex(sha256(utf8(credentials.id))).slice(0, 12)}|${todayLabel}`;
+      const cached = ctx.cache.get(cacheKey);
+      if (cached) {
+        const due = !(now - Date.parse(cached.watermark) < quietMillis);
+        const sinceCheck = now - cached.checkedAt;
+        if (sinceCheck >= 0 && sinceCheck < (due ? dueCheckMillis : quietCheckMillis)) return cached.result;
+      }
+      const total = await fetchTotal(region);
+      const unchanged = cached && total.refreshedAt === cached.watermark;
+      const result = unchanged ? cached.result : await fetchSeries(region, total);
+      // An incomplete result is retried on the next refresh instead of being held for hours.
+      if (result.daily && result.tokens) {
+        ctx.cache.set(cacheKey, { result, watermark: total.refreshedAt, checkedAt: now }, 21600);
+      }
+      return result;
+    };
+
     const results = [];
     for (const region of regions) results.push(await fetchRegion(region));
 
@@ -408,6 +439,23 @@ defineProvider({
       const monthRows = dailyRows.filter((row) => row.day >= monthLabel);
       const todaySpend = Math.max(0, Math.round((used - sum(monthRows, "amount")) * 1e6) / 1e6);
       rows.push({ label: "Today", value: ctx.format.usd(todaySpend), secondaryValue: "UTC, so far" });
+
+      // Forecast: the month so far plus the average of the last seven completed days for the time left after
+      // the watermark. Shown only when at least three of those days had spend.
+      const byDay = {};
+      for (const row of dailyRows) byDay[row.day] = (byDay[row.day] || 0) + row.amount;
+      const recent = [];
+      for (let offset = 1; offset <= 7; offset += 1) recent.push(byDay[dayLabel(dayStart - offset * dayMillis)] || 0);
+      if (recent.filter((amount) => amount > 0).length >= 3) {
+        const dailyAverage = recent.reduce((total, amount) => total + amount, 0) / recent.length;
+        const watermark = refreshed.length ? Date.parse(refreshed[0]) : now;
+        const from = Math.min(now, Math.max(monthStart, Number.isFinite(watermark) ? watermark : now));
+        rows.push({
+          label: "Projected this month",
+          value: ctx.format.usd(used + (dailyAverage * (nextMonthStart - from)) / dayMillis),
+          secondaryValue: `${ctx.format.usd(dailyAverage)} a day, 7-day average`,
+        });
+      }
       if (tokenRows) {
         const days = {};
         const entry = (day) =>
@@ -444,6 +492,13 @@ defineProvider({
       label: "Data as of",
       value: refreshed.length ? `${refreshed[0].slice(0, 16).replace("T", " ")} UTC` : "No data yet",
     });
+    const nextData = refreshed.length ? Date.parse(refreshed[0]) + quietMillis : NaN;
+    if (Number.isFinite(nextData)) {
+      rows.push({
+        label: "Next data expected",
+        value: nextData > now ? `About ${stamp(nextData).slice(0, 16).replace("T", " ")} UTC` : "Due now",
+      });
+    }
 
     const details = [{ title: "Spend", rows }];
     const share = (amount) => (used > 0 ? `${Math.round((amount / used) * 100)}%` : undefined);
