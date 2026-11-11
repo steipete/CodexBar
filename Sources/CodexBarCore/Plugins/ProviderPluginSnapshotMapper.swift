@@ -148,9 +148,10 @@ enum ProviderPluginSnapshotMapper {
         }
         let count = try self.boundedArrayCount(
             value,
-            maximum: ProviderDetailSection.maximumSectionsPerSnapshot,
+            maximum: ProviderDetailSection.maximumSectionsPerSnapshot
+                + ProviderDetailSection.maximumVariantSectionsPerSnapshot,
             path: "details")
-        return try (0..<count).map { index in
+        let sections = try (0..<count).map { index in
             guard let section = value.element(at: index), section.isObject, !section.isArray else {
                 throw ProviderPluginError.invalidSnapshot("details[\(index)] must be an object")
             }
@@ -177,7 +178,32 @@ enum ProviderPluginSnapshotMapper {
                     usageValue: self.optionalFiniteNumber(row, property: "usageValue", path: rowPath))
             }
             let chart = try self.detailChart(section, path: path)
-            return try ProviderDetailSection(title: title, rows: rows, chart: chart)
+            let variant = try self.detailVariant(section, path: path)
+            return try ProviderDetailSection(title: title, rows: rows, chart: chart, variant: variant)
+        }
+        guard ProviderDetailSection.sectionsFitLimits(sections) else {
+            throw ProviderPluginError.invalidSnapshot(
+                "details exceeds \(ProviderDetailSection.maximumSectionsPerSnapshot) sections "
+                    + "(or \(ProviderDetailSection.maximumVariantSectionsPerSnapshot) variant sections)")
+        }
+        return sections
+    }
+
+    private static func detailVariant(_ section: any ProviderPluginValue, path: String) throws -> [String]? {
+        guard let value = section.property("variant"), !value.isUndefined, !value.isNull else { return nil }
+        let invalid = ProviderPluginError.invalidSnapshot(
+            "\(path).variant must be an array of 1 to \(ProviderDetailSection.maximumVariantLabels) labels")
+        guard value.isArray else { throw invalid }
+        let count = try self.boundedArrayCount(
+            value,
+            maximum: ProviderDetailSection.maximumVariantLabels,
+            path: "\(path).variant")
+        guard count > 0 else { throw invalid }
+        return try (0..<count).map { index in
+            guard let label = value.element(at: index), label.isString else { throw invalid }
+            let text = label.stringValue().trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty, text.count <= ProviderDetailSection.maximumStringLength else { throw invalid }
+            return text
         }
     }
 

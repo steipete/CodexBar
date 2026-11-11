@@ -68,10 +68,26 @@ extension StatusItemController {
             sender.representedObject = object
             NSApp.sendAction(selector, to: self, from: sender)
         })
+        let layoutAction = MenuCardLayoutAction(invalidate: { [weak self, actionTarget] in
+            // NSMenu tracking does not drain main-actor Tasks, but the main queue still runs; by then SwiftUI
+            // has applied the state change that altered the content height.
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    // Cached heights are keyed by content, which does not know the card's own view state.
+                    self.menuCardHeightCache.removeAll(keepingCapacity: true)
+                    guard let view = actionTarget.item?.view, let measuring = view as? any MenuCardMeasuring
+                    else { return }
+                    let width = view.frame.width
+                    measuring.applyMeasuredSize(width: width, height: self.menuCardHeight(for: view, width: width))
+                }
+            }
+        })
         let payload = MenuCardRowPayload(
             content: AnyView(view
                 .environment(\.providerMenuChartSettings, self.settings)
-                .environment(\.providerCardAction, cardAction)),
+                .environment(\.providerCardAction, cardAction)
+                .environment(\.menuCardLayout, layoutAction)),
             showsSubmenuIndicator: submenu != nil,
             submenuIndicatorAlignment: submenuIndicatorAlignment,
             submenuIndicatorTopPadding: submenuIndicatorTopPadding,

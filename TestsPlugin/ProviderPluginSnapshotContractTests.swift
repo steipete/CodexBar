@@ -49,6 +49,34 @@ struct ProviderPluginSnapshotContractTests {
     }
 
     @Test(arguments: ProviderPluginTransportTests.engines)
+    func `detail variants are kept and counted apart from ordinary sections`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let section: (String) -> String = { extra in "{ rows: [{ label: 'Row', value: '1' }]\(extra) }" }
+        let sections: (Int, Int) -> String = { ordinary, variants in
+            (Array(repeating: section(""), count: ordinary)
+                + (0..<variants).map { section(", variant: [' Model ', 'P\($0)']") }).joined(separator: ",")
+        }
+        let runtime = try ProviderPluginTransportTests.runtime(engine, body: """
+        if (ctx.env.supportsDetailVariants !== true) throw new Error('missing support');
+        return { details: [\(sections(8, 16))] };
+        """)
+        let details = try await runtime.fetchUsage().details
+        #expect(details.count == 24)
+        #expect(details[7].variant == nil)
+        #expect(details[8].variant == ["Model", "P0"])
+
+        for body in [
+            sections(9, 0), sections(0, 17),
+            section(", variant: []"), section(", variant: 'Model'"), section(", variant: ['a', 'b', 'c', 'd']"),
+            section(", variant: [1]"), section(", variant: ['  ']"),
+        ] {
+            let runtime = try ProviderPluginTransportTests.runtime(engine, body: "return { details: [\(body)] };")
+            await #expect(throws: ProviderPluginError.self) { try await runtime.fetchUsage() }
+        }
+    }
+
+    @Test(arguments: ProviderPluginTransportTests.engines)
     func `snapshot numeric and knowledge fields reject invalid types and ranges`(
         engine: ProviderPluginEngineKind) async throws
     {

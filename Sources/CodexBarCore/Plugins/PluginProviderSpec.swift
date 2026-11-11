@@ -46,6 +46,9 @@ public struct PluginProviderSpec: Sendable {
     public var progressColorStyle: ProviderBranding.ProgressColorStyle = .brand
     public let noDataMessage: String
     public var supportsTokenCost = false
+    /// Lines under the spend history. Without any, the card falls back to the local-log estimate note, which is
+    /// wrong for providers whose history comes from a vendor API.
+    public var tokenCostHintLines: [ProviderTokenCostHint] = []
     public var settingsSection: ProviderSettingsSectionRegistration?
     public var pluginResultPolicy = ProviderPluginResultPolicy()
     public var history: ProviderHistoryCapability = .optIn
@@ -153,7 +156,9 @@ public struct PluginProviderSpec: Sendable {
                 widgetColor: self.widgetColor,
                 progressColorStyle: self.progressColorStyle),
             tokenCost: ProviderTokenCostConfig(
-                supportsTokenCost: self.supportsTokenCost, noDataMessage: { self.noDataMessage }),
+                supportsTokenCost: self.supportsTokenCost,
+                noDataMessage: { self.noDataMessage },
+                menuHintLines: self.tokenCostHintLines),
             history: self.history,
             presentation: self.presentation,
             fetchPlan: fetchPlan,

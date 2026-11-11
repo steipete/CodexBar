@@ -262,7 +262,8 @@ struct UsageMenuCardView: View {
                     ProviderDetailSectionsContent(
                         sections: liveModel.providerDetails,
                         chartColor: liveModel.progressColor,
-                        paceVisible: liveModel.detailPaceVisible)
+                        paceVisible: liveModel.detailPaceVisible,
+                        provider: liveModel.provider.instanceID)
                 }
             } else {
                 let hasUsage = liveModel.hasUsageContent
@@ -735,7 +736,8 @@ private struct UsageMenuCardUsageContentView: View {
             ProviderDetailSectionsContent(
                 sections: self.model.providerDetails,
                 chartColor: self.model.progressColor,
-                paceVisible: self.model.detailPaceVisible)
+                paceVisible: self.model.detailPaceVisible,
+                provider: self.model.provider.instanceID)
         }
     }
 }

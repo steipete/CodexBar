@@ -24,7 +24,8 @@ extension UsageMenuCardView.Model {
                 return try? ProviderDetailSection(
                     title: section.title.map(L),
                     rows: rows,
-                    chart: section.chart)
+                    chart: section.chart,
+                    variant: section.variant)
             }
         }
         return details.compactMap { section in
@@ -50,7 +51,8 @@ extension UsageMenuCardView.Model {
             return try? ProviderDetailSection(
                 title: section.title.map(L),
                 rows: rows,
-                chart: chart)
+                chart: chart,
+                variant: section.variant)
         }
     }
 

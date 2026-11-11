@@ -1,22 +1,148 @@
 import CodexBarCore
 import SwiftUI
 
+/// Sections in display order, with each run of alternative sections folded into one switchable group.
+enum ProviderDetailBlock: Equatable {
+    case section(ProviderDetailSection)
+    case group(ProviderDetailVariantGroup)
+
+    static func blocks(_ sections: [ProviderDetailSection]) -> [Self] {
+        var blocks: [Self] = []
+        for section in sections {
+            guard let variant = section.variant else {
+                blocks.append(.section(section))
+                continue
+            }
+            // A repeated variant starts a new group instead of becoming unreachable behind its twin.
+            if case let .group(group) = blocks.last,
+               group.sections[0].variant?.count == variant.count,
+               !group.sections.contains(where: { $0.variant == variant })
+            {
+                blocks[blocks.count - 1] = .group(.init(sections: group.sections + [section]))
+            } else {
+                blocks.append(.group(.init(sections: [section])))
+            }
+        }
+        return blocks
+    }
+}
+
+struct ProviderDetailVariantGroup: Equatable {
+    /// Never empty, and every section has a variant with the same number of labels.
+    let sections: [ProviderDetailSection]
+
+    /// One list of choices per label position, in first-seen order.
+    var pickers: [[String]] {
+        let variants = self.sections.compactMap(\.variant)
+        return (variants.first ?? []).indices.map { position in
+            var options: [String] = []
+            for variant in variants where !options.contains(variant[position]) {
+                options.append(variant[position])
+            }
+            return options
+        }
+    }
+
+    /// The stored choice when a section still matches it, otherwise the first section's.
+    func selection(_ stored: [String]?) -> [String] {
+        if let stored, self.sections.contains(where: { $0.variant == stored }) {
+            return stored
+        }
+        return self.sections[0].variant ?? []
+    }
+
+    /// The selection after one picker changes. When no section has the exact combination, the first one
+    /// offering the new choice wins, so a picker never leads to an empty card.
+    func selection(_ current: [String], choosing option: String, at position: Int) -> [String] {
+        var next = current
+        guard next.indices.contains(position) else { return current }
+        next[position] = option
+        if self.sections.contains(where: { $0.variant == next }) {
+            return next
+        }
+        return self.sections.first { $0.variant?[position] == option }?.variant ?? current
+    }
+}
+
+/// Lets card content whose height depends on its own view state ask the hosting menu row to re-measure.
+struct MenuCardLayoutAction {
+    var invalidate: (@MainActor @Sendable () -> Void)?
+}
+
+extension EnvironmentValues {
+    @Entry var menuCardLayout = MenuCardLayoutAction()
+}
+
+extension SettingsStore {
+    private static let detailVariantSelectionsKey = "providerDetailVariantSelections"
+
+    func detailVariantSelection(for provider: ProviderInstanceID) -> [String]? {
+        let selections = self.userDefaults.dictionary(forKey: Self.detailVariantSelectionsKey) as? [String: [String]]
+        return selections?[provider.rawValue]
+    }
+
+    func setDetailVariantSelection(_ selection: [String], for provider: ProviderInstanceID) {
+        var selections = self.userDefaults
+            .dictionary(forKey: Self.detailVariantSelectionsKey) as? [String: [String]] ?? [:]
+        selections[provider.rawValue] = selection
+        self.userDefaults.set(selections, forKey: Self.detailVariantSelectionsKey)
+    }
+}
+
 struct ProviderDetailSectionsContent: View {
     let sections: [ProviderDetailSection]
     let chartColor: Color
     var paceVisible: Bool = true
+    /// Remembers variant picker choices for this provider; without it they last as long as the view.
+    var provider: ProviderInstanceID?
     @Environment(\.menuItemHighlighted) private var isHighlighted
+    @Environment(\.providerMenuChartSettings) private var settings
+    @Environment(\.menuCardLayout) private var layout
+    @State private var localSelection: [String]?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ForEach(Array(self.sections.enumerated()), id: \.offset) { index, section in
+            ForEach(Array(ProviderDetailBlock.blocks(self.sections).enumerated()), id: \.offset) { index, block in
                 if index > 0 {
                     Divider()
                 }
-                self.section(section)
+                switch block {
+                case let .section(section):
+                    self.section(section)
+                case let .group(group):
+                    self.group(group)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func group(_ group: ProviderDetailVariantGroup) -> some View {
+        let stored = self.localSelection ?? self.provider.flatMap { self.settings?.detailVariantSelection(for: $0) }
+        let selection = group.selection(stored)
+        return VStack(alignment: .leading, spacing: 6) {
+            ForEach(Array(group.pickers.enumerated()), id: \.offset) { position, options in
+                if options.count > 1 {
+                    ProviderDetailVariantPicker(
+                        options: options,
+                        selection: Binding(
+                            get: { selection[position] },
+                            set: { option in
+                                // NSMenu tracking does not drain main-actor Tasks; update view state in this event.
+                                let next = group.selection(selection, choosing: option, at: position)
+                                self.localSelection = next
+                                if let provider = self.provider {
+                                    self.settings?.setDetailVariantSelection(next, for: provider)
+                                }
+                                // Alternatives differ in height, so the menu row is measured again.
+                                self.layout.invalidate?()
+                            }))
+                }
+            }
+            if let section = group.sections.first(where: { $0.variant == selection }) {
+                self.section(section)
+            }
+        }
     }
 
     private static func progressColor(_ severity: ProviderDetailSection.Row.Severity?, fallback: Color) -> Color {
@@ -84,6 +210,47 @@ struct ProviderDetailSectionsContent: View {
                 ProviderDetailChartContent(chart: chart, color: self.chartColor)
             }
         }
+    }
+}
+
+private struct ProviderDetailVariantPicker: View {
+    let options: [String]
+    @Binding var selection: String
+    @Environment(\.menuItemHighlighted) private var isHighlighted
+
+    var body: some View {
+        // Plain SwiftUI buttons on purpose: an AppKit segmented control runs its own mouse-tracking loop,
+        // and NSMenu drops the hosting row's highlight while that loop owns the press.
+        HStack(spacing: 0) {
+            ForEach(self.options, id: \.self) { option in
+                let isSelected = option == self.selection
+                Button {
+                    self.selection = option
+                } label: {
+                    Text(option)
+                        .font(.caption)
+                        .fontWeight(isSelected ? .semibold : .regular)
+                        .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted).opacity(isSelected ? 1 : 0.7))
+                        .lineLimit(1)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background {
+                            if isSelected {
+                                Capsule().fill(MenuHighlightStyle.primary(self.isHighlighted)
+                                    .opacity(self.isHighlighted ? 0.24 : 0.14))
+                            }
+                        }
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+            }
+        }
+        .padding(2)
+        .background(Capsule().fill(MenuHighlightStyle.secondary(self.isHighlighted).opacity(0.12)))
+        .fixedSize()
+        .menuCardInteractiveControl()
+        .accessibilityElement(children: .contain)
     }
 }
 

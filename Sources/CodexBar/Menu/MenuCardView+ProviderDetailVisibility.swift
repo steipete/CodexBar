@@ -12,7 +12,11 @@ extension UsageMenuCardView.Model {
                 guard let title = section.title, let labels = replacedRows[title] else { return section }
                 let rows = section.rows.filter { !labels.contains($0.label) }
                 guard !rows.isEmpty || section.chart != nil else { return nil }
-                return try? ProviderDetailSection(title: section.title, rows: rows, chart: section.chart)
+                return try? ProviderDetailSection(
+                    title: section.title,
+                    rows: rows,
+                    chart: section.chart,
+                    variant: section.variant)
             }
         }
         let policy = ProviderDescriptorRegistry.descriptor(for: input.provider).presentation.optionalDetails
@@ -80,7 +84,8 @@ extension UsageMenuCardView.Model {
             let redacted = try? ProviderDetailSection(
                 title: PersonalInfoRedactor.redactEmails(in: section.title, isEnabled: true),
                 rows: rows,
-                chart: chart)
+                chart: chart,
+                variant: section.variant)
             return redacted.map { (section: $0, rawTitle: pair.rawTitle) }
         }
         return (visible.map(\.section), visible.map(\.rawTitle))

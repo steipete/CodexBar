@@ -114,6 +114,13 @@ interface CodexBarDetailSection {
   title?: string | null;
   rows: CodexBarDetailRow[];
   chart?: CodexBarDetailChart | null;
+  /**
+   * Marks this section as one alternative among its neighbours: 1 to 3 short labels, one per choice, for example
+   * ["Model", "Week"]. Consecutive sections with the same number of labels form a group; the card shows a picker
+   * per label position and only the matching section. Text surfaces list every section, so keep titles distinct.
+   * Send only when ctx.env.supportsDetailVariants === true.
+   */
+  variant?: string[] | null;
 }
 
 interface CodexBarMenuBarItem {
@@ -302,6 +309,8 @@ interface CodexBarPluginContext {
     /** Older hosts omit this flag and reject the iconProvider snapshot field. */
     readonly supportsIconProvider?: boolean;
     readonly supportsMenuBarItems?: boolean;
+    /** Older hosts omit this flag, ignore section `variant`, and reject more than 8 detail sections. */
+    readonly supportsDetailVariants?: boolean;
   };
   readonly cache: {
     get<T = unknown>(key: string): T | undefined;

@@ -309,7 +309,10 @@ struct UserPluginMenuCardView: View {
                 if !snapshot.details.isEmpty {
                     Divider()
                     ProviderDetailSectionsContent(
-                        sections: snapshot.details, chartColor: self.tint, paceVisible: self.paceVisible)
+                        sections: snapshot.details,
+                        chartColor: self.tint,
+                        paceVisible: self.paceVisible,
+                        provider: self.plugin.manifest.id)
                 }
                 if let identity = snapshot.identity(for: self.plugin.manifest.id) {
                     self.identity(identity)

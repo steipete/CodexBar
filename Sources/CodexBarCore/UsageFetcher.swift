@@ -280,7 +280,7 @@ public struct UsageSnapshot: Codable, Sendable {
         dataConfidence: UsageDataConfidence = .unknown)
     {
         precondition(
-            details.count <= ProviderDetailSection.maximumSectionsPerSnapshot,
+            ProviderDetailSection.sectionsFitLimits(details),
             "UsageSnapshot details exceeds \(ProviderDetailSection.maximumSectionsPerSnapshot) sections")
         precondition(menuBarItems.count <= ProviderMenuBarItem.maximumItems, "Too many plugin menu-bar items")
         self.primary = primary

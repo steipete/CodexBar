@@ -359,6 +359,8 @@ so portable third-party plugins must use the host helpers below instead of ECMA-
   fractional offsets, or results outside JavaScript's Date range throw.
 - `ctx.env.timeZone` is the host's current IANA time-zone identifier; zero-offset GMT aliases are normalized to `UTC`.
 - `ctx.env.supportsMenuBarItems === true` means snapshots may include a compact multi-quota menu-bar summary.
+- `ctx.env.supportsDetailVariants === true` means detail sections may carry `variant` and exceed 8 sections with
+  them; older hosts omit the flag and reject the extra sections.
 - `ctx.env.supportsIconProvider === true` means snapshots may request built-in provider branding with `iconProvider`.
   Older hosts omit this flag; omit the snapshot field on those hosts to retain the manifest icon without a fetch error.
 - `ctx.format.number(value, options?)`, `usd(value)`, and `monthDay(date)` provide deterministic formatting on both
@@ -513,6 +515,14 @@ Omit `pace` to hide the tip. The app's existing **Show pace** preference also hi
 An optional row `severity: "normal" | "warning" | "critical"` uses the system green, orange, or red accent;
 warning and critical rows also show a labeled warning symbol. The plugin computes its own thresholds independently
 of `progress`. Omit `severity` (or pass null) to keep the existing provider tint. Invalid values fail the fetch.
+
+A detail section accepts an optional `variant`: an array of one to three short labels that marks the section as one
+alternative among its neighbours, for example `["Model", "Week"]`. Consecutive sections whose variants have the same
+number of labels form a group. The menu card shows one capsule picker per label position (omitted when a position has
+a single choice), draws only the section matching the selection, and remembers the selection per provider. The card
+reserves the height of the tallest alternative, so keep their row counts similar. Surfaces without pickers, such as
+the CLI, list every section, so titles should still tell the alternatives apart. A snapshot may carry up to 8 ordinary
+sections and up to 16 variant sections; invalid variants fail the fetch.
 For example, a pool row can return `progress: used / total, severity: remaining < 20 ? "critical" :
 remaining < 50 ? "warning" : "normal"`; progress remains consumed usage, not remaining usage.
 Absent or null numeric fields leave existing text-only rows unchanged. A supplied `usageKnown` must be a boolean,

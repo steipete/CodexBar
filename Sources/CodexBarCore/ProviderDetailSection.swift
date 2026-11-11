@@ -2,6 +2,10 @@ import Foundation
 
 public struct ProviderDetailSection: Codable, Equatable, Sendable {
     public static let maximumSectionsPerSnapshot = 8
+    /// Sections that are alternatives of one another (see `variant`) are counted apart from ordinary sections,
+    /// because only one of each group is on screen at a time.
+    public static let maximumVariantSectionsPerSnapshot = 16
+    public static let maximumVariantLabels = 3
     public static let maximumRowsPerSection = 24
     public static let maximumPointsPerChart = 120
     public static let maximumStringLength = 120
@@ -207,19 +211,41 @@ public struct ProviderDetailSection: Codable, Equatable, Sendable {
     public let title: String?
     public let rows: [Row]
     public let chart: Chart?
+    /// Marks the section as one alternative among its neighbours: one short label per choice, such as
+    /// `["Model", "Week"]`. Consecutive sections whose variants have the same number of labels form a group;
+    /// interactive surfaces show one picker per label position and only the section matching the selection.
+    /// Surfaces without pickers list every section, so titles should still tell the alternatives apart.
+    public let variant: [String]?
 
-    public init(title: String? = nil, rows: [Row] = [], chart: Chart? = nil) throws {
+    public init(title: String? = nil, rows: [Row] = [], chart: Chart? = nil, variant: [String]? = nil) throws {
         guard rows.count <= Self.maximumRowsPerSection else {
             throw ValidationError("section.rows exceeds \(Self.maximumRowsPerSection) entries")
         }
         self.title = try Self.optionalString(title, path: "section.title")
         self.rows = rows
         self.chart = chart
+        if let variant {
+            guard (1...Self.maximumVariantLabels).contains(variant.count) else {
+                throw ValidationError("section.variant must have 1 to \(Self.maximumVariantLabels) labels")
+            }
+            self.variant = try variant.map { try Self.requiredString($0, path: "section.variant") }
+        } else {
+            self.variant = nil
+        }
+    }
+
+    /// Whether a snapshot's sections stay within the per-snapshot limits.
+    public static func sectionsFitLimits(_ sections: [Self]) -> Bool {
+        let variants = sections.count(where: { $0.variant != nil })
+        return variants <= self.maximumVariantSectionsPerSnapshot
+            && sections.count - variants <= self.maximumSectionsPerSnapshot
     }
 
     public static func validateSections(_ sections: [Self]) throws {
-        guard sections.count <= self.maximumSectionsPerSnapshot else {
-            throw ValidationError("snapshot.details exceeds \(self.maximumSectionsPerSnapshot) sections")
+        guard self.sectionsFitLimits(sections) else {
+            throw ValidationError(
+                "snapshot.details exceeds \(self.maximumSectionsPerSnapshot) sections "
+                    + "(or \(self.maximumVariantSectionsPerSnapshot) variant sections)")
         }
     }
 
@@ -227,6 +253,7 @@ public struct ProviderDetailSection: Codable, Equatable, Sendable {
         case title
         case rows
         case chart
+        case variant
     }
 
     public init(from decoder: Decoder) throws {
@@ -234,7 +261,8 @@ public struct ProviderDetailSection: Codable, Equatable, Sendable {
         try self.init(
             title: container.decodeIfPresent(String.self, forKey: .title),
             rows: container.decode([Row].self, forKey: .rows),
-            chart: container.decodeIfPresent(Chart.self, forKey: .chart))
+            chart: container.decodeIfPresent(Chart.self, forKey: .chart),
+            variant: container.decodeIfPresent([String].self, forKey: .variant))
     }
 
     private static func requiredString(_ rawValue: String, path: String) throws -> String {
