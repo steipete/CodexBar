@@ -105,4 +105,44 @@ struct NanoGPTMenuCardCostTests {
         #expect(model.metrics.contains { $0.id == "secondary" })
         #expect(model.providerCost?.balanceLine == "Balance: $12.50")
     }
+
+    @Test
+    func `stored automatic layout shows the prepaid balance beside a token window`() throws {
+        let now = Date(timeIntervalSince1970: 1_773_748_800)
+        let daily = RateWindow(usedPercent: 0, windowMinutes: 1440, resetsAt: nil, resetDescription: nil)
+        let window = try #require(MenuBarLayoutRenderWindow(daily))
+        let snapshot = UsageSnapshot(
+            primary: daily,
+            secondary: nil,
+            providerCost: ProviderCostSnapshot(
+                used: 0,
+                limit: 0,
+                currencyCode: "USD",
+                period: "Month to date",
+                balance: 12.5,
+                updatedAt: now),
+            updatedAt: now,
+            identity: nil)
+        let text = StatusItemController.menuBarLayoutAutomaticText(
+            provider: .nanogpt,
+            snapshot: snapshot,
+            automatic: window)
+        #expect(text == "$12.50")
+
+        let withoutBalance = UsageSnapshot(
+            primary: daily,
+            secondary: nil,
+            providerCost: ProviderCostSnapshot(
+                used: 0,
+                limit: 0,
+                currencyCode: "USD",
+                period: "Month to date",
+                updatedAt: now),
+            updatedAt: now,
+            identity: nil)
+        #expect(StatusItemController.menuBarLayoutAutomaticText(
+            provider: .nanogpt,
+            snapshot: withoutBalance,
+            automatic: window) == nil)
+    }
 }

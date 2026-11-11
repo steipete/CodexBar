@@ -888,6 +888,16 @@ extension StatusItemController {
         automatic: MenuBarLayoutRenderWindow?,
         showsOptionalCredits: Bool = true) -> String?
     {
+        // NanoGPT's Automatic token is the prepaid balance even when a token window exists.
+        // Daily and weekly tokens stay on their own layout tokens.
+        if provider == .nanogpt,
+           let balance = MenuBarLayoutBalanceResolver.balance(
+               provider: provider,
+               snapshot: snapshot,
+               showsOptionalCredits: showsOptionalCredits)
+        {
+            return balance
+        }
         // Provider-specific by design: DeepInfra's real billing window has no balance detail.
         let balanceOnly = provider == .deepseek
             || (provider == .deepinfra && automatic?.resetDescription != nil && automatic?.resetsAt == nil)

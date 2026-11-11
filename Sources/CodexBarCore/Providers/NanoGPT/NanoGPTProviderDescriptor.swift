@@ -44,7 +44,8 @@ public enum NanoGPTProviderDescriptor {
             id: "nanogpt-api-key",
             title: "NanoGPT API key",
             subtitle: "Saved in CodexBar's local config file. Or set NANOGPT_API_KEY. Read-only usage access.",
-            action: ("nanogpt-dashboard", "Open NanoGPT", "https://nano-gpt.com/usage")))
+            action: ("nanogpt-dashboard", "Open NanoGPT", "https://nano-gpt.com/usage")),
+        availability: .configuredKey)
 
     static let missingCredentialMessage = "Paste a NanoGPT API key in Settings or set NANOGPT_API_KEY."
 
