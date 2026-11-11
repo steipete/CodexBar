@@ -73,7 +73,11 @@ defineProvider({
         });
       } catch (error) {
         const transportClass = (error as CodexBarHTTPError).transportClass;
-        if (transportClass === "cancelled") throw error;
+        // Offline and DNS failures must stay the original URL error. Rewriting them as an API
+        // failure drops the code the launch retry and last-good usage preservation both check.
+        if (transportClass === "cancelled" || transportClass === "offline" || transportClass === "dns") {
+          throw error;
+        }
         const timeout = transportClass === "timeout" || transportClass === "connection";
         const detail = timeout ? "timed out" : "failed";
         throw timeout

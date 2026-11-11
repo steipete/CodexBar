@@ -3,6 +3,7 @@ import Foundation
 import FoundationNetworking
 #endif
 import Testing
+@testable import CodexBar
 @testable import CodexBarCore
 
 struct NanoGPTPluginTests {
@@ -183,6 +184,72 @@ struct NanoGPTPluginTests {
         #expect(credentials.resolveToken(environment: ["OTHER_KEY": "fixture-key"]) == nil)
     }
 
+    @Test(arguments: BundledPluginTestSupport.engines, [
+        URLError.Code.notConnectedToInternet,
+        .dnsLookupFailed,
+        .cannotFindHost,
+    ])
+    func `offline and dns failures on a get keep the url error`(
+        engine: ProviderPluginEngineKind,
+        code: URLError.Code) async throws
+    {
+        try await Self.expectTransport(
+            engine: engine,
+            code: code,
+            failingURLPrefix: "https://api.nano-gpt.com/api/subscription/v1/usage")
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines, [
+        URLError.Code.notConnectedToInternet,
+        .dnsLookupFailed,
+    ])
+    func `offline and dns failures on the usage get keep the url error`(
+        engine: ProviderPluginEngineKind,
+        code: URLError.Code) async throws
+    {
+        try await Self.expectTransport(
+            engine: engine,
+            code: code,
+            failingURLPrefix: "https://api.nano-gpt.com/api/v1/usage")
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `other transport failures stay api failures`(engine: ProviderPluginEngineKind) async {
+        do {
+            _ = try await Self.fetch(
+                engine: engine,
+                transportFailure: (
+                    prefix: "https://api.nano-gpt.com/api/subscription/v1/usage",
+                    code: .badServerResponse))
+            Issue.record("Expected classified failure")
+        } catch let error as ProviderFetchClassifiedError {
+            #expect(error.kind == .apiFailure)
+        } catch {
+            Issue.record("Unexpected failure: \(error)")
+        }
+    }
+
+    private static func expectTransport(
+        engine: ProviderPluginEngineKind,
+        code: URLError.Code,
+        failingURLPrefix: String) async throws
+    {
+        do {
+            _ = try await self.fetch(
+                engine: engine,
+                transportFailure: (prefix: failingURLPrefix, code: code))
+            Issue.record("Expected transport failure")
+        } catch let error as URLError {
+            let retryable = await UsageStore.isStartupConnectivityRetryableError(error)
+            #expect(error.code == code)
+            #expect(retryable)
+            #expect(UsageStore.isPreservableNetworkTransportError(error))
+            #expect(UsageStore.shouldPreservePriorSnapshot(after: error, hadPriorData: true))
+        } catch {
+            Issue.record("Unexpected failure: \(error)")
+        }
+    }
+
     private enum BalancePath { case directOnly, websiteOnly, both, unavailable, degraded, unauthorized }
 
     private static func expectFailure(
@@ -217,11 +284,15 @@ struct NanoGPTPluginTests {
         subscription: String? = nil,
         balance: String? = nil,
         subscriptionCode: Int = 200,
-        balancePath: BalancePath = .both) async throws -> UsageSnapshot
+        balancePath: BalancePath = .both,
+        transportFailure: (prefix: String, code: URLError.Code)? = nil) async throws -> UsageSnapshot
     {
         let runtime = try BundledPluginTestSupport.runtime(
             "nanogpt", engine: engine, transport: ProviderHTTPTransportHandler { request in
                 let url = try #require(request.url?.absoluteString)
+                if let transportFailure, url.hasPrefix(transportFailure.prefix) {
+                    throw URLError(transportFailure.code)
+                }
                 var body = #"{}"#
                 var code = 200
                 switch true {

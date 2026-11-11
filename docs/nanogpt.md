@@ -24,6 +24,9 @@ POST /api/check-balance           x-api-key: <key>
 GET  /api/v1/usage?from=…&to=…    Authorization: Bearer <key>
 ```
 
+Offline and DNS failures on either GET keep the original URL error, so a launch can retry and the last usage
+stays in place.
+
 The subscription response drives the meters. Daily and weekly **input-token** lanes become the primary and
 secondary windows, using the reported `resetAt` epoch-millisecond timestamps and the quota's own
 `percentUsed`, which NanoGPT documents as a fraction that may exceed 1. A lane reported as `degraded`, or one with
