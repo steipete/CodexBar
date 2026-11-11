@@ -31,6 +31,8 @@ If the card says CodexBar is not allowed to read the credentials (for example af
 2. Open the item, choose **Access Control**, and add `CodexBar.app` from `/Applications` to the allowed applications. Avoid "Allow all applications."
 3. Save with your Keychain password, then refresh Muse Code in CodexBar. For `codexbar` CLI reads, also add `Contents/Helpers/CodexBarCLI` inside the CodexBar app bundle.
 
+The Access Control list is not the only check. macOS also keeps a partition list of team IDs on the item, and the Muse CLI's item lists only its own team. While CodexBar's team is missing from it, macOS asks for the login password even for an app on the Access Control list, so CodexBar treats the item as needing a prompt: background refreshes and CLI reads report the access diagnostic instead of reading. Keychain Access edits are not known to add that team. Choosing **Always Allow** in the prompt from a manual refresh in the app adds it, and it covers the bundled `codexbar` CLI too, which is signed by the same team; the CLI still needs its own Access Control entry from step 3.
+
 A fresh `muse login` can recreate the Keychain item without the grant, so repeat these steps if the message returns after signing in again. If the card instead says the credentials could not be read right now, unlock the login Keychain and refresh.
 
 When CLI metadata points to Keychain and access is disabled, the diagnostic names **Disable Keychain access** in **Settings → Advanced**. Inline CLI tokens still work with Keychain access disabled.

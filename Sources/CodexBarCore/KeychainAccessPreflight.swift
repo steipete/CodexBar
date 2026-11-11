@@ -335,9 +335,9 @@ public enum KeychainAccessPreflight {
         return unsafeDowncast(value as AnyObject, to: SecKeychainItem.self)
     }
 
-    /// `.rejected` means validation ran to completion and no trusted application matched this
-    /// executable — a stable outcome. `.indeterminate` means inspection itself failed and the
-    /// result may differ on retry.
+    /// `.rejected` means validation ran to completion and either no trusted application matched this
+    /// executable or the item's partition list omits this executable's team — a stable outcome.
+    /// `.indeterminate` means inspection itself failed and the result may differ on retry.
     enum DecryptACLEvaluation: Equatable {
         case allowed
         case rejected
@@ -383,7 +383,7 @@ public enum KeychainAccessPreflight {
                     trustedApplicationValidationStatuses: nil,
                     promptSelector: selector) == .allowed
                 {
-                    return .allowed
+                    return self.evaluatePartitionList(access: access)
                 }
                 continue
             }
@@ -399,7 +399,7 @@ public enum KeychainAccessPreflight {
                 promptSelector: selector)
             {
             case .allowed:
-                return .allowed
+                return self.evaluatePartitionList(access: access)
             case .indeterminate:
                 inspectionIncomplete = true
             case .rejected:
@@ -408,6 +408,92 @@ public enum KeychainAccessPreflight {
         }
         return inspectionIncomplete ? .indeterminate : .rejected
     }
+
+    /// The decrypt ACL is not the whole decision. Since macOS 10.12 an item also carries a partition list,
+    /// and a caller whose team is not on it gets the login-password prompt even when the decrypt ACL names
+    /// it and the query asks for no UI. A CLI-owned item can name CodexBar on its decrypt ACL while its
+    /// partition list holds only the CLI vendor's team.
+    static func evaluatePartitionList(
+        access: SecAccess,
+        callerTeamID: String? = KeychainAccessPreflight.callerTeamID) -> DecryptACLEvaluation
+    {
+        guard let copyMatchingACLs = self.securityFunction(
+            named: "SecAccessCopyMatchingACLList",
+            as: SecAccessCopyMatchingACLListFunction.self),
+            let copyAuthorizations = self.securityFunction(
+                named: "SecACLCopyAuthorizations",
+                as: SecACLCopyAuthorizationsFunction.self),
+            let copyACLContents = self.securityFunction(
+                named: "SecACLCopyContents",
+                as: SecACLCopyContentsFunction.self)
+        else { return .indeterminate }
+
+        // Matching also returns ACLs authorized for "any" operation, whose description is not a partition
+        // payload. Only entries that name the partition authorization explicitly carry the list.
+        let partitionACLs = ((copyMatchingACLs(access, kSecACLAuthorizationPartitionID)?
+                .takeRetainedValue() as? [SecACL]) ?? [])
+            .filter { acl in
+                let authorizations = copyAuthorizations(acl)?.takeRetainedValue() as? [String] ?? []
+                return authorizations.contains(kSecACLAuthorizationPartitionID as String)
+            }
+        // Items written before partition lists existed have no entry and keep the decrypt ACL's answer.
+        guard !partitionACLs.isEmpty else { return .allowed }
+
+        var partitions: [String] = []
+        for acl in partitionACLs {
+            var applications: CFArray?
+            var description: CFString?
+            var selector = SecKeychainPromptSelector()
+            guard copyACLContents(acl, &applications, &description, &selector) == errSecSuccess,
+                  let description,
+                  let ids = self.partitionIDs(fromACLDescription: description as String)
+            else { return .indeterminate }
+            partitions += ids
+        }
+        return self.evaluatePartitionList(partitions, callerTeamID: callerTeamID)
+    }
+
+    /// Decodes the partition ACL description: a hex-encoded property list `{ Partitions = ("teamid:…") }`.
+    static func partitionIDs(fromACLDescription description: String) -> [String]? {
+        let hex = Array(description.utf8)
+        guard !hex.isEmpty, hex.count.isMultiple(of: 2) else { return nil }
+        var bytes = Data(capacity: hex.count / 2)
+        var index = 0
+        while index < hex.count {
+            guard let pair = String(bytes: hex[index..<index + 2], encoding: .ascii),
+                  let byte = UInt8(pair, radix: 16)
+            else { return nil }
+            bytes.append(byte)
+            index += 2
+        }
+        guard let plist = try? PropertyListSerialization.propertyList(from: bytes, format: nil) as? [String: Any],
+              let partitions = plist["Partitions"] as? [String]
+        else { return nil }
+        return partitions
+    }
+
+    /// `teamid:<ID>` is the partition macOS grants a Developer ID or App Store caller. Apple's own
+    /// `apple:`/`apple-tool:` partitions never cover a third-party executable. Ad-hoc and unsigned builds
+    /// have no team ID, so the partition they would match cannot be derived here; they keep the decrypt
+    /// ACL's answer, as before partition lists were checked.
+    static func evaluatePartitionList(_ partitions: [String], callerTeamID: String?) -> DecryptACLEvaluation {
+        guard let callerTeamID, !callerTeamID.isEmpty else { return .allowed }
+        return partitions.contains("teamid:\(callerTeamID)") ? .allowed : .rejected
+    }
+
+    static let callerTeamID: String? = {
+        var code: SecCode?
+        guard SecCodeCopySelf([], &code) == errSecSuccess, let code else { return nil }
+        var staticCode: SecStaticCode?
+        guard SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode else { return nil }
+        var info: CFDictionary?
+        guard SecCodeCopySigningInformation(
+            staticCode,
+            SecCSFlags(rawValue: kSecCSSigningInformation),
+            &info) == errSecSuccess
+        else { return nil }
+        return (info as? [String: Any])?[kSecCodeInfoTeamIdentifier as String] as? String
+    }()
 
     private static let validationMemo = ValidationMemo()
 
@@ -483,6 +569,7 @@ public enum KeychainAccessPreflight {
     private typealias SecAccessCopyMatchingACLListFunction = @convention(c) (
         SecAccess,
         CFTypeRef) -> Unmanaged<CFArray>?
+    private typealias SecACLCopyAuthorizationsFunction = @convention(c) (SecACL) -> Unmanaged<CFArray>?
     private typealias SecACLCopyContentsFunction = @convention(c) (
         SecACL,
         UnsafeMutablePointer<CFArray?>,

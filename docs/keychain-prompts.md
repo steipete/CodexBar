@@ -61,6 +61,13 @@ executable, enclosing app bundle metadata, bundle version, or main executable in
 Outside the explicit operation memo, the current Keychain ACL and prompt selector are read on every preflight, and
 background secret reads remain non-interactive.
 
+A decrypt ACL that trusts CodexBar is not enough on its own. Keychain items also carry a partition list of team IDs, and
+macOS asks for the login password when the caller's team is missing from it, even for an app on the item's Access
+Control list and even for a no-UI query. Preflight therefore treats an item whose explicit partition entry omits
+CodexBar's team as requiring interaction. Items without a partition entry keep the decrypt ACL's answer, an unreadable
+partition entry is inconclusive, and ad-hoc or unsigned development builds, which have no team ID, keep the previous
+behavior. A foreign item written by its owner's CLI, such as the Muse login, can list only that vendor's team.
+
 Provider-owned child processes are a separate boundary. CodexBar may intentionally launch a provider CLI such as
 Claude for usage. That executable owns its credential behavior, which CodexBar cannot constrain or fully inspect.
 
