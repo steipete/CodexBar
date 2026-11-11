@@ -178,6 +178,10 @@ struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
     private let webUsageOverlayFetcher: WebUsageOverlayFetcher
     private let apiUsageOverlayFetcher: APIUsageOverlayFetcher
     private let cliCredentialLoader: OpenCodeGoSettingsReader.CLICredentialLoader
+    private let localHistoryJoinTimeout: Duration
+
+    /// How long Auto waits for local history before deferring to remote quota sources.
+    static let localHistoryScanBudget: Duration = .seconds(5)
 
     private struct OverlayCookie {
         let header: String
@@ -203,13 +207,15 @@ struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
                 timeout: context.webTimeout)
         },
         cliCredentialLoader: @escaping OpenCodeGoSettingsReader.CLICredentialLoader =
-            OpenCodeGoSettingsReader.loadCLICredential)
+            OpenCodeGoSettingsReader.loadCLICredential,
+        localHistoryJoinTimeout: Duration = Self.localHistoryScanBudget)
     {
         self.cookieHeaderResolver = cookieHeaderResolver
         self.localSnapshotLoader = localSnapshotLoader
         self.webUsageOverlayFetcher = webUsageOverlayFetcher
         self.apiUsageOverlayFetcher = apiUsageOverlayFetcher
         self.cliCredentialLoader = cliCredentialLoader
+        self.localHistoryJoinTimeout = localHistoryJoinTimeout
     }
 
     func isAvailable(_: ProviderFetchContext) async -> Bool {
@@ -217,7 +223,17 @@ struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        let result = try await self.snapshot(context: context)
+        guard let local = try await self.boundedLocalSnapshot(context: context) else {
+            // Unfinished local work is never published; only an authoritative remote quota answers now.
+            let result = try await self.snapshot(context: context, local: Self.unscannedHistory())
+            guard result.quotaIsAuthoritative, result.sourceLabel.hasPrefix("local+") else {
+                throw OpenCodeGoLocalUsageError.historyUnavailable("still scanning; a later refresh can use it")
+            }
+            return self.makeResult(
+                usage: result.snapshot.toUsageSnapshot(),
+                sourceLabel: String(result.sourceLabel.dropFirst("local+".count)))
+        }
+        let result = try await self.snapshot(context: context, local: local)
         let usage = result.snapshot.toUsageSnapshot()
         return self.makeResult(
             usage: result.quotaIsAuthoritative ? usage : usage.withDataConfidence(.estimated),
@@ -228,8 +244,11 @@ struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
         error is OpenCodeGoLocalUsageError
     }
 
-    private func snapshot(context: ProviderFetchContext) async throws -> SnapshotResult {
-        let fallback = try await self.snapshotWithoutCLILogin(context: context)
+    private func snapshot(
+        context: ProviderFetchContext,
+        local: OpenCodeGoUsageSnapshot) async throws -> SnapshotResult
+    {
+        let fallback = try await self.snapshotWithoutCLILogin(context: context, local: local)
         // Configured keys and usable browser sessions retain precedence over the ambient CLI account.
         guard fallback.sourceLabel == "local", fallback.snapshot.zenBalanceUSD == nil,
               OpenCodeGoSettingsReader.apiKey(environment: context.env) == nil else { return fallback }
@@ -253,8 +272,11 @@ struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
         return fallback
     }
 
-    private func snapshotWithoutCLILogin(context: ProviderFetchContext) async throws -> SnapshotResult {
-        var snapshot = try self.localSnapshotLoader(context)
+    private func snapshotWithoutCLILogin(
+        context: ProviderFetchContext,
+        local: OpenCodeGoUsageSnapshot) async throws -> SnapshotResult
+    {
+        var snapshot = local
         var source = "local"
         if let apiKey = OpenCodeGoSettingsReader.apiKey(environment: context.env) {
             do {
@@ -337,6 +359,36 @@ struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
             if Task.isCancelled { throw CancellationError() }
         }
         return fallback
+    }
+
+    /// A cold scan of a large history must not hold back remote quota. Returns nil when the scan outlasts
+    /// the budget. The scan has no resume point, so it keeps running and fills the reader's cache for a
+    /// later refresh instead of being interrupted.
+    private func boundedLocalSnapshot(context: ProviderFetchContext) async throws -> OpenCodeGoUsageSnapshot? {
+        let loader = self.localSnapshotLoader
+        let scan = Task { try loader(context) }
+        switch await BoundedTaskJoin(sourceTask: scan).value(joinGrace: self.localHistoryJoinTimeout) {
+        case let .value(snapshot):
+            return snapshot
+        case let .failure(error):
+            throw error
+        case .timedOut:
+            return nil
+        }
+    }
+
+    /// Carries no quota windows or history; remote overlays replace the windows when available.
+    private static func unscannedHistory() -> OpenCodeGoUsageSnapshot {
+        OpenCodeGoUsageSnapshot(
+            hasWeeklyUsage: false,
+            hasMonthlyUsage: false,
+            rollingUsagePercent: 0,
+            weeklyUsagePercent: 0,
+            monthlyUsagePercent: 0,
+            rollingResetInSec: nil,
+            weeklyResetInSec: nil,
+            monthlyResetInSec: nil,
+            updatedAt: Date())
     }
 
     static func liveWebUsageOverlay(
