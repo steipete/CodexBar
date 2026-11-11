@@ -60,7 +60,7 @@ defineProvider({
       let known = null;
       if (primaryValue !== null) {
         known = primaryIsUsd ? usdText(primaryValue) : diemText(primaryValue);
-      } else if (otherValue !== null && otherValue > 0) {
+      } else if (otherValue !== null) {
         known = primaryIsUsd ? diemText(otherValue) : usdText(otherValue);
       }
       resetDescription = known ? `${known}, API calls blocked` : "Balance unavailable for API calls";

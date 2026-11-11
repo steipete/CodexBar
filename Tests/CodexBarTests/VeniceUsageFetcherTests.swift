@@ -181,6 +181,20 @@ struct VenicePluginGoldenTests {
     }
 
     @Test
+    func `non-consumable DIEM consumption falls back to a negative USD balance`() async throws {
+        let snapshot = try await Self.fetch("""
+        {
+          "canConsume": false,
+          "consumptionCurrency": "DIEM",
+          "balances": { "diem": null, "usd": -0.25 },
+          "diemEpochAllocation": null
+        }
+        """)
+        #expect(snapshot.primary?.usedPercent == 100)
+        #expect(snapshot.primary?.resetDescription == "USD balance -$0.25, API calls blocked")
+    }
+
+    @Test
     func `non-consumable DIEM consumption without a DIEM balance falls back to USD`() async throws {
         let snapshot = try await Self.fetch("""
         {
