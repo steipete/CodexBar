@@ -10,7 +10,7 @@ accounts, email addresses, credentials, or live provider endpoints are involved.
 The fixtures demonstrate a reported weekly window and reported 5-hour + weekly
 windows; they do not assert which subscription tiers include particular windows.
 
-Code captured: `6992c2cbcc2a0aa3d2bda67eb5573081c713ab38`.
+Code captured: `3add4af2f039edb04fb509ed6ab7e9e818388366`.
 The exact binary SHA-256 and observed geometry are in [results.json](results.json).
 The desktop entry point and bundled QML were built from this code without
 modifying the production paths for capture.
@@ -28,6 +28,17 @@ Two windows: 3% remaining in the 5-hour window, highlighted as low, and 71% week
 Changing the display preference to used shows 97% and 29%, respectively.
 
 ![Used display preference](dual-used.png)
+
+## Screen-width overflow
+
+On an actual 1024-logical-pixel Xvfb/Xfwm4 work area, three accounts each reporting
+two general windows now produce an in-bounds 798 × 48 capsule with two visible
+accounts and a `+1` overflow indicator. All three accounts remain in the cached
+model and are available in the expanded panel. This replaces the original
+1116-pixel forced width. Separate QML tests cover work-area changes between 1280,
+1024, 640, and 240 pixels, including when a status indicator needs space.
+
+![Three accounts fit a 1024-pixel work area](narrow-compact.png)
 
 ## Real clicks open the panel and native menu
 
@@ -73,6 +84,7 @@ cd /absolute/path/to/checkout
 python3 .github/pr-proof/linux-floating/capture.py \
   --binary /tmp/codexbar-floating-proof-build/codexbar-linux \
   --output /tmp/codexbar-floating-proof \
+  --screen-width 1024 \
   --display :194
 ```
 
@@ -80,6 +92,40 @@ Requirements: Qt development and QML runtime modules, Python 3, Xvfb, Xfwm4,
 dbus-run-session, xwininfo, xprop, xsetroot, ImageMagick `import`, libX11, and
 libXtst. Display :194 must be free. Production sources under `Integrations/Linux`
 must match HEAD; the capture script checks this before running.
+
+## Stable-release settings upgrade
+
+The same private X11 run also launches separately built v0.84.0 and feature
+executables against the same HOME/XDG directories and fake CLI. It configures
+the old application with non-default provider order, polling interval, warning
+threshold, used/reset display modes, Quick View preference, and display toggles.
+The old executable writes the genuine pre-gauge `linux.json` schema.
+
+After stopping the old executable, the feature build reads those exact bytes.
+Startup does not rewrite the file, both providers load with the existing used
+display mode, and X11 confirms there is no mapped floating gauge. Saving through
+the new settings owner retains every old key/value and adds the floating
+defaults, including `showFloating: false`.
+
+[Upgrade results](upgrade-results.json) contain both executable checksums,
+snapshots, old/upgraded preferences, and the assertions. Only the temporary fake
+CLI path is replaced with `<isolated-fixture-cli>` in the published preferences.
+The v0.84.0 commit is `5bebf9a05e68059eae11d5031c7239f1aa1d49ef`.
+
+Build that tag in a separate checkout/build directory, then pass
+`--legacy-binary /absolute/path/to/v0.84.0/codexbar-linux` to the capture command
+above to include the X11 upgrade assertions. To run only the settings comparison
+with an offscreen Qt platform:
+
+```sh
+python3 .github/pr-proof/linux-floating/upgrade.py \
+  --legacy-binary /absolute/path/to/v0.84.0/codexbar-linux \
+  --head-binary /tmp/codexbar-floating-proof-build/codexbar-linux \
+  --output /tmp/codexbar-floating-upgrade
+```
+
+The offscreen variant verifies data compatibility; only the X11 capture run also
+asserts the absence of a visible gauge window.
 
 ## Limits
 

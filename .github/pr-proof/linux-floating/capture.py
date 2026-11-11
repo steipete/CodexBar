@@ -15,6 +15,7 @@ import signal
 import subprocess
 import tempfile
 import time
+from upgrade import run_upgrade
 
 
 def wait_for(predicate, description):
@@ -31,6 +32,8 @@ def main():
     parser.add_argument('--binary', required=True)
     parser.add_argument('--output', required=True)
     parser.add_argument('--display', default=':194')
+    parser.add_argument('--screen-width', type=int, default=1024)
+    parser.add_argument('--legacy-binary')
     args = parser.parse_args()
     binary = str(Path(args.binary).resolve())
     out = Path(args.output).resolve()
@@ -58,7 +61,7 @@ def main():
         (root / 'wm-runtime').mkdir(mode=0o700)
         xlog = (root / 'xvfb.log').open('w+')
         wlog = (root / 'wm.log').open('w+')
-        xvfb = subprocess.Popen(['/usr/bin/Xvfb', args.display, '-screen', '0', '1280x900x24',
+        xvfb = subprocess.Popen(['/usr/bin/Xvfb', args.display, '-screen', '0', f'{args.screen_width}x900x24',
                                  '-nolisten', 'tcp'], env=env, stdout=xlog, stderr=xlog)
         wm = None
         x = ctypes.CDLL('libX11.so.6')
@@ -105,7 +108,7 @@ def main():
                 xt.XTestFakeKeyEvent(display, key, 0, 0)
                 x.XFlush(display)
 
-            for scenario in ['weekly', 'dual']:
+            for scenario in ['weekly', 'dual', 'narrow']:
                 home = root / scenario
                 home.mkdir()
                 (home / 'runtime').mkdir(mode=0o700)
@@ -124,6 +127,14 @@ def main():
                                         'resetsAt': reset(datetime.timedelta(hours=2, minutes=58))}
                     usage['secondary'] = weekly
                 payload = [{'provider': 'codex', 'usage': usage}]
+                if scenario == 'narrow':
+                    payload = [json.loads(json.dumps(payload[0])) for _ in range(3)]
+                    for index, entry in enumerate(payload):
+                        entry['usage']['primary']['usedPercent'] = [97, 50, 9][index]
+                        entry['usage']['secondary']['usedPercent'] = [29, 39, 49][index]
+                    config_dir = home / 'config/codexbar'
+                    config_dir.mkdir(parents=True)
+                    (config_dir / 'linux.json').write_text('{"allAccounts":true}')
                 (home / 'usage.json').write_text(json.dumps(payload))
                 cli = home / 'fixture-cli'
                 cli.write_text('''#!/usr/bin/python3
@@ -171,7 +182,7 @@ else: raise SystemExit('Unexpected fixture command')
                             'viewable': 'Map State: IsViewable' in info}
                 def capture(name, geom=None):
                     g = geom or geometry(gauge_id())
-                    move(1100, 800)
+                    move(args.screen_width-24, 800)
                     time.sleep(0.25)
                     subprocess.run(['/usr/bin/import', '-window', 'root', '-crop',
                                     f"{g['width']+32}x{g['height']+32}+{max(0,g['x']-16)}+{max(0,g['y']-16)}",
@@ -186,6 +197,9 @@ else: raise SystemExit('Unexpected fixture command')
                     wid = gauge_id()
                     g = geometry(wid)
                     assert g['height'] == 48
+                    assert g['x'] >= 0 and g['x']+g['width'] <= args.screen_width
+                    if scenario == 'narrow':
+                        assert len(client('--snapshot')['entries']) == 3
                     capture(scenario + '-compact.png')
                     row = {'scenario': scenario, 'compactGeometry': g}
                     state = subprocess.check_output(['/usr/bin/xprop', '-id', wid, '_NET_WM_STATE'],
@@ -279,6 +293,8 @@ else: raise SystemExit('Unexpected fixture command')
                     log.close()
             evidence['result'] = 'passed'
             (out / 'results.json').write_text(json.dumps(evidence, indent=2)+'\n')
+            if args.legacy_binary:
+                run_upgrade(args.legacy_binary, binary, env, out)
             print(json.dumps(evidence, indent=2))
         finally:
             if display: x.XCloseDisplay(display)

@@ -1,6 +1,6 @@
 {
-  "binarySHA256": "06dfa3817d6eb3682d1fb833989c88ec1d3ed397fb9ff7f67e9670aa942a638c",
-  "sourceCommit": "6992c2cbcc2a0aa3d2bda67eb5573081c713ab38",
+  "binarySHA256": "eb1e7c17c9676523bb7f1e4beef562738f1f45b9002ccbceab215a3224cfc7a7",
+  "sourceCommit": "3add4af2f039edb04fb509ed6ab7e9e818388366",
   "qtVersion": "6.4.2",
   "platform": "Private Xvfb display, xcb, xfwm4 without compositing, software rendering",
   "dataSource": "Fake CLI in private HOME/XDG directories; no account credentials",
@@ -160,6 +160,71 @@
           "--provider",
           "codex",
           "--status"
+        ]
+      ]
+    },
+    {
+      "scenario": "narrow",
+      "compactGeometry": {
+        "x": 24,
+        "y": 24,
+        "width": 798,
+        "height": 48,
+        "overrideRedirect": false,
+        "viewable": true
+      },
+      "topmostState": "_NET_WM_STATE(ATOM) = _NET_WM_STATE_SKIP_PAGER, _NET_WM_STATE_SKIP_TASKBAR, _NET_WM_STATE_ABOVE",
+      "expandedGeometry": {
+        "x": 24,
+        "y": 24,
+        "width": 360,
+        "height": 440,
+        "overrideRedirect": false,
+        "viewable": true
+      },
+      "queriesDuringInteractions": 0,
+      "restartGeometry": {
+        "x": 24,
+        "y": 24,
+        "width": 798,
+        "height": 48,
+        "overrideRedirect": false,
+        "viewable": true
+      },
+      "totalUsageQueriesIncludingRestart": 2,
+      "costQueries": 0,
+      "fixtureCalls": [
+        [
+          "config",
+          "providers",
+          "--format",
+          "json"
+        ],
+        [
+          "usage",
+          "--format",
+          "json",
+          "--json-only",
+          "--provider",
+          "codex",
+          "--status",
+          "--all-accounts"
+        ],
+        [
+          "config",
+          "providers",
+          "--format",
+          "json"
+        ],
+        [
+          "usage",
+          "--format",
+          "json",
+          "--json-only",
+          "--provider",
+          "codex",
+          "--status",
+          "--all-accounts"
         ]
       ]
     }

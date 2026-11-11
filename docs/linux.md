@@ -37,6 +37,8 @@ with `codexbar-linux --floating`. Click its capsule to expand quota/reset detail
 drag the capsule or header to move, use the bottom-right grip to resize the panel,
 and right-click either mode for actions without a tray. The gauge follows the
 used/remaining and identity preferences and can filter the fetched providers.
+Its compact entry count follows the current screen's available width, with
+omitted accounts included in `+N` and accessible after expanding.
 
 Each startup begins collapsed; visibility, expanded size, and preferences survive restarts. X11 position is
 restored into an available screen; Wayland leaves placement and topmost behavior

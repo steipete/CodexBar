@@ -217,7 +217,9 @@ by default and does not replace Quick View or Usage & Spend. Once enabled it als
 appears on subsequent background/login starts.
 
 The frameless gauge starts as a compact capsule with up to three provider/account
-meters, showing up to two reported general quota windows per entry, and a `+N` indicator for additional entries. Click to expand all selected
+meters, showing up to two reported general quota windows per entry. The visible
+entry count fits the current screen's available work area; a `+N` indicator counts
+all omitted entries. Click to expand all selected
 entries, including each quota window and its reset time. The used/remaining label,
 warning colors, and identity visibility follow the existing display preferences.
 Accounts are separate entries; when identity is hidden, multiple accounts of one

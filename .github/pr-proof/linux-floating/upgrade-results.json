@@ -1,0 +1,253 @@
+{
+  "legacyTag": "v0.84.0",
+  "legacyCommit": "5bebf9a05e68059eae11d5031c7239f1aa1d49ef",
+  "legacyBinarySHA256": "3ebed91a19e64dc155f8f99ee49ea507d2257c079f4d7985cc473aff619e3dc6",
+  "headBinarySHA256": "eb1e7c17c9676523bb7f1e4beef562738f1f45b9002ccbceab215a3224cfc7a7",
+  "sourceCommit": "3add4af2f039edb04fb509ed6ab7e9e818388366",
+  "fixture": "Same private HOME/XDG paths and fake CLI for both real executables",
+  "legacySnapshot": {
+    "barEntries": [
+      {
+        "provider": "claude",
+        "tag": "CL",
+        "text": "5H 40%"
+      },
+      {
+        "provider": "codex",
+        "tag": "CX",
+        "text": "5H 40%"
+      }
+    ],
+    "busy": false,
+    "costBusy": false,
+    "costError": "",
+    "costProviders": 0,
+    "entries": [
+      {
+        "credits": null,
+        "error": "",
+        "extraUsage": null,
+        "plan": "",
+        "provider": "claude",
+        "resetCredits": null,
+        "status": "",
+        "statusLevel": "unknown",
+        "updatedAt": "",
+        "windows": [
+          {
+            "displaySuffix": "used",
+            "displayValue": 40,
+            "key": "primary",
+            "label": "5 hour",
+            "minutes": 300,
+            "pace": "",
+            "paceDelta": null,
+            "paceExpected": null,
+            "remaining": 60,
+            "resetText": "Reset time unavailable",
+            "resetsAt": "",
+            "warning": false
+          }
+        ]
+      },
+      {
+        "credits": null,
+        "error": "",
+        "extraUsage": null,
+        "plan": "",
+        "provider": "codex",
+        "resetCredits": null,
+        "status": "",
+        "statusLevel": "unknown",
+        "updatedAt": "",
+        "windows": [
+          {
+            "displaySuffix": "used",
+            "displayValue": 40,
+            "key": "primary",
+            "label": "5 hour",
+            "minutes": 300,
+            "pace": "",
+            "paceDelta": null,
+            "paceExpected": null,
+            "remaining": 60,
+            "resetText": "Reset time unavailable",
+            "resetsAt": "",
+            "warning": false
+          }
+        ]
+      }
+    ],
+    "error": "",
+    "quotaDisplay": "used",
+    "schemaVersion": 1,
+    "spending": [],
+    "stale": false,
+    "summary": "CL 40%  \u00b7  CX 40%",
+    "updated": "12:55"
+  },
+  "headSnapshot": {
+    "barEntries": [
+      {
+        "provider": "claude",
+        "tag": "CL",
+        "text": "5H 40%"
+      },
+      {
+        "provider": "codex",
+        "tag": "CX",
+        "text": "5H 40%"
+      }
+    ],
+    "busy": false,
+    "costBusy": false,
+    "costError": "",
+    "costProviders": 0,
+    "entries": [
+      {
+        "credits": null,
+        "error": "",
+        "extraUsage": null,
+        "plan": "",
+        "provider": "claude",
+        "resetCredits": null,
+        "status": "",
+        "statusLevel": "unknown",
+        "updatedAt": "",
+        "windows": [
+          {
+            "displaySuffix": "used",
+            "displayValue": 40,
+            "key": "primary",
+            "label": "5 hour",
+            "minutes": 300,
+            "pace": "",
+            "paceDelta": null,
+            "paceExpected": null,
+            "remaining": 60,
+            "resetText": "Reset time unavailable",
+            "resetsAt": "",
+            "warning": false
+          }
+        ]
+      },
+      {
+        "credits": null,
+        "error": "",
+        "extraUsage": null,
+        "plan": "",
+        "provider": "codex",
+        "resetCredits": null,
+        "status": "",
+        "statusLevel": "unknown",
+        "updatedAt": "",
+        "windows": [
+          {
+            "displaySuffix": "used",
+            "displayValue": 40,
+            "key": "primary",
+            "label": "5 hour",
+            "minutes": 300,
+            "pace": "",
+            "paceDelta": null,
+            "paceExpected": null,
+            "remaining": 60,
+            "resetText": "Reset time unavailable",
+            "resetsAt": "",
+            "warning": false
+          }
+        ]
+      }
+    ],
+    "error": "",
+    "quotaDisplay": "used",
+    "schemaVersion": 1,
+    "spending": [],
+    "stale": false,
+    "summary": "CL 40%  \u00b7  CX 40%",
+    "updated": "12:55"
+  },
+  "noVisibleGaugeVerifiedOnX11": true,
+  "oldPreferencesUnchangedOnStartup": true,
+  "allOldPreferencesRetainedAfterSave": true,
+  "gaugeDisabledAfterUpgrade": true,
+  "oldPreferences": {
+    "accountIndex": 0,
+    "allAccounts": false,
+    "barProviders": 2,
+    "compactQuickView": true,
+    "executable": "<isolated-fixture-cli>",
+    "followOmarchyTheme": false,
+    "notifications": false,
+    "notifyThreshold": 17,
+    "provider": "custom",
+    "providerOrder": [
+      "claude",
+      "codex"
+    ],
+    "quotaDisplay": "used",
+    "refreshOnOpen": false,
+    "refreshSeconds": 900,
+    "resetDisplay": "both",
+    "showBarDetail": true,
+    "showCosts": false,
+    "showIdentity": false,
+    "showPace": false,
+    "showScopedCaps": false,
+    "showStatus": false,
+    "showTray": false,
+    "source": "auto",
+    "trayStyle": "meters",
+    "warningColors": false
+  },
+  "upgradedPreferences": {
+    "accountIndex": 0,
+    "allAccounts": false,
+    "barProviders": 2,
+    "compactQuickView": true,
+    "executable": "<isolated-fixture-cli>",
+    "floatingCompact": true,
+    "floatingHeight": 440,
+    "floatingOnTop": true,
+    "floatingPositionSet": false,
+    "floatingProviders": [],
+    "floatingWidth": 360,
+    "floatingX": 0,
+    "floatingY": 0,
+    "followOmarchyTheme": false,
+    "notifications": false,
+    "notifyThreshold": 17,
+    "provider": "custom",
+    "providerOrder": [
+      "claude",
+      "codex"
+    ],
+    "quotaDisplay": "used",
+    "refreshOnOpen": false,
+    "refreshSeconds": 900,
+    "resetDisplay": "both",
+    "showBarDetail": true,
+    "showCosts": false,
+    "showFloating": false,
+    "showIdentity": false,
+    "showPace": false,
+    "showScopedCaps": false,
+    "showStatus": false,
+    "showTray": false,
+    "source": "auto",
+    "trayStyle": "meters",
+    "warningColors": false
+  },
+  "newPreferenceKeys": [
+    "floatingCompact",
+    "floatingHeight",
+    "floatingOnTop",
+    "floatingPositionSet",
+    "floatingProviders",
+    "floatingWidth",
+    "floatingX",
+    "floatingY",
+    "showFloating"
+  ],
+  "result": "passed"
+}
