@@ -74,7 +74,13 @@ defineProvider({
     // usage totals. Both convert here; anything else fails parsing.
     function amount(value) {
       if (value === undefined || value === null) return undefined;
-      const parsed = typeof value === "string" ? Number(value.trim()) : value;
+      let parsed = value;
+      if (typeof value === "string") {
+        const text = value.trim();
+        // Number("") is 0. An empty or non-decimal string is a malformed amount, not a zero balance.
+        if (!/^\d+(?:\.\d+)?$/.test(text)) return fail("NanoGPT returned an invalid non-negative amount.");
+        parsed = Number(text);
+      }
       if (typeof parsed !== "number" || !Number.isFinite(parsed) || parsed < 0) {
         return fail("NanoGPT returned an invalid non-negative amount.");
       }
@@ -98,19 +104,14 @@ defineProvider({
       }
     }
 
-    // Shared classification for one request's non-2xx response.
-    function classify(path, status, headers) {
+    // Shared classification for one request's non-2xx response. The quota and usage GETs already opted into
+    // transientIdempotent, so a 429 here must not carry retryAfterSeconds: that hint replays the whole strategy.
+    function classify(path, status) {
       const message = `NanoGPT ${path} returned HTTP ${status}.`;
       if (status === 401 || status === 403) {
         throw ctx.fail.authenticationExpired("NanoGPT rejected the API key. Paste a fresh key in Settings.");
       }
-      if (status === 429) {
-        const raw = headers["retry-after"];
-        const delay = raw === undefined ? 1 : Number(raw);
-        throw ctx.fail.rateLimited(message, {
-          retryAfterSeconds: Number.isFinite(delay) && delay >= 0 ? Math.min(delay, 10) : 1,
-        });
-      }
+      if (status === 429) throw ctx.fail.rateLimited(message);
       if (status >= 500) throw ctx.fail.providerUnavailable(message);
       throw ctx.fail.apiFailure(message);
     }
@@ -137,7 +138,7 @@ defineProvider({
     // 1. Subscription quotas. Only a 2xx response describes the subscription lanes.
     const quotaPath = "/api/subscription/v1/usage";
     const quotaResponse = await get(quotaPath, 8, "transientIdempotent");
-    if (quotaResponse.status !== 200) classify(quotaPath, quotaResponse.status, quotaResponse.headers);
+    if (quotaResponse.status !== 200) classify(quotaPath, quotaResponse.status);
     const quota = decode(quotaResponse.bodyText, "subscription");
 
     const lane = (key) => {
@@ -222,7 +223,7 @@ defineProvider({
       if (!response) continue;
       const path = url.slice(url.indexOf("/", 8));
       if (response.status === 401 || response.status === 403) {
-        classify(path, response.status, response.headers);
+        classify(path, response.status);
       }
       if (response.status === 200) {
         const parsed = amount(decode(response.bodyText, "balance").usd_balance);
@@ -230,16 +231,15 @@ defineProvider({
         balance = parsed;
         break;
       }
-      if (index === balanceURLs.length - 1 || response.status >= 500) {
-        classify(path, response.status, response.headers);
-      }
+      // A 5xx on the API host, or a 404/429/5xx on the website, leaves the balance unset.
+      // Quotas and month-to-date spend are still worth reading.
     }
 
     // 3. Month-to-date spend and tokens from the authenticated key's own usage totals.
     const now = ctx.date.now();
     const usagePath = `/api/v1/usage?from=${monthStart(now)}&to=${now.toISOString().slice(0, 10)}&group_by=day`;
     const usageResponse = await get(usagePath, 7, "transientIdempotent");
-    if (usageResponse.status !== 200) classify(usagePath, usageResponse.status, usageResponse.headers);
+    if (usageResponse.status !== 200) classify(usagePath, usageResponse.status);
     const usage = decode(usageResponse.bodyText, "usage");
     const totals = _nullishCoalesce(record(usage.totals), () => ({}));
     const requests = counter(totals.requests);

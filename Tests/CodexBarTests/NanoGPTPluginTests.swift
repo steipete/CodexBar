@@ -114,6 +114,19 @@ struct NanoGPTPluginTests {
     }
 
     @Test(arguments: BundledPluginTestSupport.engines)
+    func `quota and spend survive a balance HTTP error`(engine: ProviderPluginEngineKind) async throws {
+        let snapshot = try await Self.fetch(engine: engine, balancePath: .degraded)
+        #expect(snapshot.primary?.usedPercent == 15)
+        #expect(snapshot.providerCost?.used == 1.5)
+        #expect(snapshot.providerCost?.balance == nil)
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `a rejected balance key still fails the refresh`(engine: ProviderPluginEngineKind) async {
+        await Self.expectFailure(engine: engine, balancePath: .unauthorized, kind: .authenticationExpired)
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
     func `design balance falls back to the website origin`(engine: ProviderPluginEngineKind) async throws {
         let snapshot = try await Self.fetch(engine: engine, balancePath: .websiteOnly)
         #expect(snapshot.providerCost?.balance == 12.5)
@@ -133,7 +146,10 @@ struct NanoGPTPluginTests {
                     with: #""used":\#(value),"remaining":850000,"percentUsed":0.15"#),
                 kind: .parseFailure)
         }
-        for body in ["private-response", "[]", "{}", #"{"usd_balance":"private-response"}"#] {
+        for body in [
+            "private-response", "[]", "{}", #"{"usd_balance":"private-response"}"#,
+            #"{"usd_balance":""}"#, #"{"usd_balance":" "}"#,
+        ] {
             await Self.expectFailure(engine: engine, balance: body, kind: .parseFailure)
         }
         await Self.expectFailure(
@@ -166,13 +182,14 @@ struct NanoGPTPluginTests {
         #expect(credentials.resolveToken(environment: ["OTHER_KEY": "fixture-key"]) == nil)
     }
 
-    private enum BalancePath { case directOnly, websiteOnly, both, unavailable }
+    private enum BalancePath { case directOnly, websiteOnly, both, unavailable, degraded, unauthorized }
 
     private static func expectFailure(
         engine: ProviderPluginEngineKind,
         subscription: String? = nil,
         balance: String? = nil,
         subscriptionCode: Int = 200,
+        balancePath: BalancePath = .both,
         kind: ProviderFetchClassifiedError.Kind) async
     {
         do {
@@ -180,11 +197,15 @@ struct NanoGPTPluginTests {
                 engine: engine,
                 subscription: subscription,
                 balance: balance,
-                subscriptionCode: subscriptionCode)
+                subscriptionCode: subscriptionCode,
+                balancePath: balancePath)
             Issue.record("Expected classified failure")
         } catch let error as ProviderFetchClassifiedError {
             #expect(error.kind == kind)
             #expect(!error.message.contains("private-response"))
+            if kind == .rateLimited {
+                #expect(error.retryAfterSeconds == nil)
+            }
         } catch {
             Issue.record("Unexpected failure: \(error)")
         }
@@ -213,8 +234,12 @@ struct NanoGPTPluginTests {
                     if balancePath == .unavailable, url.hasPrefix("https://nano-gpt.com") {
                         throw URLError(.cannotConnectToHost)
                     }
-                    if balancePath == .websiteOnly || balancePath == .unavailable,
-                       url.hasPrefix("https://api.nano-gpt.com")
+                    if balancePath == .unauthorized, url.hasPrefix("https://api.nano-gpt.com") {
+                        code = 401
+                    } else if balancePath == .degraded {
+                        code = url.hasPrefix("https://api.nano-gpt.com") ? 500 : 404
+                    } else if balancePath == .websiteOnly || balancePath == .unavailable,
+                              url.hasPrefix("https://api.nano-gpt.com")
                     {
                         code = 404
                     } else {
@@ -236,7 +261,10 @@ struct NanoGPTPluginTests {
                     url: request.url!,
                     statusCode: code,
                     httpVersion: nil,
-                    headerFields: ["Content-Type": "application/json"]))
+                    headerFields: [
+                        "Content-Type": "application/json",
+                        "Retry-After": "8",
+                    ]))
                 return (Data(body.utf8), response)
             })
         return try await runtime.fetchUsage(
