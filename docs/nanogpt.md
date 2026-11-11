@@ -33,7 +33,8 @@ are not tokens. Trial-token lanes from token-based trials show as detail rows on
 The balance response supplies the prepaid USD balance, shown as the cost snapshot's `balance`. Month-to-date spend
 comes from the authenticated key's own `/api/v1/usage` totals: requests, total tokens, and `netCostUsd`, plus a
 daily spend chart. That history is scoped by NanoGPT to the key, not the account, so two keys report separate
-spend. The balance is account-wide.
+spend. The balance is account-wide. When both balance origins fail, the spend is still reported and `balance`
+is left unset.
 
 Account plans and Design subscription columns on quota reports are separate from the balance; CodexBar never
 converts one into the other. The API has no monthly reset for the balance, so none is invented.

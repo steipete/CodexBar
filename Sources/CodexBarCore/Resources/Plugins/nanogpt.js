@@ -320,12 +320,14 @@ defineProvider({
             }
           : undefined,
       extraWindows,
+      // Spend and balance are independent reads. A failed balance must not drop month-to-date spend,
+      // and a missing spend total must not invent one from the chart.
       cost:
-        balance !== undefined
+        netCost !== undefined || balance !== undefined
           ? {
               used: _nullishCoalesce(netCost, () => points.reduce((sum, point) => sum + point.value, 0)),
               currency: "USD",
-              balance,
+              ...(balance !== undefined ? { balance } : {}),
               period: "Month to date",
             }
           : undefined,

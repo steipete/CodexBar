@@ -24,7 +24,6 @@ enum ProviderChoice: String, AppEnum {
     case deepseek
     case openrouter
     case pi
-    case nanogpt
 
     static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Provider")
 
@@ -52,7 +51,6 @@ enum ProviderChoice: String, AppEnum {
         .deepseek: DisplayRepresentation(title: "DeepSeek"),
         .openrouter: DisplayRepresentation(title: "OpenRouter"),
         .pi: DisplayRepresentation(title: "Pi"),
-        .nanogpt: DisplayRepresentation(title: "NanoGPT"),
     ]
 
     var provider: UsageProvider {

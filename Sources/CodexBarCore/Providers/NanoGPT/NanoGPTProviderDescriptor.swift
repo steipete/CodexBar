@@ -29,8 +29,15 @@ public enum NanoGPTProviderDescriptor {
         // Automatic follows whichever window the account reports. The fixed selections keep working when one
         // lane is unconfigured, for example an account with a token quota but no image quota.
         menuBarMetrics: .init(supported: [.automatic, .primary, .secondary]),
-        // The bundled script makes three bounded GETs; 20 seconds keeps that inside one refresh.
-        timeout: 20,
+        presentation: ProviderUsagePresentation(
+            costPresenter: { _ in
+                // There is no configured monthly cap. A generic card treats a missing limit as empty and
+                // hides both the prepaid balance and the month-to-date spend.
+                ProviderCostPresentation(showsGenericFallback: false, menuCardStyle: .payAsYouGoSpend)
+            }),
+        // The script waits on each call in order. Both GETs may time out and retry once (8+1+8 and 7+1+7),
+        // and the balance POST may try the API host and then the website (5+4). 45 seconds covers that path.
+        timeout: 45,
         apiKeyField: .init(
             id: "nanogpt-api-key",
             title: "NanoGPT API key",

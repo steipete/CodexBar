@@ -105,6 +105,15 @@ struct NanoGPTPluginTests {
     }
 
     @Test(arguments: BundledPluginTestSupport.engines)
+    func `month to date spend survives a failed balance`(engine: ProviderPluginEngineKind) async throws {
+        let snapshot = try await Self.fetch(engine: engine, balancePath: .unavailable)
+        #expect(snapshot.providerCost?.used == 1.5)
+        #expect(snapshot.providerCost?.balance == nil)
+        #expect(snapshot.providerCost?.currencyCode == "USD")
+        #expect(snapshot.providerCost?.period == "Month to date")
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
     func `design balance falls back to the website origin`(engine: ProviderPluginEngineKind) async throws {
         let snapshot = try await Self.fetch(engine: engine, balancePath: .websiteOnly)
         #expect(snapshot.providerCost?.balance == 12.5)
@@ -149,6 +158,7 @@ struct NanoGPTPluginTests {
     func `registration keeps the key and source scope explicit`() throws {
         let descriptor = NanoGPTProviderDescriptor.descriptor
         #expect(!descriptor.metadata.defaultEnabled)
+        #expect(!descriptor.metadata.widgetSelectable)
         #expect(descriptor.metadata.cliName == "nanogpt")
         #expect(descriptor.fetchPlan.sourceModes == [.auto, .api])
         let credentials = try #require(descriptor.credentials)
@@ -156,7 +166,7 @@ struct NanoGPTPluginTests {
         #expect(credentials.resolveToken(environment: ["OTHER_KEY": "fixture-key"]) == nil)
     }
 
-    private enum BalancePath { case directOnly, websiteOnly, both }
+    private enum BalancePath { case directOnly, websiteOnly, both, unavailable }
 
     private static func expectFailure(
         engine: ProviderPluginEngineKind,
@@ -200,7 +210,12 @@ struct NanoGPTPluginTests {
                 case url.hasSuffix("/api/check-balance"):
                     #expect(request.httpMethod == "POST")
                     #expect(request.value(forHTTPHeaderField: "X-API-Key") == "fixture-key")
-                    if balancePath == .websiteOnly, url.hasPrefix("https://api.nano-gpt.com") {
+                    if balancePath == .unavailable, url.hasPrefix("https://nano-gpt.com") {
+                        throw URLError(.cannotConnectToHost)
+                    }
+                    if balancePath == .websiteOnly || balancePath == .unavailable,
+                       url.hasPrefix("https://api.nano-gpt.com")
+                    {
                         code = 404
                     } else {
                         body = balance ?? Self.balance
