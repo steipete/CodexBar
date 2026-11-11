@@ -41,6 +41,7 @@ TestCase {
         function refresh() { refreshCount++; }
         function showWindow(page) {}
         function showFloatingMenu(window) { menuRequests++; }
+        function floatingAvailableWidth(window) { return 1280; }
         function restoreFloatingGeometry(window) {}
         function saveFloatingGeometry(window) {
             geometryWrites++;
@@ -237,11 +238,45 @@ TestCase {
         tryCompare(gauge, "visible", true);
         compare(desktop.refreshCount, 0);
     }
-    function test_syntheticRender() {
-        grabImage(gauge.contentItem).save("floating-capsule-synthetic.png");
+    function test_dualWindowEntriesFitAvailableScreen() {
+        var entries = [entry("codex", 60), entry("claude", 35), entry("copilot", 80)];
+        entries.forEach(function(value) { value.windows.push({label: "Weekly", remaining: 71, resetsAt: ""}); });
+        desktop.entries = entries;
+        gauge.compactAvailableWidth = 1024;
+        tryCompare(gauge, "compactEntries", entries.slice(0, 2));
+        verify(gauge.width <= 1024);
+        verify(shown("+1"));
+        verify(!shown("80% left"));
         gauge.setCompact(false);
-        tryVerify(function() { return shown("60% left"); });
-        verify(waitForRendering(gauge.contentItem));
-        grabImage(gauge.contentItem).save("floating-panel-synthetic.png");
+        tryVerify(function() { return shown("80% left"); });
+        compare(desktop.refreshCount, 0);
+    }
+    function test_screenChangesUpdateOverflow() {
+        var entries = [entry("codex", 60), entry("claude", 35), entry("copilot", 80), entry("gemini", 90)];
+        entries.forEach(function(value) { value.windows.push({label: "Weekly", remaining: 71, resetsAt: ""}); });
+        desktop.entries = entries;
+        for (var item of [{width: 1280, visible: 3}, {width: 1024, visible: 2},
+                         {width: 640, visible: 1}, {width: 240, visible: 0}, {width: 1280, visible: 3}]) {
+            gauge.compactAvailableWidth = item.width;
+            tryVerify(function() { return gauge.compactEntries.length === item.visible; });
+            verify(gauge.width <= item.width);
+            verify(shown("+" + (entries.length - item.visible)));
+        }
+        compare(desktop.entries.length, 4);
+        compare(desktop.refreshCount, 0);
+    }
+    function test_statusHasSpaceAtWidthBoundary() {
+        var entries = [entry("codex", 60), entry("claude", 35)];
+        entries.forEach(function(value) { value.windows.push({label: "Weekly", remaining: 71, resetsAt: ""}); });
+        desktop.entries = entries;
+        gauge.compactAvailableWidth = 758;
+        tryVerify(function() { return gauge.compactEntries.length === 2; });
+        desktop.busy = true;
+        tryVerify(function() { return gauge.compactEntries.length === 1; });
+        verify(shown("+1"));
+        verify(shown("↻"));
+        verify(gauge.width <= 758);
+        desktop.busy = false;
+        tryVerify(function() { return gauge.compactEntries.length === 2; });
     }
 }

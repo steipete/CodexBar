@@ -24,9 +24,17 @@ ApplicationWindow {
             return selected.length === 0 || selected.indexOf(entry.provider) !== -1;
         });
     }
-    readonly property int capsuleWidth: Math.max(220, shownEntries.slice(0, 3).reduce(function(total, entry) {
-        return total + 94 + Math.max(1, compactWindows(entry).length) * 132;
-    }, 42))
+    property int compactAvailableWidth: desktop.floatingAvailableWidth(window)
+    readonly property var compactEntries: {
+        var entries = [];
+        for (var i = 0; i < Math.min(3, shownEntries.length); ++i) {
+            var next = entries.concat([shownEntries[i]]);
+            if (compactWidthFor(next) > compactAvailableWidth) break;
+            entries = next;
+        }
+        return entries;
+    }
+    readonly property int capsuleWidth: Math.min(compactAvailableWidth, compactWidthFor(compactEntries))
     readonly property color secondaryText: Qt.rgba(palette.windowText.r, palette.windowText.g, palette.windowText.b, 0.65)
     readonly property color warning: "#d97732"
     readonly property string stateText: desktop.busy ? "Refreshing…" : desktop.error ? desktop.error :
@@ -43,10 +51,10 @@ ApplicationWindow {
         height = compact ? 48 : desktop.settings.floatingHeight;
         applyingGeometry = false;
     }
-    function restorePosition() {
+    function restorePosition(useSavedPosition) {
         if (!ready || !visible) return;
         applyingGeometry = true;
-        desktop.restoreFloatingGeometry(window);
+        desktop.restoreFloatingGeometry(window, useSavedPosition !== false);
         applyingGeometry = false;
     }
     function scheduleSave() {
@@ -73,6 +81,17 @@ ApplicationWindow {
     function compactWindows(entry) {
         return (entry.windows || []).filter(function(metric) { return !metric.scoped; }).slice(0, 2);
     }
+    function compactWidthFor(entries) {
+        var width = entries.reduce(function(total, entry) {
+            return total + 94 + Math.max(1, compactWindows(entry).length) * 132;
+        }, 42);
+        if (entries.length < shownEntries.length) width += 40;
+        if (desktop.error || desktop.stale || desktop.busy) width += 24;
+        return Math.max(220, width);
+    }
+    function updateAvailableWidth() {
+        compactAvailableWidth = desktop.floatingAvailableWidth(window);
+    }
     function quotaColor(metric) {
         return desktop.stale ? secondaryText : desktop.settings.warningColors && metric &&
             metric.remaining <= desktop.settings.notifyThreshold ? warning : palette.highlight;
@@ -84,7 +103,8 @@ ApplicationWindow {
     onHeightChanged: scheduleSave()
     // Let the compact/expanded size constraints settle before restoring geometry.
     onCompactChanged: Qt.callLater(function() { window.syncSize(); window.restorePosition(); })
-    onCapsuleWidthChanged: if (compact) { syncSize(); restorePosition(); }
+    onScreenChanged: if (ready) updateAvailableWidth()
+    onCapsuleWidthChanged: if (compact) { syncSize(); restorePosition(false); }
     // Crossing onto another monitor during a drag must not restore the old position.
     onVisibleChanged: {
         if (visible) { now = Date.now(); syncSize(); restorePosition(); }
@@ -107,7 +127,8 @@ ApplicationWindow {
     }
     Connections {
         target: window.screen
-        function onDesktopGeometryChanged() { Qt.callLater(window.restorePosition); }
+        function onDesktopGeometryChanged() { window.updateAvailableWidth(); Qt.callLater(window.restorePosition); }
+        function onWidthChanged() { window.updateAvailableWidth(); }
     }
     Timer { id: geometrySave; interval: 400; onTriggered: desktop.saveFloatingGeometry(window) }
     Timer { interval: 30000; repeat: true; running: window.visible; onTriggered: window.now = Date.now() }
@@ -136,7 +157,7 @@ ApplicationWindow {
             anchors.left: parent.left; anchors.leftMargin: 16
             spacing: 10
             Repeater {
-                model: window.shownEntries.slice(0, 3)
+                model: window.compactEntries
                 Row {
                     id: providerLane
                     required property var modelData
@@ -204,9 +225,10 @@ ApplicationWindow {
                 }
             }
             Label { visible: window.shownEntries.length === 0; text: "CodexBar · No usage"; font.pixelSize: 12; y: 13 }
+            Label { visible: window.shownEntries.length > 0 && window.compactEntries.length === 0; text: "Usage"; font.pixelSize: 12; y: 13 }
             Label {
-                visible: window.shownEntries.length > 3
-                text: "+" + (window.shownEntries.length - 3)
+                visible: window.shownEntries.length > window.compactEntries.length
+                text: "+" + (window.shownEntries.length - window.compactEntries.length)
                 color: window.secondaryText; font.pixelSize: 10
             }
             Label {

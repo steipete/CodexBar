@@ -191,14 +191,20 @@ bool DesktopController::saveSettings(const QVariantMap &changes) {
     return true;
 }
 
-void DesktopController::restoreFloatingGeometry(QWindow *window) {
+int DesktopController::floatingAvailableWidth(QWindow *window) const {
+    auto *screen = window ? window->screen() : nullptr;
+    if (!screen) screen = QGuiApplication::primaryScreen();
+    return screen ? qMax(1, screen->availableGeometry().width()) : 800;
+}
+
+void DesktopController::restoreFloatingGeometry(QWindow *window, bool useSavedPosition) {
     // Wayland places ordinary windows through the compositor, not client coordinates.
     if (!window || QGuiApplication::platformName().startsWith("wayland")) return;
     auto *screen = window->screen();
     if (!screen) screen = QGuiApplication::primaryScreen();
     if (!screen) return;
-    QPoint position = screen->availableGeometry().topLeft() + QPoint(24, 24);
-    if (m_settings.value("floatingPositionSet").toBool()) {
+    QPoint position = useSavedPosition ? screen->availableGeometry().topLeft() + QPoint(24, 24) : window->position();
+    if (useSavedPosition && m_settings.value("floatingPositionSet").toBool()) {
         position = {m_settings.value("floatingX").toInt(), m_settings.value("floatingY").toInt()};
         // Prefer the saved monitor, but recover onto the current monitor if it disappeared.
         if (auto *savedScreen = QGuiApplication::screenAt(position + QPoint(window->width() / 2, window->height() / 2)))

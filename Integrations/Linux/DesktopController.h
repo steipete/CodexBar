@@ -50,7 +50,8 @@ public:
     Q_INVOKABLE void refreshCosts();
     Q_INVOKABLE void showWindow(const QString &page);
     Q_INVOKABLE bool saveSettings(const QVariantMap &changes);
-    Q_INVOKABLE void restoreFloatingGeometry(QWindow *window);
+    Q_INVOKABLE int floatingAvailableWidth(QWindow *window) const;
+    Q_INVOKABLE void restoreFloatingGeometry(QWindow *window, bool useSavedPosition = true);
     Q_INVOKABLE bool saveFloatingGeometry(QWindow *window);
     Q_INVOKABLE void showFloatingMenu(QWindow *window) { emit floatingMenuRequested(window); }
     Q_INVOKABLE void copySummary();

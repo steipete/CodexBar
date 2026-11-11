@@ -58,6 +58,11 @@ private slots:
         controller.restoreFloatingGeometry(&window);
         QCOMPARE(window.position(), position);
 
+        // A screen-width change must clamp the current position, not jump to old saved coordinates.
+        QVERIFY(controller.saveSettings({{"floatingX", 100000}, {"floatingY", -100000}}));
+        controller.restoreFloatingGeometry(&window, false);
+        QCOMPARE(window.position(), position);
+
         window.resize(available.width() + 100, available.height() + 100);
         controller.restoreFloatingGeometry(&window);
         QCOMPARE(window.position(), available.topLeft());
