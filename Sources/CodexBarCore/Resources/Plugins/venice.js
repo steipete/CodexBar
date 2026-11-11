@@ -50,7 +50,16 @@ defineProvider({
     let resetDescription;
     if (!payload.canConsume) {
       usedPercent = 100;
-      resetDescription = "Balance unavailable for API calls";
+      const usdText = usd !== null && usd > 0 ? `$${usd.toFixed(2)} USD remaining` : null;
+      const diemText = diem !== null && diem > 0 ? `DIEM ${diem.toFixed(2)} remaining` : null;
+      const known = currency === "USD" ? usdText || diemText : diemText || usdText;
+      if (known) {
+        resetDescription = `${known}, API calls blocked`;
+      } else if (usd !== null && usd < 0) {
+        resetDescription = `USD balance -$${Math.abs(usd).toFixed(2)}, API calls blocked`;
+      } else {
+        resetDescription = "Balance unavailable for API calls";
+      }
     } else if (currency === "USD" && usd !== null && usd > 0) {
       usedPercent = 0;
       resetDescription = `$${usd.toFixed(2)} USD remaining`;

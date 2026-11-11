@@ -75,7 +75,7 @@ struct VenicePluginGoldenTests {
     }
 
     @Test
-    func `non-consumable fixture is exhausted`() async throws {
+    func `non-consumable fixture keeps full usage and shows the blocked balance`() async throws {
         let snapshot = try await Self.fetch("""
         {
           "canConsume": false,
@@ -85,7 +85,85 @@ struct VenicePluginGoldenTests {
         }
         """)
         #expect(snapshot.primary?.usedPercent == 100)
+        #expect(snapshot.primary?.resetDescription == "$100.00 USD remaining, API calls blocked")
+    }
+
+    @Test
+    func `non-consumable small USD balance is shown as blocked`() async throws {
+        let snapshot = try await Self.fetch("""
+        {
+          "canConsume": false,
+          "consumptionCurrency": "USD",
+          "balances": { "diem": null, "usd": 0.09549 },
+          "diemEpochAllocation": null
+        }
+        """)
+        #expect(snapshot.primary?.usedPercent == 100)
+        #expect(snapshot.primary?.resetDescription == "$0.10 USD remaining, API calls blocked")
+    }
+
+    @Test
+    func `non-consumable DIEM balance is shown as blocked`() async throws {
+        let snapshot = try await Self.fetch("""
+        {
+          "canConsume": false,
+          "consumptionCurrency": "DIEM",
+          "balances": { "diem": 3.0, "usd": null },
+          "diemEpochAllocation": 100.0
+        }
+        """)
+        #expect(snapshot.primary?.usedPercent == 100)
+        #expect(snapshot.primary?.resetDescription == "DIEM 3.00 remaining, API calls blocked")
+    }
+
+    @Test
+    func `non-consumable blocked balance follows the consumption currency`() async throws {
+        let usd = try await Self.fetch("""
+        {
+          "canConsume": false,
+          "consumptionCurrency": "USD",
+          "balances": { "diem": 3.0, "usd": 0.5 },
+          "diemEpochAllocation": null
+        }
+        """)
+        #expect(usd.primary?.resetDescription == "$0.50 USD remaining, API calls blocked")
+        let diem = try await Self.fetch("""
+        {
+          "canConsume": false,
+          "consumptionCurrency": "DIEM",
+          "balances": { "diem": 3.0, "usd": 0.5 },
+          "diemEpochAllocation": null
+        }
+        """)
+        #expect(diem.primary?.resetDescription == "DIEM 3.00 remaining, API calls blocked")
+    }
+
+    @Test
+    func `non-consumable without balances keeps the generic message`() async throws {
+        let snapshot = try await Self.fetch("""
+        {
+          "canConsume": false,
+          "consumptionCurrency": "USD",
+          "balances": { "diem": null, "usd": null },
+          "diemEpochAllocation": null
+        }
+        """)
+        #expect(snapshot.primary?.usedPercent == 100)
         #expect(snapshot.primary?.resetDescription == "Balance unavailable for API calls")
+    }
+
+    @Test
+    func `non-consumable negative USD balance is not reported as remaining`() async throws {
+        let snapshot = try await Self.fetch("""
+        {
+          "canConsume": false,
+          "consumptionCurrency": "USD",
+          "balances": { "diem": null, "usd": -0.25 },
+          "diemEpochAllocation": null
+        }
+        """)
+        #expect(snapshot.primary?.usedPercent == 100)
+        #expect(snapshot.primary?.resetDescription == "USD balance -$0.25, API calls blocked")
     }
 
     @Test
