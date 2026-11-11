@@ -1,0 +1,22 @@
+Testing qmltestrunner
+FAIL!  : qmltestrunner::UsageFormat::test_tokenGrouping(billions) Compared values are not the same
+   Actual   (): 2,,992,,687,,053
+   Expected (): 2,992,687,053
+   Loc: [/tmp/codexbar-pr-baseline/Integrations/Linux/tests/qml/tst_usageformat.qml(20)]
+FAIL!  : qmltestrunner::UsageFormat::test_tokenGrouping(input) Compared values are not the same
+   Actual   (): 2,,979,,214,,406
+   Expected (): 2,979,214,406
+   Loc: [/tmp/codexbar-pr-baseline/Integrations/Linux/tests/qml/tst_usageformat.qml(20)]
+FAIL!  : qmltestrunner::UsageFormat::test_tokenGrouping(output) Compared values are not the same
+   Actual   (): 13,,472,,647
+   Expected (): 13,472,647
+   Loc: [/tmp/codexbar-pr-baseline/Integrations/Linux/tests/qml/tst_usageformat.qml(20)]
+FAIL!  : qmltestrunner::UsageFormat::test_tokenGrouping(boundary) Compared values are not the same
+   Actual   (): 1,,000
+   Expected (): 1,000
+   Loc: [/tmp/codexbar-pr-baseline/Integrations/Linux/tests/qml/tst_usageformat.qml(20)]
+FAIL!  : qmltestrunner::UsageFormat::test_tokenGrouping(rounding) Compared values are not the same
+   Actual   (): 1,,000
+   Expected (): 1,000
+   Loc: [/tmp/codexbar-pr-baseline/Integrations/Linux/tests/qml/tst_usageformat.qml(20)]
+Totals: 16 passed, 5 failed, 0 skipped, 0 blacklisted, 203ms
