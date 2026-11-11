@@ -82,7 +82,8 @@ ApplicationWindow {
     onYChanged: scheduleSave()
     onWidthChanged: scheduleSave()
     onHeightChanged: scheduleSave()
-    onCompactChanged: { syncSize(); restorePosition(); }
+    // Let the compact/expanded size constraints settle before restoring geometry.
+    onCompactChanged: Qt.callLater(function() { window.syncSize(); window.restorePosition(); })
     onCapsuleWidthChanged: if (compact) { syncSize(); restorePosition(); }
     // Crossing onto another monitor during a drag must not restore the old position.
     onVisibleChanged: {
