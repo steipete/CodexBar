@@ -58,7 +58,8 @@ else:
         log = self.log.read()
         self.log.close()
         self.temporary.cleanup()
-        for error in ['ReferenceError', 'TypeError', 'failed to load', 'Cannot assign', 'Unable to assign', 'Binding loop']:
+        for error in ['ReferenceError', 'TypeError', 'failed to load', 'Cannot assign', 'Unable to assign',
+                      'Binding loop', 'no signal of the target matches']:
             self.assertNotIn(error, log)
 
     def client(self, *args, check=True):
@@ -357,6 +358,70 @@ else:
         self.client('--refresh')
         value = self.wait_for(lambda value: bool(value.get('costError')))
         self.assertEqual(value['costProviders'], 1)
+
+    def test_floating_gauge_is_opt_in_and_never_starts_an_extra_query(self):
+        self.client('--configure', '{}')
+        settings = self.root / 'config/codexbar/linux.json'
+        self.assertFalse(json.loads(settings.read_text())['showFloating'])
+        calls = (self.root / 'calls.jsonl').read_text()
+        pid = self.client('--snapshot')['pid']
+        # Even refresh-on-open applies only to the existing usage/Quick View windows.
+        self.client('--configure', '{"refreshOnOpen":true}')
+        for compact in [True, False, True]:
+            self.client('--floating')
+            self.client('--configure', json.dumps({'floatingCompact': compact, 'floatingOnTop': not compact,
+                                                  'floatingProviders': ['claude']}))
+            snapshot = self.client('--snapshot')
+            self.assertEqual(snapshot['pid'], pid)
+            self.assertFalse(snapshot['busy'])
+            self.assertFalse(snapshot['costBusy'])
+            self.assertEqual(snapshot['entries'][0]['provider'], 'codex')
+            self.client('--configure', '{"showFloating":false}')
+        self.assertEqual((self.root / 'calls.jsonl').read_text(), calls)
+        saved = json.loads(settings.read_text())
+        self.assertFalse(saved['showFloating'])
+        self.assertEqual(saved['floatingProviders'], ['claude'])
+
+    def test_floating_restarts_compact_and_preserves_geometry(self):
+        preferences = {'showFloating': True, 'floatingCompact': False, 'floatingOnTop': False,
+                       'floatingProviders': ['codex'], 'floatingWidth': 480, 'floatingHeight': 380,
+                       'floatingPositionSet': True, 'floatingX': 35, 'floatingY': 40}
+        self.client('--configure', json.dumps(preferences))
+        self.client('--quit')
+        self.process.wait(timeout=4)
+        self.process = subprocess.Popen([str(APP), '--background', '--no-tray', '--cli', str(self.fake)],
+                                        env=self.environment, stdout=self.log, stderr=self.log)
+        self.wait_for(lambda value: bool(value.get('entries')) and not value['busy'])
+        self.client('--configure', '{}')
+        saved = json.loads((self.root / 'config/codexbar/linux.json').read_text())
+        self.assertEqual({key: saved[key] for key in preferences}, dict(preferences, floatingCompact=True))
+
+    def test_floating_command_starts_a_new_instance_without_cost_scans(self):
+        self.client('--quit')
+        self.process.wait(timeout=4)
+        self.process = subprocess.Popen([str(APP), '--floating', '--no-tray', '--cli', str(self.fake)],
+                                        env=self.environment, stdout=self.log, stderr=self.log)
+        value = self.wait_for(lambda value: bool(value.get('entries')) and not value['busy'])
+        self.assertFalse(value['costBusy'])
+        self.assertEqual(value['costProviders'], 0)
+        saved = json.loads((self.root / 'config/codexbar/linux.json').read_text())
+        self.assertTrue(saved['showFloating'])
+        self.assertTrue(saved['floatingCompact'])
+        calls = [json.loads(line)['args'][0] for line in (self.root / 'calls.jsonl').read_text().splitlines()]
+        self.assertEqual(calls, ['usage', 'usage'])  # One normal startup query per process.
+
+    def test_floating_preferences_reject_invalid_values_without_overwriting(self):
+        self.client('--configure', '{}')
+        settings = self.root / 'config/codexbar/linux.json'
+        before = settings.read_bytes()
+        invalid = [{'floatingWidth': 1}, {'floatingWidth': 360.5}, {'floatingWidth': 'invalid'},
+                   {'floatingHeight': 0}, {'floatingHeight': 1201}, {'floatingX': 100001},
+                   {'floatingY': -100001}, {'floatingProviders': ['codex', 'codex']},
+                   {'floatingProviders': ['bad;command']}, {'floatingProviders': ['enabled']}]
+        for preferences in invalid:
+            with self.subTest(preferences=preferences):
+                self.assertFalse(self.client('--configure', json.dumps(preferences), check=False)['ok'])
+                self.assertEqual(settings.read_bytes(), before)
 
     def test_custom_provider_order_and_selection(self):
         self.client('--configure', '{"provider":"custom","providerOrder":["claude","codex"]}')

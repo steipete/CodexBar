@@ -9,6 +9,8 @@
 #include <QTimer>
 #include <QVariant>
 
+class QWindow;
+
 class DesktopController : public QObject {
     Q_OBJECT
     Q_PROPERTY(QVariantList providers READ providers NOTIFY settingsChanged)
@@ -48,6 +50,9 @@ public:
     Q_INVOKABLE void refreshCosts();
     Q_INVOKABLE void showWindow(const QString &page);
     Q_INVOKABLE bool saveSettings(const QVariantMap &changes);
+    Q_INVOKABLE void restoreFloatingGeometry(QWindow *window);
+    Q_INVOKABLE bool saveFloatingGeometry(QWindow *window);
+    Q_INVOKABLE void showFloatingMenu(QWindow *window) { emit floatingMenuRequested(window); }
     Q_INVOKABLE void copySummary();
     QJsonObject snapshot() const;
 
@@ -55,6 +60,8 @@ signals:
     void changed();
     void settingsChanged();
     void windowRequested(const QString &page);
+    void floatingMenuRequested(QWindow *window);
+    void floatingActionRequested(const QString &action);
 
 private:
     QJSEngine m_engine;

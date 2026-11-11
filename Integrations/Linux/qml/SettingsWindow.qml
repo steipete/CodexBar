@@ -11,6 +11,7 @@ ApplicationWindow {
     property string feedback: ""
     property int section: 0
     property var providerOrder: []
+    property var floatingProviders: []
     function moveProvider(index, offset) {
         var order = providerOrder.slice();
         var item = order.splice(index, 1)[0]; order.splice(index + offset, 0, item);
@@ -31,6 +32,8 @@ ApplicationWindow {
         theme.checked = s.followOmarchyTheme; pace.checked = s.showPace; warnings.checked = s.warningColors;
         barDetail.checked = s.showBarDetail; scopedCaps.checked = s.showScopedCaps; barProviders.value = s.barProviders;
         refreshOnOpen.checked = s.refreshOnOpen; compactQuickView.checked = s.compactQuickView;
+        floating.checked = s.showFloating; floatingOnTop.checked = s.floatingOnTop;
+        floatingProviders = s.floatingProviders.slice();
         tray.checked = s.showTray; executable.text = s.executable; feedback = "";
     }
     Shortcut { sequence: "Escape"; onActivated: window.hide() }
@@ -152,6 +155,48 @@ ApplicationWindow {
                     }
                 }
                 GroupBox {
+                    title: "Floating Gauge"; Layout.fillWidth: true; visible: window.section === 0
+                    ColumnLayout {
+                        anchors.fill: parent; spacing: 10
+                        Option { id: floating; text: "Show floating gauge" }
+                        Option { id: floatingOnTop; text: "Keep gauge on top (when supported by the desktop)" }
+                        Label {
+                            text: "Click the capsule to expand; drag to move. Right-click for options. Position and topmost behavior depend on your Wayland compositor."
+                            Layout.fillWidth: true; wrapMode: Text.Wrap; opacity: 0.65
+                        }
+                        Label { text: "Providers shown (empty = all fetched providers)"; Layout.fillWidth: true; wrapMode: Text.Wrap }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            ComboBox { id: floatingAvailable; model: desktop.providers; textRole: "displayName"; Layout.fillWidth: true }
+                            Button {
+                                text: "Add"; enabled: floatingAvailable.currentIndex >= 0
+                                onClicked: {
+                                    var id = desktop.providers[floatingAvailable.currentIndex].provider;
+                                    if (window.floatingProviders.indexOf(id) < 0)
+                                        window.floatingProviders = window.floatingProviders.concat([id]);
+                                }
+                            }
+                        }
+                        Repeater {
+                            model: window.floatingProviders
+                            RowLayout {
+                                required property string modelData
+                                required property int index
+                                Layout.fillWidth: true
+                                Label { text: Usage.providerName(modelData); Layout.fillWidth: true; textFormat: Text.PlainText }
+                                Button {
+                                    text: "Remove"
+                                    onClicked: {
+                                        var selected = window.floatingProviders.slice();
+                                        selected.splice(index, 1); window.floatingProviders = selected;
+                                    }
+                                }
+                            }
+                        }
+                        Label { text: "Display only: this does not enable providers or start extra queries."; Layout.fillWidth: true; wrapMode: Text.Wrap; opacity: 0.65 }
+                    }
+                }
+                GroupBox {
                     title: "Display"; Layout.fillWidth: true; visible: window.section === 0
                     ColumnLayout {
                         anchors.fill: parent; spacing: 10
@@ -208,6 +253,7 @@ ApplicationWindow {
                         notifyThreshold: threshold.value, refreshSeconds: interval.value,
                         providerOrder: window.providerOrder, quotaDisplay: quota.currentText, resetDisplay: reset.currentText,
                         followOmarchyTheme: theme.checked, showPace: pace.checked,
+                        showFloating: floating.checked, floatingOnTop: floatingOnTop.checked, floatingProviders: window.floatingProviders,
                         showBarDetail: barDetail.checked, showScopedCaps: scopedCaps.checked, barProviders: barProviders.value, warningColors: warnings.checked, trayStyle: trayStyle.currentText,
                         refreshOnOpen: refreshOnOpen.checked, showTray: tray.checked, compactQuickView: compactQuickView.checked, executable: executable.text.trim()})) window.feedback = "Settings saved";
                 }

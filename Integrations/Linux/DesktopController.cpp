@@ -15,8 +15,10 @@
 #include <QLocalSocket>
 #include <QRegularExpression>
 #include <QSaveFile>
+#include <QScreen>
 #include <QStandardPaths>
 #include <QUuid>
+#include <QWindow>
 #include <algorithm>
 #include <csignal>
 #include <memory>
@@ -81,25 +83,40 @@ bool DesktopController::validate(QVariantMap &values) {
         if (!ok || number < min || number > max) { m_configError = QString("Invalid %1.").arg(key); return false; }
         values[key] = number;
     }
-    const auto order = values.value("providerOrder").toStringList();
-    if (order.size() > 80 || (values.value("provider") == "custom" && order.isEmpty())) {
-        m_configError = "Choose at least one provider (maximum 80)."; return false;
-    }
-    QStringList unique;
-    for (const auto &id : order) {
-        if (!QRegularExpression("^[a-z0-9-]{1,80}$").match(id).hasMatch() ||
-            QStringList{"all", "both", "enabled", "custom"}.contains(id) || unique.contains(id)) {
-            m_configError = "The provider list contains an invalid or duplicate ID."; return false;
+    for (const auto &key : {"providerOrder", "floatingProviders"}) {
+        const auto order = values.value(key).toStringList();
+        if (order.size() > 80 || (QString(key) == "providerOrder" && values.value("provider") == "custom" && order.isEmpty())) {
+            m_configError = "Choose at least one provider (maximum 80)."; return false;
         }
-        unique.append(id);
+        QStringList unique;
+        for (const auto &id : order) {
+            if (!QRegularExpression("^[a-z0-9-]{1,80}$").match(id).hasMatch() ||
+                QStringList{"all", "both", "enabled", "custom"}.contains(id) || unique.contains(id)) {
+                m_configError = "The provider list contains an invalid or duplicate ID."; return false;
+            }
+            unique.append(id);
+        }
+        values[key] = unique;
     }
-    values["providerOrder"] = unique;
+    for (const auto &key : {"floatingWidth", "floatingHeight", "floatingX", "floatingY"}) {
+        bool ok = false;
+        const double number = values.value(key).toDouble(&ok);
+        const bool position = QString(key) == "floatingX" || QString(key) == "floatingY";
+        const int minimum = position ? -100000 : QString(key) == "floatingWidth" ? 280 : 220;
+        const int maximum = position ? 100000 : 1200;
+        if (!ok || !(number >= minimum && number <= maximum) || number != int(number)) {
+            m_configError = QString("Invalid %1.").arg(key); return false;
+        }
+        values[key] = int(number);
+    }
     if (!QStringList{"remaining", "used"}.contains(values.value("quotaDisplay").toString()) ||
         !QStringList{"countdown", "absolute", "both"}.contains(values.value("resetDisplay").toString()) ||
         !QStringList{"meters", "icon"}.contains(values.value("trayStyle").toString())) {
         m_configError = "Unsupported display preference."; return false;
     }
     for (const auto &key : {"allAccounts", "showIdentity", "showCosts", "showStatus", "notifications", "showTray", "compactQuickView", "refreshOnOpen", "showPace", "showBarDetail", "showScopedCaps", "warningColors", "followOmarchyTheme"})
+        values[key] = values.value(key).toBool();
+    for (const auto &key : {"showFloating", "floatingCompact", "floatingOnTop", "floatingPositionSet"})
         values[key] = values.value(key).toBool();
     return true;
 }
@@ -110,7 +127,10 @@ void DesktopController::loadSettings(const QString &cliOverride) {
         {"showIdentity", false}, {"showCosts", true}, {"showStatus", true}, {"notifications", false}, {"showTray", true}, {"compactQuickView", false}, {"refreshOnOpen", false}, {"providerOrder", QStringList{}},
         {"quotaDisplay", "remaining"}, {"resetDisplay", "countdown"}, {"showPace", true},
         {"showBarDetail", false}, {"showScopedCaps", false}, {"barProviders", 2},
-        {"warningColors", true}, {"trayStyle", "meters"}, {"followOmarchyTheme", false}};
+        {"warningColors", true}, {"trayStyle", "meters"}, {"followOmarchyTheme", false},
+        {"showFloating", false}, {"floatingCompact", true}, {"floatingOnTop", true},
+        {"floatingProviders", QStringList{}}, {"floatingWidth", 360}, {"floatingHeight", 440},
+        {"floatingPositionSet", false}, {"floatingX", 0}, {"floatingY", 0}};
     m_configPath = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + "/codexbar/linux.json";
     QFile file(m_configPath);
     QVariantMap candidate = m_settings;
@@ -131,6 +151,8 @@ void DesktopController::loadSettings(const QString &cliOverride) {
         m_configBlocked = true;
         m_configError = "Cannot read linux.json. Check permissions and restart CodexBar.";
     }
+    // Expansion is a session interaction; always start with the unobtrusive capsule.
+    m_settings["floatingCompact"] = true;
     if (!cliOverride.isEmpty()) m_settings["executable"] = cliOverride;
 }
 
@@ -153,6 +175,9 @@ bool DesktopController::saveSettings(const QVariantMap &changes) {
     bool queryChanged = false;
     for (const auto &key : {"provider", "providerOrder", "source", "executable", "accountIndex", "allAccounts", "showIdentity", "showStatus", "showCosts"})
         queryChanged = queryChanged || next.value(key) != m_settings.value(key);
+    const bool intervalChanged = next.value("refreshSeconds") != m_settings.value("refreshSeconds");
+    const bool noticesChanged = queryChanged || next.value("notifications") != m_settings.value("notifications") ||
+        next.value("notifyThreshold") != m_settings.value("notifyThreshold");
     m_settings = next; m_configError.clear();
     if (queryChanged) {
         ++m_generation;
@@ -160,10 +185,45 @@ bool DesktopController::saveSettings(const QVariantMap &changes) {
         m_entries.clear(); m_spending.clear(); m_updated = 0; m_costUpdated = 0;
     }
     updateLabels();
-    m_noticeState = m_engine.newObject();
-    m_poll.start(m_settings.value("refreshSeconds").toInt() * 1000);
+    if (noticesChanged) m_noticeState = m_engine.newObject();
+    if (intervalChanged) m_poll.start(m_settings.value("refreshSeconds").toInt() * 1000);
     emit settingsChanged(); emit changed(); if (queryChanged) refresh();
     return true;
+}
+
+void DesktopController::restoreFloatingGeometry(QWindow *window) {
+    // Wayland places ordinary windows through the compositor, not client coordinates.
+    if (!window || QGuiApplication::platformName().startsWith("wayland")) return;
+    auto *screen = window->screen();
+    if (!screen) screen = QGuiApplication::primaryScreen();
+    if (!screen) return;
+    QPoint position = screen->availableGeometry().topLeft() + QPoint(24, 24);
+    if (m_settings.value("floatingPositionSet").toBool()) {
+        position = {m_settings.value("floatingX").toInt(), m_settings.value("floatingY").toInt()};
+        // Prefer the saved monitor, but recover onto the current monitor if it disappeared.
+        if (auto *savedScreen = QGuiApplication::screenAt(position + QPoint(window->width() / 2, window->height() / 2)))
+            screen = savedScreen;
+    }
+    const auto available = screen->availableGeometry();
+    position.setX(qBound(available.x(), position.x(), qMax(available.x(), available.right() - window->width() + 1)));
+    position.setY(qBound(available.y(), position.y(), qMax(available.y(), available.bottom() - window->height() + 1)));
+    window->setPosition(position);
+}
+
+bool DesktopController::saveFloatingGeometry(QWindow *window) {
+    if (!window) return false;
+    QVariantMap changes;
+    if (!QGuiApplication::platformName().startsWith("wayland")) {
+        changes = {{"floatingPositionSet", true}, {"floatingX", window->x()}, {"floatingY", window->y()}};
+    }
+    if (!m_settings.value("floatingCompact").toBool()) {
+        changes["floatingWidth"] = window->width();
+        changes["floatingHeight"] = window->height();
+    }
+    bool different = false;
+    for (auto it = changes.begin(); it != changes.end(); ++it)
+        different = different || m_settings.value(it.key()) != it.value();
+    return !different || saveSettings(changes);
 }
 
 bool DesktopController::stale() const {
@@ -401,6 +461,11 @@ bool DesktopController::listen(const QString &socketPath) {
                     response = {{"ok", ok}, {"enabled", launchAtLogin()}};
                 }
                 else if (command == "refresh") { refresh(); refreshCosts(); }
+                else if (command == "floating") {
+                    const bool ok = saveSettings({{"showFloating", true}});
+                    if (ok) showWindow(command);
+                    response = {{"ok", ok}, {"error", m_configError}};
+                }
                 else if (command == "settings" || command == "usage" || command == "spending" || command == "quick-view") showWindow(command);
                 else if (command == "configure" && request.value("settings").isObject()) {
                     const bool ok = saveSettings(request.value("settings").toObject().toVariantMap());

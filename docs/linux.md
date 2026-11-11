@@ -28,3 +28,23 @@ polling or cost scans on open. Optional spending is cached, labeled across
 accounts, and accompanied by refresh errors and history-coverage caveats. Open
 Spending to load local history or refresh its totals. Provider fetching and
 authentication stay in the CLI.
+
+## Floating gauge
+
+The independent floating gauge is off by default. Enable **Show floating gauge**
+under General in Settings, use the tray's **Floating Gauge** toggle, or open it
+with `codexbar-linux --floating`. Click its capsule to expand quota/reset details;
+drag the capsule or header to move, use the bottom-right grip to resize the panel,
+and right-click either mode for actions without a tray. The gauge follows the
+used/remaining and identity preferences and can filter the fetched providers.
+
+Each startup begins collapsed; visibility, expanded size, and preferences survive restarts. X11 position is
+restored into an available screen; Wayland leaves placement and topmost behavior
+to the compositor. Opening, expanding, and moving the gauge never starts an extra
+provider query or spending scan, including when refresh-on-open is enabled.
+
+Synthetic offscreen previews (provider letters stand in for icons in the test harness):
+
+![Compact floating gauge](linux-floating-capsule.png)
+
+![Expanded floating gauge](linux-floating-panel.png)

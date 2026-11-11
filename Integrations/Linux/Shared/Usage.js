@@ -32,6 +32,7 @@ function ordinaryGeminiQuota(extra) {
 
 // Duration name for a reported cadence; empty when the provider omits window metadata.
 function cadenceLabel(minutes) {
+    if (minutes === 10080) return "Weekly";
     if (minutes >= 1440) return (minutes / 1440) + " day";
     return minutes > 0 ? (minutes / 60) + " hour" : "";
 }

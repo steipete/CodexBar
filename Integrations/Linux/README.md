@@ -1,6 +1,6 @@
 # CodexBar for Linux
 
-A Qt 6 desktop app with an opt-in compact Quick View, separate Usage & Spend and Settings
+A Qt 6 desktop app with an opt-in floating gauge and compact Quick View, separate Usage & Spend and Settings
 windows, an optional system tray icon, and a launcher entry. The Swift `codexbar` CLI owns provider
 fetching and authentication. The desktop owns polling, settings, notifications,
 and a private local socket for desktop adapters. No HTTP server is needed.
@@ -209,6 +209,42 @@ meters for the first displayed provider or a static icon. Unknown meters remain
 empty tracks. The tooltip identifies the displayed providers and stale data.
 Omarchy's popup shares the quota/reset preferences.
 
+### Floating gauge
+
+Enable **General → Floating Gauge → Show floating gauge** in Settings, use the
+tray's **Floating Gauge** toggle, or launch `codexbar-linux --floating`. It is off
+by default and does not replace Quick View or Usage & Spend. Once enabled it also
+appears on subsequent background/login starts.
+
+The frameless gauge starts as a compact capsule with up to three provider/account
+meters, showing up to two reported general quota windows per entry, and a `+N` indicator for additional entries. Click to expand all selected
+entries, including each quota window and its reset time. The used/remaining label,
+warning colors, and identity visibility follow the existing display preferences.
+Accounts are separate entries; when identity is hidden, multiple accounts of one
+provider use numbered labels in the expanded panel. Unmeasured quota shows a dash,
+not zero; refresh/error/stale state remains visible alongside cached usage.
+
+Drag the capsule or expanded header to move it. Use the bottom-right grip to
+resize the expanded panel, and the minus button to collapse it. Right-click either
+mode for refresh, topmost, settings, hide, and quit actions; no system tray is
+required. Restore a hidden gauge through Settings, the tray, or `--floating`.
+The window does not request keyboard focus when opened or restored.
+
+Settings can filter which fetched providers appear in the gauge; an empty list
+shows all. This is display-only: it never enables providers or starts new queries.
+Expanding, collapsing, moving, resizing, or opening the gauge adds no provider
+polling or local spending scans, even with refresh-on-open enabled. Manual gauge
+refresh updates usage only. Existing polling continues while the gauge is hidden.
+
+Each startup begins collapsed. Visibility, topmost preference, display filter, expanded size, and
+X11 position are saved in the existing preferences. X11 restoration clamps the
+window into an available screen after monitor changes. On Wayland, placement is
+left to the compositor: client coordinates are not saved/restored, and the
+topmost hint may be ignored. The capsule/panel and context menu still work without
+compositor-specific protocols.
+
+### Updates and persistence
+
 Start-at-login changes apply immediately from Settings. Other preferences use Save.
 Omarchy installation enables theme following by default: colors are read from
 `$XDG_STATE_HOME/omarchy/current/theme/colors.toml` (normally `~/.local/state`) and
@@ -242,6 +278,7 @@ fix or remove the file and restart. Authentication remains in the CLI's stores.
 codexbar-linux --background
 codexbar-linux --usage
 codexbar-linux --quick-view
+codexbar-linux --floating
 codexbar-linux --settings
 codexbar-linux --spending
 codexbar-linux --refresh
@@ -294,10 +331,16 @@ QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software /usr/lib/qt6/bin/qmltestrunn
 # then make and run QT_QPA_PLATFORM=offscreen ./tst_icons.
 # Account-action test: qmake6 Integrations/Linux/tests/accounts.pro in a build directory,
 # then make and run ./tst_accounts. Uses a fake terminal and fake provider CLIs.
+# Floating geometry test: qmake6 Integrations/Linux/tests/floating.pro in a build directory,
+# then make and run QT_QPA_PLATFORM=offscreen ./tst_floating. Uses private settings and /bin/false.
 ```
 
 Runtime tests isolate HOME/XDG paths and use a fake CLI and offscreen Qt. Set
 `CODEXBAR_TEST_PLATFORM=xcb` to exercise X11 on a session with DISPLAY access.
+For an isolated X11 run, use your distribution's `xvfb-run`/`Xvfb` explicitly and
+put the system binary directory first in PATH; third-party toolchains can ship
+older copies. Xvfb alone is not a window manager, so these tests do not prove
+compositor-specific topmost or interactive system-move/resize behavior.
 
 To uninstall, quit CodexBar and remove `~/.local/bin/codexbar-linux`,
 `$XDG_DATA_HOME/applications/com.steipete.CodexBar.desktop`,

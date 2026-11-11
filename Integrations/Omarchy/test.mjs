@@ -446,7 +446,7 @@ test('an extra rate window without a title still renders a duration label', () =
         {id: 'b', window: {usedPercent: 50, windowMinutes: 300}},
         {id: 'c', window: {usedPercent: 50}}]}};
     const row = model.rows(JSON.stringify([entry]))[0];
-    assert.deepEqual([...row.windows.map(window => window.label)], ['7 day', '5 hour', 'Additional']);
+    assert.deepEqual([...row.windows.map(window => window.label)], ['Weekly', '5 hour', 'Additional']);
 });
 
 test('extra rate window titles are redacted even when identity display is enabled', () => {
