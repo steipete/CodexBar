@@ -43,8 +43,13 @@ restored into an available screen; Wayland leaves placement and topmost behavior
 to the compositor. Opening, expanding, and moving the gauge never starts an extra
 provider query or spending scan, including when refresh-on-open is enabled.
 
-Synthetic offscreen previews (provider letters stand in for icons in the test harness):
+Actual Qt 6.4.2 desktop captures using isolated fixture data on X11/Xfwm4:
 
 ![Compact floating gauge](linux-floating-capsule.png)
 
 ![Expanded floating gauge](linux-floating-panel.png)
+
+See the [runtime evidence](../.github/pr-proof/linux-floating/README.md) for the
+weekly-only and dual-window capsules, reset countdowns, context menu, restart
+behavior, query logs, and a reproducible capture script. Other window managers
+and Wayland need separate validation.

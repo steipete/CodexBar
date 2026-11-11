@@ -1,0 +1,168 @@
+{
+  "binarySHA256": "06dfa3817d6eb3682d1fb833989c88ec1d3ed397fb9ff7f67e9670aa942a638c",
+  "sourceCommit": "6992c2cbcc2a0aa3d2bda67eb5573081c713ab38",
+  "qtVersion": "6.4.2",
+  "platform": "Private Xvfb display, xcb, xfwm4 without compositing, software rendering",
+  "dataSource": "Fake CLI in private HOME/XDG directories; no account credentials",
+  "scenarios": [
+    {
+      "scenario": "weekly",
+      "compactGeometry": {
+        "x": 24,
+        "y": 24,
+        "width": 268,
+        "height": 48,
+        "overrideRedirect": false,
+        "viewable": true
+      },
+      "topmostState": "_NET_WM_STATE(ATOM) = _NET_WM_STATE_SKIP_PAGER, _NET_WM_STATE_SKIP_TASKBAR, _NET_WM_STATE_ABOVE",
+      "expandedGeometry": {
+        "x": 24,
+        "y": 24,
+        "width": 360,
+        "height": 440,
+        "overrideRedirect": false,
+        "viewable": true
+      },
+      "queriesDuringInteractions": 0,
+      "restartGeometry": {
+        "x": 24,
+        "y": 24,
+        "width": 268,
+        "height": 48,
+        "overrideRedirect": false,
+        "viewable": true
+      },
+      "totalUsageQueriesIncludingRestart": 2,
+      "costQueries": 0,
+      "fixtureCalls": [
+        [
+          "config",
+          "providers",
+          "--format",
+          "json"
+        ],
+        [
+          "usage",
+          "--format",
+          "json",
+          "--json-only",
+          "--provider",
+          "codex",
+          "--status"
+        ],
+        [
+          "config",
+          "providers",
+          "--format",
+          "json"
+        ],
+        [
+          "usage",
+          "--format",
+          "json",
+          "--json-only",
+          "--provider",
+          "codex",
+          "--status"
+        ]
+      ]
+    },
+    {
+      "scenario": "dual",
+      "compactGeometry": {
+        "x": 24,
+        "y": 24,
+        "width": 400,
+        "height": 48,
+        "overrideRedirect": false,
+        "viewable": true
+      },
+      "topmostState": "_NET_WM_STATE(ATOM) = _NET_WM_STATE_SKIP_PAGER, _NET_WM_STATE_SKIP_TASKBAR, _NET_WM_STATE_ABOVE",
+      "expandedGeometry": {
+        "x": 24,
+        "y": 24,
+        "width": 360,
+        "height": 440,
+        "overrideRedirect": false,
+        "viewable": true
+      },
+      "draggedGeometry": {
+        "x": 84,
+        "y": 54,
+        "width": 360,
+        "height": 440,
+        "overrideRedirect": false,
+        "viewable": true
+      },
+      "resizedGeometry": {
+        "x": 84,
+        "y": 54,
+        "width": 420,
+        "height": 470,
+        "overrideRedirect": false,
+        "viewable": true
+      },
+      "popupGeometry": {
+        "x": 454,
+        "y": 76,
+        "width": 145,
+        "height": 186,
+        "overrideRedirect": true,
+        "viewable": true
+      },
+      "queriesDuringInteractions": 0,
+      "restartGeometry": {
+        "x": 84,
+        "y": 54,
+        "width": 400,
+        "height": 48,
+        "overrideRedirect": false,
+        "viewable": true
+      },
+      "restoredExpandedGeometry": {
+        "x": 84,
+        "y": 54,
+        "width": 420,
+        "height": 470,
+        "overrideRedirect": false,
+        "viewable": true
+      },
+      "totalUsageQueriesIncludingRestart": 2,
+      "costQueries": 0,
+      "fixtureCalls": [
+        [
+          "config",
+          "providers",
+          "--format",
+          "json"
+        ],
+        [
+          "usage",
+          "--format",
+          "json",
+          "--json-only",
+          "--provider",
+          "codex",
+          "--status"
+        ],
+        [
+          "config",
+          "providers",
+          "--format",
+          "json"
+        ],
+        [
+          "usage",
+          "--format",
+          "json",
+          "--json-only",
+          "--provider",
+          "codex",
+          "--status"
+        ]
+      ]
+    }
+  ],
+  "result": "passed"
+}
