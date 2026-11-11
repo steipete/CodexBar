@@ -465,12 +465,20 @@ public enum KeychainAccessPreflight {
     /// partition list holds only the CLI vendor's team.
     static func evaluatePartitionList(
         access: SecAccess,
-        callerTeamID: String? = KeychainAccessPreflight.callerTeamID,
+        callerTeam: CallerTeam = KeychainAccessPreflight.currentCallerTeam(),
         operations: PartitionACLOperations? = .live) -> DecryptACLEvaluation
     {
-        // Without a team ID the partition list cannot change the answer, so ad-hoc and unsigned builds skip
-        // the lookups and keep exactly the decrypt ACL's previous result.
-        guard let callerTeamID, !callerTeamID.isEmpty else { return .allowed }
+        switch callerTeam {
+        case .noTeam:
+            // Without a team ID the partition list cannot change the answer, so ad-hoc and unsigned builds skip
+            // the lookups and keep exactly the decrypt ACL's previous result.
+            return .allowed
+        case .unknown:
+            // A team-signed caller whose identity could not be read must not pass as a teamless build.
+            return .indeterminate
+        case .team:
+            break
+        }
         guard let operations else { return .indeterminate }
         // SecAccessCopyMatchingACLList returns NULL both for "no match" and for a failed lookup, so read the
         // full list, whose status separates the two, and select partition entries here. Matching would also
@@ -493,7 +501,7 @@ public enum KeychainAccessPreflight {
             else { return .indeterminate }
             partitions += ids
         }
-        return self.evaluatePartitionList(partitions, callerTeamID: callerTeamID)
+        return self.evaluatePartitionList(partitions, callerTeam: callerTeam)
     }
 
     /// Security calls behind the partition check. A `nil` result means the call failed, never "none found".
@@ -554,28 +562,73 @@ public enum KeychainAccessPreflight {
         return partitions
     }
 
+    /// The signing team of the running executable, as far as the preflight can tell.
+    enum CallerTeam: Equatable, ExpressibleByStringLiteral {
+        /// Signed by this Developer ID / App Store team.
+        case team(String)
+        /// The signing information was read and carries no team: an ad-hoc or unsigned build.
+        case noTeam
+        /// The signing information could not be read, so the team is not known.
+        case unknown
+
+        init(stringLiteral value: String) {
+            self = .team(value)
+        }
+    }
+
     /// `teamid:<ID>` is the partition macOS grants a Developer ID or App Store caller. Apple's own
     /// `apple:`/`apple-tool:` partitions never cover a third-party executable. Ad-hoc and unsigned builds
     /// have no team ID, so the partition they would match cannot be derived here; they keep the decrypt
-    /// ACL's answer, as before partition lists were checked.
-    static func evaluatePartitionList(_ partitions: [String], callerTeamID: String?) -> DecryptACLEvaluation {
-        guard let callerTeamID, !callerTeamID.isEmpty else { return .allowed }
-        return partitions.contains("teamid:\(callerTeamID)") ? .allowed : .rejected
+    /// ACL's answer, as before partition lists were checked. An unknown identity is inconclusive.
+    static func evaluatePartitionList(_ partitions: [String], callerTeam: CallerTeam) -> DecryptACLEvaluation {
+        switch callerTeam {
+        case let .team(teamID) where !teamID.isEmpty:
+            partitions.contains("teamid:\(teamID)") ? .allowed : .rejected
+        case .team, .unknown:
+            .indeterminate
+        case .noTeam:
+            .allowed
+        }
     }
 
-    static let callerTeamID: String? = {
+    static func currentCallerTeam() -> CallerTeam {
+        self.callerTeamCache.value(read: self.readCallerTeam)
+    }
+
+    /// Keeps only a determinate identity; a failed read is retried on the next preflight instead of
+    /// deciding every later preflight in the process.
+    final class CallerTeamCache: @unchecked Sendable {
+        private let lock = NSLock()
+        private var cached: CallerTeam?
+
+        func value(read: () -> CallerTeam) -> CallerTeam {
+            self.lock.withLock {
+                if let cached = self.cached { return cached }
+                let value = read()
+                if value != .unknown { self.cached = value }
+                return value
+            }
+        }
+    }
+
+    private static let callerTeamCache = CallerTeamCache()
+
+    private static func readCallerTeam() -> CallerTeam {
         var code: SecCode?
-        guard SecCodeCopySelf([], &code) == errSecSuccess, let code else { return nil }
+        guard SecCodeCopySelf([], &code) == errSecSuccess, let code else { return .unknown }
         var staticCode: SecStaticCode?
-        guard SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode else { return nil }
+        guard SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode else { return .unknown }
         var info: CFDictionary?
         guard SecCodeCopySigningInformation(
             staticCode,
             SecCSFlags(rawValue: kSecCSSigningInformation),
-            &info) == errSecSuccess
-        else { return nil }
-        return (info as? [String: Any])?[kSecCodeInfoTeamIdentifier as String] as? String
-    }()
+            &info) == errSecSuccess,
+            let signingInformation = info as? [String: Any]
+        else { return .unknown }
+        guard let teamID = signingInformation[kSecCodeInfoTeamIdentifier as String] as? String, !teamID.isEmpty
+        else { return .noTeam }
+        return .team(teamID)
+    }
 
     private static let validationMemo = ValidationMemo()
 

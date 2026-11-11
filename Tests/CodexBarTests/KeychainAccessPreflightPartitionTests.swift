@@ -40,8 +40,8 @@ struct KeychainAccessPreflightPartitionTests {
         let access = try Self.access(acls: [
             (kSecACLAuthorizationPartitionID, Self.description(["teamid:V9WTTPBFK9"])),
         ])
-        #expect(KeychainAccessPreflight.evaluatePartitionList(access: access, callerTeamID: "Y5PE65HELJ") == .rejected)
-        #expect(KeychainAccessPreflight.evaluatePartitionList(access: access, callerTeamID: "V9WTTPBFK9") == .allowed)
+        #expect(KeychainAccessPreflight.evaluatePartitionList(access: access, callerTeam: "Y5PE65HELJ") == .rejected)
+        #expect(KeychainAccessPreflight.evaluatePartitionList(access: access, callerTeam: "V9WTTPBFK9") == .allowed)
     }
 
     @Test
@@ -52,7 +52,7 @@ struct KeychainAccessPreflightPartitionTests {
         let wildcardOnly = try Self.access(acls: [(kSecACLAuthorizationAny, "not a partition payload")])
         #expect(KeychainAccessPreflight.evaluatePartitionList(
             access: wildcardOnly,
-            callerTeamID: "Y5PE65HELJ") == .allowed)
+            callerTeam: "Y5PE65HELJ") == .allowed)
 
         let wildcardAndPartition = try Self.access(acls: [
             (kSecACLAuthorizationAny, "not a partition payload"),
@@ -60,7 +60,7 @@ struct KeychainAccessPreflightPartitionTests {
         ])
         #expect(KeychainAccessPreflight.evaluatePartitionList(
             access: wildcardAndPartition,
-            callerTeamID: "Y5PE65HELJ") == .allowed)
+            callerTeam: "Y5PE65HELJ") == .allowed)
     }
 
     @Test
@@ -69,7 +69,7 @@ struct KeychainAccessPreflightPartitionTests {
         let access = try Self.access(acls: [(kSecACLAuthorizationPartitionID, "not hex")])
         #expect(KeychainAccessPreflight.evaluatePartitionList(
             access: access,
-            callerTeamID: "Y5PE65HELJ") == .indeterminate)
+            callerTeam: "Y5PE65HELJ") == .indeterminate)
     }
 
     @Test
@@ -80,7 +80,7 @@ struct KeychainAccessPreflightPartitionTests {
         let access = try Self.access(acls: [])
         #expect(KeychainAccessPreflight.evaluatePartitionList(
             access: access,
-            callerTeamID: "Y5PE65HELJ") == .allowed)
+            callerTeam: "Y5PE65HELJ") == .allowed)
     }
 
     @Test
@@ -91,7 +91,7 @@ struct KeychainAccessPreflightPartitionTests {
         operations.copyACLList = { _ in nil }
         #expect(KeychainAccessPreflight.evaluatePartitionList(
             access: access,
-            callerTeamID: "Y5PE65HELJ",
+            callerTeam: "Y5PE65HELJ",
             operations: operations) == .indeterminate)
     }
 
@@ -110,7 +110,7 @@ struct KeychainAccessPreflightPartitionTests {
         }
         #expect(KeychainAccessPreflight.evaluatePartitionList(
             access: access,
-            callerTeamID: "Y5PE65HELJ",
+            callerTeam: "Y5PE65HELJ",
             operations: operations) == .indeterminate)
     }
 
@@ -124,7 +124,7 @@ struct KeychainAccessPreflightPartitionTests {
         operations.copyDescription = { _ in nil }
         #expect(KeychainAccessPreflight.evaluatePartitionList(
             access: access,
-            callerTeamID: "Y5PE65HELJ",
+            callerTeam: "Y5PE65HELJ",
             operations: operations) == .indeterminate)
     }
 
@@ -134,7 +134,7 @@ struct KeychainAccessPreflightPartitionTests {
         let access = try Self.access(acls: [])
         #expect(KeychainAccessPreflight.evaluatePartitionList(
             access: access,
-            callerTeamID: "Y5PE65HELJ",
+            callerTeam: "Y5PE65HELJ",
             operations: nil) == .indeterminate)
     }
 
@@ -155,7 +155,7 @@ struct KeychainAccessPreflightPartitionTests {
     func `caller team on the partition list is allowed`() {
         #expect(KeychainAccessPreflight.evaluatePartitionList(
             ["apple-tool:", "teamid:Y5PE65HELJ"],
-            callerTeamID: "Y5PE65HELJ") == .allowed)
+            callerTeam: "Y5PE65HELJ") == .allowed)
     }
 
     @Test
@@ -163,27 +163,57 @@ struct KeychainAccessPreflightPartitionTests {
         // Observed on a Muse CLI item: CodexBarCLI on the decrypt ACL, only Meta's team partitioned.
         #expect(KeychainAccessPreflight.evaluatePartitionList(
             ["teamid:V9WTTPBFK9"],
-            callerTeamID: "Y5PE65HELJ") == .rejected)
+            callerTeam: "Y5PE65HELJ") == .rejected)
         #expect(KeychainAccessPreflight.evaluatePartitionList(
             ["apple:", "apple-tool:"],
-            callerTeamID: "Y5PE65HELJ") == .rejected)
-        #expect(KeychainAccessPreflight.evaluatePartitionList([], callerTeamID: "Y5PE65HELJ") == .rejected)
+            callerTeam: "Y5PE65HELJ") == .rejected)
+        #expect(KeychainAccessPreflight.evaluatePartitionList([], callerTeam: "Y5PE65HELJ") == .rejected)
     }
 
     @Test
     func `a team id must match the whole partition entry`() {
         #expect(KeychainAccessPreflight.evaluatePartitionList(
             ["teamid:Y5PE65HELJX", "Y5PE65HELJ"],
-            callerTeamID: "Y5PE65HELJ") == .rejected)
+            callerTeam: "Y5PE65HELJ") == .rejected)
     }
 
     @Test
-    func `a caller without a team id keeps the decrypt ACL answer`() {
-        for team in [nil, ""] as [String?] {
-            #expect(KeychainAccessPreflight.evaluatePartitionList(
-                ["teamid:Y5PE65HELJ"],
-                callerTeamID: team) == .allowed)
+    func `a build without a team keeps the decrypt ACL answer`() {
+        #expect(KeychainAccessPreflight.evaluatePartitionList(["teamid:V9WTTPBFK9"], callerTeam: .noTeam) == .allowed)
+    }
+
+    @Test
+    func `an unreadable caller identity is inconclusive, never a build without a team`() {
+        for partitions in [["teamid:V9WTTPBFK9"], ["teamid:Y5PE65HELJ"]] {
+            #expect(KeychainAccessPreflight.evaluatePartitionList(partitions, callerTeam: .unknown) == .indeterminate)
         }
+        #expect(KeychainAccessPreflight.evaluatePartitionList(["teamid:"], callerTeam: .team("")) == .indeterminate)
+    }
+
+    @Test
+    @available(macOS, deprecated: 10.10)
+    func `an unreadable caller identity never allows an item that excludes it`() throws {
+        // A signed build whose identity read failed must not pass as a teamless build: the item below would
+        // prompt for it. No lookup can turn the unknown identity into an answer.
+        let access = try Self.access(acls: [
+            (kSecACLAuthorizationPartitionID, Self.description(["teamid:V9WTTPBFK9"])),
+        ])
+        #expect(KeychainAccessPreflight.evaluatePartitionList(access: access, callerTeam: .unknown) == .indeterminate)
+    }
+
+    @Test
+    func `only a determinate caller identity is cached`() {
+        let cache = KeychainAccessPreflight.CallerTeamCache()
+        var reads = 0
+        var answers: [KeychainAccessPreflight.CallerTeam] = [.unknown, .team("Y5PE65HELJ"), .noTeam]
+        let read = {
+            reads += 1
+            return answers.removeFirst()
+        }
+        #expect(cache.value(read: read) == .unknown)
+        #expect(cache.value(read: read) == .team("Y5PE65HELJ"))
+        #expect(cache.value(read: read) == .team("Y5PE65HELJ"))
+        #expect(reads == 2)
     }
 
     @Test
@@ -195,11 +225,11 @@ struct KeychainAccessPreflightPartitionTests {
             copyACLList: { _ in nil },
             copyAuthorizations: { _ in nil },
             copyDescription: { _ in nil })
-        for team in [nil, ""] as [String?] {
+        for team in [.noTeam] as [KeychainAccessPreflight.CallerTeam] {
             for operations in [failing, nil] as [KeychainAccessPreflight.PartitionACLOperations?] {
                 #expect(KeychainAccessPreflight.evaluatePartitionList(
                     access: access,
-                    callerTeamID: team,
+                    callerTeam: team,
                     operations: operations) == .allowed)
             }
         }
