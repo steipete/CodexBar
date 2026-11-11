@@ -468,17 +468,11 @@ public enum KeychainAccessPreflight {
         callerTeam: CallerTeam = KeychainAccessPreflight.currentCallerTeam(),
         operations: PartitionACLOperations? = .live) -> DecryptACLEvaluation
     {
-        switch callerTeam {
-        case .noTeam:
-            // Without a team ID the partition list cannot change the answer, so ad-hoc and unsigned builds skip
-            // the lookups and keep exactly the decrypt ACL's previous result.
-            return .allowed
-        case .unknown:
-            // A team-signed caller whose identity could not be read must not pass as a teamless build.
-            return .indeterminate
-        case .team:
-            break
-        }
+        // Without a team ID the partition list cannot change the answer, so ad-hoc and unsigned builds skip the
+        // lookups and keep exactly the decrypt ACL's previous result. An unknown identity still runs them: an item
+        // without a partition entry does not depend on the caller's team, and only an explicit entry makes the
+        // unreadable identity inconclusive.
+        if callerTeam == .noTeam { return .allowed }
         guard let operations else { return .indeterminate }
         // SecAccessCopyMatchingACLList returns NULL both for "no match" and for a failed lookup, so read the
         // full list, whose status separates the two, and select partition entries here. Matching would also

@@ -194,11 +194,19 @@ struct KeychainAccessPreflightPartitionTests {
     @available(macOS, deprecated: 10.10)
     func `an unreadable caller identity never allows an item that excludes it`() throws {
         // A signed build whose identity read failed must not pass as a teamless build: the item below would
-        // prompt for it. No lookup can turn the unknown identity into an answer.
+        // prompt for it.
         let access = try Self.access(acls: [
             (kSecACLAuthorizationPartitionID, Self.description(["teamid:V9WTTPBFK9"])),
         ])
         #expect(KeychainAccessPreflight.evaluatePartitionList(access: access, callerTeam: .unknown) == .indeterminate)
+    }
+
+    @Test
+    @available(macOS, deprecated: 10.10)
+    func `an unreadable caller identity still reads an item without a partition entry`() throws {
+        // Such an item does not depend on the caller's team, so the unknown identity must not block it.
+        let access = try Self.access(acls: [(kSecACLAuthorizationAny, "not a partition payload")])
+        #expect(KeychainAccessPreflight.evaluatePartitionList(access: access, callerTeam: .unknown) == .allowed)
     }
 
     @Test
