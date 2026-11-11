@@ -1449,6 +1449,7 @@
 "menu_bar_layout_size_large" = "Duży";
 "menu_bar_layout_monospaced_digits" = "Cyfry o stałej szerokości";
 "menu_bar_layout_show_window_labels" = "Pokaż etykiety okresów";
+"menu_bar_layout_rounded_usage_bars" = "Rounded usage bars";
 "menu_bar_layout_gap" = "Odstęp";
 "menu_bar_layout_gap_tight" = "Wąski";
 "menu_bar_layout_gap_regular" = "Zwykły";
@@ -1486,6 +1487,7 @@
 "%@ unavailable" = "%@: Niedostępne";
 "%@ %@" = "%@ %@";
 "Usage bar unavailable" = "Pasek użycia: Niedostępne";
+"Usage bar, %d%%" = "Usage bar, %d%%";
 "Usage bar, %d of 3 filled" = "Pasek użycia: %d/3 wypełnione";
 "Reset countdown unavailable" = "Reset za: Niedostępne";
 "Reset time unavailable" = "Reset o: Niedostępne";

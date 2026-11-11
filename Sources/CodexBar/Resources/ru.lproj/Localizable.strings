@@ -1447,6 +1447,7 @@
 "menu_bar_layout_size_large" = "Большой";
 "menu_bar_layout_monospaced_digits" = "Моноширинные цифры";
 "menu_bar_layout_show_window_labels" = "Показывать метки периодов";
+"menu_bar_layout_rounded_usage_bars" = "Rounded usage bars";
 "menu_bar_layout_gap" = "Интервал";
 "menu_bar_layout_gap_tight" = "Узкий";
 "menu_bar_layout_gap_regular" = "Обычный";
@@ -1484,6 +1485,7 @@
 "%@ unavailable" = "%@: Недоступно";
 "%@ %@" = "%@ %@";
 "Usage bar unavailable" = "Индикатор использования: Недоступно";
+"Usage bar, %d%%" = "Usage bar, %d%%";
 "Usage bar, %d of 3 filled" = "Индикатор использования: %d/3 заполнено";
 "Reset countdown unavailable" = "Сброс через: Недоступно";
 "Reset time unavailable" = "Сброс в: Недоступно";

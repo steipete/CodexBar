@@ -335,6 +335,16 @@ struct MenuBarLayoutEditor: View {
             })
     }
 
+    private var roundedUsageBarsBinding: Binding<Bool> {
+        Binding(
+            get: { self.settings.menuBarLayoutRoundedUsageBars },
+            set: { enabled in
+                self.settings.menuBarLayoutRoundedUsageBars = enabled
+                MenuBarLayoutEditorPersistence.activate(
+                    self.layout, for: self.persistenceProvider, settings: self.settings)
+            })
+    }
+
     private var gapBinding: Binding<MenuBarLayoutGap> {
         Binding(
             get: { self.settings.menuBarLayoutGap },
@@ -767,7 +777,8 @@ struct MenuBarLayoutEditor: View {
             gap: self.gapBinding,
             verticalAdjustment: self.$settings.menuBarLayoutVerticalAdjustment,
             monospacedDigits: self.monospacedDigitsBinding,
-            showWindowLabels: self.showWindowLabelsBinding)
+            showWindowLabels: self.showWindowLabelsBinding,
+            roundedUsageBars: self.roundedUsageBarsBinding)
     }
 
     private func applyPreset(_ preset: MenuBarLayoutPreset) {
@@ -965,7 +976,8 @@ struct MenuBarLayoutPreview: View {
                 colorPace: self.settings.menuBarColorPace,
                 colorByProvider: self.settings.menuBarColorByProvider,
                 monospacedDigits: self.settings.menuBarLayoutMonospacedDigits,
-                showWindowLabels: self.settings.menuBarLayoutShowWindowLabels))
+                showWindowLabels: self.settings.menuBarLayoutShowWindowLabels,
+                roundedUsageBars: self.settings.menuBarLayoutRoundedUsageBars))
         MenuBarLayoutPreviewText(rendered: rendered)
     }
 
@@ -1300,6 +1312,7 @@ struct MenuBarLayoutDisplayOptions: View {
     @Binding var verticalAdjustment: Int
     @Binding var monospacedDigits: Bool
     @Binding var showWindowLabels: Bool
+    @Binding var roundedUsageBars: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -1360,6 +1373,8 @@ struct MenuBarLayoutDisplayOptions: View {
             Toggle(L("menu_bar_layout_monospaced_digits"), isOn: self.$monospacedDigits)
                 .toggleStyle(.checkbox)
             Toggle(L("menu_bar_layout_show_window_labels"), isOn: self.$showWindowLabels)
+                .toggleStyle(.checkbox)
+            Toggle(L("menu_bar_layout_rounded_usage_bars"), isOn: self.$roundedUsageBars)
                 .toggleStyle(.checkbox)
         }
     }

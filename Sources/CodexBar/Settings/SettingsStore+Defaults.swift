@@ -506,6 +506,11 @@ extension SettingsStore {
         set { self.setDefault(\.menuBarLayoutShowWindowLabels, newValue, key: "menuBarLayoutShowWindowLabels") }
     }
 
+    var menuBarLayoutRoundedUsageBars: Bool {
+        get { self.defaultsState.menuBarLayoutRoundedUsageBars }
+        set { self.setDefault(\.menuBarLayoutRoundedUsageBars, newValue, key: "menuBarLayoutRoundedUsageBars") }
+    }
+
     var menuBarLayoutSize: MenuBarLayoutSize {
         get { MenuBarLayoutSize(rawValue: self.defaultsState.menuBarLayoutSizeRaw) ?? .regular }
         set { self.setDefault(\.menuBarLayoutSizeRaw, newValue.rawValue, key: "menuBarLayoutSize") }

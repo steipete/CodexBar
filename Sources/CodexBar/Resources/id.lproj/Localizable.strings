@@ -1450,6 +1450,7 @@
 "menu_bar_layout_size_large" = "Besar";
 "menu_bar_layout_monospaced_digits" = "Digit lebar tetap";
 "menu_bar_layout_show_window_labels" = "Tampilkan label periode";
+"menu_bar_layout_rounded_usage_bars" = "Rounded usage bars";
 "menu_bar_layout_gap" = "Jarak";
 "menu_bar_layout_gap_tight" = "Rapat";
 "menu_bar_layout_gap_regular" = "Reguler";
@@ -1487,6 +1488,7 @@
 "%@ unavailable" = "%@: Tidak tersedia";
 "%@ %@" = "%@ %@";
 "Usage bar unavailable" = "Bar penggunaan: Tidak tersedia";
+"Usage bar, %d%%" = "Usage bar, %d%%";
 "Usage bar, %d of 3 filled" = "Bar penggunaan: %d/3 terisi";
 "Reset countdown unavailable" = "Reset dalam: Tidak tersedia";
 "Reset time unavailable" = "Reset pukul: Tidak tersedia";

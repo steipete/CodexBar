@@ -1444,6 +1444,7 @@
 "menu_bar_layout_size_large" = "Stor";
 "menu_bar_layout_monospaced_digits" = "Siffror med fast bredd";
 "menu_bar_layout_show_window_labels" = "Visa periodetiketter";
+"menu_bar_layout_rounded_usage_bars" = "Rounded usage bars";
 "menu_bar_layout_gap" = "Mellanrum";
 "menu_bar_layout_gap_tight" = "Tätt";
 "menu_bar_layout_gap_regular" = "Normal";
@@ -1481,6 +1482,7 @@
 "%@ unavailable" = "%@: Inte tillgänglig";
 "%@ %@" = "%@ %@";
 "Usage bar unavailable" = "Användningsstapel: Inte tillgänglig";
+"Usage bar, %d%%" = "Usage bar, %d%%";
 "Usage bar, %d of 3 filled" = "Användningsstapel: %d/3 fyllda";
 "Reset countdown unavailable" = "Återställs om: Inte tillgänglig";
 "Reset time unavailable" = "Återställs kl.: Inte tillgänglig";

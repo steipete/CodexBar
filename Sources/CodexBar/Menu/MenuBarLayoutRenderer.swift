@@ -144,6 +144,8 @@ struct MenuBarLayoutRenderOptions: Hashable {
     let size: MenuBarLayoutSize
     let monospacedDigits: Bool
     let showWindowLabels: Bool
+    /// Draw usage bar tokens as one continuous capsule (Meter bars style) instead of segments.
+    let roundedUsageBars: Bool
     let colorPace: Bool
     let colorByProvider: Bool
     let highContrast: Bool
@@ -182,11 +184,13 @@ struct MenuBarLayoutRenderOptions: Hashable {
         colorByProvider: Bool = false,
         forceStackedStyle: Bool = false,
         monospacedDigits: Bool = false,
-        showWindowLabels: Bool = true)
+        showWindowLabels: Bool = true,
+        roundedUsageBars: Bool = false)
     {
         self.size = size
         self.monospacedDigits = monospacedDigits
         self.showWindowLabels = showWindowLabels
+        self.roundedUsageBars = roundedUsageBars
         self.colorPace = colorPace
         self.colorByProvider = colorByProvider
         self.highContrast = highContrast
@@ -208,6 +212,7 @@ struct MenuBarLayoutRenderKey: Hashable {
     let size: MenuBarLayoutSize
     let monospacedDigits: Bool
     let showWindowLabels: Bool
+    let roundedUsageBars: Bool
     let colorPace: Bool
     let highContrast: Bool
     let showUsed: Bool
@@ -359,6 +364,7 @@ final class MenuBarLayoutRenderer {
             size: options.size,
             monospacedDigits: options.monospacedDigits,
             showWindowLabels: options.showWindowLabels,
+            roundedUsageBars: options.roundedUsageBars,
             colorPace: options.colorPace,
             highContrast: options.highContrast,
             showUsed: options.showUsed,
@@ -909,6 +915,24 @@ final class MenuBarLayoutRenderer {
                     attributes: style.attributes)
             }
             let displayedPercent = options.showUsed ? window.usedPercent : window.remainingPercent
+            if options.roundedUsageBars {
+                let clamped = displayedPercent.clamped(to: 0...100)
+                let barSize = self.progressBarSize(size: options.size, font: style.font, rounded: options.roundedUsageBars)
+                let attachment = NSTextAttachment()
+                attachment.image = self.capsuleBarImage(
+                    fillPercent: clamped,
+                    size: barSize,
+                    tint: style.foregroundColor,
+                    stale: options.isStale)
+                attachment.bounds = NSRect(
+                    x: 0,
+                    y: self.attachmentYOrigin(height: barSize.height, style: style),
+                    width: barSize.width,
+                    height: barSize.height)
+                return (
+                    self.attachmentText(attachment, style: style),
+                    L("Usage bar, %d%%", Int(clamped.rounded())))
+            }
             let filled = Int((displayedPercent.clamped(to: 0...100) / 100 * 3).rounded())
             let value = String(repeating: "▮", count: filled) + String(repeating: "▯", count: 3 - filled)
             return self.textToken(
@@ -1450,12 +1474,18 @@ extension MenuBarLayoutRenderer {
         }
         let percent = options.showUsed ? rateWindow.usedPercent : rateWindow.remainingPercent
         let clamped = percent.clamped(to: 0...100)
-        let barSize = self.progressBarSize(size: options.size, font: style.font)
-        let image = self.progressBarImage(
-            fillPercent: clamped,
-            size: barSize,
-            tint: style.foregroundColor,
-            stale: options.isStale)
+        let barSize = self.progressBarSize(size: options.size, font: style.font, rounded: options.roundedUsageBars)
+        let image = options.roundedUsageBars
+            ? self.capsuleBarImage(
+                fillPercent: clamped,
+                size: barSize,
+                tint: style.foregroundColor,
+                stale: options.isStale)
+            : self.progressBarImage(
+                fillPercent: clamped,
+                size: barSize,
+                tint: style.foregroundColor,
+                stale: options.isStale)
         let attachment = NSTextAttachment()
         attachment.image = image
         attachment.bounds = NSRect(
@@ -1501,7 +1531,7 @@ extension MenuBarLayoutRenderer {
         return value
     }
 
-    private static func progressBarSize(size: MenuBarLayoutSize, font: NSFont) -> NSSize {
+    private static func progressBarSize(size: MenuBarLayoutSize, font: NSFont, rounded: Bool = false) -> NSSize {
         let height = max(5, (font.capHeight * 0.55).rounded())
         let width: CGFloat = if font.pointSize <= 9 {
             32
@@ -1510,7 +1540,8 @@ extension MenuBarLayoutRenderer {
         } else {
             44
         }
-        return NSSize(width: width, height: height)
+        // Rounded capsules are sized closer to the system battery glyph.
+        return NSSize(width: rounded ? (width * 0.75).rounded() : width, height: height)
     }
 
     private static func progressBarImage(
@@ -1540,6 +1571,45 @@ extension MenuBarLayoutRenderer {
                     path.lineWidth = 1
                     path.stroke()
                 }
+            }
+            return true
+        }
+    }
+
+    /// Continuous capsule meter matching the "Meter bars" icon style: translucent track, hairline
+    /// outline, and a fill clipped to the capsule so the progress edge stays straight.
+    private static func capsuleBarImage(
+        fillPercent: Double,
+        size: NSSize,
+        tint: NSColor,
+        stale: Bool)
+        -> NSImage
+    {
+        let trackFillAlpha: CGFloat = stale ? 0.18 : 0.28
+        let trackStrokeAlpha: CGFloat = stale ? 0.28 : 0.44
+        let fillAlpha: CGFloat = stale ? 0.55 : 1.0
+        return NSImage(size: size, flipped: false) { rect in
+            let radius = rect.height / 2
+            let track = NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
+            tint.withAlphaComponent(trackFillAlpha).setFill()
+            track.fill()
+
+            let strokeWidth: CGFloat = 1
+            let strokeRect = rect.insetBy(dx: strokeWidth / 2, dy: strokeWidth / 2)
+            let strokeRadius = max(0, radius - strokeWidth / 2)
+            let stroke = NSBezierPath(roundedRect: strokeRect, xRadius: strokeRadius, yRadius: strokeRadius)
+            stroke.lineWidth = strokeWidth
+            tint.withAlphaComponent(trackStrokeAlpha).setStroke()
+            stroke.stroke()
+
+            // Snap to half points (one Retina pixel) so the fill moves smoothly but stays crisp.
+            let fillWidth = (rect.width * CGFloat(fillPercent.clamped(to: 0...100) / 100) * 2).rounded() / 2
+            if fillWidth > 0 {
+                NSGraphicsContext.current?.cgContext.saveGState()
+                track.addClip()
+                tint.withAlphaComponent(fillAlpha).setFill()
+                NSBezierPath(rect: NSRect(x: rect.minX, y: rect.minY, width: fillWidth, height: rect.height)).fill()
+                NSGraphicsContext.current?.cgContext.restoreGState()
             }
             return true
         }

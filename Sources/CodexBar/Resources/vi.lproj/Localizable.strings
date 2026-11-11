@@ -1446,6 +1446,7 @@
 "menu_bar_layout_size_large" = "Lớn";
 "menu_bar_layout_monospaced_digits" = "Chữ số có độ rộng cố định";
 "menu_bar_layout_show_window_labels" = "Hiển thị nhãn khoảng thời gian";
+"menu_bar_layout_rounded_usage_bars" = "Rounded usage bars";
 "menu_bar_layout_gap" = "Khoảng cách";
 "menu_bar_layout_gap_tight" = "Hẹp";
 "menu_bar_layout_gap_regular" = "Thường";
@@ -1483,6 +1484,7 @@
 "%@ unavailable" = "%@: Không có sẵn";
 "%@ %@" = "%@ %@";
 "Usage bar unavailable" = "Thanh sử dụng: Không có sẵn";
+"Usage bar, %d%%" = "Usage bar, %d%%";
 "Usage bar, %d of 3 filled" = "Thanh sử dụng: %d/3 đã tô";
 "Reset countdown unavailable" = "Đặt lại sau: Không có sẵn";
 "Reset time unavailable" = "Đặt lại lúc: Không có sẵn";

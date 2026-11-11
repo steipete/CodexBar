@@ -1458,6 +1458,7 @@
 "menu_bar_layout_size_large" = "Large";
 "menu_bar_layout_monospaced_digits" = "Monospaced digits";
 "menu_bar_layout_show_window_labels" = "Show window labels";
+"menu_bar_layout_rounded_usage_bars" = "Rounded usage bars";
 "menu_bar_layout_gap" = "Gap";
 "menu_bar_layout_gap_tight" = "Tight";
 "menu_bar_layout_gap_regular" = "Regular";
@@ -1495,6 +1496,7 @@
 "%@ unavailable" = "%@ unavailable";
 "%@ %@" = "%@ %@";
 "Usage bar unavailable" = "Usage bar unavailable";
+"Usage bar, %d%%" = "Usage bar, %d%%";
 "Usage bar, %d of 3 filled" = "Usage bar, %d of 3 filled";
 "Reset countdown unavailable" = "Reset countdown unavailable";
 "Reset time unavailable" = "Reset time unavailable";

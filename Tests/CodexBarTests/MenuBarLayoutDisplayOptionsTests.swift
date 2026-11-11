@@ -62,7 +62,8 @@ struct MenuBarLayoutDisplayOptionsTests {
                 gap: .constant(gap),
                 verticalAdjustment: .constant(0),
                 monospacedDigits: .constant(false),
-                showWindowLabels: .constant(true))
+                showWindowLabels: .constant(true),
+                roundedUsageBars: .constant(false))
             SettingsSectionFooter(L("menu_bar_layout_footer"))
         }
         .padding(16)

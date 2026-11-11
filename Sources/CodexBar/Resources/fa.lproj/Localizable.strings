@@ -1449,6 +1449,7 @@
 "menu_bar_layout_size_large" = "بزرگ";
 "menu_bar_layout_monospaced_digits" = "ارقام هم‌عرض";
 "menu_bar_layout_show_window_labels" = "نمایش برچسب بازه‌ها";
+"menu_bar_layout_rounded_usage_bars" = "Rounded usage bars";
 "menu_bar_layout_gap" = "فاصله";
 "menu_bar_layout_gap_tight" = "فشرده";
 "menu_bar_layout_gap_regular" = "معمولی";
@@ -1486,6 +1487,7 @@
 "%@ unavailable" = "%@: در دسترس نیست";
 "%@ %@" = "%@ %@";
 "Usage bar unavailable" = "نوار مصرف: در دسترس نیست";
+"Usage bar, %d%%" = "Usage bar, %d%%";
 "Usage bar, %d of 3 filled" = "نوار مصرف: %d/3 پر";
 "Reset countdown unavailable" = "بازنشانی در: در دسترس نیست";
 "Reset time unavailable" = "بازنشانی در ساعت: در دسترس نیست";

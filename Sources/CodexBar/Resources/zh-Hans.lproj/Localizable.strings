@@ -1451,6 +1451,7 @@
 "menu_bar_layout_size_large" = "大";
 "menu_bar_layout_monospaced_digits" = "等宽数字";
 "menu_bar_layout_show_window_labels" = "显示时段标签";
+"menu_bar_layout_rounded_usage_bars" = "Rounded usage bars";
 "menu_bar_layout_gap" = "间距";
 "menu_bar_layout_gap_tight" = "紧凑";
 "menu_bar_layout_gap_regular" = "常规";
@@ -1488,6 +1489,7 @@
 "%@ unavailable" = "%@: 不可用";
 "%@ %@" = "%@ %@";
 "Usage bar unavailable" = "用量条: 不可用";
+"Usage bar, %d%%" = "Usage bar, %d%%";
 "Usage bar, %d of 3 filled" = "用量条: %d/3 已填充";
 "Reset countdown unavailable" = "重置倒计时: 不可用";
 "Reset time unavailable" = "重置时间: 不可用";

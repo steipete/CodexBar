@@ -1415,6 +1415,7 @@
 "menu_bar_layout_size_large" = "크게";
 "menu_bar_layout_monospaced_digits" = "고정폭 숫자";
 "menu_bar_layout_show_window_labels" = "기간 레이블 표시";
+"menu_bar_layout_rounded_usage_bars" = "Rounded usage bars";
 "menu_bar_layout_gap" = "간격";
 "menu_bar_layout_gap_tight" = "좁게";
 "menu_bar_layout_gap_regular" = "보통";
@@ -1452,6 +1453,7 @@
 "%@ unavailable" = "%@: 사용할 수 없음";
 "%@ %@" = "%@ %@";
 "Usage bar unavailable" = "사용량 막대: 사용할 수 없음";
+"Usage bar, %d%%" = "Usage bar, %d%%";
 "Usage bar, %d of 3 filled" = "사용량 막대: %d/3 채움";
 "Reset countdown unavailable" = "재설정까지: 사용할 수 없음";
 "Reset time unavailable" = "재설정 시각: 사용할 수 없음";

@@ -1449,6 +1449,7 @@
 "menu_bar_layout_size_large" = "ใหญ่";
 "menu_bar_layout_monospaced_digits" = "ตัวเลขความกว้างคงที่";
 "menu_bar_layout_show_window_labels" = "แสดงป้ายกำกับช่วงเวลา";
+"menu_bar_layout_rounded_usage_bars" = "Rounded usage bars";
 "menu_bar_layout_gap" = "ระยะห่าง";
 "menu_bar_layout_gap_tight" = "ชิด";
 "menu_bar_layout_gap_regular" = "ปกติ";
@@ -1486,6 +1487,7 @@
 "%@ unavailable" = "%@: ไม่พร้อมใช้งาน";
 "%@ %@" = "%@ %@";
 "Usage bar unavailable" = "แถบการใช้งาน: ไม่พร้อมใช้งาน";
+"Usage bar, %d%%" = "Usage bar, %d%%";
 "Usage bar, %d of 3 filled" = "แถบการใช้งาน: %d/3 เต็ม";
 "Reset countdown unavailable" = "รีเซ็ตใน: ไม่พร้อมใช้งาน";
 "Reset time unavailable" = "รีเซ็ตเวลา: ไม่พร้อมใช้งาน";

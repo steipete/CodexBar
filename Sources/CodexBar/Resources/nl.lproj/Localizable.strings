@@ -1445,6 +1445,7 @@
 "menu_bar_layout_size_large" = "Groot";
 "menu_bar_layout_monospaced_digits" = "Cijfers met vaste breedte";
 "menu_bar_layout_show_window_labels" = "Periodelabels tonen";
+"menu_bar_layout_rounded_usage_bars" = "Rounded usage bars";
 "menu_bar_layout_gap" = "Tussenruimte";
 "menu_bar_layout_gap_tight" = "Krap";
 "menu_bar_layout_gap_regular" = "Normaal";
@@ -1482,6 +1483,7 @@
 "%@ unavailable" = "%@: Niet beschikbaar";
 "%@ %@" = "%@ %@";
 "Usage bar unavailable" = "Gebruiksbalk: Niet beschikbaar";
+"Usage bar, %d%%" = "Usage bar, %d%%";
 "Usage bar, %d of 3 filled" = "Gebruiksbalk: %d/3 gevuld";
 "Reset countdown unavailable" = "Reset over: Niet beschikbaar";
 "Reset time unavailable" = "Reset om: Niet beschikbaar";

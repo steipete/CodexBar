@@ -54,6 +54,7 @@ struct SettingsDefaultsState {
     var menuBarLayoutOverridesRaw: [String: MenuBarLayout]
     var menuBarLayoutMonospacedDigits: Bool
     var menuBarLayoutShowWindowLabels: Bool
+    var menuBarLayoutRoundedUsageBars: Bool
     var menuBarLayoutSizeRaw: String
     var menuBarLayoutGapRaw: String
     var menuBarLayoutVerticalAdjustment: Int

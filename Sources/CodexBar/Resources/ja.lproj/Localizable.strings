@@ -1446,6 +1446,7 @@
 "menu_bar_layout_size_large" = "大";
 "menu_bar_layout_monospaced_digits" = "等幅数字";
 "menu_bar_layout_show_window_labels" = "期間ラベルを表示";
+"menu_bar_layout_rounded_usage_bars" = "Rounded usage bars";
 "menu_bar_layout_gap" = "間隔";
 "menu_bar_layout_gap_tight" = "狭い";
 "menu_bar_layout_gap_regular" = "標準";
@@ -1483,6 +1484,7 @@
 "%@ unavailable" = "%@: 利用不可";
 "%@ %@" = "%@ %@";
 "Usage bar unavailable" = "使用量バー: 利用不可";
+"Usage bar, %d%%" = "Usage bar, %d%%";
 "Usage bar, %d of 3 filled" = "使用量バー: %d/3 点灯";
 "Reset countdown unavailable" = "リセットまで: 利用不可";
 "Reset time unavailable" = "リセット時刻: 利用不可";

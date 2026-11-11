@@ -1447,6 +1447,7 @@
 "menu_bar_layout_size_large" = "Büyük";
 "menu_bar_layout_monospaced_digits" = "Eş aralıklı rakamlar";
 "menu_bar_layout_show_window_labels" = "Dönem etiketlerini göster";
+"menu_bar_layout_rounded_usage_bars" = "Rounded usage bars";
 "menu_bar_layout_gap" = "Boşluk";
 "menu_bar_layout_gap_tight" = "Dar";
 "menu_bar_layout_gap_regular" = "Normal";
@@ -1484,6 +1485,7 @@
 "%@ unavailable" = "%@: kullanılamıyor";
 "%@ %@" = "%@ %@";
 "Usage bar unavailable" = "Kullanım çubuğu: kullanılamıyor";
+"Usage bar, %d%%" = "Usage bar, %d%%";
 "Usage bar, %d of 3 filled" = "Kullanım çubuğu: %d/3 dolu";
 "Reset countdown unavailable" = "Sıfırlamaya: kullanılamıyor";
 "Reset time unavailable" = "Sıfırlama saati: kullanılamıyor";
