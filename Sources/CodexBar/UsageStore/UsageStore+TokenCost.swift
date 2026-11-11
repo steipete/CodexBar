@@ -746,7 +746,7 @@ extension UsageStore {
                 usage.daily.isEmpty ? nil : usage
                     .toCostUsageTokenSnapshot(historyDays: windowDays)
             }
-        case .openrouter:
+        case .openrouter, .claudeplatformaws:
             snapshot?.costUsage
         case .xai:
             snapshot.flatMap { XAICostUsageMapping.tokenSnapshot(from: $0, historyDays: windowDays) }
@@ -766,7 +766,7 @@ extension UsageStore {
         // Provider-specific by design: these providers project live usage snapshots into the
         // shared spend catalog instead of running the local CostUsageFetcher JSONL pipeline.
         switch provider {
-        case .grok, .mistral, .openai, .opencodego, .openrouter, .xai:
+        case .claudeplatformaws, .grok, .mistral, .openai, .opencodego, .openrouter, .xai:
             true
         default:
             false

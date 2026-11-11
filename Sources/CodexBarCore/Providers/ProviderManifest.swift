@@ -118,5 +118,6 @@ public enum ProviderManifest {
         OpenDesignProviderDescriptor.descriptor,
         SiliconFlowProviderDescriptor.descriptor,
         TripoProviderDescriptor.descriptor,
+        ClaudePlatformAWSProviderDescriptor.descriptor,
     ]
 }

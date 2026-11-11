@@ -22,6 +22,28 @@ extension ProviderSettingsDescriptorTests {
     }
 
     @Test
+    func `Claude Platform on AWS masks both key parts and projects them with regions`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-claudeplatformaws")
+        let provider = UsageProvider.claudeplatformaws
+        let implementation = try #require(ProviderCatalog.implementation(for: provider))
+        let fields = implementation.settingsFields(context: fixture.settingsContext(provider: provider))
+        #expect(fields.map(\.kind) == [.secure, .secure, .plain])
+        fields[0].binding.wrappedValue = "AKIAFIXTURE"
+        fields[1].binding.wrappedValue = "fixture-secret"
+        fields[2].binding.wrappedValue = "us-west-2, us-east-1"
+        let config = try #require(fixture.settings.providerConfig(for: provider))
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
+        let credentials = try #require(descriptor.credentials)
+        let environment = credentials.applyConfig(
+            base: ["ANTHROPIC_AWS_SECRET_ACCESS_KEY": "environment-secret"], config: config)
+        #expect(environment["ANTHROPIC_AWS_ACCESS_KEY_ID"] == "AKIAFIXTURE")
+        #expect(environment["ANTHROPIC_AWS_SECRET_ACCESS_KEY"] == "fixture-secret")
+        #expect(environment["ANTHROPIC_AWS_REGIONS"] == "us-west-2, us-east-1")
+        #expect(descriptor.tokenCost.supportsTokenCost)
+        #expect(!descriptor.metadata.defaultEnabled)
+    }
+
+    @Test
     func `account API providers keep credentials and project scope separate`() throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-accountAPIs")
         let providers: [(UsageProvider, String)] = [

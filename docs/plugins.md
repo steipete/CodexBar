@@ -119,6 +119,10 @@ nonpersistent cookie sessions use the shared access gate; the existing Gemini CL
 never sees cookie values. It lists organizations, then reads required `prepaid/credits` (a 403 tries the next API
 organization) and optional `current_spend`, whose failures keep the balance. Both plugin engines run it.
 
+[Claude Platform on AWS](claudeplatformaws.md) declares no host-owned auth: its script signs each fixed-origin GET with
+SigV4 from a long-lived access key, sums the configured regional analytics endpoints, and returns `costUsage` for
+the native 30-day spend history. It reads no AWS profile, session token, or ambient `AWS_*` variable.
+
 [OpenDesign](opendesign.md) uses opaque, request-scoped cookies for two read-only GETs: current workspace and
 subscription windows. Its script validates workspace ownership and selects five-hour/weekly quotas by duration.
 

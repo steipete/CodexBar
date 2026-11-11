@@ -2832,3 +2832,10 @@
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Cung cấp khóa, điểm cuối tài nguyên HTTPS và tên triển khai. Phiên bản API là tùy chọn. Làm mới gửi yêu cầu xác thực có thể tính phí, không phải truy vấn lịch sử sử dụng.";
 "Mistral session expired or invalid." = "Phiên Mistral đã hết hạn hoặc không hợp lệ.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Sử dụng khóa API có quyền user_read để xem mức sử dụng gói đăng ký. Lệnh lưu một khóa riêng; tài khoản khóa API đang chọn được ưu tiên.";
+
+/* Claude Platform on AWS provider credentials */
+"Regions" = "Khu vực";
+"Long-lived IAM user key allowed to read Claude Platform on AWS cost and usage. Or set ANTHROPIC_AWS_ACCESS_KEY_ID." = "Khóa người dùng IAM dài hạn được phép đọc chi phí và mức sử dụng của Claude Platform on AWS. Hoặc đặt ANTHROPIC_AWS_ACCESS_KEY_ID.";
+"Required with the access key ID. Saved in the local config file. Or set ANTHROPIC_AWS_SECRET_ACCESS_KEY." = "Bắt buộc cùng với ID khóa truy cập. Được lưu trong tệp cấu hình cục bộ. Hoặc đặt ANTHROPIC_AWS_SECRET_ACCESS_KEY.";
+"Required. Comma-separated AWS regions that hold your workspaces. Or set ANTHROPIC_AWS_REGIONS." = "Bắt buộc. Các khu vực AWS chứa không gian làm việc của bạn, phân tách bằng dấu phẩy. Hoặc đặt ANTHROPIC_AWS_REGIONS.";
+"Claude Platform on AWS spend history needs the cost and usage analytics permissions." = "Lịch sử chi tiêu của Claude Platform on AWS cần các quyền phân tích chi phí và mức sử dụng.";

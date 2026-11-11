@@ -2833,3 +2833,10 @@
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "ระบุคีย์ เอนด์พอยต์ทรัพยากร HTTPS และชื่อการปรับใช้ เวอร์ชัน API เป็นตัวเลือก การรีเฟรชจะส่งคำขอตรวจสอบที่อาจมีค่าใช้จ่าย ไม่ใช่การค้นหาประวัติการใช้งาน";
 "Mistral session expired or invalid." = "เซสชัน Mistral หมดอายุหรือไม่ถูกต้อง";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "ใช้คีย์ API ที่มีสิทธิ์ user_read เพื่อดูการใช้งานการสมัครสมาชิก คำสั่งจะบันทึกคีย์แยกต่างหาก โดยบัญชีคีย์ API ที่เลือกจะมีลำดับความสำคัญสูงกว่า";
+
+/* Claude Platform on AWS provider credentials */
+"Regions" = "รีเจียน";
+"Long-lived IAM user key allowed to read Claude Platform on AWS cost and usage. Or set ANTHROPIC_AWS_ACCESS_KEY_ID." = "คีย์ผู้ใช้ IAM แบบใช้งานระยะยาวที่ได้รับอนุญาตให้อ่านค่าใช้จ่ายและการใช้งานของ Claude Platform on AWS หรือตั้งค่า ANTHROPIC_AWS_ACCESS_KEY_ID";
+"Required with the access key ID. Saved in the local config file. Or set ANTHROPIC_AWS_SECRET_ACCESS_KEY." = "จำเป็นต้องใช้ร่วมกับ ID ของคีย์การเข้าถึง บันทึกไว้ในไฟล์การกำหนดค่าในเครื่อง หรือตั้งค่า ANTHROPIC_AWS_SECRET_ACCESS_KEY";
+"Required. Comma-separated AWS regions that hold your workspaces. Or set ANTHROPIC_AWS_REGIONS." = "จำเป็น รีเจียนของ AWS ที่มีเวิร์กสเปซของคุณ คั่นด้วยเครื่องหมายจุลภาค หรือตั้งค่า ANTHROPIC_AWS_REGIONS";
+"Claude Platform on AWS spend history needs the cost and usage analytics permissions." = "ประวัติการใช้จ่ายของ Claude Platform on AWS ต้องใช้สิทธิ์การวิเคราะห์ค่าใช้จ่ายและการใช้งาน";

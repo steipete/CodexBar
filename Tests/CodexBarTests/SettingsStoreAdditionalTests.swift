@@ -260,6 +260,7 @@ struct SettingsStoreAdditionalTests {
             .flora: [.automatic],
             .parallel: [.automatic],
             .tripo: [.automatic],
+            .claudeplatformaws: [.automatic],
             .aixy: [.automatic],
             .typesafe: [.automatic],
             .hyper: [.automatic],

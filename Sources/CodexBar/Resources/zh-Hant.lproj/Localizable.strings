@@ -2809,3 +2809,10 @@
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "提供金鑰、HTTPS 資源端點與部署名稱。API 版本為選填。重新整理會傳送可能計費的驗證請求，而非用量歷史查詢。";
 "Mistral session expired or invalid." = "Mistral 工作階段已過期或無效。";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "使用具有 user_read 權限的 API 金鑰查看訂閱用量。此命令會儲存獨立金鑰；所選的 API 金鑰帳號優先。";
+
+/* Claude Platform on AWS provider credentials */
+"Regions" = "區域";
+"Long-lived IAM user key allowed to read Claude Platform on AWS cost and usage. Or set ANTHROPIC_AWS_ACCESS_KEY_ID." = "有權讀取 Claude Platform on AWS 成本與用量的長期 IAM 使用者金鑰。或設定 ANTHROPIC_AWS_ACCESS_KEY_ID。";
+"Required with the access key ID. Saved in the local config file. Or set ANTHROPIC_AWS_SECRET_ACCESS_KEY." = "需與存取金鑰 ID 一起使用。儲存在本機設定檔中。或設定 ANTHROPIC_AWS_SECRET_ACCESS_KEY。";
+"Required. Comma-separated AWS regions that hold your workspaces. Or set ANTHROPIC_AWS_REGIONS." = "必填。包含你的工作區的 AWS 區域，以逗號分隔。或設定 ANTHROPIC_AWS_REGIONS。";
+"Claude Platform on AWS spend history needs the cost and usage analytics permissions." = "Claude Platform on AWS 支出記錄需要成本與用量分析權限。";

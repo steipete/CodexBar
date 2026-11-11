@@ -2835,3 +2835,10 @@
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "أدخل مفتاحًا ونقطة نهاية مورد HTTPS واسم نشر. إصدار API اختياري. يرسل التحديث طلب تحقق قد يكون مدفوعًا، وليس استعلامًا عن سجل الاستخدام.";
 "Mistral session expired or invalid." = "انتهت صلاحية جلسة Mistral أو أنها غير صالحة.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "استخدم مفتاح API بصلاحية user_read للوصول إلى بيانات استخدام الاشتراك. يحفظ الأمر مفتاحًا مستقلًا؛ وتكون الأولوية لحساب مفتاح API المحدد.";
+
+/* Claude Platform on AWS provider credentials */
+"Regions" = "المناطق";
+"Long-lived IAM user key allowed to read Claude Platform on AWS cost and usage. Or set ANTHROPIC_AWS_ACCESS_KEY_ID." = "مفتاح مستخدم IAM طويل الأمد يُسمح له بقراءة تكلفة واستخدام Claude Platform on AWS. أو اضبط ANTHROPIC_AWS_ACCESS_KEY_ID.";
+"Required with the access key ID. Saved in the local config file. Or set ANTHROPIC_AWS_SECRET_ACCESS_KEY." = "مطلوب مع معرّف مفتاح الوصول. يُحفظ في ملف الإعدادات المحلي. أو اضبط ANTHROPIC_AWS_SECRET_ACCESS_KEY.";
+"Required. Comma-separated AWS regions that hold your workspaces. Or set ANTHROPIC_AWS_REGIONS." = "مطلوب. مناطق AWS التي تضم مساحات عملك، مفصولة بفواصل. أو اضبط ANTHROPIC_AWS_REGIONS.";
+"Claude Platform on AWS spend history needs the cost and usage analytics permissions." = "يتطلب سجل إنفاق Claude Platform on AWS صلاحيات تحليلات التكلفة والاستخدام.";

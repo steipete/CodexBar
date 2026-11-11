@@ -156,9 +156,9 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        // Tripo extends the audited palette without changing existing provider colors.
-        #expect(widgetFingerprint == 8_165_290_587_712_788_196)
-        #expect(burnDownFingerprint == 4_518_705_644_902_934_406)
+        // Claude Platform on AWS extends the audited palette without changing existing provider colors.
+        #expect(widgetFingerprint == 5_105_353_052_808_211_574)
+        #expect(burnDownFingerprint == 16_362_175_846_813_589_960)
     }
 
     @Test
@@ -2269,10 +2269,10 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/SpendDashboard/SpendDashboardModel.swift",
-            anchor: "guard provider == .mistral || provider == .openrouter || provider == .xai else { return displayCalendar }",
-            expectedProviderIDs: ["mistral", "openrouter", "xai"],
-            expectedReferenceCount: 3,
-            expectedReferenceFingerprint: ["mistral@0", "openrouter@0", "xai@0"],
+            anchor: "guard provider == .claudeplatformaws || provider == .mistral || provider == .openrouter || provider == .xai",
+            expectedProviderIDs: ["claudeplatformaws", "mistral", "openrouter", "xai"],
+            expectedReferenceCount: 4,
+            expectedReferenceFingerprint: ["claudeplatformaws@0", "mistral@0", "openrouter@0", "xai@0"],
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/StatusItem/StatusItemController+AccountMenuDisplay.swift",
@@ -2956,12 +2956,13 @@ struct ProviderArchitectureGatekeeperTests {
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore/UsageStore+TokenCost.swift",
             anchor: "case .openai:",
-            expectedProviderIDs: ["grok", "mistral", "openai", "opencodego", "openrouter", "xai"],
-            expectedReferenceCount: 6,
+            expectedProviderIDs: ["claudeplatformaws", "grok", "mistral", "openai", "opencodego", "openrouter", "xai"],
+            expectedReferenceCount: 7,
             expectedReferenceFingerprint: [
                 "openai@0",
                 "mistral@2",
                 "opencodego@4",
+                "claudeplatformaws@12",
                 "openrouter@12",
                 "xai@14",
                 "grok@16",

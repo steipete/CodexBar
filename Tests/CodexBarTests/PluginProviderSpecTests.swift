@@ -24,6 +24,7 @@ struct PluginProviderSpecTests {
         .huggingface, .nous, .fireworks, .xai, .venice, .zed,
         .tavily, .linkup, .tinyapi, .exa,
         .cosmic, .aerostack, .sailresearch, .sofya, .fal, .flora, .parallel, .munito, .tripo,
+        .claudeplatformaws,
     ]
 
     private static let isolatedEnvironment = [

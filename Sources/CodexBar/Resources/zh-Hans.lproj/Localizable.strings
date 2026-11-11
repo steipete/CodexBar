@@ -2823,3 +2823,10 @@
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "提供密钥、HTTPS 资源端点和部署名称。API 版本为可选项。刷新会发送可能计费的验证请求，而不是用量历史查询。";
 "Mistral session expired or invalid." = "Mistral 会话已过期或无效。";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "使用具有 user_read 权限的 API 密钥查看订阅用量。此命令保存独立密钥；所选 API 密钥账户优先。";
+
+/* Claude Platform on AWS provider credentials */
+"Regions" = "区域";
+"Long-lived IAM user key allowed to read Claude Platform on AWS cost and usage. Or set ANTHROPIC_AWS_ACCESS_KEY_ID." = "有权读取 Claude Platform on AWS 成本和用量的长期 IAM 用户密钥。或设置 ANTHROPIC_AWS_ACCESS_KEY_ID。";
+"Required with the access key ID. Saved in the local config file. Or set ANTHROPIC_AWS_SECRET_ACCESS_KEY." = "需与访问密钥 ID 一起使用。保存在本地配置文件中。或设置 ANTHROPIC_AWS_SECRET_ACCESS_KEY。";
+"Required. Comma-separated AWS regions that hold your workspaces. Or set ANTHROPIC_AWS_REGIONS." = "必填。包含你的工作区的 AWS 区域，以逗号分隔。或设置 ANTHROPIC_AWS_REGIONS。";
+"Claude Platform on AWS spend history needs the cost and usage analytics permissions." = "Claude Platform on AWS 支出历史需要成本和用量分析权限。";

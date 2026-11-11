@@ -2799,3 +2799,10 @@
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "키, HTTPS 리소스 엔드포인트 및 배포 이름을 입력하세요. API 버전은 선택 사항입니다. 새로 고침은 사용 기록 조회가 아니라 요금이 부과될 수 있는 검증 요청을 보냅니다.";
 "Mistral session expired or invalid." = "Mistral 세션이 만료되었거나 유효하지 않습니다.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "구독 사용량을 조회하려면 user_read 권한이 있는 API 키를 사용하세요. 이 명령은 독립적인 키를 저장하며, 선택된 API 키 계정이 우선합니다.";
+
+/* Claude Platform on AWS provider credentials */
+"Regions" = "리전";
+"Long-lived IAM user key allowed to read Claude Platform on AWS cost and usage. Or set ANTHROPIC_AWS_ACCESS_KEY_ID." = "Claude Platform on AWS 비용 및 사용량을 읽을 수 있는 장기 IAM 사용자 키입니다. 또는 ANTHROPIC_AWS_ACCESS_KEY_ID를 설정하세요.";
+"Required with the access key ID. Saved in the local config file. Or set ANTHROPIC_AWS_SECRET_ACCESS_KEY." = "액세스 키 ID와 함께 필요합니다. 로컬 설정 파일에 저장됩니다. 또는 ANTHROPIC_AWS_SECRET_ACCESS_KEY를 설정하세요.";
+"Required. Comma-separated AWS regions that hold your workspaces. Or set ANTHROPIC_AWS_REGIONS." = "필수. 워크스페이스가 있는 AWS 리전을 쉼표로 구분해 입력하세요. 또는 ANTHROPIC_AWS_REGIONS를 설정하세요.";
+"Claude Platform on AWS spend history needs the cost and usage analytics permissions." = "Claude Platform on AWS 지출 내역에는 비용 및 사용량 분석 권한이 필요합니다.";

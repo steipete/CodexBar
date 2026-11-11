@@ -2832,3 +2832,10 @@
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Укажіть ключ, HTTPS-адресу ресурсу та назву розгортання. Версія API необов’язкова. Оновлення надсилає потенційно платний запит перевірки, а не запит історії використання.";
 "Mistral session expired or invalid." = "Термін дії сеансу Mistral минув або сеанс недійсний.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Для перегляду використання передплати використовуйте ключ API з дозволом user_read. Команда зберігає окремий ключ; вибраний обліковий запис ключа API має пріоритет.";
+
+/* Claude Platform on AWS provider credentials */
+"Regions" = "Регіони";
+"Long-lived IAM user key allowed to read Claude Platform on AWS cost and usage. Or set ANTHROPIC_AWS_ACCESS_KEY_ID." = "Довгостроковий ключ користувача IAM із правом читання витрат і використання Claude Platform on AWS. Або задайте ANTHROPIC_AWS_ACCESS_KEY_ID.";
+"Required with the access key ID. Saved in the local config file. Or set ANTHROPIC_AWS_SECRET_ACCESS_KEY." = "Потрібен разом з ідентифікатором ключа доступу. Зберігається в локальному файлі конфігурації. Або задайте ANTHROPIC_AWS_SECRET_ACCESS_KEY.";
+"Required. Comma-separated AWS regions that hold your workspaces. Or set ANTHROPIC_AWS_REGIONS." = "Обов'язково. Регіони AWS із вашими робочими просторами, через кому. Або задайте ANTHROPIC_AWS_REGIONS.";
+"Claude Platform on AWS spend history needs the cost and usage analytics permissions." = "Для історії витрат Claude Platform on AWS потрібні дозволи на аналітику витрат і використання.";

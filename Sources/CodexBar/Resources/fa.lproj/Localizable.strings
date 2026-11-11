@@ -2835,3 +2835,10 @@
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "کلید، نقطهٔ پایانی منبع HTTPS و نام استقرار را وارد کنید. نسخهٔ API اختیاری است. تازه‌سازی درخواست اعتبارسنجی با هزینهٔ احتمالی می‌فرستد، نه پرس‌وجوی سابقهٔ مصرف.";
 "Mistral session expired or invalid." = "نشست Mistral منقضی شده یا نامعتبر است.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "برای مشاهده مصرف اشتراک، از یک کلید API با مجوز user_read استفاده کنید. این فرمان یک کلید مستقل ذخیره می‌کند؛ حساب کلید API انتخاب‌شده اولویت دارد.";
+
+/* Claude Platform on AWS provider credentials */
+"Regions" = "منطقه‌ها";
+"Long-lived IAM user key allowed to read Claude Platform on AWS cost and usage. Or set ANTHROPIC_AWS_ACCESS_KEY_ID." = "کلید بلندمدت کاربر IAM با مجوز خواندن هزینه و مصرف Claude Platform on AWS. یا ANTHROPIC_AWS_ACCESS_KEY_ID را تنظیم کنید.";
+"Required with the access key ID. Saved in the local config file. Or set ANTHROPIC_AWS_SECRET_ACCESS_KEY." = "همراه با شناسه کلید دسترسی الزامی است. در فایل پیکربندی محلی ذخیره می‌شود. یا ANTHROPIC_AWS_SECRET_ACCESS_KEY را تنظیم کنید.";
+"Required. Comma-separated AWS regions that hold your workspaces. Or set ANTHROPIC_AWS_REGIONS." = "الزامی. منطقه‌های AWS که فضاهای کاری شما در آن‌ها قرار دارند، جداشده با ویرگول. یا ANTHROPIC_AWS_REGIONS را تنظیم کنید.";
+"Claude Platform on AWS spend history needs the cost and usage analytics permissions." = "تاریخچه هزینه Claude Platform on AWS به مجوزهای تحلیل هزینه و مصرف نیاز دارد.";

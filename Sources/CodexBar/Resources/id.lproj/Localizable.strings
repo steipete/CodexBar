@@ -2833,3 +2833,10 @@
 "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Berikan kunci, endpoint sumber daya HTTPS, dan nama deployment. Versi API opsional. Penyegaran mengirim permintaan validasi yang mungkin dikenakan biaya, bukan kueri riwayat penggunaan.";
 "Mistral session expired or invalid." = "Sesi Mistral telah kedaluwarsa atau tidak valid.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Gunakan kunci API dengan izin user_read untuk melihat penggunaan langganan. Perintah ini menyimpan kunci terpisah; akun kunci API yang dipilih diprioritaskan.";
+
+/* Claude Platform on AWS provider credentials */
+"Regions" = "Wilayah";
+"Long-lived IAM user key allowed to read Claude Platform on AWS cost and usage. Or set ANTHROPIC_AWS_ACCESS_KEY_ID." = "Kunci pengguna IAM jangka panjang yang diizinkan membaca biaya dan penggunaan Claude Platform on AWS. Atau atur ANTHROPIC_AWS_ACCESS_KEY_ID.";
+"Required with the access key ID. Saved in the local config file. Or set ANTHROPIC_AWS_SECRET_ACCESS_KEY." = "Wajib bersama ID kunci akses. Disimpan di file konfigurasi lokal. Atau atur ANTHROPIC_AWS_SECRET_ACCESS_KEY.";
+"Required. Comma-separated AWS regions that hold your workspaces. Or set ANTHROPIC_AWS_REGIONS." = "Wajib. Wilayah AWS yang berisi ruang kerja Anda, dipisahkan koma. Atau atur ANTHROPIC_AWS_REGIONS.";
+"Claude Platform on AWS spend history needs the cost and usage analytics permissions." = "Riwayat pengeluaran Claude Platform on AWS memerlukan izin analitik biaya dan penggunaan.";
