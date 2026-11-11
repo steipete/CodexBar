@@ -951,7 +951,8 @@ extension UsageMenuCardView.Model {
                 style: providerCostStyle,
                 percentStyle: input.usageBarsShowUsed ? .used : .left,
                 isClaudeAdminAPI: isClaudeAdminAPI,
-                preferredCurrencyCode: input.preferredCurrencyCode)
+                // Provider-specific by design: NanoGPT's balance and spend stay in USD.
+                preferredCurrencyCode: input.provider == .nanogpt ? "auto" : input.preferredCurrencyCode)
         }
         if paceVisible, providerCost?.percentUsed != nil {
             providerCost?.dailyTargetText = Self.monthlyCostTarget(

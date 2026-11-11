@@ -101,8 +101,10 @@ struct NanoGPTMenuCardCostTests {
             costSummaryInlineEnabled: false,
             showOptionalCreditsAndExtraUsage: true,
             hidePersonalInfo: false,
+            preferredCurrencyCode: "EUR",
             now: now))
         #expect(model.metrics.contains { $0.id == "secondary" })
+        #expect(model.providerCost?.spendLine == "Month to date: $0.00")
         #expect(model.providerCost?.balanceLine == "Balance: $12.50")
     }
 

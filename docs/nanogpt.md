@@ -43,8 +43,9 @@ Account plans and Design subscription columns on quota reports are separate from
 converts one into the other. The API has no monthly reset for the balance, so none is invented.
 
 The menu's Usage Dashboard opens [nano-gpt.com/usage](https://nano-gpt.com/usage). The pay-as-you-go
-card always shows the prepaid dollar balance beside the subscription token meters. Automatic menu bar
-text uses that balance; the daily and weekly token selections stay available.
+card always shows the prepaid balance and the month-to-date spend beside the subscription token meters.
+Both amounts stay in USD, including when CodexBar's display currency is something else. Automatic menu
+bar text uses that same balance; the daily and weekly token selections stay available.
 
 NanoGPT recommends a billing mode per key in `routing.recommendedMode`. The Billing detail section shows that
 recommendation and its `routing.reason`. Use it when choosing between included subscription usage and the paid

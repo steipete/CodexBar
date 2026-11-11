@@ -222,6 +222,7 @@ struct ProviderCredentialCharacterizationTests {
             (.huggingface, "CODEXBAR_HUGGINGFACE_API_KEY"),
             (.doubao, "ARK_API_KEY"),
             (.clinepass, "CLINE_API_KEY"),
+            (.nanogpt, "NANOGPT_API_KEY"),
         ]
         let cookieProviders: [UsageProvider] = [
             .claude, .cursor, .opencode, .opencodego, .factory, .minimax, .manus,

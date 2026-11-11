@@ -257,14 +257,22 @@ defineProvider({
     const row = (label, entry, usedLabel) => {
       if (!entry) return;
       const percent = percentOf(entry);
+      // A lane can report remaining or percentUsed without used. That is unknown, not zero usage.
+      const used = entry.used;
+      const value = entry.degraded
+        ? "Unavailable"
+        : used === undefined
+          ? "Unknown"
+          : `${ctx.format.number(used)} ${usedLabel}`;
       rows.push({
         label,
-        value: entry.degraded
-          ? "Unavailable"
-          : `${ctx.format.number(_nullishCoalesce(entry.used, () => 0))} ${usedLabel}`,
+        value,
         ...(entry.remaining !== undefined ? { secondaryValue: `${ctx.format.number(entry.remaining)} left` } : {}),
         ...(percent !== undefined && !entry.degraded
-          ? { progress: Math.max(0, Math.min(1, percent / 100)), usageValue: entry.used }
+          ? {
+              progress: Math.max(0, Math.min(1, percent / 100)),
+              ...(used === undefined ? {} : { usageValue: used }),
+            }
           : { severity: "warning" }),
       });
     };
@@ -277,7 +285,7 @@ defineProvider({
     if (requests !== undefined) billingRows.push({ label: "Requests this month", value: ctx.format.number(requests) });
     if (totalTokens !== undefined)
       billingRows.push({ label: "Tokens this month", value: ctx.format.number(totalTokens) });
-    if (netCost !== undefined) billingRows.push({ label: "Net spend this month", value: ctx.format.usd(netCost) });
+    // Month-to-date spend is already the pay-as-you-go line.
 
     const routing = record(quota.routing);
     const mode = _optionalChain([routing, "optionalAccess", (_) => _.recommendedMode]);

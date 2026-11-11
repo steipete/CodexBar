@@ -156,9 +156,9 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        // Tripo extends the audited palette without changing existing provider colors.
-        #expect(widgetFingerprint == 8_165_290_587_712_788_196)
-        #expect(burnDownFingerprint == 4_518_705_644_902_934_406)
+        // NanoGPT extends the audited palette without changing existing provider colors.
+        #expect(widgetFingerprint == 7_473_096_138_392_248_135)
+        #expect(burnDownFingerprint == 4_389_058_038_493_566_365)
     }
 
     @Test
@@ -220,7 +220,7 @@ struct ProviderArchitectureGatekeeperTests {
         ])
         #expect(descriptors.compactMap { descriptor in
             descriptor.credentials?.apiKeyDebugLabel.map { (descriptor.id, $0) }
-        }.map(\.0) == [.openai, .azureopenai, .opencodego, .openrouter, .elevenlabs, .v0])
+        }.map(\.0) == [.openai, .azureopenai, .opencodego, .openrouter, .elevenlabs, .v0, .nanogpt])
 
         #expect(CodexProviderDescriptor.descriptor.tokenCost.menuHintLines == [.localized("codex_api_estimate_hint")])
         #expect(ClaudeProviderDescriptor.descriptor.tokenCost.menuHintLines == [.estimate])
@@ -2343,16 +2343,20 @@ struct ProviderArchitectureGatekeeperTests {
         AllowedProviderConstruct(
             path: "Sources/CodexBar/StatusItem/StatusItemController+Animation.swift",
             anchor: "if provider == .kiro {",
-            expectedProviderIDs: ["cursor", "devpass", "kiro", "mimo", "mistral", "opencodego", "openrouter"],
-            expectedReferenceCount: 7,
+            expectedProviderIDs: [
+                "cursor", "devpass", "kiro", "mimo", "mistral", "nanogpt", "opencodego", "openrouter",
+            ],
+            expectedReferenceCount: 9,
             expectedReferenceFingerprint: [
+                "nanogpt@0",
                 "openrouter@0",
                 "mimo@1",
                 "devpass@2",
                 "opencodego@2",
                 "mistral@3",
-                "kiro@9",
-                "cursor@17",
+                "nanogpt@6",
+                "kiro@14",
+                "cursor@22",
             ],
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(

@@ -786,6 +786,11 @@ extension StatusItemController {
         case .mistral: self.menuBarMetricWindow(for: provider, snapshot: snapshot, now: now) == nil
         default: !ProviderDescriptorRegistry.descriptor(for: provider).presentation.menuBarBalanceUsesPrepaidCost
         }
+        if provider == .nanogpt, usesBalance,
+           let balance = Self.nanoGPTBalanceText(snapshot: snapshot)
+        {
+            return balance
+        }
         if usesBalance, let balance = MenuBarLayoutBalanceResolver.balance(provider: provider, snapshot: snapshot) {
             return balance
         }
@@ -888,11 +893,10 @@ extension StatusItemController {
         automatic: MenuBarLayoutRenderWindow?,
         showsOptionalCredits: Bool = true) -> String?
     {
-        // NanoGPT's Automatic token is the prepaid balance even when a token window exists.
+        // Provider-specific by design: NanoGPT's Automatic token is the prepaid USD balance.
         // Daily and weekly tokens stay on their own layout tokens.
         if provider == .nanogpt,
-           let balance = MenuBarLayoutBalanceResolver.balance(
-               provider: provider,
+           let balance = nanoGPTBalanceText(
                snapshot: snapshot,
                showsOptionalCredits: showsOptionalCredits)
         {
@@ -906,6 +910,20 @@ extension StatusItemController {
             provider: provider,
             snapshot: snapshot,
             showsOptionalCredits: showsOptionalCredits)
+    }
+
+    /// Prepaid NanoGPT balance in the reported USD amount.
+    nonisolated static func nanoGPTBalanceText(
+        snapshot: UsageSnapshot?,
+        showsOptionalCredits: Bool = true) -> String?
+    {
+        // Provider-specific by design: this helper formats only the NanoGPT prepaid USD balance.
+        guard let amount = MenuBarLayoutBalanceResolver.balanceAmountsUSD(
+            provider: .nanogpt,
+            snapshot: snapshot,
+            showsOptionalCredits: showsOptionalCredits).remaining
+        else { return nil }
+        return UsageFormatter.currencyString(amount, currencyCode: "USD")
     }
 
     nonisolated static func extraUsageSpendDisplayText(snapshot: UsageSnapshot?) -> String? {

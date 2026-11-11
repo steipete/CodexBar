@@ -54,6 +54,8 @@ struct NanoGPTPluginTests {
         #expect(snapshot.providerCost?.balance == 12.5)
         #expect(snapshot.providerCost?.used == 1.5)
         #expect(snapshot.providerCost?.currencyCode == "USD")
+        // Spend is the cost snapshot, not a second preformatted dollar row.
+        #expect(snapshot.details.flatMap(\.rows).contains { $0.label == "Net spend this month" } == false)
         for row in snapshot.details.flatMap(\.rows) where row.usageValue == nil {
             #expect(row.value.contains("$12.50") == false)
         }
@@ -94,6 +96,19 @@ struct NanoGPTPluginTests {
         #expect(snapshot.extraRateWindows?.isEmpty != false)
         // The balance is still a valid snapshot on its own.
         #expect(snapshot.providerCost?.balance == 12.5)
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `missing used stays unknown instead of zero`(engine: ProviderPluginEngineKind) async throws {
+        let partial = Self.subscription.replacingOccurrences(
+            of: #""used":150000,"remaining":850000,"percentUsed":0.15"#,
+            with: #""used":null,"remaining":850000,"percentUsed":0.15"#)
+        let snapshot = try await Self.fetch(engine: engine, subscription: partial)
+        let daily = try #require(snapshot.details.first?.rows.first { $0.label == "Daily input tokens" })
+        #expect(daily.value == "Unknown")
+        #expect(daily.usageValue == nil)
+        #expect(daily.value.contains("0") == false)
+        #expect(snapshot.primary?.usedPercent == 15)
     }
 
     @Test(arguments: BundledPluginTestSupport.engines)
