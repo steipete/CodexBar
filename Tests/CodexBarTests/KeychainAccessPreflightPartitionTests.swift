@@ -73,6 +73,72 @@ struct KeychainAccessPreflightPartitionTests {
     }
 
     @Test
+    @available(macOS, deprecated: 10.10)
+    func `an item without a partition entry keeps the decrypt ACL answer`() throws {
+        // SecAccessCopyMatchingACLList answers NULL for this access, the same value it uses for a failure;
+        // the full ACL list must still prove that no partition entry exists.
+        let access = try Self.access(acls: [])
+        #expect(KeychainAccessPreflight.evaluatePartitionList(
+            access: access,
+            callerTeamID: "Y5PE65HELJ") == .allowed)
+    }
+
+    @Test
+    @available(macOS, deprecated: 10.10)
+    func `a failed ACL list lookup is inconclusive, not an item without partitions`() throws {
+        let access = try Self.access(acls: [])
+        var operations = try #require(KeychainAccessPreflight.PartitionACLOperations.live)
+        operations.copyACLList = { _ in nil }
+        #expect(KeychainAccessPreflight.evaluatePartitionList(
+            access: access,
+            callerTeamID: "Y5PE65HELJ",
+            operations: operations) == .indeterminate)
+    }
+
+    @Test
+    @available(macOS, deprecated: 10.10)
+    func `a failed authorization lookup cannot hide a partition entry`() throws {
+        // The rejecting partition entry would decide the outcome if its authorizations were readable.
+        let access = try Self.access(acls: [
+            (kSecACLAuthorizationPartitionID, Self.description(["teamid:V9WTTPBFK9"])),
+        ])
+        let live = try #require(KeychainAccessPreflight.PartitionACLOperations.live)
+        var operations = live
+        operations.copyAuthorizations = { acl in
+            let authorizations = live.copyAuthorizations(acl)
+            return authorizations?.contains(kSecACLAuthorizationPartitionID as String) == true ? nil : authorizations
+        }
+        #expect(KeychainAccessPreflight.evaluatePartitionList(
+            access: access,
+            callerTeamID: "Y5PE65HELJ",
+            operations: operations) == .indeterminate)
+    }
+
+    @Test
+    @available(macOS, deprecated: 10.10)
+    func `a failed partition description lookup is inconclusive`() throws {
+        let access = try Self.access(acls: [
+            (kSecACLAuthorizationPartitionID, Self.description(["teamid:Y5PE65HELJ"])),
+        ])
+        var operations = try #require(KeychainAccessPreflight.PartitionACLOperations.live)
+        operations.copyDescription = { _ in nil }
+        #expect(KeychainAccessPreflight.evaluatePartitionList(
+            access: access,
+            callerTeamID: "Y5PE65HELJ",
+            operations: operations) == .indeterminate)
+    }
+
+    @Test
+    @available(macOS, deprecated: 10.10)
+    func `missing Security functions are inconclusive`() throws {
+        let access = try Self.access(acls: [])
+        #expect(KeychainAccessPreflight.evaluatePartitionList(
+            access: access,
+            callerTeamID: "Y5PE65HELJ",
+            operations: nil) == .indeterminate)
+    }
+
+    @Test
     func `partition description decodes the hex property list Security returns`() throws {
         let ids = ["teamid:V9WTTPBFK9", "apple-tool:"]
         #expect(try KeychainAccessPreflight.partitionIDs(fromACLDescription: Self.description(ids)) == ids)

@@ -415,42 +415,71 @@ public enum KeychainAccessPreflight {
     /// partition list holds only the CLI vendor's team.
     static func evaluatePartitionList(
         access: SecAccess,
-        callerTeamID: String? = KeychainAccessPreflight.callerTeamID) -> DecryptACLEvaluation
+        callerTeamID: String? = KeychainAccessPreflight.callerTeamID,
+        operations: PartitionACLOperations? = .live) -> DecryptACLEvaluation
     {
-        guard let copyMatchingACLs = self.securityFunction(
-            named: "SecAccessCopyMatchingACLList",
-            as: SecAccessCopyMatchingACLListFunction.self),
-            let copyAuthorizations = self.securityFunction(
-                named: "SecACLCopyAuthorizations",
-                as: SecACLCopyAuthorizationsFunction.self),
-            let copyACLContents = self.securityFunction(
-                named: "SecACLCopyContents",
-                as: SecACLCopyContentsFunction.self)
-        else { return .indeterminate }
-
-        // Matching also returns ACLs authorized for "any" operation, whose description is not a partition
-        // payload. Only entries that name the partition authorization explicitly carry the list.
-        let partitionACLs = ((copyMatchingACLs(access, kSecACLAuthorizationPartitionID)?
-                .takeRetainedValue() as? [SecACL]) ?? [])
-            .filter { acl in
-                let authorizations = copyAuthorizations(acl)?.takeRetainedValue() as? [String] ?? []
-                return authorizations.contains(kSecACLAuthorizationPartitionID as String)
+        guard let operations else { return .indeterminate }
+        // SecAccessCopyMatchingACLList returns NULL both for "no match" and for a failed lookup, so read the
+        // full list, whose status separates the two, and select partition entries here. Matching would also
+        // return ACLs authorized for any operation, whose description is not a partition payload.
+        guard let acls = operations.copyACLList(access) else { return .indeterminate }
+        var partitionACLs: [SecACL] = []
+        for acl in acls {
+            guard let authorizations = operations.copyAuthorizations(acl) else { return .indeterminate }
+            if authorizations.contains(kSecACLAuthorizationPartitionID as String) {
+                partitionACLs.append(acl)
             }
+        }
         // Items written before partition lists existed have no entry and keep the decrypt ACL's answer.
         guard !partitionACLs.isEmpty else { return .allowed }
 
         var partitions: [String] = []
         for acl in partitionACLs {
-            var applications: CFArray?
-            var description: CFString?
-            var selector = SecKeychainPromptSelector()
-            guard copyACLContents(acl, &applications, &description, &selector) == errSecSuccess,
-                  let description,
-                  let ids = self.partitionIDs(fromACLDescription: description as String)
+            guard let description = operations.copyDescription(acl),
+                  let ids = self.partitionIDs(fromACLDescription: description)
             else { return .indeterminate }
             partitions += ids
         }
         return self.evaluatePartitionList(partitions, callerTeamID: callerTeamID)
+    }
+
+    /// Security calls behind the partition check. A `nil` result means the call failed, never "none found".
+    struct PartitionACLOperations {
+        var copyACLList: (SecAccess) -> [SecACL]?
+        var copyAuthorizations: (SecACL) -> [String]?
+        var copyDescription: (SecACL) -> String?
+
+        static var live: Self? {
+            guard let copyACLList = KeychainAccessPreflight.securityFunction(
+                named: "SecAccessCopyACLList",
+                as: SecAccessCopyACLListFunction.self),
+                let copyAuthorizations = KeychainAccessPreflight.securityFunction(
+                    named: "SecACLCopyAuthorizations",
+                    as: SecACLCopyAuthorizationsFunction.self),
+                let copyACLContents = KeychainAccessPreflight.securityFunction(
+                    named: "SecACLCopyContents",
+                    as: SecACLCopyContentsFunction.self)
+            else { return nil }
+            return Self(
+                copyACLList: { access in
+                    var list: Unmanaged<CFArray>?
+                    guard copyACLList(access, &list) == errSecSuccess else { return nil }
+                    // A successful call with no ACLs is an empty list, not a failure.
+                    guard let list = list?.takeRetainedValue() else { return [] }
+                    return list as? [SecACL]
+                },
+                copyAuthorizations: { acl in
+                    copyAuthorizations(acl)?.takeRetainedValue() as? [String]
+                },
+                copyDescription: { acl in
+                    var applications: CFArray?
+                    var description: CFString?
+                    var selector = SecKeychainPromptSelector()
+                    guard copyACLContents(acl, &applications, &description, &selector) == errSecSuccess
+                    else { return nil }
+                    return description as String?
+                })
+        }
     }
 
     /// Decodes the partition ACL description: a hex-encoded property list `{ Partitions = ("teamid:…") }`.
@@ -569,6 +598,9 @@ public enum KeychainAccessPreflight {
     private typealias SecAccessCopyMatchingACLListFunction = @convention(c) (
         SecAccess,
         CFTypeRef) -> Unmanaged<CFArray>?
+    private typealias SecAccessCopyACLListFunction = @convention(c) (
+        SecAccess,
+        UnsafeMutablePointer<Unmanaged<CFArray>?>) -> OSStatus
     private typealias SecACLCopyAuthorizationsFunction = @convention(c) (SecACL) -> Unmanaged<CFArray>?
     private typealias SecACLCopyContentsFunction = @convention(c) (
         SecACL,
