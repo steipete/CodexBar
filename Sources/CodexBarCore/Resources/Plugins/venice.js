@@ -50,16 +50,20 @@ defineProvider({
     let resetDescription;
     if (!payload.canConsume) {
       usedPercent = 100;
-      const usdText = usd !== null && usd > 0 ? `$${usd.toFixed(2)} USD remaining` : null;
-      const diemText = diem !== null && diem > 0 ? `DIEM ${diem.toFixed(2)} remaining` : null;
-      const known = currency === "USD" ? usdText || diemText : diemText || usdText;
-      if (known) {
-        resetDescription = `${known}, API calls blocked`;
-      } else if (usd !== null && usd < 0) {
-        resetDescription = `USD balance -$${Math.abs(usd).toFixed(2)}, API calls blocked`;
-      } else {
-        resetDescription = "Balance unavailable for API calls";
+      const usdText = (value) =>
+        value < 0 ? `USD balance -$${Math.abs(value).toFixed(2)}` : `$${value.toFixed(2)} USD remaining`;
+      const diemText = (value) =>
+        value < 0 ? `DIEM balance -${Math.abs(value).toFixed(2)}` : `DIEM ${value.toFixed(2)} remaining`;
+      const primaryIsUsd = currency === "USD";
+      const primaryValue = primaryIsUsd ? usd : diem;
+      const otherValue = primaryIsUsd ? diem : usd;
+      let known = null;
+      if (primaryValue !== null) {
+        known = primaryIsUsd ? usdText(primaryValue) : diemText(primaryValue);
+      } else if (otherValue !== null && otherValue > 0) {
+        known = primaryIsUsd ? diemText(otherValue) : usdText(otherValue);
       }
+      resetDescription = known ? `${known}, API calls blocked` : "Balance unavailable for API calls";
     } else if (currency === "USD" && usd !== null && usd > 0) {
       usedPercent = 0;
       resetDescription = `$${usd.toFixed(2)} USD remaining`;

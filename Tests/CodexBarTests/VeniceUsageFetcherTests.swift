@@ -167,6 +167,34 @@ struct VenicePluginGoldenTests {
     }
 
     @Test
+    func `non-consumable negative consumption USD balance is not masked by positive DIEM`() async throws {
+        let snapshot = try await Self.fetch("""
+        {
+          "canConsume": false,
+          "consumptionCurrency": "USD",
+          "balances": { "diem": 3.0, "usd": -0.25 },
+          "diemEpochAllocation": null
+        }
+        """)
+        #expect(snapshot.primary?.usedPercent == 100)
+        #expect(snapshot.primary?.resetDescription == "USD balance -$0.25, API calls blocked")
+    }
+
+    @Test
+    func `non-consumable DIEM consumption without a DIEM balance falls back to USD`() async throws {
+        let snapshot = try await Self.fetch("""
+        {
+          "canConsume": false,
+          "consumptionCurrency": "DIEM",
+          "balances": { "diem": null, "usd": 0.5 },
+          "diemEpochAllocation": null
+        }
+        """)
+        #expect(snapshot.primary?.usedPercent == 100)
+        #expect(snapshot.primary?.resetDescription == "$0.50 USD remaining, API calls blocked")
+    }
+
+    @Test
     func `DIEM allocation progress matches the production golden`() async throws {
         let snapshot = try await Self.fetch("""
         {
