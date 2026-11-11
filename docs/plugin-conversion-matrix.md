@@ -178,6 +178,6 @@ Abacus, Muse, LongCat, Replicate, and TypeSafe unchanged.
 | opendesign | `cut-over` | QuickJS + JavaScriptCore | Opaque first-party browser session; current-workspace lookup and subscription quota GETs on both engines. |
 | siliconflow | `cut-over` | QuickJS + JavaScriptCore | Read-only balance through the official user-info API on both engines; no inferred quota or reset. |
 | tripo | `cut-over` | QuickJS + JavaScriptCore | Fixed-origin bearer GET for available and frozen credits, without inferred quotas or dollar conversions, on both engines. |
-| nanogpt | `cut-over` | QuickJS + JavaScriptCore | Fixed-origin bearer GETs to NanoGPT's subscription, balance, and usage endpoints on both engines; no login, cookie import, or inferred quotas. |
+| nanogpt | `cut-over` | QuickJS + JavaScriptCore | Fixed-origin reads of subscription quotas, the prepaid balance, and usage totals on both engines; no login, cookie import, or inferred quotas. |
 
 <!-- End generated provider additions -->

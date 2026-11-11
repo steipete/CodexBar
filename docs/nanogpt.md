@@ -3,7 +3,7 @@ summary: "NanoGPT subscription token quotas, prepaid USD balance, and month-to-d
 provider_id: nanogpt
 provider_name: NanoGPT
 provider_source: NanoGPT inference API key for subscription input-token quotas, the prepaid USD balance, and month-to-date spend.
-plugin_scope: Fixed-origin bearer GETs to NanoGPT's subscription, balance, and usage endpoints on both engines; no login, cookie import, or inferred quotas.
+plugin_scope: Fixed-origin reads of subscription quotas, the prepaid balance, and usage totals on both engines; no login, cookie import, or inferred quotas.
 read_when:
   - Configuring NanoGPT
   - Debugging NanoGPT quotas, balance, or monthly spend
