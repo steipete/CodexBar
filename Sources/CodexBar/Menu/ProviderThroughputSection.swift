@@ -126,5 +126,6 @@ extension UsageMenuCardView.Model {
     var containsInteractiveControls: Bool {
         self.showsChartSwitch || self.throughput?.presentation?.action != nil
             || self.subtitleStyle == .error || self.usesLiveSubtitle
+            || self.providerDetails.contains { $0.variant != nil }
     }
 }

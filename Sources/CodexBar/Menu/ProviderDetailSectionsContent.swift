@@ -25,6 +25,14 @@ enum ProviderDetailBlock: Equatable {
         }
         return blocks
     }
+
+    var isGroup: Bool {
+        if case .group = self {
+            true
+        } else {
+            false
+        }
+    }
 }
 
 struct ProviderDetailVariantGroup: Equatable {
@@ -76,16 +84,21 @@ extension EnvironmentValues {
 extension SettingsStore {
     private static let detailVariantSelectionsKey = "providerDetailVariantSelections"
 
-    func detailVariantSelection(for provider: ProviderInstanceID) -> [String]? {
+    /// `group` counts a provider's variant groups from zero, in display order.
+    func detailVariantSelection(for provider: ProviderInstanceID, group: Int) -> [String]? {
         let selections = self.userDefaults.dictionary(forKey: Self.detailVariantSelectionsKey) as? [String: [String]]
-        return selections?[provider.rawValue]
+        return selections?[Self.detailVariantSelectionKey(provider, group: group)]
     }
 
-    func setDetailVariantSelection(_ selection: [String], for provider: ProviderInstanceID) {
+    func setDetailVariantSelection(_ selection: [String], for provider: ProviderInstanceID, group: Int) {
         var selections = self.userDefaults
             .dictionary(forKey: Self.detailVariantSelectionsKey) as? [String: [String]] ?? [:]
-        selections[provider.rawValue] = selection
+        selections[Self.detailVariantSelectionKey(provider, group: group)] = selection
         self.userDefaults.set(selections, forKey: Self.detailVariantSelectionsKey)
+    }
+
+    private static func detailVariantSelectionKey(_ provider: ProviderInstanceID, group: Int) -> String {
+        "\(provider.rawValue)#\(group)"
     }
 }
 
@@ -98,11 +111,13 @@ struct ProviderDetailSectionsContent: View {
     @Environment(\.menuItemHighlighted) private var isHighlighted
     @Environment(\.providerMenuChartSettings) private var settings
     @Environment(\.menuCardLayout) private var layout
-    @State private var localSelection: [String]?
+    /// Keyed by the group's position among the variant groups.
+    @State private var localSelections: [Int: [String]] = [:]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ForEach(Array(ProviderDetailBlock.blocks(self.sections).enumerated()), id: \.offset) { index, block in
+        let blocks = ProviderDetailBlock.blocks(self.sections)
+        return VStack(alignment: .leading, spacing: 12) {
+            ForEach(Array(blocks.enumerated()), id: \.offset) { index, block in
                 if index > 0 {
                     Divider()
                 }
@@ -110,15 +125,16 @@ struct ProviderDetailSectionsContent: View {
                 case let .section(section):
                     self.section(section)
                 case let .group(group):
-                    self.group(group)
+                    self.group(group, ordinal: blocks[..<index].count(where: \.isGroup))
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func group(_ group: ProviderDetailVariantGroup) -> some View {
-        let stored = self.localSelection ?? self.provider.flatMap { self.settings?.detailVariantSelection(for: $0) }
+    private func group(_ group: ProviderDetailVariantGroup, ordinal: Int) -> some View {
+        let stored = self.localSelections[ordinal]
+            ?? self.provider.flatMap { self.settings?.detailVariantSelection(for: $0, group: ordinal) }
         let selection = group.selection(stored)
         return VStack(alignment: .leading, spacing: 6) {
             ForEach(Array(group.pickers.enumerated()), id: \.offset) { position, options in
@@ -130,9 +146,9 @@ struct ProviderDetailSectionsContent: View {
                             set: { option in
                                 // NSMenu tracking does not drain main-actor Tasks; update view state in this event.
                                 let next = group.selection(selection, choosing: option, at: position)
-                                self.localSelection = next
+                                self.localSelections[ordinal] = next
                                 if let provider = self.provider {
-                                    self.settings?.setDetailVariantSelection(next, for: provider)
+                                    self.settings?.setDetailVariantSelection(next, for: provider, group: ordinal)
                                 }
                                 // Alternatives differ in height, so the menu row is measured again.
                                 self.layout.invalidate?()

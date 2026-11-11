@@ -2848,4 +2848,4 @@
 "Time zone" = "منطقه زمانی";
 "Where days and months begin: local (default, this Mac's time zone) or utc. Or set ANTHROPIC_AWS_TIME_ZONE." = "روزها و ماه‌ها از کجا شروع می‌شوند: local (پیش‌فرض، منطقه زمانی این Mac) یا utc. یا ANTHROPIC_AWS_TIME_ZONE را تنظیم کنید.";
 "local" = "local";
-"Anthropic analytics figures · may differ from your AWS invoice" = "ارقام تحلیلی Anthropic · ممکن است با صورت‌حساب AWS شما متفاوت باشد";
+"Anthropic analytics · may differ from AWS invoice" = "ارقام تحلیلی Anthropic · ممکن است با صورت‌حساب AWS شما متفاوت باشد";

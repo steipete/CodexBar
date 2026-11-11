@@ -2822,4 +2822,4 @@
 "Time zone" = "時區";
 "Where days and months begin: local (default, this Mac's time zone) or utc. Or set ANTHROPIC_AWS_TIME_ZONE." = "日與月的起始位置：local（預設，此 Mac 的時區）或 utc。或設定 ANTHROPIC_AWS_TIME_ZONE。";
 "local" = "local";
-"Anthropic analytics figures · may differ from your AWS invoice" = "Anthropic 分析數據 · 可能與 AWS 帳單不同";
+"Anthropic analytics · may differ from AWS invoice" = "Anthropic 分析數據 · 可能與 AWS 帳單不同";

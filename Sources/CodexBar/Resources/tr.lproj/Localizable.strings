@@ -2847,4 +2847,4 @@
 "Time zone" = "Saat dilimi";
 "Where days and months begin: local (default, this Mac's time zone) or utc. Or set ANTHROPIC_AWS_TIME_ZONE." = "Günlerin ve ayların başladığı yer: local (varsayılan, bu Mac'in saat dilimi) veya utc. Veya ANTHROPIC_AWS_TIME_ZONE ayarlayın.";
 "local" = "local";
-"Anthropic analytics figures · may differ from your AWS invoice" = "Anthropic analiz rakamları · AWS faturanızdan farklı olabilir";
+"Anthropic analytics · may differ from AWS invoice" = "Anthropic analiz rakamları · AWS faturanızdan farklı olabilir";

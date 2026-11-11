@@ -2845,4 +2845,4 @@
 "Time zone" = "Múi giờ";
 "Where days and months begin: local (default, this Mac's time zone) or utc. Or set ANTHROPIC_AWS_TIME_ZONE." = "Nơi ngày và tháng bắt đầu: local (mặc định, múi giờ của máy Mac này) hoặc utc. Hoặc đặt ANTHROPIC_AWS_TIME_ZONE.";
 "local" = "local";
-"Anthropic analytics figures · may differ from your AWS invoice" = "Số liệu phân tích của Anthropic · có thể khác với hóa đơn AWS của bạn";
+"Anthropic analytics · may differ from AWS invoice" = "Số liệu phân tích của Anthropic · có thể khác với hóa đơn AWS của bạn";

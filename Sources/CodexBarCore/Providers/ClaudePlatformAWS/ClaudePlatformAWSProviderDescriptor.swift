@@ -24,7 +24,7 @@ public enum ClaudePlatformAWSProviderDescriptor {
         noDataMessage: "Claude Platform on AWS spend history needs the cost and usage analytics permissions.",
         supportsTokenCost: true,
         // The history is the analytics API's own figures, not an estimate from local logs.
-        tokenCostHintLines: [.literal("Anthropic analytics figures · may differ from your AWS invoice")],
+        tokenCostHintLines: [.literal("Anthropic analytics · may differ from AWS invoice")],
         environmentKey: Self.accessKeyIDEnvironmentKey,
         missingCredentialMessage: { _ in
             "Set an AWS access key ID, secret access key, and regions for Claude Platform on AWS in Settings."

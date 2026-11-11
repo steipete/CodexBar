@@ -519,7 +519,7 @@ of `progress`. Omit `severity` (or pass null) to keep the existing provider tint
 A detail section accepts an optional `variant`: an array of one to three short labels that marks the section as one
 alternative among its neighbours, for example `["Model", "Week"]`. Consecutive sections whose variants have the same
 number of labels form a group. The menu card shows one capsule picker per label position (omitted when a position has
-a single choice), draws only the section matching the selection, and remembers the selection per provider. The card
+a single choice), draws only the section matching the selection, and remembers the selection per group and provider. The card
 reserves the height of the tallest alternative, so keep their row counts similar. Surfaces without pickers, such as
 the CLI, list every section, so titles should still tell the alternatives apart. A snapshot may carry up to 8 ordinary
 sections and up to 16 variant sections; invalid variants fail the fetch.

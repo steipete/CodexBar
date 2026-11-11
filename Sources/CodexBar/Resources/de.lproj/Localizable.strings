@@ -2842,4 +2842,4 @@
 "Time zone" = "Zeitzone";
 "Where days and months begin: local (default, this Mac's time zone) or utc. Or set ANTHROPIC_AWS_TIME_ZONE." = "Wo Tage und Monate beginnen: local (Standard, die Zeitzone dieses Macs) oder utc. Oder ANTHROPIC_AWS_TIME_ZONE setzen.";
 "local" = "local";
-"Anthropic analytics figures · may differ from your AWS invoice" = "Analysezahlen von Anthropic · können von deiner AWS-Rechnung abweichen";
+"Anthropic analytics · may differ from AWS invoice" = "Analysezahlen von Anthropic · können von deiner AWS-Rechnung abweichen";

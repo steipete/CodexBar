@@ -169,7 +169,7 @@ struct ClaudePlatformAWSPluginTests {
         // Which local day an hour falls on depends on the machine's zone, so only zone-independent sums are
         // asserted: two buckets inside the window in any zone, and one in the current hour.
         let history = try #require(snapshot.costUsage)
-        #expect(history.historyLabel == "Last 30 days (local time)")
+        #expect(history.historyLabel == "Last 30 days")
         #expect(ClaudePlatformAWSCostUsageMapping.usesLocalDays(historyLabel: history.historyLabel))
         #expect(abs((history.last30DaysCostUSD ?? 0) - 350) < 0.000_001)
         #expect(history.last30DaysTokens == 2300)
@@ -248,11 +248,53 @@ struct ClaudePlatformAWSPluginTests {
         // Seven completed days total $370.00 ($300 + $21 + $35 + $14), so $52.86 a day. That rate for the
         // 19.4985 days after the 12:02:11Z watermark is added to the $412.80 spent so far.
         #expect(row.value == "$1,443.43")
-        #expect(row.secondaryValue == "$52.86 a day, 7-day average")
+        #expect(row.secondaryValue == "$52.86/day (7-day avg)")
         // $87.20 of budget is left at $52.86 a day: about 1.65 days after the watermark.
         #expect(rows.first { $0.label == "Monthly budget lasts" }?.value == "Until about 2026-11-13")
         // The projection never changes the reported spend.
         #expect(abs((snapshot.providerCost?.used ?? 0) - 412.8) < 0.000_001)
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `labels matching inherited object keys keep their spend`(engine: ProviderPluginEngineKind) async throws {
+        var fixture = Fixture()
+        fixture.extraWestDailyRows = [
+            Self.costRow("2026-11-09T00:00:00Z", amount: "2100.000000", requests: 10, model: "constructor"),
+            Self.costRow("2026-11-10T00:00:00Z", amount: "1400.000000", requests: 10, model: "__proto__"),
+        ]
+        let snapshot = try await Self.usage(Self.runtime(engine: engine, fixture: fixture), regions: "us-west-2")
+        let rows = try #require(snapshot.details.first { $0.title == "By model · Last 7 days" }).rows
+        #expect(rows.first { $0.label == "constructor" }?.value == "$21.00")
+        #expect(rows.first { $0.label == "__proto__" }?.value == "$14.00")
+    }
+
+    @Test
+    func `local-day history keeps its last day east of UTC+12`() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "Pacific/Auckland"))
+        // The generic mapper's stamp for a window ending 2026-11-11: noon UTC, which is 01:00 on the 12th here.
+        let windowEnd = Date(timeIntervalSince1970: 1_794_398_400)
+        let history: (String) -> UsageSnapshot = { label in
+            UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                costUsage: CostUsageTokenSnapshot(
+                    sessionTokens: nil,
+                    sessionCostUSD: nil,
+                    last30DaysTokens: nil,
+                    last30DaysCostUSD: 5,
+                    historyLabel: label,
+                    daily: [],
+                    updatedAt: windowEnd),
+                // 18:00 on the 11th in Auckland.
+                updatedAt: windowEnd.addingTimeInterval(-7 * 3600))
+        }
+        let local = try #require(ClaudePlatformAWSCostUsageMapping.tokenSnapshot(
+            from: history("Last 30 days"), localCalendar: calendar))
+        #expect(CostUsageLocalDay.key(from: local.updatedAt, calendar: calendar) == "2026-11-11")
+        let utc = try #require(ClaudePlatformAWSCostUsageMapping.tokenSnapshot(
+            from: history("Last 30 days (UTC)"), localCalendar: calendar))
+        #expect(utc.updatedAt == windowEnd)
     }
 
     @Test(arguments: BundledPluginTestSupport.engines)

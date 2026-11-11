@@ -559,7 +559,7 @@ defineProvider({
         rows.push({
           label: "Projected this month",
           value: ctx.format.usd(used + (dailyAverage * (nextMonthStart - from)) / dayMillis),
-          secondaryValue: `${ctx.format.usd(dailyAverage)} a day, 7-day average`,
+          secondaryValue: `${ctx.format.usd(dailyAverage)}/day (7-day avg)`,
         });
         if (monthlyBudget && used < monthlyBudget) {
           const runsOut = from + ((monthlyBudget - used) / dailyAverage) * dayMillis;
@@ -596,7 +596,7 @@ defineProvider({
           currency: "USD",
           historyDays,
           // The host reads the day convention from this label.
-          historyLabel: local ? "Last 30 days (local time)" : "Last 30 days (UTC)",
+          historyLabel: local ? "Last 30 days" : "Last 30 days (UTC)",
           windowEnd: todayLabel,
           entries: Object.keys(entries)
             .sort()
@@ -656,7 +656,8 @@ defineProvider({
     }
     // Sums spend per label and lists the largest, folding the remainder into one row.
     const breakdown = (period, field, limit) => {
-      const totals = {};
+      // Labels come from the account, so no inherited key such as "constructor" may stand in for a total.
+      const totals = Object.create(null);
       for (const row of period.rows) totals[row[field]] = (totals[row[field]] || 0) + row.amount;
       const ranked = Object.keys(totals)
         .map((label) => ({ label, amount: totals[label] }))

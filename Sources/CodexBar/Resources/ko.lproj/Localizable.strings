@@ -2812,4 +2812,4 @@
 "Time zone" = "시간대";
 "Where days and months begin: local (default, this Mac's time zone) or utc. Or set ANTHROPIC_AWS_TIME_ZONE." = "일과 월이 시작되는 기준: local(기본값, 이 Mac의 시간대) 또는 utc. 또는 ANTHROPIC_AWS_TIME_ZONE을 설정하세요.";
 "local" = "local";
-"Anthropic analytics figures · may differ from your AWS invoice" = "Anthropic 분석 수치 · AWS 청구서와 다를 수 있음";
+"Anthropic analytics · may differ from AWS invoice" = "Anthropic 분석 수치 · AWS 청구서와 다를 수 있음";

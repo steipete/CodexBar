@@ -2846,4 +2846,4 @@
 "Time zone" = "Zona waktu";
 "Where days and months begin: local (default, this Mac's time zone) or utc. Or set ANTHROPIC_AWS_TIME_ZONE." = "Awal hari dan bulan: local (default, zona waktu Mac ini) atau utc. Atau atur ANTHROPIC_AWS_TIME_ZONE.";
 "local" = "local";
-"Anthropic analytics figures · may differ from your AWS invoice" = "Angka analitik Anthropic · dapat berbeda dari tagihan AWS Anda";
+"Anthropic analytics · may differ from AWS invoice" = "Angka analitik Anthropic · dapat berbeda dari tagihan AWS Anda";

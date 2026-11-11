@@ -1431,7 +1431,7 @@ struct SpendDashboardModel: Equatable, Sendable {
         else { return displayCalendar }
         // A snapshot whose history label declares local days (Claude Platform on AWS with its default time zone
         // setting) is already cut on the dashboard's own day boundaries.
-        guard !ClaudePlatformAWSCostUsageMapping.usesLocalDays(historyLabel: input.snapshot.historyLabel)
+        guard !ClaudePlatformAWSCostUsageMapping.usesLocalDays(provider, historyLabel: input.snapshot.historyLabel)
         else { return displayCalendar }
         // Claude Platform on AWS, Mistral, OpenRouter, and xAI label daily buckets and snapshot coverage by UTC day.
         // Map each UTC boundary into the containing local dashboard day instead of reinterpreting the label as a

@@ -11,7 +11,8 @@ public enum ClaudePlatformAWSCostUsageMapping {
         localCalendar: Calendar = .current) -> CostUsageTokenSnapshot?
     {
         guard let history = snapshot.costUsage else { return nil }
-        let todayKey = Self.usesLocalDays(historyLabel: history.historyLabel)
+        let usesLocalDays = Self.usesLocalDays(historyLabel: history.historyLabel)
+        let todayKey = usesLocalDays
             ? CostUsageLocalDay.key(from: snapshot.updatedAt, calendar: localCalendar)
             : Self.utcDayKey(snapshot.updatedAt)
         let today = history.daily.first { $0.date == todayKey }
@@ -29,13 +30,30 @@ public enum ClaudePlatformAWSCostUsageMapping {
             meteredCostUSD: history.meteredCostUSD,
             costProvenance: history.costProvenance,
             daily: history.daily,
-            updatedAt: history.updatedAt)
+            updatedAt: usesLocalDays
+                ? Self.localNoon(onUTCDayOf: history.updatedAt, calendar: localCalendar)
+                : history.updatedAt)
+    }
+
+    /// The generic plugin mapper stamps a history with noon UTC on its last day. Read as a local day, that
+    /// instant is already the next date from UTC+12 eastward, so the same date is rebuilt in the local zone.
+    static func localNoon(onUTCDayOf date: Date, calendar: Calendar) -> Date {
+        var utcCalendar = Calendar(identifier: .gregorian)
+        utcCalendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        var day = utcCalendar.dateComponents([.year, .month, .day], from: date)
+        day.hour = 12
+        return CostUsageLocalDay.gregorianCalendar(matching: calendar).date(from: day) ?? date
     }
 
     /// The plugin states its day convention in the history label: local days with the default time zone
     /// setting, UTC days otherwise.
     public static func usesLocalDays(historyLabel: String?) -> Bool {
-        historyLabel == "Last 30 days (local time)"
+        historyLabel == "Last 30 days"
+    }
+
+    /// The label alone is not distinctive, so shared code asks on behalf of a provider.
+    public static func usesLocalDays(_ provider: UsageProvider, historyLabel: String?) -> Bool {
+        provider == .claudeplatformaws && self.usesLocalDays(historyLabel: historyLabel)
     }
 
     static func utcDayKey(_ date: Date) -> String {

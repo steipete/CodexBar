@@ -61,6 +61,18 @@ struct ProviderDetailVariantGroupTests {
     }
 
     @Test
+    @MainActor
+    func `each variant group of a provider remembers its own selection`() throws {
+        let settings = testSettingsStore(suiteName: "ProviderDetailVariantGroupTests-selection")
+        let provider = try #require(ProviderInstanceID(rawValue: "synthetic-variants"))
+        #expect(settings.detailVariantSelection(for: provider, group: 0) == nil)
+        settings.setDetailVariantSelection(["Model", "Week"], for: provider, group: 0)
+        settings.setDetailVariantSelection(["Region"], for: provider, group: 1)
+        #expect(settings.detailVariantSelection(for: provider, group: 0) == ["Model", "Week"])
+        #expect(settings.detailVariantSelection(for: provider, group: 1) == ["Region"])
+    }
+
+    @Test
     func `variant survives coding and is absent from ordinary sections`() throws {
         let variant = try Self.section("Model week", variant: [" Model ", "Week"])
         #expect(variant.variant == ["Model", "Week"])

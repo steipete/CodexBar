@@ -430,6 +430,21 @@ struct MenuCardThroughputTests {
         #expect(!self.model(snapshot: nil).containsInteractiveControls)
     }
 
+    @Test
+    func `rows with a variant picker forward its presses`() throws {
+        let section: ([String]?) throws -> ProviderDetailSection = { variant in
+            try ProviderDetailSection(
+                title: "Breakdown",
+                rows: [ProviderDetailSection.Row(label: "Row", value: "1")],
+                variant: variant)
+        }
+        let snapshot: ([ProviderDetailSection]) -> UsageSnapshot = { details in
+            UsageSnapshot(primary: nil, secondary: nil, details: details, updatedAt: OpenAIThroughputTests.now)
+        }
+        #expect(try self.model(snapshot: snapshot([section(["Model"])])).containsInteractiveControls)
+        #expect(try !self.model(snapshot: snapshot([section(nil)])).containsInteractiveControls)
+    }
+
     private func model(
         snapshot: UsageSnapshot?,
         manual: [ProviderModelRateLimit] = []) -> UsageMenuCardView.Model

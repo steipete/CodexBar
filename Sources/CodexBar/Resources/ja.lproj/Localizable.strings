@@ -2844,4 +2844,4 @@
 "Time zone" = "タイムゾーン";
 "Where days and months begin: local (default, this Mac's time zone) or utc. Or set ANTHROPIC_AWS_TIME_ZONE." = "日と月の区切り：local（デフォルト、このMacのタイムゾーン）またはutc。またはANTHROPIC_AWS_TIME_ZONEを設定します。";
 "local" = "local";
-"Anthropic analytics figures · may differ from your AWS invoice" = "Anthropicの分析値 · AWSの請求額と異なる場合があります";
+"Anthropic analytics · may differ from AWS invoice" = "Anthropicの分析値 · AWSの請求額と異なる場合があります";
