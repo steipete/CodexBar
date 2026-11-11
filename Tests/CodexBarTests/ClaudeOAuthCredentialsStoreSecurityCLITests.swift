@@ -872,3 +872,81 @@ struct ClaudeOAuthCredentialsStoreSecurityCLITests {
         }
     }
 }
+
+/// Kept in the serialized suite (shared test-store state) but outside the struct body's length limit.
+extension ClaudeOAuthCredentialsStoreSecurityCLITests {
+    @Test
+    func `experimental reader repair ignores this process's partition rejection`() throws {
+        // Claude Code's item can trust CodexBar's decrypt ACL while listing only the `apple-tool:` partition that
+        // `/usr/bin/security` reads under. CodexBar's own partition check must not block that silent CLI read.
+        let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
+        try KeychainCacheStore.withServiceOverrideForTesting(service) {
+            try KeychainAccessGate.withTaskOverrideForTesting(false) {
+                KeychainCacheStore.setTestStoreForTesting(true)
+                defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+                ClaudeOAuthCredentialsStore.invalidateCache()
+                ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting()
+                defer {
+                    ClaudeOAuthCredentialsStore.invalidateCache()
+                    ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting()
+                }
+
+                try ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
+                    try ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
+                        let tempDir = FileManager.default.temporaryDirectory
+                            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+                        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+                        let fileURL = tempDir.appendingPathComponent("credentials.json")
+                        try ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
+                            let securityData = self.makeCredentialsData(
+                                accessToken: "security-repair-apple-tool-partition",
+                                expiresAt: Date(timeIntervalSinceNow: 3600))
+                            var partitionFlags: [Bool] = []
+                            let record = try KeychainAccessPreflight
+                                .withPartitionAwareCheckGenericPasswordOverrideForTesting
+                                { checkedService, _, requireCallerPartition in
+                                    guard checkedService == ClaudeOAuthCredentialsStore.claudeKeychainService
+                                    else { return .notFound }
+                                    partitionFlags.append(requireCallerPartition)
+                                    return requireCallerPartition ? .interactionRequired : .allowed
+                                } operation: {
+                                    try ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+                                        .securityCLIExperimental,
+                                        operation: {
+                                            try ClaudeOAuthKeychainPromptPreference
+                                                .withTaskOverrideForTesting(.always) {
+                                                    try ProviderInteractionContext.$current
+                                                        .withValue(.background) {
+                                                            try ClaudeOAuthCredentialsStore
+                                                                .withClaudeKeychainOverridesForTesting(
+                                                                    data: nil,
+                                                                    fingerprint: nil)
+                                                                {
+                                                                    try ClaudeOAuthCredentialsStore
+                                                                        .withSecurityCLIReadOverrideForTesting(
+                                                                            .data(securityData))
+                                                                        {
+                                                                            try ClaudeOAuthCredentialsStore
+                                                                                .loadRecord(
+                                                                                    environment: [:],
+                                                                                    allowKeychainPrompt: false,
+                                                                                    respectKeychainPromptCooldown: true)
+                                                                        }
+                                                                }
+                                                        }
+                                                }
+                                        })
+                                }
+
+                            #expect(record.credentials.accessToken == "security-repair-apple-tool-partition")
+                            #expect(record.source == .claudeKeychain)
+                            #expect(!partitionFlags.isEmpty)
+                            #expect(!partitionFlags.contains(true))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

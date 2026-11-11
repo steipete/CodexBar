@@ -185,5 +185,47 @@ struct KeychainAccessPreflightPartitionTests {
                 callerTeamID: team) == .allowed)
         }
     }
+
+    @Test
+    @available(macOS, deprecated: 10.10)
+    func `a caller without a team id never runs the partition lookups`() throws {
+        // Ad-hoc and unsigned builds must keep the decrypt ACL answer even when the lookups would fail.
+        let access = try Self.access(acls: [])
+        let failing = KeychainAccessPreflight.PartitionACLOperations(
+            copyACLList: { _ in nil },
+            copyAuthorizations: { _ in nil },
+            copyDescription: { _ in nil })
+        for team in [nil, ""] as [String?] {
+            for operations in [failing, nil] as [KeychainAccessPreflight.PartitionACLOperations?] {
+                #expect(KeychainAccessPreflight.evaluatePartitionList(
+                    access: access,
+                    callerTeamID: team,
+                    operations: operations) == .allowed)
+            }
+        }
+    }
+
+    @Test
+    func `the operation memo never answers a partition check with a decrypt-only result`() {
+        var calls: [Bool] = []
+        let outcomes = KeychainAccessPreflight.withPartitionAwareCheckGenericPasswordOverrideForTesting
+            { _, _, requireCallerPartition in
+                calls.append(requireCallerPartition)
+                return requireCallerPartition ? .interactionRequired : .allowed
+            } operation: {
+                KeychainAccessPreflight.withMemoizedGenericPasswordChecks {
+                    [
+                        KeychainAccessPreflight.checkGenericPassword(
+                            service: "partition-memo",
+                            account: nil,
+                            requireCallerPartition: false),
+                        KeychainAccessPreflight.checkGenericPassword(service: "partition-memo", account: nil),
+                        KeychainAccessPreflight.checkGenericPassword(service: "partition-memo", account: nil),
+                    ]
+                }
+            }
+        #expect(outcomes == [.allowed, .interactionRequired, .interactionRequired])
+        #expect(calls == [false, true])
+    }
 }
 #endif

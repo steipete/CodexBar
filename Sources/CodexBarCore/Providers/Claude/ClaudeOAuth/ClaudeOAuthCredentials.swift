@@ -3235,7 +3235,14 @@ extension ClaudeOAuthCredentialsStore {
         #endif
         let mode = ClaudeOAuthKeychainPromptPreference.current()
         guard self.shouldAllowClaudeCodeKeychainAccess(mode: mode) else { return false }
-        return switch KeychainAccessPreflight.checkGenericPassword(service: self.claudeKeychainService, account: nil) {
+        // The experimental reader reads through `/usr/bin/security`, which macOS places in the `apple-tool:`
+        // partition. Claude Code's item can list only that partition, so this process's partition check
+        // would reject reads the CLI makes silently. Judge that reader by the decrypt ACL alone, as before.
+        let preflight = KeychainAccessPreflight.checkGenericPassword(
+            service: self.claudeKeychainService,
+            account: nil,
+            requireCallerPartition: !self.shouldPreferSecurityCLIKeychainRead())
+        return switch preflight {
         case .interactionRequired, .temporarilyUnavailable:
             true
         case .failure:

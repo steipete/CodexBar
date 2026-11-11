@@ -109,6 +109,7 @@ public enum KeychainAccessPreflight {
     private struct GenericPasswordKey: Hashable {
         let service: String
         let account: String?
+        let requireCallerPartition: Bool
     }
 
     private final class GenericPasswordCheckMemo: @unchecked Sendable {
@@ -141,10 +142,10 @@ public enum KeychainAccessPreflight {
 
     #if DEBUG
     final class CheckGenericPasswordOverrideStore: @unchecked Sendable {
-        let check: (String, String?) -> Outcome
+        let check: (String, String?, Bool) -> Outcome
         let retryDelay: () -> Void
 
-        init(check: @escaping (String, String?) -> Outcome, retryDelay: @escaping () -> Void) {
+        init(check: @escaping (String, String?, Bool) -> Outcome, retryDelay: @escaping () -> Void) {
             self.check = check
             self.retryDelay = retryDelay
         }
@@ -158,6 +159,19 @@ public enum KeychainAccessPreflight {
 
     static func withCheckGenericPasswordOverrideForTesting<T>(
         _ override: ((String, String?) -> Outcome)?,
+        retryDelay: @escaping () -> Void = {},
+        operation: () throws -> T) rethrows -> T
+    {
+        try self.withPartitionAwareCheckGenericPasswordOverrideForTesting(
+            override.map { check in { service, account, _ in check(service, account) } },
+            retryDelay: retryDelay,
+            operation: operation)
+    }
+
+    /// Like `withCheckGenericPasswordOverrideForTesting`, but the override also receives whether the caller asked
+    /// for the partition-list check, so a test can model an item that only a different reader may use silently.
+    static func withPartitionAwareCheckGenericPasswordOverrideForTesting<T>(
+        _ override: ((String, String?, Bool) -> Outcome)?,
         retryDelay: @escaping () -> Void = {},
         operation: () throws -> T) rethrows -> T
     {
@@ -175,10 +189,13 @@ public enum KeychainAccessPreflight {
         operation: () async throws -> T) async rethrows -> T
     {
         try await self.$taskCheckGenericPasswordOverrideStore.withValue(
-            override.map { CheckGenericPasswordOverrideStore(check: $0, retryDelay: retryDelay) })
-        {
-            try await operation()
-        }
+            override.map { check in
+                CheckGenericPasswordOverrideStore(
+                    check: { service, account, _ in check(service, account) },
+                    retryDelay: retryDelay)
+            }) {
+                try await operation()
+            }
     }
     #endif
 
@@ -192,14 +209,30 @@ public enum KeychainAccessPreflight {
         }
     }
 
-    public static func checkGenericPassword(service: String, account: String?) -> Outcome {
-        let key = GenericPasswordKey(service: service, account: account)
+    /// `requireCallerPartition: false` skips the partition-list check and answers from the decrypt ACL alone.
+    /// Use it only to judge a read made by another executable, such as `/usr/bin/security`, whose partition
+    /// (`apple-tool:`) differs from this process's team; a read by this process must keep the default.
+    public static func checkGenericPassword(
+        service: String,
+        account: String?,
+        requireCallerPartition: Bool = true) -> Outcome
+    {
+        let key = GenericPasswordKey(
+            service: service,
+            account: account,
+            requireCallerPartition: requireCallerPartition)
         if let memo = self.genericPasswordCheckMemo {
             return memo.outcome(for: key) {
-                self.checkGenericPasswordUncached(service: service, account: account)
+                self.checkGenericPasswordUncached(
+                    service: service,
+                    account: account,
+                    requireCallerPartition: requireCallerPartition)
             }
         }
-        return self.checkGenericPasswordUncached(service: service, account: account)
+        return self.checkGenericPasswordUncached(
+            service: service,
+            account: account,
+            requireCallerPartition: requireCallerPartition)
     }
 
     static func invalidateGenericPasswordChecks(service: String) {
@@ -210,13 +243,23 @@ public enum KeychainAccessPreflight {
     private static let temporarilyUnavailableRetryCount = 3
     private static let temporarilyUnavailableRetryDelayMicroseconds: UInt32 = 30000
 
-    private static func checkGenericPasswordUncached(service: String, account: String?) -> Outcome {
+    private static func checkGenericPasswordUncached(
+        service: String,
+        account: String?,
+        requireCallerPartition: Bool) -> Outcome
+    {
         #if os(macOS)
-        var outcome = self.performGenericPasswordPreflightAttempt(service: service, account: account)
+        var outcome = self.performGenericPasswordPreflightAttempt(
+            service: service,
+            account: account,
+            requireCallerPartition: requireCallerPartition)
         var attempt = 1
         while case .temporarilyUnavailable = outcome, attempt < self.temporarilyUnavailableRetryCount {
             self.waitBeforePreflightRetry()
-            outcome = self.performGenericPasswordPreflightAttempt(service: service, account: account)
+            outcome = self.performGenericPasswordPreflightAttempt(
+                service: service,
+                account: account,
+                requireCallerPartition: requireCallerPartition)
             attempt += 1
         }
         return outcome
@@ -236,10 +279,14 @@ public enum KeychainAccessPreflight {
         usleep(self.temporarilyUnavailableRetryDelayMicroseconds)
     }
 
-    private static func performGenericPasswordPreflightAttempt(service: String, account: String?) -> Outcome {
+    private static func performGenericPasswordPreflightAttempt(
+        service: String,
+        account: String?,
+        requireCallerPartition: Bool) -> Outcome
+    {
         #if DEBUG
         if let override = self.taskCheckGenericPasswordOverrideStore {
-            return override.check(service, account)
+            return override.check(service, account, requireCallerPartition)
         }
         #endif
         guard !KeychainAccessGate.isDisabled else { return .notFound }
@@ -255,7 +302,7 @@ public enum KeychainAccessPreflight {
                     metadata: ["service": service])
                 return .temporarilyUnavailable
             }
-            switch self.evaluateDecryptACL(item: item) {
+            switch self.evaluateDecryptACL(item: item, requireCallerPartition: requireCallerPartition) {
             case .allowed:
                 self.log.debug("Keychain preflight allowed", metadata: ["service": service])
                 return .allowed
@@ -344,7 +391,10 @@ public enum KeychainAccessPreflight {
         case indeterminate
     }
 
-    private static func evaluateDecryptACL(item: SecKeychainItem) -> DecryptACLEvaluation {
+    private static func evaluateDecryptACL(
+        item: SecKeychainItem,
+        requireCallerPartition: Bool) -> DecryptACLEvaluation
+    {
         guard let copyItemAccess = self.securityFunction(
             named: "SecKeychainItemCopyAccess",
             as: SecKeychainItemCopyAccessFunction.self),
@@ -383,7 +433,7 @@ public enum KeychainAccessPreflight {
                     trustedApplicationValidationStatuses: nil,
                     promptSelector: selector) == .allowed
                 {
-                    return self.evaluatePartitionList(access: access)
+                    return requireCallerPartition ? self.evaluatePartitionList(access: access) : .allowed
                 }
                 continue
             }
@@ -399,7 +449,7 @@ public enum KeychainAccessPreflight {
                 promptSelector: selector)
             {
             case .allowed:
-                return self.evaluatePartitionList(access: access)
+                return requireCallerPartition ? self.evaluatePartitionList(access: access) : .allowed
             case .indeterminate:
                 inspectionIncomplete = true
             case .rejected:
@@ -418,6 +468,9 @@ public enum KeychainAccessPreflight {
         callerTeamID: String? = KeychainAccessPreflight.callerTeamID,
         operations: PartitionACLOperations? = .live) -> DecryptACLEvaluation
     {
+        // Without a team ID the partition list cannot change the answer, so ad-hoc and unsigned builds skip
+        // the lookups and keep exactly the decrypt ACL's previous result.
+        guard let callerTeamID, !callerTeamID.isEmpty else { return .allowed }
         guard let operations else { return .indeterminate }
         // SecAccessCopyMatchingACLList returns NULL both for "no match" and for a failed lookup, so read the
         // full list, whose status separates the two, and select partition entries here. Matching would also
