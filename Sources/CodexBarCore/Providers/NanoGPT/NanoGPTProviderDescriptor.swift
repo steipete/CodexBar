@@ -18,7 +18,7 @@ public enum NanoGPTProviderDescriptor {
         displayName: "NanoGPT",
         sessionLabel: "Daily input tokens",
         weeklyLabel: "Weekly input tokens",
-        dashboardURL: "https://nano-gpt.com/subscription",
+        dashboardURL: "https://nano-gpt.com/usage",
         color: .init(hex: 0x16A34A),
         confetti: [0x16A34A, 0x86EFAC, 0xFFFFFF],
         noDataMessage: "NanoGPT per-request cost history is not available.",
@@ -26,15 +26,17 @@ public enum NanoGPTProviderDescriptor {
         apiKeyDebugLabel: NanoGPTSettingsReader.apiKeyDebugLabel,
         missingCredentialMessage: { _ in Self.missingCredentialMessage },
         tokenAccountSupport: Self.tokenAccounts,
-        // Automatic follows whichever window the account reports. The fixed selections keep working when one
-        // lane is unconfigured, for example an account with a token quota but no image quota.
+        // Automatic menu bar text shows the prepaid dollar balance. Daily and weekly selections stay
+        // available when one lane is unconfigured, for example a token quota with no image quota.
         menuBarMetrics: .init(supported: [.automatic, .primary, .secondary]),
         presentation: ProviderUsagePresentation(
             costPresenter: { _ in
-                // There is no configured monthly cap. A generic card treats a missing limit as empty and
-                // hides both the prepaid balance and the month-to-date spend.
+                // Subscription quotas and prepaid credits are separate. The card always shows the dollar
+                // balance; a generic style would hide it when there is no monthly cap.
                 ProviderCostPresentation(showsGenericFallback: false, menuCardStyle: .payAsYouGoSpend)
-            }),
+            },
+            menuBarBalanceUsesPrepaidCost: true,
+            menuCard: ProviderMenuCardPresentation(providerCostIsRequiredUsage: true)),
         // The script waits on each call in order. Both GETs may time out and retry once (8+1+8 and 7+1+7),
         // and the balance POST may try the API host and then the website (5+4). 45 seconds covers that path.
         timeout: 45,
@@ -42,7 +44,7 @@ public enum NanoGPTProviderDescriptor {
             id: "nanogpt-api-key",
             title: "NanoGPT API key",
             subtitle: "Saved in CodexBar's local config file. Or set NANOGPT_API_KEY. Read-only usage access.",
-            action: ("nanogpt-dashboard", "Open NanoGPT", "https://nano-gpt.com/subscription")))
+            action: ("nanogpt-dashboard", "Open NanoGPT", "https://nano-gpt.com/usage")))
 
     static let missingCredentialMessage = "Paste a NanoGPT API key in Settings or set NANOGPT_API_KEY."
 

@@ -780,7 +780,7 @@ extension StatusItemController {
         let preference = self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot)
         // Provider-specific by design: legacy preferences select balance text before quota and display modes.
         let usesBalance = switch provider {
-        case .openrouter: preference == .automatic
+        case .openrouter, .nanogpt: preference == .automatic
         case .mimo: snapshot?.primary == nil || preference == .secondary
         case .opencodego, .devpass: snapshot?.primary == nil && snapshot?.secondary == nil
         case .mistral: self.menuBarMetricWindow(for: provider, snapshot: snapshot, now: now) == nil

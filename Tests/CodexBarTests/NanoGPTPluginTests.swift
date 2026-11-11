@@ -177,6 +177,7 @@ struct NanoGPTPluginTests {
         #expect(!descriptor.metadata.widgetSelectable)
         #expect(descriptor.metadata.cliName == "nanogpt")
         #expect(descriptor.fetchPlan.sourceModes == [.auto, .api])
+        #expect(descriptor.metadata.dashboardURL == "https://nano-gpt.com/usage")
         let credentials = try #require(descriptor.credentials)
         #expect(credentials.resolveToken(environment: ["NANOGPT_API_KEY": "fixture-key"])?.token == "fixture-key")
         #expect(credentials.resolveToken(environment: ["OTHER_KEY": "fixture-key"]) == nil)

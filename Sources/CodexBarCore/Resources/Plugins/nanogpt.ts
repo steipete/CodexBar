@@ -2,7 +2,7 @@ defineProvider({
   id: "nanogpt",
   name: "NanoGPT",
   endpoints: ["https://api.nano-gpt.com", "https://nano-gpt.com"],
-  dashboardURL: "https://nano-gpt.com/subscription",
+  dashboardURL: "https://nano-gpt.com/usage",
   auth: { type: "bearer", secret: "NANOGPT_API_KEY" },
   settings: [
     {
