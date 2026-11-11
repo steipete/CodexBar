@@ -118,6 +118,7 @@ enum BurnProviderChoice: String, AppEnum {
     case opendesign
     case siliconflow
     case tripo
+    case nanogpt
 
     static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Provider")
 
@@ -238,6 +239,7 @@ enum BurnProviderChoice: String, AppEnum {
         .opendesign: DisplayRepresentation(title: "OpenDesign"),
         .siliconflow: DisplayRepresentation(title: "SiliconFlow"),
         .tripo: DisplayRepresentation(title: "Tripo"),
+        .nanogpt: DisplayRepresentation(title: "NanoGPT"),
     ]
 
     var provider: UsageProvider {

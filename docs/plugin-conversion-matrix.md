@@ -17,8 +17,8 @@ script. Settings-derived origins include the private-network HTTP policy for LLM
 
 `converted` means the bundled conversion is present behind `CODEXBAR_JS_PROVIDERS=1`. `cut-over` means the script is
 authoritative on its supported engines; each row states whether a Linux native core remains. Totals count only the
-69 audit rows below, excluding the separately listed plugin-first additions. The registry now contains 113 providers:
-69 audit rows, 35 additional plugin-first rows, and 9 providers not yet classified in this matrix (CodeRabbit,
+69 audit rows below, excluding the separately listed plugin-first additions. The registry now contains 114 providers:
+69 audit rows, 36 additional plugin-first rows, and 9 providers not yet classified in this matrix (CodeRabbit,
 Hugging Face, IBM Bob, Muse, Nous, Pi, Replicate, TypeSafe, and v0).
 
 `needs-cookie-import` now means **additional cookie/session capability**, not absence of cookie import. The current
@@ -57,9 +57,9 @@ Abacus, Muse, LongCat, Replicate, and TypeSafe unchanged.
 | `needs-pty/webview/native` | 8 |
 | `needs-host-extension` | 4 |
 | **Audit total** | **69** |
-| Additional plugin-first providers | 35 |
+| Additional plugin-first providers | 36 |
 | Registered providers not yet classified here | 9 |
-| **Registry total** | **113** |
+| **Registry total** | **114** |
 
 ## Matrix
 
@@ -178,5 +178,6 @@ Abacus, Muse, LongCat, Replicate, and TypeSafe unchanged.
 | opendesign | `cut-over` | QuickJS + JavaScriptCore | Opaque first-party browser session; current-workspace lookup and subscription quota GETs on both engines. |
 | siliconflow | `cut-over` | QuickJS + JavaScriptCore | Read-only balance through the official user-info API on both engines; no inferred quota or reset. |
 | tripo | `cut-over` | QuickJS + JavaScriptCore | Fixed-origin bearer GET for available and frozen credits, without inferred quotas or dollar conversions, on both engines. |
+| nanogpt | `cut-over` | QuickJS + JavaScriptCore | Fixed-origin bearer GETs to NanoGPT's subscription, balance, and usage endpoints on both engines; no login, cookie import, or inferred quotas. |
 
 <!-- End generated provider additions -->

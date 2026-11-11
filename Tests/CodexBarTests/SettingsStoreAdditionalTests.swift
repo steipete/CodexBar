@@ -260,6 +260,7 @@ struct SettingsStoreAdditionalTests {
             .flora: [.automatic],
             .parallel: [.automatic],
             .tripo: [.automatic],
+            .nanogpt: [.automatic, .primary, .secondary],
             .aixy: [.automatic],
             .typesafe: [.automatic],
             .hyper: [.automatic],
