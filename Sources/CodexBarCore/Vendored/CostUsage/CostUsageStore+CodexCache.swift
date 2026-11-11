@@ -927,8 +927,12 @@ extension CostUsageStore {
         let tokenSnapshotsLoaded = baseline.tokenSnapshotsLoaded || parserStateChanged
         let sourceSnapshots = usage.codexTokenSnapshots ?? []
         let sourceRows = usage.codexRows ?? []
+        // `codexArchived` is derived from the filesystem on load and never persisted, so the
+        // unreconciled baseline cannot carry it. It must not make an archived rollout look changed.
+        var persistedUsage = usage
+        persistedUsage.codexArchived = baseline.usage?.codexArchived
         // The caller revalidates this baseline under the transaction's writer lock.
-        if canReuseRows, baseline.usage == usage,
+        if canReuseRows, baseline.usage == persistedUsage,
            sourceRows.count == baseline.rowCount,
            !tokenSnapshotsLoaded || sourceSnapshots.count == baseline.snapshotCount
         {
