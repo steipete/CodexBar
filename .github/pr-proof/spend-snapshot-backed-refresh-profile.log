@@ -1,0 +1,41 @@
+Usage & Spend snapshot-backed refresh: `sample` profiles, upstream main vs PR head
+================================================================================
+Each profile is `/usr/bin/sample <pid> 70` (1 ms interval, so one sample is about 1 ms of thread time)
+taken 100 s into the measured window of the run in spend-snapshot-backed-refresh-cpu.log, covering at
+least one full 60 s refresh cycle. Counts are samples in which the frame appears on a stack.
+
+1. Samples on the cost-usage dispatch queues (queue labels are readable without symbols)
+
+  main 7447bc77c (2026-11-12 08:53)
+       964  com.steipete.codexbar.cost-usage-scan
+      1276  com.steipete.codexbar.cost-usage-store
+  head 390a3e259 (2026-11-12 09:01)
+        30  com.steipete.codexbar.cost-usage-scan
+        11  com.steipete.codexbar.cost-usage-store
+
+2. Symbolicated frames, main 7447bc77c
+   (profile of the same binary, UUID 5CFA95B8-..., from the identical scenario on 2026-11-11 20:23;
+   its unstripped build products were replaced before the 2026-11-12 run could be symbolicated)
+
+  1345  closure #1 in static CostUsageFetcher.loadLocalTokenScanResult(provider:since:now:options:) (CostUsageFetcher.swift:979)
+   819  closure #1 in static CostUsageFetcher.loadLocalTokenScanResult(provider:since:now:options:) (CostUsageFetcher.swift:939)
+   342  closure #1 in static CostUsageFetcher.loadCachedCodexTokenActivity(now:codexHomePath:maximumDays:scannerOptions:) (CostUsageFetcher.swift:1373)
+   298  GrokCLIFetchStrategy.fetch(_:) (GrokProviderDescriptor.swift:193)
+    74  closure #1 in static CostUsageFetcher.loadLocalTokenScanResult(provider:since:now:options:) (CostUsageFetcher.swift:992)
+    26  closure #1 in CostUsageFetcher.codexScanCatchUpStatus(codexHomePath:calendar:historyDays:now:includeOpenCodeLocalHistory:environment:) (CostUsageFetcher.swift:348)
+     2  closure #2 in SpendDashboardController.startLoad(configuration:phase:) (SpendDashboardController.swift:1375)
+     2  closure #1 in closure #1 in static SpendDashboardSource.load(_:cacheRootResolver:codexSnapshotLoader:codexActivityLoader:) (SpendDashboardController.swift:526)
+     2  closure #2 in static SpendDashboardSource.load(_:) (SpendDashboardController.swift:382)
+     2  static SpendDashboardSource.loadCodexSnapshot(_:) (SpendDashboardController.swift:621)
+     1  closure #2 in SpendDashboardController.startLoad(configuration:phase:) (SpendDashboardController.swift:1379)
+     1  closure #1 in static CostUsageFetcher.loadLocalTokenScanResult(provider:since:now:options:) (CostUsageFetcher.swift:974)
+
+3. Symbolicated frames, head 390a3e259 (2026-11-12 09:01)
+
+   255  GrokCLIFetchStrategy.fetch(_:) (GrokProviderDescriptor.swift:193)
+    39  closure #1 in CostUsageFetcher.codexScanCatchUpStatus(codexHomePath:calendar:historyDays:now:includeOpenCodeLocalHistory:environment:) (CostUsageFetcher.swift:348)
+
+Reading: on main every refresh cycle runs SpendDashboardController.startLoad -> SpendDashboardSource.load,
+whose work lands in CostUsageFetcher.loadLocalTokenScanResult (all-time Codex scan) and
+loadCachedCodexTokenActivity (365-day activity). On head none of those frames appear; the only
+cost-usage-scan work left in the cycle is the cheap codexScanCatchUpStatus read.
