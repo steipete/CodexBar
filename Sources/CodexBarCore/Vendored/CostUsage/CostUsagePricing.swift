@@ -161,6 +161,7 @@ enum CostUsagePricing {
         // The full request switches to long-context rates above 272K input tokens, including Fast mode.
         "gpt-6-astra": Self.longContextPricing(input: 1e-5, cached: 1e-6, write: 1.25e-5, output: (5e-5, 7.5e-5)),
         "gpt-6.1-sol": Self.longContextPricing(input: 2e-6, cached: 1e-7, write: 2.5e-6, output: (1e-5, 1.5e-5)),
+        "gpt-6.1-terra": Self.longContextPricing(input: 1e-6, cached: 5e-8, write: 1.25e-6, output: (5e-6, 7.5e-6)),
         "gpt-6-sol": Self.longContextPricing(input: 2e-6, cached: 2e-7, write: 2.5e-6, output: (1e-5, 1.5e-5)),
         "gpt-6-luna": Self.longContextPricing(input: 1e-7, cached: 1e-8, write: 1.25e-7, output: (5e-7, 7.5e-7)),
         // GPT-5.6 Sol/Terra/Luna (OpenAI pricing page + model cards).
@@ -657,7 +658,7 @@ enum CostUsagePricing {
         pricingResolver: CodexResolver? = nil) -> Double?
     {
         guard let multiplier = self.codexAPIFastMultiplier(model: model) else { return nil }
-        // Keep older models' established cutoff; Astra and GPT-6.1 Sol publish long-context Fast rates.
+        // Keep the established cutoff for models without published long-context Fast rates.
         if max(0, inputTokens) > self.codexPriorityInputTokenLimit,
            !self.codexAPIFastAllowsLongContext(model: model)
         {
@@ -682,7 +683,8 @@ enum CostUsagePricing {
     /// distinct from ChatGPT/Codex Fast credit multipliers, which do not represent a USD charge.
     static func codexAPIFastMultiplier(model: String) -> Double? {
         switch self.normalizeCodexModel(model) {
-        case "gpt-5.4", "gpt-5.4-mini", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-6-astra", "gpt-6.1-sol": 2
+        case "gpt-5.4", "gpt-5.4-mini", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna": 2
+        case "gpt-6-astra", "gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-luna": 2
         case "gpt-5.5": 2.5
         default: nil
         }
@@ -690,7 +692,7 @@ enum CostUsagePricing {
 
     private static func codexAPIFastAllowsLongContext(model: String) -> Bool {
         switch self.normalizeCodexModel(model) {
-        case "gpt-6-astra", "gpt-6.1-sol": true
+        case "gpt-6-astra", "gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-luna": true
         default: false
         }
     }
