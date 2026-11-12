@@ -758,10 +758,17 @@ enum SpendDashboardSource {
             // refresh, so their publication revision and scan timestamp advance even when spend is unchanged.
             // Key them by content; otherwise each refresh tick reloads the dashboard and rescans Codex history.
             if UsageStore.tokenCostRequiresProviderSnapshot(provider) {
-                guard let snapshot = current.snapshot else { return "\(provider.rawValue):empty" }
-                let revision = self.snapshotRevision(
-                    snapshot,
-                    updatedAtGranularity: .bucketDay(settings.costUsageBucketCalendar))
+                // Hash the wide projection the dashboard loads (`dashboardTokenSnapshot`), not the
+                // menu-range publication, so corrections outside the menu range still advance it.
+                let dashboardSnapshot = store.tokenSnapshot(
+                    fromProviderSnapshot: store.snapshot(for: provider.instanceID),
+                    provider: provider,
+                    historyDays: self.scanDays) ?? current.snapshot
+                guard let dashboardSnapshot else { return "\(provider.rawValue):empty" }
+                let coverageCalendar = SpendDashboardModel.bucketCalendar(
+                    for: provider,
+                    displayCalendar: settings.costUsageBucketCalendar)
+                let revision = self.snapshotRevision(dashboardSnapshot, mode: .content(coverageCalendar))
                 return "\(provider.rawValue):snapshot:\(revision)"
             }
             guard let snapshot = current.snapshot else {
@@ -779,27 +786,58 @@ enum SpendDashboardSource {
         return revisions
     }
 
-    private enum SnapshotRevisionUpdatedAtGranularity {
-        case exact
-        /// The dashboard only projects `updatedAt` to its bucket day (source coverage end), so a
-        /// same-day rescan of unchanged data is not a new revision.
-        case bucketDay(Calendar)
+    /// Fields the publication-paired revision leaves to the publication revision.
+    private static func appendContentOnlyFields(
+        of snapshot: CostUsageTokenSnapshot,
+        to encoder: inout SpendDashboardSnapshotRevisionEncoder)
+    {
+        encoder.append(snapshot.historyScanIsPartial)
+        encoder.append(snapshot.meteredCostUSD)
+        for entry in snapshot.daily {
+            encoder.append(entry.reasoningTokens)
+            encoder.append(entry.unpricedRequestCount)
+            encoder.append(entry.pricedRequestCount)
+            encoder.append(entry.unmeteredRequestCount)
+            encoder.append(entry.estimatedRequestCount)
+            encoder.append(entry.modelsUsed?.count)
+            for model in entry.modelsUsed ?? [] {
+                encoder.append(model)
+            }
+            for breakdown in entry.modelBreakdowns ?? [] {
+                encoder.append(breakdown.inputTokens)
+                encoder.append(breakdown.outputTokens)
+                encoder.append(breakdown.cacheReadTokens)
+                encoder.append(breakdown.cacheCreationTokens)
+                encoder.append(breakdown.reasoningTokens)
+                encoder.append(breakdown.sourceRecorded == true)
+            }
+        }
+    }
+
+    private enum SnapshotRevisionMode {
+        /// Paired with a publication revision: the exact scan time and the fields that drive totals.
+        case publication
+        /// The sole revision of a source. Covers every field the dashboard model consumes, and
+        /// reduces `updatedAt` to the coverage day the model projects from it, so a same-day
+        /// rescan of unchanged data is not a new revision.
+        case content(Calendar)
     }
 
     private static func snapshotRevision(
         _ snapshot: CostUsageTokenSnapshot,
-        updatedAtGranularity: SnapshotRevisionUpdatedAtGranularity = .exact) -> String
+        mode: SnapshotRevisionMode = .publication) -> String
     {
         var encoder = SpendDashboardSnapshotRevisionEncoder()
         encoder.append(snapshot.currencyCode)
         encoder.append(snapshot.historyDays)
         encoder.append(snapshot.historyCoverageIsEstablished)
         encoder.append(snapshot.detailsAreComplete)
-        switch updatedAtGranularity {
-        case .exact:
+        switch mode {
+        case .publication:
             encoder.append(snapshot.updatedAt.timeIntervalSinceReferenceDate)
-        case let .bucketDay(calendar):
-            encoder.append(calendar.startOfDay(for: snapshot.updatedAt).timeIntervalSinceReferenceDate)
+        case let .content(coverageCalendar):
+            encoder.append(coverageCalendar.startOfDay(for: snapshot.updatedAt).timeIntervalSinceReferenceDate)
+            Self.appendContentOnlyFields(of: snapshot, to: &encoder)
         }
         encoder.append(snapshot.last30DaysTokens)
         encoder.append(snapshot.last30DaysCostUSD)

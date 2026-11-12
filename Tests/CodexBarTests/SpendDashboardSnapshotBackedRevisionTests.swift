@@ -89,6 +89,97 @@ struct SpendDashboardSnapshotBackedRevisionTests {
         #expect(third.sourceRevisions != second.sourceRevisions)
     }
 
+    @Test
+    func `correction outside the menu range still advances the shared configuration`() throws {
+        let fixture = Self.makeFixture(suiteName: "SpendDashboardSnapshotBackedRevisionTests-wide-window")
+        defer { fixture.cleanup() }
+        // The menu publication is narrowed to 7 days; Usage & Spend loads the full scan window.
+        fixture.settings.costReportingPeriod = .rolling(days: 7)
+        let calendar = fixture.settings.costUsageBucketCalendar
+        let scannedAt = Self.sameDayScanTimes(calendar: calendar)
+        let olderDay = try #require(calendar.date(byAdding: .day, value: -12, to: scannedAt.first))
+        let today = Self.entry(day: Self.dayKey(scannedAt.first, calendar: calendar), tokens: 40)
+
+        Self.completeRefresh(
+            fixture.store,
+            provider: .grok,
+            daily: [Self.entry(day: Self.dayKey(olderDay, calendar: calendar), tokens: 90), today],
+            scannedAt: scannedAt.first)
+        let first = SpendDashboardSource.configuration(settings: fixture.settings, store: fixture.store)
+
+        Self.completeRefresh(
+            fixture.store,
+            provider: .grok,
+            daily: [Self.entry(day: Self.dayKey(olderDay, calendar: calendar), tokens: 95), today],
+            scannedAt: scannedAt.second)
+        let second = SpendDashboardSource.configuration(settings: fixture.settings, store: fixture.store)
+
+        #expect(second.sourceRevisions != first.sourceRevisions)
+    }
+
+    @Test
+    func `UTC-bucketed source advances at its own day boundary`() {
+        let fixture = Self.makeFixture(
+            suiteName: "SpendDashboardSnapshotBackedRevisionTests-utc-boundary",
+            snapshotBackedProvider: .openrouter)
+        defer { fixture.cleanup() }
+        // 23:59 and 00:01 UTC fall on the same Kiritimati (UTC+14) display day, but OpenRouter
+        // coverage is projected in UTC, so the loaded window moves forward a day.
+        fixture.settings.costUsageBucketTimeZoneIdentifier = "Pacific/Kiritimati"
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        let utcMidnight = utc.startOfDay(for: Date())
+        let beforeMidnight = utcMidnight.addingTimeInterval(-60)
+        let afterMidnight = utcMidnight.addingTimeInterval(60)
+        let display = fixture.settings.costUsageBucketCalendar
+        #expect(display.isDate(beforeMidnight, inSameDayAs: afterMidnight))
+        let daily = [Self.entry(day: Self.dayKey(beforeMidnight, calendar: utc), tokens: 40)]
+
+        Self.completeRefresh(fixture.store, provider: .openrouter, daily: daily, scannedAt: beforeMidnight)
+        let first = SpendDashboardSource.configuration(settings: fixture.settings, store: fixture.store)
+
+        Self.completeRefresh(fixture.store, provider: .openrouter, daily: daily, scannedAt: afterMidnight)
+        let second = SpendDashboardSource.configuration(settings: fixture.settings, store: fixture.store)
+
+        #expect(first.sourceRevisions.contains { $0.hasPrefix("openrouter:snapshot:") })
+        #expect(second.sourceRevisions != first.sourceRevisions)
+    }
+
+    @Test
+    func `reasoning-only correction advances the shared configuration`() {
+        let fixture = Self.makeFixture(
+            suiteName: "SpendDashboardSnapshotBackedRevisionTests-reasoning",
+            snapshotBackedProvider: .openrouter)
+        defer { fixture.cleanup() }
+        let calendar = fixture.settings.costUsageBucketCalendar
+        let scannedAt = Self.sameDayScanTimes(calendar: calendar)
+        let day = Self.dayKey(scannedAt.first, calendar: calendar)
+
+        Self.completeRefresh(
+            fixture.store,
+            provider: .openrouter,
+            daily: [Self.entry(day: day, tokens: 40, reasoningTokens: 5)],
+            scannedAt: scannedAt.first)
+        let first = SpendDashboardSource.configuration(settings: fixture.settings, store: fixture.store)
+
+        Self.completeRefresh(
+            fixture.store,
+            provider: .openrouter,
+            daily: [Self.entry(day: day, tokens: 40, reasoningTokens: 5)],
+            scannedAt: scannedAt.second)
+        let unchanged = SpendDashboardSource.configuration(settings: fixture.settings, store: fixture.store)
+        #expect(unchanged == first)
+
+        // Totals, requests, cost, and dates are identical; only the reasoning attribution moved.
+        Self.completeRefresh(
+            fixture.store,
+            provider: .openrouter,
+            daily: [Self.entry(day: day, tokens: 40, reasoningTokens: 9)],
+            scannedAt: scannedAt.second)
+        let corrected = SpendDashboardSource.configuration(settings: fixture.settings, store: fixture.store)
+        #expect(corrected.sourceRevisions != first.sourceRevisions)
+    }
+
     // MARK: - Fixtures
 
     private struct Fixture {
@@ -97,7 +188,10 @@ struct SpendDashboardSnapshotBackedRevisionTests {
         let cleanup: () -> Void
     }
 
-    private static func makeFixture(suiteName: String) -> Fixture {
+    private static func makeFixture(
+        suiteName: String,
+        snapshotBackedProvider: UsageProvider = .grok) -> Fixture
+    {
         let settings = testSettingsStore(suiteName: suiteName)
         settings.costUsageEnabled = true
         settings.refreshFrequency = .manual
@@ -107,7 +201,7 @@ struct SpendDashboardSnapshotBackedRevisionTests {
             settings.setProviderEnabled(
                 provider: provider,
                 metadata: metadata,
-                enabled: provider == .codex || provider == .grok)
+                enabled: provider == .codex || provider == snapshotBackedProvider)
         }
         settings.costUsageBucketTimeZoneIdentifier = "UTC"
         // Isolate from any real ~/.codex or ~/.grok corpus on a developer machine.
@@ -132,37 +226,54 @@ struct SpendDashboardSnapshotBackedRevisionTests {
 
     /// Mirrors a successful provider refresh: the usage snapshot is stored, then its derived token
     /// snapshot is published (`UsageStore.publishProviderDerivedTokenSnapshot`).
+    private static func completeRefresh(
+        _ store: UsageStore,
+        provider: UsageProvider,
+        daily: [CostUsageDailyReport.Entry],
+        scannedAt: Date)
+    {
+        let tokens = daily.compactMap(\.totalTokens).reduce(0, +)
+        let usage = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            costUsage: CostUsageTokenSnapshot(
+                sessionTokens: daily.last?.totalTokens,
+                sessionCostUSD: nil,
+                last30DaysTokens: tokens,
+                last30DaysCostUSD: nil,
+                historyDays: 30,
+                daily: daily,
+                updatedAt: scannedAt),
+            updatedAt: scannedAt)
+        store._setSnapshotForTesting(usage, provider: provider)
+        store.publishProviderDerivedTokenSnapshot(from: usage, for: provider)
+    }
+
     private static func completeGrokRefresh(
         _ store: UsageStore,
         tokens: Int,
         scannedAt: Date,
         dayKey: String? = nil)
     {
-        let calendar = store.settings.costUsageBucketCalendar
-        let usage = UsageSnapshot(
-            primary: nil,
-            secondary: nil,
-            costUsage: CostUsageTokenSnapshot(
-                sessionTokens: tokens,
-                sessionCostUSD: nil,
-                last30DaysTokens: tokens,
-                last30DaysCostUSD: nil,
-                historyDays: 30,
-                daily: [
-                    CostUsageDailyReport.Entry(
-                        date: dayKey ?? Self.dayKey(scannedAt, calendar: calendar),
-                        inputTokens: nil,
-                        outputTokens: nil,
-                        totalTokens: tokens,
-                        requestCount: 1,
-                        costUSD: nil,
-                        modelsUsed: ["grok-4.6"],
-                        modelBreakdowns: nil),
-                ],
-                updatedAt: scannedAt),
-            updatedAt: scannedAt)
-        store._setSnapshotForTesting(usage, provider: .grok)
-        store.publishProviderDerivedTokenSnapshot(from: usage, for: .grok)
+        let day = dayKey ?? Self.dayKey(scannedAt, calendar: store.settings.costUsageBucketCalendar)
+        self.completeRefresh(
+            store,
+            provider: .grok,
+            daily: [Self.entry(day: day, tokens: tokens)],
+            scannedAt: scannedAt)
+    }
+
+    private static func entry(day: String, tokens: Int, reasoningTokens: Int? = nil) -> CostUsageDailyReport.Entry {
+        CostUsageDailyReport.Entry(
+            date: day,
+            inputTokens: nil,
+            outputTokens: nil,
+            reasoningTokens: reasoningTokens,
+            totalTokens: tokens,
+            requestCount: 1,
+            costUSD: nil,
+            modelsUsed: ["grok-4.6"],
+            modelBreakdowns: nil)
     }
 
     private static func completeEmptyGrokRefresh(_ store: UsageStore, scannedAt: Date) {
