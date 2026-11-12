@@ -754,6 +754,16 @@ enum SpendDashboardSource {
                     store.tokenSnapshotPublicationForCurrentProviderConfig(for: provider)
                 }
             guard let current else { return "\(provider.rawValue):unavailable" }
+            // Provider-specific by design: snapshot-backed sources republish on every successful provider
+            // refresh, so their publication revision and scan timestamp advance even when spend is unchanged.
+            // Key them by content; otherwise each refresh tick reloads the dashboard and rescans Codex history.
+            if UsageStore.tokenCostRequiresProviderSnapshot(provider) {
+                guard let snapshot = current.snapshot else { return "\(provider.rawValue):empty" }
+                let revision = self.snapshotRevision(
+                    snapshot,
+                    updatedAtGranularity: .bucketDay(settings.costUsageBucketCalendar))
+                return "\(provider.rawValue):snapshot:\(revision)"
+            }
             guard let snapshot = current.snapshot else {
                 return "\(provider.rawValue):empty:\(current.publicationRevision)"
             }
@@ -769,13 +779,28 @@ enum SpendDashboardSource {
         return revisions
     }
 
-    private static func snapshotRevision(_ snapshot: CostUsageTokenSnapshot) -> String {
+    private enum SnapshotRevisionUpdatedAtGranularity {
+        case exact
+        /// The dashboard only projects `updatedAt` to its bucket day (source coverage end), so a
+        /// same-day rescan of unchanged data is not a new revision.
+        case bucketDay(Calendar)
+    }
+
+    private static func snapshotRevision(
+        _ snapshot: CostUsageTokenSnapshot,
+        updatedAtGranularity: SnapshotRevisionUpdatedAtGranularity = .exact) -> String
+    {
         var encoder = SpendDashboardSnapshotRevisionEncoder()
         encoder.append(snapshot.currencyCode)
         encoder.append(snapshot.historyDays)
         encoder.append(snapshot.historyCoverageIsEstablished)
         encoder.append(snapshot.detailsAreComplete)
-        encoder.append(snapshot.updatedAt.timeIntervalSinceReferenceDate)
+        switch updatedAtGranularity {
+        case .exact:
+            encoder.append(snapshot.updatedAt.timeIntervalSinceReferenceDate)
+        case let .bucketDay(calendar):
+            encoder.append(calendar.startOfDay(for: snapshot.updatedAt).timeIntervalSinceReferenceDate)
+        }
         encoder.append(snapshot.last30DaysTokens)
         encoder.append(snapshot.last30DaysCostUSD)
         encoder.append(snapshot.last30DaysRequests)
