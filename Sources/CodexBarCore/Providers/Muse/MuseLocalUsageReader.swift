@@ -170,6 +170,30 @@ enum MuseLocalUsageReader {
         "resource_usage_sampled", "workflow_child_lifecycle", "goal_usage_attribution",
     ]
 
+    /// Session lifecycle and command bookkeeping observed in the newer retained stream.
+    /// Unrecognised types or versions still downgrade coverage.
+    private static let nonUsagePayloadVersions: [String: Int] = [
+        "runtime.command_intake.received": 2,
+        "runtime.command_intake.session_name.received": 1,
+        "runtime.command_intake.settled": 1,
+        "runtime.session.capture_selection": 1,
+        "runtime.session.metadata": 1,
+        "runtime.session.permission_format_declared": 1,
+        "runtime.session.permission_profile_committed": 1,
+        "runtime.session.route_facts": 2,
+        "runtime.session_start.intake_v3": 3,
+        "session.end": 1,
+        "session.name.changed": 1,
+        "session.opened.observed": 1,
+        "session.resource_pressure.observed": 1,
+        "session.started": 1,
+        "session.startup_phases.observed": 1,
+    ]
+
+    private static let nonUsageTaskKinds: Set<String> = [
+        "proposed", "accepted", "scheduled", "side_effect_intent", "started", "completed",
+    ]
+
     /// Unknown event kinds with token fields indicate schema drift even when their usage shape changed.
     private static let tokenFieldPatterns = [
         "input_tokens", "output_tokens", "total_tokens", "cache_read_tokens", "cached_input_tokens", "cached_tokens",
@@ -497,15 +521,22 @@ enum MuseLocalUsageReader {
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return .unrecognized
         }
-        // Fail closed on a schema the shapes below were not verified against.
+        if object["retained_frame"] as? String == "session_permission_transaction" {
+            return self.isNonUsagePermissionTransaction(object) ? .ignored : .unrecognized
+        }
         guard self.integer(object["schema_version"]) == 1,
               object["record_type"] as? String == "event",
-              object["payload_type"] as? String == "runtime.session",
-              self.integer(object["payload_schema_version"]) == 1
-        else {
-            return .unrecognized
+              let payloadType = object["payload_type"] as? String,
+              let version = self.integer(object["payload_schema_version"]),
+              let payload = object["payload"] as? [String: Any]
+        else { return .unrecognized }
+
+        if self.isNonUsagePayload(payload, type: payloadType, version: version) {
+            return self.mayContainTokenCounts(data) ? .unrecognized : .ignored
         }
-        guard let payload = object["payload"] as? [String: Any],
+
+        // Fail closed on a schema the shapes below were not verified against.
+        guard payloadType == "runtime.session", version == 1,
               let event = payload["event"] as? [String: Any]
         else {
             return .unrecognized
@@ -559,6 +590,41 @@ enum MuseLocalUsageReader {
             cacheWriteTokens: cacheWrite,
             reasoningTokens: reasoning,
             totalTokens: total))
+    }
+
+    private static func isNonUsagePayload(_ payload: [String: Any], type: String, version: Int) -> Bool {
+        if self.nonUsagePayloadVersions[type] == version { return true }
+        if type == "runtime.session.task", version == 1,
+           let event = payload["event"] as? [String: Any], let kind = event["kind"] as? String
+        {
+            return self.nonUsageTaskKinds.contains(kind)
+        }
+        return type == "runtime.session" && version == 2 && payload["kind"] as? String == "agent_tree_initialized"
+            && payload["record"] is [String: Any]
+    }
+
+    private static func isNonUsagePermissionTransaction(_ object: [String: Any]) -> Bool {
+        let expectedTypes = [
+            "runtime.session.permission_format_declared",
+            "runtime.session.permission_profile_committed",
+        ]
+        guard self.integer(object["frame_schema_version"]) == 1,
+              let children = object["children"] as? [[String: Any]], children.count == expectedTypes.count
+        else { return false }
+        return children.enumerated().allSatisfy { index, child in
+            guard self.integer(child["child_index"]) == index, let record = child["record_json"] as? String else {
+                return false
+            }
+            let data = Data(record.utf8)
+            guard let envelope = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  self.integer(envelope["schema_version"]) == 1,
+                  envelope["record_type"] as? String == "event",
+                  envelope["payload_type"] as? String == expectedTypes[index],
+                  self.integer(envelope["payload_schema_version"]) == 1,
+                  envelope["payload"] is [String: Any]
+            else { return false }
+            return !self.mayContainTokenCounts(data)
+        }
     }
 
     private static func integer(_ value: Any?) -> Int? {

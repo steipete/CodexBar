@@ -83,6 +83,74 @@ struct MuseLocalUsageReaderTests {
                 .appendingPathComponent("muse-cache-\(UUID().uuidString)", isDirectory: true))
     }
 
+    private static func streamRecord(_ type: String, version: Int = 1, payload: String) -> String {
+        """
+        {"schema_version":1,"record_type":"event","payload_type":"\(type)",\
+        "payload_schema_version":\(version),"payload":\(payload)}
+        """
+    }
+
+    private static func permissionFrame(children: [String]) throws -> String {
+        let frame: [String: Any] = [
+            "retained_frame": "session_permission_transaction",
+            "frame_schema_version": 1,
+            "children": children.enumerated().map { index, child in
+                ["child_index": index, "record_json": child]
+            },
+        ]
+        return try String(decoding: JSONSerialization.data(withJSONObject: frame), as: UTF8.self)
+    }
+
+    @Test(arguments: [false, true])
+    func `new session bookkeeping does not hide Muse token history`(hasTurn: Bool) throws {
+        let permission = try Self.permissionFrame(children: [
+            Self.streamRecord("runtime.session.permission_format_declared", payload: #"{"format":"profile_v1"}"#),
+            Self.streamRecord("runtime.session.permission_profile_committed", payload: #"{"schema_version":1}"#),
+        ])
+        let metadata = Self.streamRecord("runtime.session.metadata", payload: #"{"kind":"metadata","record":{}}"#)
+        let agentTree = Self.streamRecord(
+            "runtime.session",
+            version: 2,
+            payload: #"{"kind":"agent_tree_initialized","record":{"schema_version":1}}"#)
+        let task = Self.streamRecord("runtime.session.task", payload: #"{"event":{"kind":"completed"}}"#)
+        let end = Self.streamRecord("session.end", payload: #"{"kind":"session_end","record":{}}"#)
+        let noInference = [permission, metadata, agentTree, task, end]
+        let modelTurn = Self.record(
+            id: "e1",
+            recordedAt: Self.baseMicros,
+            kind: "model_completed",
+            usage: Self.modelTurnUsage)
+        let root = try Self.makeTree([(
+            day: "2026-08-31",
+            session: "new-journal",
+            lines: hasTurn ? noInference + [modelTurn] : noInference)])
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let result = try Self.read(root: root)
+
+        #expect(result.coverage == .complete)
+        #expect(result.report.data.first?.totalTokens == (hasTurn ? 35122 : nil))
+        #expect(result.report.data.first?.requestCount == (hasTurn ? 1 : nil))
+        #expect(result.report.data.first?.costUSD == nil)
+    }
+
+    @Test
+    func `new unsupported records cannot become measured zero`() throws {
+        let unsupported = try [
+            Self.streamRecord("runtime.session", version: 2, payload: #"{"kind":"unknown","record":{}}"#),
+            Self.streamRecord("runtime.session.metadata", version: 2, payload: #"{}"#),
+            Self.streamRecord("runtime.session.task", payload: #"{"event":{"kind":"unknown"}}"#),
+            Self.streamRecord("session.end", payload: #"{"record":{"input_tokens":5}}"#),
+            Self.permissionFrame(children: [
+                Self.streamRecord("runtime.session.permission_format_declared", payload: #"{}"#),
+                Self.streamRecord("runtime.session.permission_profile_committed", payload: #"{"input_tokens":5}"#),
+            ]),
+        ]
+        for line in unsupported {
+            #expect(MuseLocalUsageReader.parseLine(Data(line.utf8)) == .unrecognized)
+        }
+    }
+
     // MARK: - Token semantics
 
     /// Verified across 1,431 recorded events: reasoning is a subset of output and the cache counters
