@@ -956,6 +956,7 @@ extension CostUsageStoreTests {
 
 extension CostUsageStoreTests {
     private static let testedPredecessorParserHashes = [
+        "ad011f05e9ab733a", // Released in 0.84.0; retain history while recalculating Fast prices.
         "2dc85fe95af0aa95", // Preserve project-accumulation caches when combined with linked-root discovery.
         "5454415c8ea2ce7b", // Linked-root discovery preserves native rows, checkpoints, and report totals.
         "6b42e42bafad1922", // Project accumulation preserves native rows and retained report totals.
@@ -1103,7 +1104,7 @@ extension CostUsageStoreTests {
         let current = CostUsageStore(cacheRoot: fixture.root)
         let after = await current.readSnapshot()
         var expected = before
-        // Only predecessors from before the Fast pricing correction need report totals discarded.
+        // Predecessors with stale Fast pricing need report totals discarded.
         if !["f98b2d0afc00443c", "6b42e42bafad1922", "2dc85fe95af0aa95", "5454415c8ea2ce7b"].contains(predecessorHash) {
             expected.metadata.previousReportPayload = nil
         }
@@ -1137,7 +1138,7 @@ extension CostUsageStoreTests {
 
     @Test(arguments: [
         "8050a4faf4fddb96", "dd19ffa2dcfa8d47", "ed735dc27ffa70d9", "99d920977063318a",
-        "0ef5e15cc00e8e25", "5a57546c60494379", "e5909f60274b2c47",
+        "0ef5e15cc00e8e25", "5a57546c60494379", "e5909f60274b2c47", "ad011f05e9ab733a",
     ])
     func `retained report migration preserves compatible rows and clears stale payload`(
         predecessorHash: String) async throws

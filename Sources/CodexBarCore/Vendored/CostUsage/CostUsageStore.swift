@@ -122,6 +122,7 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "ad011f05e9ab733a", // 0.84.0 rows and checkpoints survive Terra and Luna Fast repricing.
         "2dc85fe95af0aa95", // Preserve project-accumulation caches when combined with linked-root discovery.
         "5454415c8ea2ce7b", // Linked-root discovery preserves native rows, checkpoints, and report totals.
         "6b42e42bafad1922", // In-place project accumulation preserves native rows, checkpoints, and report totals.
