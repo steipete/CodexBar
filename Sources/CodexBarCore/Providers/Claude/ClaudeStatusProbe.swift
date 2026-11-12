@@ -744,7 +744,7 @@ extension ClaudeStatusProbe {
     private static func isUsageStillLoading(text: String) -> Bool {
         let normalized = Self.cleanCapture(text).lowercased().filter { !$0.isWhitespace }
         guard normalized.contains("loadingusage") else { return false }
-        return !self.usageCaptureHasSessionValue(normalized) && self.allPercents(text).isEmpty
+        return !self.usageCaptureHasQuotaValue(normalized) && self.allPercents(text).isEmpty
     }
 
     /// Returns true when the text contains only a subscription notice with no session/weekly quota data.
@@ -1522,14 +1522,16 @@ extension ClaudeStatusProbe {
         // The CLI can show session quotas while its scoped weekly rows are still refreshing.
         !normalizedText.contains("refreshing…esctocancel")
             && !normalizedText.contains("refreshing...esctocancel")
-            && self.usageCaptureHasSessionValue(normalizedText)
+            && self.usageCaptureHasQuotaValue(normalizedText)
     }
 
-    static func usageCaptureHasSessionValue(_ normalizedText: String) -> Bool {
+    /// Plans without a five-hour session window start the quota rows at the weekly limit.
+    static func usageCaptureHasQuotaValue(_ normalizedText: String) -> Bool {
         let insightsStart = normalizedText.range(of: "what'scontributingtoyourlimitsusage?")?.lowerBound
             ?? normalizedText.endIndex
         let quotaText = normalizedText[..<insightsStart]
-        guard let labelRange = quotaText.range(of: "currentsession") else { return false }
+        guard let labelRange = quotaText.range(of: "currentsession") ?? quotaText.range(of: "currentweek")
+        else { return false }
         let tail = quotaText[labelRange.upperBound...]
         return tail.range(of: #"[0-9]{1,3}(?:\.[0-9]+)?%"#, options: .regularExpression) != nil
     }

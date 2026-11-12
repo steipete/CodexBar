@@ -18,6 +18,7 @@
 - Claude: show Enterprise extra-usage limits in the provider switcher while preserving provider identity boundaries. (#4989) Thanks @jey3dayo!
 - Alibaba: read Team CLI seat quotas, retain browser fallback for unavailable credits, and recognize mainland Qwen aliases. (#5008) Thanks @yinjialu!
 - Share Stats: replace faint provider markers with recognizable provider icons in light and dark cards. (#5011) Thanks @Chipagosfinest!
+- Claude: finish the CLI `/usage` read as soon as a weekly-only plan's quota is drawn, instead of waiting out the 20-second probe timeout (#5066).
 
 ### Changed
 
