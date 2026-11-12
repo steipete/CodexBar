@@ -2473,6 +2473,8 @@
 "merged_icon_source_frontmost_app" = "Aplicación del proveedor en primer plano";
 /* Provider menu bar color */
 "Color by provider" = "Color por proveedor";
+"menu_bar_color_by_quota_title" = "Colorear las barras según la cuota restante";
+"menu_bar_color_by_quota_subtitle" = "Verde con un 50 % o más restante, naranja desde el 25 % y rojo por debajo del 25 %.";
 
 "show_most_used_provider_subtitle" = "La barra de menús muestra automáticamente el proveedor más cercano a su límite.";
 

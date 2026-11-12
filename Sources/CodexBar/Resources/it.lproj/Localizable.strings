@@ -2479,6 +2479,8 @@
 "merged_icon_source_frontmost_app" = "App del provider in primo piano";
 /* Provider menu bar color */
 "Color by provider" = "Colore per fornitore";
+"menu_bar_color_by_quota_title" = "Colora le barre in base alla quota rimanente";
+"menu_bar_color_by_quota_subtitle" = "Verde con il 50% o più rimanente, arancione dal 25%, rosso sotto il 25%.";
 
 "show_most_used_provider_subtitle" = "La barra menu mostra automaticamente il provider più vicino al limite.";
 

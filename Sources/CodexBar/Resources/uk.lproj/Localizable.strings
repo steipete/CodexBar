@@ -2476,6 +2476,8 @@
 "merged_icon_source_frontmost_app" = "Застосунок провайдера на передньому плані";
 /* Provider menu bar color */
 "Color by provider" = "Колір за провайдером";
+"menu_bar_color_by_quota_title" = "Забарвлювати смуги за залишком квоти";
+"menu_bar_color_by_quota_subtitle" = "Зелений, якщо залишилося 50% або більше, помаранчевий від 25%, червоний нижче 25%.";
 
 "show_most_used_provider_subtitle" = "Рядок меню автоматично показує постачальника, найближчого до свого ліміту.";
 

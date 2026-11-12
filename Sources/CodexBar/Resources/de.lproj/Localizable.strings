@@ -2477,6 +2477,8 @@
 "merged_icon_source_frontmost_app" = "Anbieter-App im Vordergrund";
 /* Provider menu bar color */
 "Color by provider" = "Nach Anbieter einfärben";
+"menu_bar_color_by_quota_title" = "Balken nach verbleibendem Kontingent einfärben";
+"menu_bar_color_by_quota_subtitle" = "Grün ab 50 % verbleibend, Orange ab 25 %, Rot unter 25 %.";
 
 /* Tool activity (English fallback pending translation) */
 "spend_tools_title" = "Tool activity";

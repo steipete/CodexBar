@@ -2479,6 +2479,8 @@
 "merged_icon_source_frontmost_app" = "Aplicació del proveïdor en primer pla";
 /* Provider menu bar color */
 "Color by provider" = "Color per proveïdor";
+"menu_bar_color_by_quota_title" = "Acolorir les barres segons la quota restant";
+"menu_bar_color_by_quota_subtitle" = "Verd amb un 50% o més restant, taronja des del 25% i vermell per sota del 25%.";
 
 "show_most_used_provider_subtitle" = "La barra de menús mostra automàticament el proveïdor més a prop del seu límit.";
 

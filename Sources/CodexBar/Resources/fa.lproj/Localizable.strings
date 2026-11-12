@@ -2479,6 +2479,8 @@
 "merged_icon_source_frontmost_app" = "برنامه ارائه‌دهنده در پیش‌زمینه";
 /* Provider menu bar color */
 "Color by provider" = "رنگ بر اساس ارائه‌دهنده";
+"menu_bar_color_by_quota_title" = "رنگ‌آمیزی نوارها بر اساس سهمیهٔ باقی‌مانده";
+"menu_bar_color_by_quota_subtitle" = "سبز با ۵۰٪ یا بیشتر باقی‌مانده، نارنجی از ۲۵٪ و قرمز کمتر از ۲۵٪.";
 
 "show_most_used_provider_subtitle" = "نوار منو به طور خودکار ارائه دهنده ای را نشان می دهد که به محدودیت نرخ خود نزدیک تر است.";
 

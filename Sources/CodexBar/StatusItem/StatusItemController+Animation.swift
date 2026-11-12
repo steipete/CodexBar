@@ -493,6 +493,7 @@ extension StatusItemController {
                 tint: providerTint,
                 for: button)
         } else {
+            let quotaColors = self.quotaColorStyle(for: provider, button: button, isLoading: isLoading)
             let signature = [
                 "mode=icon;measured=\(snapshot?.primary?.measured != nil)",
                 "provider=\(provider.rawValue)",
@@ -510,6 +511,7 @@ extension StatusItemController {
                 "hideCritters=\(self.settings.menuBarHidesCritters ? "1" : "0")",
                 "highContrast=\(self.shouldUseHighContrastStatusItemContent ? "1" : "0")",
                 "providerTint=\(providerTint?.description ?? "template")",
+                "quotaColors=\(quotaColors?.signature ?? "off")",
             ].joined(separator: "|")
             if shouldSkipRender(signature), canSkipCachedRender {
                 self.noteIconPerfRender(skipped: true)
@@ -526,7 +528,8 @@ extension StatusItemController {
                 tilt: tilt,
                 statusIndicator: statusIndicator,
                 hideCritters: self.settings.menuBarHidesCritters,
-                quotaLayoutPolicy: .provider(provider, snapshot: snapshot))
+                quotaLayoutPolicy: .provider(provider, snapshot: snapshot),
+                quotaColors: quotaColors)
             self.setButtonContent(
                 image: warningFlash ? Self.quotaWarningFlashImage(base: image) : image,
                 title: nil,

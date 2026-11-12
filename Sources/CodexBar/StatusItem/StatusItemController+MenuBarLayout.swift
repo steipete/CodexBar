@@ -165,6 +165,19 @@ extension StatusItemController {
             options: self.menuBarLayoutRenderOptions(for: provider, button: button, now: Date()))
     }
 
+    /// Quota colors for the meter icon, or nil for the monochrome template. Uses the same contrast inputs as
+    /// provider colors: inactive-display contrast and the system Increase Contrast setting keep the template.
+    func quotaColorStyle(for provider: UsageProvider, button: NSButton, isLoading: Bool) -> IconRenderer
+        .QuotaColorStyle?
+    {
+        guard self.settings.menuBarColorByQuota else { return nil }
+        return IconRenderer.effectiveQuotaColorStyle(
+            options: self.menuBarLayoutRenderOptions(for: provider, button: button, now: Date()),
+            increasedContrast: self.settings.menuBarHighContrastOnInactiveDisplays
+                || NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast,
+            isLoading: isLoading)
+    }
+
     private func menuBarLayoutRenderOptions(
         for provider: UsageProvider,
         button: NSButton?,

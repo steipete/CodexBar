@@ -65,6 +65,7 @@ enum IconRenderer {
         let indicator: Int
         let hideCritters: Bool
         let quotaLayoutPolicy: QuotaLayoutPolicy
+        let quotaColors: QuotaColorStyle?
     }
 
     private final class IconCacheStore: @unchecked Sendable {
@@ -150,17 +151,18 @@ enum IconRenderer {
         tilt: CGFloat = 0,
         statusIndicator: ProviderStatusIndicator = .none,
         hideCritters: Bool = false,
-        quotaLayoutPolicy: QuotaLayoutPolicy? = nil) -> NSImage
+        quotaLayoutPolicy: QuotaLayoutPolicy? = nil,
+        quotaColors: QuotaColorStyle? = nil) -> NSImage
     {
         let quotaLayoutPolicy = quotaLayoutPolicy ?? .style(style)
         let shouldCache = blink <= 0.0001 && wiggle <= 0.0001 && tilt <= 0.0001
         let render = {
-            self.renderImage {
-                // Keep monochrome template icons; Claude uses subtle shape cues only.
-                let baseFill = NSColor.labelColor
+            // Monochrome template icons by default; Claude uses subtle shape cues only. Quota colors draw each bar
+            // in its quota color instead, so that image cannot be a template.
+            self.renderImage(template: quotaColors == nil) {
+                let monochromeFill = NSColor.labelColor
                 let trackFillAlpha: CGFloat = stale ? 0.18 : 0.28
                 let trackStrokeAlpha: CGFloat = stale ? 0.28 : 0.44
-                let fillColor = baseFill.withAlphaComponent(stale ? 0.55 : 1.0)
 
                 let barWidthPx = 30 // 15 pt at 2×, uses the slot better without touching edges.
                 let barXPx = (Self.canvasPx - barWidthPx) / 2
@@ -180,6 +182,9 @@ enum IconRenderer {
                     drawTrackFill: Bool = true,
                     warpEyesFilled: Bool = false)
                 {
+                    // With quota colors the whole bar (track, outline, fill and critter details) uses its color.
+                    let baseFill = quotaColors.map { $0.color(forBarValue: remaining) } ?? monochromeFill
+                    let fillColor = baseFill.withAlphaComponent(stale ? 0.55 : 1.0)
                     let rect = rectPx.rect()
                     // Claude reads better as a blockier critter; Codex stays as a capsule.
                     // Warp uses small corner radius for rounded rectangle (matching logo style)
@@ -863,7 +868,8 @@ enum IconRenderer {
 
                 Self.drawStatusOverlay(
                     indicator: statusIndicator,
-                    attachesToProminentMeter: statusOverlayAttachesToProminentMeter)
+                    attachesToProminentMeter: statusOverlayAttachesToProminentMeter,
+                    color: quotaColors.map { $0.color(forBarValue: nil) } ?? monochromeFill)
             }
         }
 
@@ -876,7 +882,8 @@ enum IconRenderer {
                 style: self.styleKey(style),
                 indicator: self.indicatorKey(statusIndicator),
                 hideCritters: hideCritters,
-                quotaLayoutPolicy: quotaLayoutPolicy)
+                quotaLayoutPolicy: quotaLayoutPolicy,
+                quotaColors: quotaColors)
             if let cached = self.cachedIcon(for: key) {
                 return cached
             }
@@ -1062,10 +1069,10 @@ enum IconRenderer {
 
     private static func drawStatusOverlay(
         indicator: ProviderStatusIndicator,
-        attachesToProminentMeter: Bool)
+        attachesToProminentMeter: Bool,
+        color: NSColor)
     {
         guard indicator.hasIssue else { return }
-        let color = NSColor.labelColor
 
         switch indicator {
         case .minor, .maintenance:
@@ -1135,7 +1142,7 @@ enum IconRenderer {
         CGRect(x: self.snap(x), y: self.snap(y), width: self.snap(width), height: self.snap(height))
     }
 
-    private static func renderImage(_ draw: () -> Void) -> NSImage {
+    private static func renderImage(template: Bool = true, _ draw: () -> Void) -> NSImage {
         let image = NSImage(size: Self.outputSize)
 
         if let rep = NSBitmapImageRep(
@@ -1166,7 +1173,7 @@ enum IconRenderer {
             image.unlockFocus()
         }
 
-        image.isTemplate = true
+        image.isTemplate = template
         return image
     }
 }

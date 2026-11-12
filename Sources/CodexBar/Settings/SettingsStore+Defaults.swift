@@ -331,6 +331,12 @@ extension SettingsStore {
         set { self.setDefault(\.menuBarColorPace, newValue, key: "menuBarColorPace") }
     }
 
+    /// Opt-in: draw each meter bar green, orange or red by quota left (see `IconRenderer.QuotaColorStyle`).
+    var menuBarColorByQuota: Bool {
+        get { self.defaultsState.menuBarColorByQuota }
+        set { self.setDefault(\.menuBarColorByQuota, newValue, key: "menuBarColorByQuota") }
+    }
+
     var menuBarPaceReservePositive: Bool {
         get { self.defaultsState.menuBarPaceReservePositive }
         set { self.setDefault(\.menuBarPaceReservePositive, newValue, key: "menuBarPaceReservePositive") }

@@ -67,6 +67,14 @@ struct MenuBarPane: View {
                     })
                     .disabled(self.settings.menuBarIconStyle != .iconAndPercent)
 
+                // Icon & percent shows the brand icon, so quota colors apply only to the Critters and Bars meters.
+                Toggle(isOn: self.$settings.menuBarColorByQuota) {
+                    SettingsRowLabel(
+                        L("menu_bar_color_by_quota_title"),
+                        subtitle: L("menu_bar_color_by_quota_subtitle"))
+                }
+                .disabled(self.settings.menuBarIconStyle == .iconAndPercent)
+
                 Toggle(isOn: self.$settings.menuBarColorByProvider) {
                     Text(L("Color by provider"))
                 }
