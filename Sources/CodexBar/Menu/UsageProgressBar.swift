@@ -42,6 +42,7 @@ struct UsageProgressBar: View {
     let workdayTickAppearance: WorkdayTickAppearance
     let usageBarStyle: UsageBarStyle
     let showsUsed: Bool
+    let usesRetainedTint: Bool
     @Environment(\.menuItemHighlighted) private var isHighlighted
     @Environment(\.displayScale) private var displayScale
 
@@ -55,7 +56,8 @@ struct UsageProgressBar: View {
         workdayMarkerPercents: [Double] = [],
         workdayTickAppearance: WorkdayTickAppearance = .subtle,
         usageBarStyle: UsageBarStyle = .capsule,
-        showsUsed: Bool = false)
+        showsUsed: Bool = false,
+        usesRetainedTint: Bool = false)
     {
         self.percent = percent
         self.tint = tint
@@ -67,6 +69,7 @@ struct UsageProgressBar: View {
         self.workdayTickAppearance = workdayTickAppearance
         self.usageBarStyle = usageBarStyle
         self.showsUsed = showsUsed
+        self.usesRetainedTint = usesRetainedTint
     }
 
     private var clamped: Double {
@@ -109,11 +112,13 @@ struct UsageProgressBar: View {
                 content.clip(to: Path(CGRect(origin: .zero, size: size)))
             }
 
-            let fillTint = isBattery
-                ? Self.batterySeverityColor(remainingPercent: Self.batteryRemainingPercent(
+            let fillTint = Self.batteryFillTint(
+                isBattery: isBattery,
+                usesRetainedTint: self.usesRetainedTint,
+                remainingPercent: Self.batteryRemainingPercent(
                     percent: self.clamped,
-                    showsUsed: self.showsUsed))
-                : self.tint
+                    showsUsed: self.showsUsed),
+                tint: self.tint)
 
             // Track
             let trackPath = Path { p in p.addRoundedRect(in: contentRect, cornerSize: cornerSize) }
@@ -385,6 +390,14 @@ struct UsageProgressBar: View {
         case .tight: Color(nsColor: .systemYellow)
         case .critical: Color(nsColor: .systemRed)
         }
+    }
+
+    /// Retained (stale) measurements keep the neutral tint; the severity palette is for live quota only.
+    nonisolated static func batteryFillTint(
+        isBattery: Bool, usesRetainedTint: Bool, remainingPercent: Double, tint: Color) -> Color
+    {
+        guard isBattery, !usesRetainedTint else { return tint }
+        return self.batterySeverityColor(remainingPercent: remainingPercent)
     }
 
     private static func paceStripePaths(size: CGSize, scale: CGFloat) -> (punched: Path, center: Path) {

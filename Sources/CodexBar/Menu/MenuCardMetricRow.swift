@@ -12,9 +12,12 @@ struct MetricRow: View {
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
     /// Synthetic credit lanes refresh independently of quota measurements.
+    var showsRetainedQuota: Bool {
+        self.metric.retainedMeasurementOverride ?? (self.isRetainedMeasurement && !self.metric.isSyntheticCreditLane)
+    }
+
     var barTint: Color {
-        (self.metric.retainedMeasurementOverride ?? (self.isRetainedMeasurement && !self.metric.isSyntheticCreditLane))
-            ? UsageMenuCardView.Model.staleProgressColor : self.progressColor
+        self.showsRetainedQuota ? UsageMenuCardView.Model.staleProgressColor : self.progressColor
     }
 
     var body: some View {
@@ -48,7 +51,8 @@ struct MetricRow: View {
                     workdayMarkerPercents: self.metric.workdayMarkerPercents,
                     workdayTickAppearance: self.metric.workdayTickAppearance,
                     usageBarStyle: self.usageBarStyle,
-                    showsUsed: self.metric.percentStyle == .used)
+                    showsUsed: self.metric.percentStyle == .used,
+                    usesRetainedTint: self.showsRetainedQuota)
                 if !self.compact, let layoutMetaText = layoutPresentation.metaText {
                     self.layoutPreservingText(
                         presentation.metaText,

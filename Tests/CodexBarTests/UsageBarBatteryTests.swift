@@ -129,3 +129,70 @@ struct UsageBarBatteryColorTests {
         #expect(UsageProgressBar.batteryLevel(remainingPercent: remaining) == .critical)
     }
 }
+
+@MainActor
+struct UsageBarBatteryRetainedTintTests {
+    private static let neutral = UsageMenuCardView.Model.staleProgressColor
+
+    @Test
+    func `battery fill keeps the retained neutral tint instead of the severity palette`() {
+        let tint = UsageProgressBar.batteryFillTint(
+            isBattery: true, usesRetainedTint: true, remainingPercent: 5, tint: Self.neutral)
+
+        #expect(tint == Self.neutral)
+    }
+
+    @Test
+    func `battery fill uses the severity palette for fresh measurements`() {
+        let tint = UsageProgressBar.batteryFillTint(
+            isBattery: true, usesRetainedTint: false, remainingPercent: 5, tint: Self.neutral)
+
+        #expect(tint == Color(nsColor: .systemRed))
+    }
+
+    @Test
+    func `capsule fill always keeps the supplied tint`() {
+        #expect(UsageProgressBar.batteryFillTint(
+            isBattery: false, usesRetainedTint: true, remainingPercent: 5, tint: Self.neutral) == Self.neutral)
+        #expect(UsageProgressBar.batteryFillTint(
+            isBattery: false, usesRetainedTint: false, remainingPercent: 5, tint: .green) == .green)
+    }
+
+    @Test
+    func `metric row marks retained quota so the bar can keep the neutral tint`() {
+        let metric = Self.metric(retainedMeasurementOverride: true)
+        let row = MetricRow(metric: metric, layoutMetric: metric, title: "5h", progressColor: .green)
+
+        #expect(row.showsRetainedQuota)
+        #expect(row.barTint == Self.neutral)
+    }
+
+    @Test
+    func `metric row keeps synthetic credit lanes on their own tint while retained`() {
+        let metric = Self.metric(isSyntheticCreditLane: true)
+        let row = MetricRow(
+            metric: metric, layoutMetric: metric, title: "Credits", progressColor: .green, isRetainedMeasurement: true)
+
+        #expect(!row.showsRetainedQuota)
+        #expect(row.barTint == .green)
+    }
+
+    private static func metric(
+        isSyntheticCreditLane: Bool = false,
+        retainedMeasurementOverride: Bool? = nil) -> UsageMenuCardView.Model.Metric
+    {
+        UsageMenuCardView.Model.Metric(
+            id: "quota",
+            title: "5h",
+            percent: 5,
+            percentStyle: .used,
+            resetText: nil,
+            detailText: nil,
+            detailLeftText: nil,
+            detailRightText: nil,
+            pacePercent: nil,
+            paceOnTop: false,
+            isSyntheticCreditLane: isSyntheticCreditLane,
+            retainedMeasurementOverride: retainedMeasurementOverride)
+    }
+}
