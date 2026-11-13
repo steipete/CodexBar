@@ -561,7 +561,8 @@ struct ProviderMetricsInlineView: View {
                 ProviderMetricInlineRow(
                     metric: metric,
                     title: ProviderDetailView<EmptyView>.metricTitle(provider: self.provider, metric: metric),
-                    progressColor: self.model.progressColor)
+                    progressColor: self.model.progressColor,
+                    usageBarStyle: self.model.usageBarStyle)
             }
 
             if contentState.hasUsageNotes {
@@ -591,7 +592,8 @@ struct ProviderMetricsInlineView: View {
             if let providerCost = self.model.providerCost, providerCost.showsInProviderDetails {
                 ProviderMetricInlineCostRow(
                     section: providerCost,
-                    progressColor: self.model.progressColor)
+                    progressColor: self.model.progressColor,
+                    usageBarStyle: self.model.usageBarStyle)
             }
 
             if let tokenUsage = self.model.tokenUsage {
@@ -602,7 +604,8 @@ struct ProviderMetricsInlineView: View {
                 ProviderDetailSectionsContent(
                     sections: self.model.providerDetails,
                     chartColor: self.model.progressColor,
-                    paceVisible: self.model.detailPaceVisible)
+                    paceVisible: self.model.detailPaceVisible,
+                    usageBarStyle: self.model.usageBarStyle)
             }
         }
     }
@@ -650,6 +653,7 @@ private struct ProviderMetricInlineRow: View {
     let metric: UsageMenuCardView.Model.Metric
     let title: String
     let progressColor: Color
+    var usageBarStyle: UsageBarStyle = .capsule
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -688,7 +692,9 @@ private struct ProviderMetricInlineRow: View {
                     paceOnTop: self.metric.paceOnTop,
                     warningMarkerPercents: self.metric.warningMarkerPercents,
                     workdayMarkerPercents: self.metric.workdayMarkerPercents,
-                    workdayTickAppearance: self.metric.workdayTickAppearance)
+                    workdayTickAppearance: self.metric.workdayTickAppearance,
+                    usageBarStyle: self.usageBarStyle,
+                    showsUsed: self.metric.percentStyle == .used)
                     .frame(maxWidth: .infinity)
 
                 if let metaText = presentation.metaText {
@@ -763,6 +769,7 @@ private struct ProviderMetricInlineTextRow: View {
 private struct ProviderMetricInlineCostRow: View {
     let section: UsageMenuCardView.Model.ProviderCostSection
     let progressColor: Color
+    var usageBarStyle: UsageBarStyle = .capsule
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -782,7 +789,9 @@ private struct ProviderMetricInlineCostRow: View {
                 UsageProgressBar(
                     percent: percentUsed,
                     tint: self.progressColor,
-                    accessibilityLabel: L("Usage used"))
+                    accessibilityLabel: L("Usage used"),
+                    usageBarStyle: self.usageBarStyle,
+                    showsUsed: true)
                     .frame(maxWidth: .infinity)
             }
 

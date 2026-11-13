@@ -6,6 +6,7 @@ struct MetricRow: View {
     let layoutMetric: UsageMenuCardView.Model.Metric
     let title: String
     let progressColor: Color
+    var usageBarStyle: UsageBarStyle = .capsule
     var isRetainedMeasurement = false
     var compact = false
     @Environment(\.menuItemHighlighted) private var isHighlighted
@@ -45,7 +46,9 @@ struct MetricRow: View {
                     paceOnTop: self.metric.paceOnTop,
                     warningMarkerPercents: self.metric.warningMarkerPercents,
                     workdayMarkerPercents: self.metric.workdayMarkerPercents,
-                    workdayTickAppearance: self.metric.workdayTickAppearance)
+                    workdayTickAppearance: self.metric.workdayTickAppearance,
+                    usageBarStyle: self.usageBarStyle,
+                    showsUsed: self.metric.percentStyle == .used)
                 if !self.compact, let layoutMetaText = layoutPresentation.metaText {
                     self.layoutPreservingText(
                         presentation.metaText,

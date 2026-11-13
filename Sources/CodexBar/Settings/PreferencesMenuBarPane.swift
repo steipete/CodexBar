@@ -43,6 +43,19 @@ struct MenuBarPane: View {
                         Text(style.label)
                     })
 
+                SettingsMenuPicker(
+                    selection: self.$settings.menuBarUsageBarStyle,
+                    options: MenuSettingsMenuOptions.usageBarStyles,
+                    label: {
+                        SettingsRowLabel(
+                            L("menu_bar_usage_bar_style_title"),
+                            subtitle: L("menu_bar_usage_bar_style_subtitle"))
+                    },
+                    optionLabel: { style in
+                        Text(style.label)
+                    })
+                    .disabled(!Self.layoutEditorEnabled(for: self.settings.menuBarIconStyle))
+
                 Toggle(isOn: self.$settings.menuBarHighContrastOnInactiveDisplays) {
                     SettingsRowLabel(
                         L("menu_bar_inactive_display_contrast_title"),

@@ -44,6 +44,8 @@ extension SettingsStore {
             paceVisible: self.paceVisible,
             weeklyProgressWorkDays: self.weeklyProgressWorkDays,
             workdayTickAppearance: self.workdayTickAppearance.rawValue,
+            usageBarStyle: self.usageBarStyle.rawValue,
+            menuBarUsageBarStyle: self.menuBarUsageBarStyle.rawValue,
             usageBarsShowUsed: self.usageBarsShowUsed,
             resetTimesShowAbsolute: self.resetTimesShowAbsolute,
             costUsageEnabled: self.costUsageEnabled,
@@ -84,6 +86,12 @@ extension SettingsStore {
            let appearance = WorkdayTickAppearance(rawValue: rawAppearance)
         {
             self.workdayTickAppearance = appearance
+        }
+        if let rawStyle = preferences.usageBarStyle, let style = UsageBarStyle(rawValue: rawStyle) {
+            self.usageBarStyle = style
+        }
+        if let rawStyle = preferences.menuBarUsageBarStyle, let style = UsageBarStyle(rawValue: rawStyle) {
+            self.menuBarUsageBarStyle = style
         }
         self.usageBarsShowUsed = preferences.usageBarsShowUsed
         self.resetTimesShowAbsolute = preferences.resetTimesShowAbsolute

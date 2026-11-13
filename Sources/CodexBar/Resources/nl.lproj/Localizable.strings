@@ -660,6 +660,12 @@
 "workday_tick_appearance_hidden" = "Verborgen";
 "workday_tick_appearance_subtle" = "Subtiel";
 "workday_tick_appearance_high_contrast" = "Hoog contrast";
+"usage_bar_style_title" = "Stil van gebruiksbalken";
+"usage_bar_style_subtitle" = "Kies hoe gebruiksbalken in het menu worden weergegeven.";
+"menu_bar_usage_bar_style_title" = "Menubalkstijl voor gebruiksbalken";
+"menu_bar_usage_bar_style_subtitle" = "Kies hoe gebruiksbalken in de menubalk worden weergegeven.";
+"usage_bar_style_capsule" = "Capsule";
+"usage_bar_style_battery" = "Batterij";
 "show_provider_changelog_links_title" = "Toon provider changelog-links";
 "highlight_menu_cards_on_hover_title" = "Menukaarten markeren bij aanwijzen";
 "show_provider_changelog_links_subtitle" = "Voegt koppelingen naar release-opmerkingen voor ondersteunde CLI-ondersteunde providers toe aan het menu.";

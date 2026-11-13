@@ -668,6 +668,12 @@
 "workday_tick_appearance_hidden" = "Tersembunyi";
 "workday_tick_appearance_subtle" = "Samar";
 "workday_tick_appearance_high_contrast" = "Kontras tinggi";
+"usage_bar_style_title" = "Gaya bilah penggunaan";
+"usage_bar_style_subtitle" = "Pilih tampilan bilah penggunaan di menu.";
+"menu_bar_usage_bar_style_title" = "Gaya bilah penggunaan di menu bar";
+"menu_bar_usage_bar_style_subtitle" = "Pilih tampilan bilah penggunaan di menu bar.";
+"usage_bar_style_capsule" = "Kapsul";
+"usage_bar_style_battery" = "Baterai";
 "show_provider_changelog_links_title" = "Tampilkan tautan changelog penyedia";
 "highlight_menu_cards_on_hover_title" = "Sorot kartu menu saat kursor diarahkan";
 "show_provider_changelog_links_subtitle" = "Menambahkan tautan catatan rilis untuk penyedia berbasis CLI yang didukung ke menu.";

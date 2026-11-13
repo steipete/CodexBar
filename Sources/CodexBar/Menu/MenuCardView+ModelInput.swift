@@ -49,6 +49,7 @@ extension UsageMenuCardView.Model {
         let workDaysPerWeek: Int?
         let workdayTickAppearance: WorkdayTickAppearance
         let paceVisible: Bool
+        let usageBarStyle: UsageBarStyle
         let usesLiveSubtitle: Bool
         let preferredCurrencyCode: String
         let costUsageBucketCalendar: Calendar
@@ -100,6 +101,7 @@ extension UsageMenuCardView.Model {
             workDaysPerWeek: Int? = nil,
             workdayTickAppearance: WorkdayTickAppearance = .subtle,
             paceVisible: Bool = true,
+            usageBarStyle: UsageBarStyle = .capsule,
             usesLiveSubtitle: Bool = false,
             preferredCurrencyCode: String = "auto",
             costUsageBucketCalendar: Calendar = .current,
@@ -150,6 +152,7 @@ extension UsageMenuCardView.Model {
             self.workDaysPerWeek = workDaysPerWeek
             self.workdayTickAppearance = workdayTickAppearance
             self.paceVisible = paceVisible
+            self.usageBarStyle = usageBarStyle
             self.usesLiveSubtitle = usesLiveSubtitle
             self.preferredCurrencyCode = preferredCurrencyCode
             self.costUsageBucketCalendar = costUsageBucketCalendar

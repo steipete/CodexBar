@@ -312,6 +312,8 @@ public struct SyncedPreferences: Codable, Sendable {
     public var paceVisible: Bool?
     public var weeklyProgressWorkDays: Int?
     public var workdayTickAppearance: String?
+    public var usageBarStyle: String?
+    public var menuBarUsageBarStyle: String?
     public var usageBarsShowUsed: Bool
     public var resetTimesShowAbsolute: Bool
     public var costUsageEnabled: Bool
@@ -346,6 +348,8 @@ public struct SyncedPreferences: Codable, Sendable {
         paceVisible: Bool? = nil,
         weeklyProgressWorkDays: Int?,
         workdayTickAppearance: String? = nil,
+        usageBarStyle: String? = nil,
+        menuBarUsageBarStyle: String? = nil,
         usageBarsShowUsed: Bool,
         resetTimesShowAbsolute: Bool,
         costUsageEnabled: Bool,
@@ -379,6 +383,8 @@ public struct SyncedPreferences: Codable, Sendable {
         self.paceVisible = paceVisible
         self.weeklyProgressWorkDays = weeklyProgressWorkDays
         self.workdayTickAppearance = workdayTickAppearance
+        self.usageBarStyle = usageBarStyle
+        self.menuBarUsageBarStyle = menuBarUsageBarStyle
         self.usageBarsShowUsed = usageBarsShowUsed
         self.resetTimesShowAbsolute = resetTimesShowAbsolute
         self.costUsageEnabled = costUsageEnabled

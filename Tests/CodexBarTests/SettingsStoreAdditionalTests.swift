@@ -442,3 +442,50 @@ extension SettingsStoreAdditionalTests {
         #expect(settings.fireworksAccountSlug == "fixture")
     }
 }
+
+extension SettingsStoreAdditionalTests {
+    @Test
+    func `usage bar style defaults to capsule and persists valid choices`() {
+        let defaults = InMemoryUserDefaults()
+
+        let fresh = testSettingsStore(suiteName: #function, userDefaults: defaults)
+        #expect(fresh.usageBarStyle == .capsule)
+
+        fresh.usageBarStyle = .battery
+        #expect(defaults.string(forKey: "usageBarStyle") == UsageBarStyle.battery.rawValue)
+
+        let reloaded = testSettingsStore(suiteName: #function, userDefaults: defaults)
+        #expect(reloaded.usageBarStyle == .battery)
+
+        defaults.set("unknown", forKey: "usageBarStyle")
+        let invalid = testSettingsStore(suiteName: #function, userDefaults: defaults)
+        #expect(invalid.usageBarStyle == .capsule)
+    }
+
+    @Test
+    func `menu bar usage bar style defaults to capsule and persists independently`() {
+        let defaults = InMemoryUserDefaults()
+
+        let fresh = testSettingsStore(suiteName: #function, userDefaults: defaults)
+        #expect(fresh.menuBarUsageBarStyle == .capsule)
+        #expect(fresh.usageBarStyle == .capsule)
+
+        fresh.usageBarStyle = .battery
+        #expect(fresh.menuBarUsageBarStyle == .capsule)
+
+        fresh.menuBarUsageBarStyle = .battery
+        #expect(defaults.string(forKey: "menuBarUsageBarStyle") == UsageBarStyle.battery.rawValue)
+        #expect(fresh.usageBarStyle == .battery)
+
+        fresh.usageBarStyle = .capsule
+        #expect(fresh.menuBarUsageBarStyle == .battery)
+
+        let reloaded = testSettingsStore(suiteName: #function, userDefaults: defaults)
+        #expect(reloaded.menuBarUsageBarStyle == .battery)
+        #expect(reloaded.usageBarStyle == .capsule)
+
+        defaults.set("unknown", forKey: "menuBarUsageBarStyle")
+        let invalid = testSettingsStore(suiteName: #function, userDefaults: defaults)
+        #expect(invalid.menuBarUsageBarStyle == .capsule)
+    }
+}

@@ -660,6 +660,12 @@
 "workday_tick_appearance_hidden" = "Ausgeblendet";
 "workday_tick_appearance_subtle" = "Dezent";
 "workday_tick_appearance_high_contrast" = "Hoher Kontrast";
+"usage_bar_style_title" = "Stil der Nutzungsbalken";
+"usage_bar_style_subtitle" = "Wähle, wie Nutzungsbalken im Menü dargestellt werden.";
+"menu_bar_usage_bar_style_title" = "Menüleisten-Stil der Nutzungsbalken";
+"menu_bar_usage_bar_style_subtitle" = "Wähle, wie Nutzungsbalken in der Menüleiste dargestellt werden.";
+"usage_bar_style_capsule" = "Kapsel";
+"usage_bar_style_battery" = "Batterie";
 "show_provider_changelog_links_title" = "Links zum Änderungsprotokoll des Anbieters anzeigen";
 "highlight_menu_cards_on_hover_title" = "Menükarten beim Darüberfahren hervorheben";
 "show_provider_changelog_links_subtitle" = "Fügt dem Menü Versionshinweise-Links für unterstützte CLI-gestützte Anbieter hinzu.";

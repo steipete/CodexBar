@@ -69,4 +69,20 @@ struct MenuBarPaceColorSettingsTests {
             #expect(restored.menuBarLayoutGap == .tight)
         }
     }
+
+    @Test
+    func `menu bar usage bar style triggers menu observation`() {
+        let defaults = InMemoryUserDefaults()
+        let store = testSettingsStore(suiteName: "menu-bar-usage-bar-style", userDefaults: defaults)
+        #expect(store.menuBarUsageBarStyle == .capsule)
+        let changed = ObservationFlag()
+        withObservationTracking {
+            _ = store.menuObservationToken
+        } onChange: {
+            changed.set()
+        }
+        store.menuBarUsageBarStyle = .battery
+        #expect(changed.get())
+        #expect(defaults.string(forKey: "menuBarUsageBarStyle") == UsageBarStyle.battery.rawValue)
+    }
 }

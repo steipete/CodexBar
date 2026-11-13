@@ -666,6 +666,12 @@
 "workday_tick_appearance_hidden" = "مخفية";
 "workday_tick_appearance_subtle" = "خفيفة";
 "workday_tick_appearance_high_contrast" = "تباين عالٍ";
+"usage_bar_style_title" = "نمط شريط الاستخدام";
+"usage_bar_style_subtitle" = "اختر كيفية عرض أشرطة الاستخدام في القائمة.";
+"menu_bar_usage_bar_style_title" = "نمط شريط الاستخدام في شريط القوائم";
+"menu_bar_usage_bar_style_subtitle" = "اختر كيفية عرض أشرطة الاستخدام في شريط القوائم.";
+"usage_bar_style_capsule" = "كبسولة";
+"usage_bar_style_battery" = "بطارية";
 "show_provider_changelog_links_title" = "اعرض روابط سجل التغييرات لمزود الخدمة";
 "highlight_menu_cards_on_hover_title" = "تمييز بطاقات القائمة عند تمرير المؤشر";
 "show_provider_changelog_links_subtitle" = "يضيف روابط ملاحظات الإصدار لمزودي الخدمة المدعومين بدعم CLI إلى القائمة.";

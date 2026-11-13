@@ -1533,6 +1533,7 @@ struct SettingsStoreTests {
 
         await expectObservation { store.weeklyProgressWorkDays = 5 }
         await expectObservation { store.workdayTickAppearance = .highContrast }
+        await expectObservation { store.usageBarStyle = .battery }
     }
 
     @Test

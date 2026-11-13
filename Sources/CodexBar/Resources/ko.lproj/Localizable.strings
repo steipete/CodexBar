@@ -650,6 +650,12 @@
 "workday_tick_appearance_hidden" = "숨김";
 "workday_tick_appearance_subtle" = "은은하게";
 "workday_tick_appearance_high_contrast" = "고대비";
+"usage_bar_style_title" = "사용량 막대 스타일";
+"usage_bar_style_subtitle" = "메뉴에서 사용량 막대를 표시하는 방식을 선택합니다.";
+"menu_bar_usage_bar_style_title" = "메뉴 막대 사용량 막대 스타일";
+"menu_bar_usage_bar_style_subtitle" = "메뉴 막대에서 사용량 막대를 표시하는 방식을 선택합니다.";
+"usage_bar_style_capsule" = "캡슐";
+"usage_bar_style_battery" = "배터리";
 "show_provider_changelog_links_title" = "공급자 변경 로그 링크 표시";
 "highlight_menu_cards_on_hover_title" = "마우스를 올리면 메뉴 카드 강조";
 "show_provider_changelog_links_subtitle" = "지원되는 CLI 기반 공급자의 릴리스 노트 링크를 메뉴에 추가합니다.";

@@ -40,6 +40,8 @@ struct UsageProgressBar: View {
     let warningMarkerPercents: [Double]
     let workdayMarkerPercents: [Double]
     let workdayTickAppearance: WorkdayTickAppearance
+    let usageBarStyle: UsageBarStyle
+    let showsUsed: Bool
     @Environment(\.menuItemHighlighted) private var isHighlighted
     @Environment(\.displayScale) private var displayScale
 
@@ -51,7 +53,9 @@ struct UsageProgressBar: View {
         paceOnTop: Bool = true,
         warningMarkerPercents: [Double] = [],
         workdayMarkerPercents: [Double] = [],
-        workdayTickAppearance: WorkdayTickAppearance = .subtle)
+        workdayTickAppearance: WorkdayTickAppearance = .subtle,
+        usageBarStyle: UsageBarStyle = .capsule,
+        showsUsed: Bool = false)
     {
         self.percent = percent
         self.tint = tint
@@ -61,6 +65,8 @@ struct UsageProgressBar: View {
         self.warningMarkerPercents = warningMarkerPercents
         self.workdayMarkerPercents = workdayMarkerPercents
         self.workdayTickAppearance = workdayTickAppearance
+        self.usageBarStyle = usageBarStyle
+        self.showsUsed = showsUsed
     }
 
     private var clamped: Double {
@@ -74,10 +80,16 @@ struct UsageProgressBar: View {
         // which caused the status item icon to disappear (issue #805).
         Canvas { context, size in
             let scale = max(self.displayScale, 1)
-            let fillPercent = Self.renderedFillPercent(self.clamped)
-            let fillWidth = size.width * fillPercent / 100
-            let paceWidth = size.width * Self.clampedPercent(self.pacePercent) / 100
-            let tipWidth = max(25, size.height * 6.5)
+            let isBattery = self.usageBarStyle == .battery
+            let contentRect = isBattery
+                ? Self.batteryInnerRect(size: size)
+                : CGRect(origin: .zero, size: size)
+            let contentSize = contentRect.size
+            let fillWidth = isBattery
+                ? Self.batteryFillWidth(percent: self.clamped, size: size)
+                : contentSize.width * Self.renderedFillPercent(self.clamped) / 100
+            let paceWidth = contentSize.width * Self.clampedPercent(self.pacePercent) / 100
+            let tipWidth = max(25, contentSize.height * 6.5)
             let stripeInset = 1 / scale
             let tipOffset = paceWidth - tipWidth + (Self.paceStripeSpan(for: scale) / 2) + stripeInset
             let showTip = self.pacePercent != nil && tipWidth > 0.5
@@ -86,52 +98,74 @@ struct UsageProgressBar: View {
                 workdayPercents: self.workdayMarkerPercents,
                 workdayAppearance: self.workdayTickAppearance)
 
-            let cornerRadius = size.height / 2
+            let cornerRadius = isBattery ? Self.batteryInnerRadius : contentSize.height / 2
             let cornerSize = CGSize(width: cornerRadius, height: cornerRadius)
-            let rect = CGRect(origin: .zero, size: size)
 
-            context.clip(to: Path(rect))
+            // A copied context scopes the battery clip to the core so the shell can be drawn afterwards.
+            var content = context
+            if isBattery {
+                content.clip(to: Path { p in p.addRoundedRect(in: contentRect, cornerSize: cornerSize) })
+            } else {
+                content.clip(to: Path(CGRect(origin: .zero, size: size)))
+            }
+
+            let fillTint = isBattery
+                ? Self.batterySeverityColor(remainingPercent: Self.batteryRemainingPercent(
+                    percent: self.clamped,
+                    showsUsed: self.showsUsed))
+                : self.tint
 
             // Track
-            let trackPath = Path { p in p.addRoundedRect(in: rect, cornerSize: cornerSize) }
-            context.fill(trackPath, with: .color(MenuHighlightStyle.progressTrack(self.isHighlighted)))
+            let trackPath = Path { p in p.addRoundedRect(in: contentRect, cornerSize: cornerSize) }
+            content.fill(
+                trackPath,
+                with: .color(isBattery
+                    ? Self.batteryTrackColor(isHighlighted: self.isHighlighted)
+                    : MenuHighlightStyle.progressTrack(self.isHighlighted)))
 
             // Fill
             if fillWidth > 0 {
-                let fillRect = CGRect(x: 0, y: 0, width: min(fillWidth, size.width), height: size.height)
+                let fillRect = CGRect(
+                    x: contentRect.minX,
+                    y: contentRect.minY,
+                    width: min(fillWidth, contentSize.width),
+                    height: contentSize.height)
                 let fillPath = Path { p in p.addRoundedRect(in: fillRect, cornerSize: cornerSize) }
-                context.fill(
+                content.fill(
                     fillPath,
-                    with: .color(MenuHighlightStyle.progressTint(self.isHighlighted, fallback: self.tint)))
+                    with: .color(MenuHighlightStyle.progressTint(self.isHighlighted, fallback: fillTint)))
             }
 
             for marker in markers {
-                let x = size.width * marker.percent / 100
+                let x = contentSize.width * marker.percent / 100
                 switch marker.kind {
                 case .quotaWarning:
-                    let markerRect = Self.warningMarkerRect(x: x, size: size, scale: scale)
-                    let markerStripeRect = Self.warningMarkerStripeRect(markerRect, scale: scale)
+                    let localRect = Self.warningMarkerRect(x: x, size: contentSize, scale: scale)
+                    let markerRect = localRect.offsetBy(dx: contentRect.minX, dy: contentRect.minY)
+                    let markerStripeRect = Self.warningMarkerStripeRect(localRect, scale: scale)
+                        .offsetBy(dx: contentRect.minX, dy: contentRect.minY)
                     let markerPunchPath = Path { p in
-                        p.addRect(Self.extendedMarkerRect(markerRect, size: size))
+                        p.addRect(Self.extendedMarkerRect(markerRect, size: contentSize))
                     }
                     let markerStripePath = Path { p in
-                        p.addRect(Self.extendedMarkerRect(markerStripeRect, size: size))
+                        p.addRect(Self.extendedMarkerRect(markerStripeRect, size: contentSize))
                     }
 
                     // Match the pace stripe treatment: punch through the bar, then draw a slimmer neutral stripe.
-                    context.blendMode = .destinationOut
-                    context.fill(markerPunchPath, with: .color(.white.opacity(Self.stripePunchOpacity)))
-                    context.blendMode = .normal
-                    context.fill(
+                    content.blendMode = .destinationOut
+                    content.fill(markerPunchPath, with: .color(.white.opacity(Self.stripePunchOpacity)))
+                    content.blendMode = .normal
+                    content.fill(
                         markerStripePath,
                         with: .color(Self.warningMarkerColor(isHighlighted: self.isHighlighted)))
                 case .workdayBoundary:
                     let markerRect = Self.workdayMarkerRect(
                         x: x,
-                        size: size,
+                        size: contentSize,
                         scale: scale,
                         appearance: self.workdayTickAppearance)
-                    context.fill(
+                        .offsetBy(dx: contentRect.minX, dy: contentRect.minY)
+                    content.fill(
                         Path(markerRect),
                         with: .color(Self.workdayMarkerColor(
                             isHighlighted: self.isHighlighted,
@@ -152,19 +186,42 @@ struct UsageProgressBar: View {
                     .green
                 }
 
-                let tipSize = CGSize(width: tipWidth, height: size.height)
+                let tipSize = CGSize(width: tipWidth, height: contentSize.height)
                 let stripes = Self.paceStripePaths(size: tipSize, scale: scale)
-                let shift = CGAffineTransform(translationX: tipOffset, y: 0)
+                let shift = CGAffineTransform(
+                    translationX: tipOffset + contentRect.minX,
+                    y: contentRect.minY)
 
                 // Punch out of the accumulated track+fill pixels.
-                context.blendMode = .destinationOut
-                context.fill(stripes.punched.applying(shift), with: .color(.white.opacity(Self.stripePunchOpacity)))
-                context.blendMode = .normal
+                content.blendMode = .destinationOut
+                content.fill(stripes.punched.applying(shift), with: .color(.white.opacity(Self.stripePunchOpacity)))
+                content.blendMode = .normal
 
-                context.fill(stripes.center.applying(shift), with: .color(stripeColor))
+                content.fill(stripes.center.applying(shift), with: .color(stripeColor))
+            }
+
+            if isBattery {
+                let shellColor = Self.batteryShellColor(isHighlighted: self.isHighlighted)
+                let bodyRadius = Self.batteryBodyRadius
+                context.stroke(
+                    Path { p in
+                        p.addRoundedRect(
+                            in: Self.batteryBodyRect(size: size),
+                            cornerSize: CGSize(width: bodyRadius, height: bodyRadius))
+                    },
+                    with: .color(shellColor),
+                    lineWidth: 1)
+                let nubRadius = Self.batteryNubRadius
+                context.fill(
+                    Path { p in
+                        p.addRoundedRect(
+                            in: Self.batteryNubRect(size: size),
+                            cornerSize: CGSize(width: nubRadius, height: nubRadius))
+                    },
+                    with: .color(shellColor))
             }
         }
-        .frame(height: 6)
+        .frame(height: Self.barHeight(for: self.usageBarStyle))
         .accessibilityLabel(self.accessibilityLabel)
         .accessibilityValue(self.markerAccessibilityValue)
     }
@@ -222,6 +279,112 @@ struct UsageProgressBar: View {
         if displayPercent <= 0 { return 0 }
         if displayPercent >= 100 { return 100 }
         return clamped
+    }
+
+    // MARK: - Battery style
+
+    enum BatteryLevel {
+        case ample
+        case tight
+        case critical
+    }
+
+    private nonisolated static var batteryNubWidth: CGFloat {
+        2.5
+    }
+
+    private nonisolated static var batteryNubGap: CGFloat {
+        1
+    }
+
+    private nonisolated static var batteryInnerInset: CGFloat {
+        2
+    }
+
+    private nonisolated static var batteryBodyRadius: CGFloat {
+        3
+    }
+
+    private nonisolated static var batteryInnerRadius: CGFloat {
+        1.5
+    }
+
+    private nonisolated static var batteryNubRadius: CGFloat {
+        1
+    }
+
+    nonisolated static func batteryShellColor(isHighlighted: Bool) -> Color {
+        isHighlighted
+            ? MenuHighlightStyle.selectionText.opacity(0.55)
+            : .primary.opacity(0.34)
+    }
+
+    nonisolated static func batteryTrackColor(isHighlighted: Bool) -> Color {
+        isHighlighted
+            ? MenuHighlightStyle.selectionText.opacity(0.18)
+            : .primary.opacity(0.07)
+    }
+
+    nonisolated static func barHeight(for style: UsageBarStyle) -> CGFloat {
+        switch style {
+        case .capsule: 6
+        case .battery: 10
+        }
+    }
+
+    private nonisolated static func batteryBodyWidth(size: CGSize) -> CGFloat {
+        size.width - self.batteryNubWidth - self.batteryNubGap
+    }
+
+    /// Inset by half the shell line width so the 1pt stroke stays inside the canvas bounds.
+    nonisolated static func batteryBodyRect(size: CGSize) -> CGRect {
+        CGRect(
+            x: 0.5,
+            y: 0.5,
+            width: max(0, self.batteryBodyWidth(size: size) - 1),
+            height: max(0, size.height - 1))
+    }
+
+    nonisolated static func batteryInnerRect(size: CGSize) -> CGRect {
+        let inset = Self.batteryInnerInset
+        return CGRect(
+            x: inset,
+            y: inset,
+            width: max(0, Self.batteryBodyWidth(size: size) - inset * 2),
+            height: max(0, size.height - inset * 2))
+    }
+
+    nonisolated static func batteryNubRect(size: CGSize) -> CGRect {
+        let height = size.height * 0.4
+        return CGRect(
+            x: Self.batteryBodyWidth(size: size) + Self.batteryNubGap,
+            y: (size.height - height) / 2,
+            width: Self.batteryNubWidth,
+            height: height)
+    }
+
+    nonisolated static func batteryFillWidth(percent: Double, size: CGSize) -> CGFloat {
+        self.batteryInnerRect(size: size).width * self.renderedFillPercent(percent) / 100
+    }
+
+    nonisolated static func batteryRemainingPercent(percent: Double, showsUsed: Bool) -> Double {
+        let clamped = Self.clampedPercent(percent)
+        return showsUsed ? 100 - clamped : clamped
+    }
+
+    nonisolated static func batteryLevel(remainingPercent: Double) -> BatteryLevel {
+        let remaining = Self.clampedPercent(remainingPercent)
+        if remaining >= 50 { return .ample }
+        if remaining >= 20 { return .tight }
+        return .critical
+    }
+
+    nonisolated static func batterySeverityColor(remainingPercent: Double) -> Color {
+        switch self.batteryLevel(remainingPercent: remainingPercent) {
+        case .ample: Color(nsColor: .systemGreen)
+        case .tight: Color(nsColor: .systemYellow)
+        case .critical: Color(nsColor: .systemRed)
+        }
     }
 
     private static func paceStripePaths(size: CGSize, scale: CGFloat) -> (punched: Path, center: Path) {

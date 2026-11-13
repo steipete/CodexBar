@@ -47,6 +47,34 @@ struct PreferencesDocumentTests {
         }
     }
 
+    @Test
+    func `usage bar style survives app and CLI preference transfer`() throws {
+        let defaults = InMemoryUserDefaults()
+        let source = self.store("usage-bar-style", defaults: defaults)
+        source.usageBarStyle = .battery
+        let appDocument = try PreferencesDocument(data: source.exportPreferences().encoded())
+        let cliDocument = try PreferencesDocument(defaults: defaults)
+        for document in [appDocument, cliDocument] {
+            let target = self.store("usage-bar-style-target")
+            try target.importPreferences(document)
+            #expect(target.usageBarStyle == .battery)
+        }
+    }
+
+    @Test
+    func `menu bar usage bar style survives app and CLI preference transfer`() throws {
+        let defaults = InMemoryUserDefaults()
+        let source = self.store("menu-bar-usage-bar-style", defaults: defaults)
+        source.menuBarUsageBarStyle = .battery
+        let appDocument = try PreferencesDocument(data: source.exportPreferences().encoded())
+        let cliDocument = try PreferencesDocument(defaults: defaults)
+        for document in [appDocument, cliDocument] {
+            let target = self.store("menu-bar-usage-bar-style-target")
+            try target.importPreferences(document)
+            #expect(target.menuBarUsageBarStyle == .battery)
+        }
+    }
+
     @Test(arguments: [false, true])
     func `legacy icon preference import replaces a newer source`(highestUsage: Bool) throws {
         let settings = self.store("legacy-icon-source")
@@ -123,6 +151,8 @@ struct PreferencesDocumentTests {
         #"{"version":1,"preferences":{"weeklyProgressWorkDays":9}}"#,
         #"{"version":1,"preferences":{"refreshFrequency":"tomorrow"}}"#,
         #"{"version":1,"preferences":{"unifiedIconSource":"unknown"}}"#,
+        #"{"version":1,"preferences":{"usageBarStyle":"neon"}}"#,
+        #"{"version":1,"preferences":{"menuBarUsageBarStyle":"neon"}}"#,
         #"{"version":1,"preferences":{"switcherShortcuts":{"next":"left"}}}"#,
     ])
     func `invalid documents reject before any setters`(_ json: String) throws {

@@ -657,6 +657,12 @@
 "workday_tick_appearance_hidden" = "非表示";
 "workday_tick_appearance_subtle" = "控えめ";
 "workday_tick_appearance_high_contrast" = "高コントラスト";
+"usage_bar_style_title" = "使用量バーのスタイル";
+"usage_bar_style_subtitle" = "メニューでの使用量バーの表示スタイルを選択します。";
+"menu_bar_usage_bar_style_title" = "メニューバーの使用量バーのスタイル";
+"menu_bar_usage_bar_style_subtitle" = "メニューバーでの使用量バーの表示スタイルを選択します。";
+"usage_bar_style_capsule" = "カプセル";
+"usage_bar_style_battery" = "バッテリー";
 "show_provider_changelog_links_title" = "プロバイダの変更履歴リンクを表示";
 "highlight_menu_cards_on_hover_title" = "ホバー時にメニューカードをハイライト";
 "show_provider_changelog_links_subtitle" = "対応する CLI ベースのプロバイダのリリースノートへのリンクをメニューに追加します。";

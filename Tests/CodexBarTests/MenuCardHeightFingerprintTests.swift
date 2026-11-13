@@ -16,6 +16,14 @@ struct MenuCardHeightFingerprintTests {
     }
 
     @Test
+    func `height fingerprint tracks the usage bar style because it changes bar height`() {
+        let capsule = Self.model(usageBarStyle: .capsule).heightFingerprint(section: "card")
+        let battery = Self.model(usageBarStyle: .battery).heightFingerprint(section: "card")
+
+        #expect(capsule != battery)
+    }
+
+    @Test
     func `height fingerprint field distinguishes nil from empty string`() {
         let nilField = UsageMenuCardView.Model.heightFingerprintField("storage", nil)
         let emptyField = UsageMenuCardView.Model.heightFingerprintField("storage", "")
@@ -102,7 +110,8 @@ struct MenuCardHeightFingerprintTests {
         statusText: String? = "Secret status",
         resetText: String? = nil,
         detailLeftText: String? = nil,
-        sessionEquivalentDetail: UsagePaceText.SessionEquivalentDetail? = nil) -> UsageMenuCardView.Model
+        sessionEquivalentDetail: UsagePaceText.SessionEquivalentDetail? = nil,
+        usageBarStyle: UsageBarStyle = .capsule) -> UsageMenuCardView.Model
     {
         UsageMenuCardView.Model(
             provider: .codex,
@@ -139,6 +148,7 @@ struct MenuCardHeightFingerprintTests {
             providerCost: nil,
             tokenUsage: nil,
             placeholder: nil,
-            progressColor: .blue)
+            progressColor: .blue,
+            usageBarStyle: usageBarStyle)
     }
 }

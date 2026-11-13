@@ -5,6 +5,7 @@ import SwiftUI
 struct ProviderCostContent: View {
     let section: UsageMenuCardView.Model.ProviderCostSection
     let progressColor: Color
+    var usageBarStyle: UsageBarStyle = .capsule
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
     var body: some View {
@@ -39,7 +40,9 @@ struct ProviderCostContent: View {
                     UsageProgressBar(
                         percent: percent,
                         tint: self.progressColor,
-                        accessibilityLabel: self.section.progressAccessibilityLabel)
+                        accessibilityLabel: self.section.progressAccessibilityLabel,
+                        usageBarStyle: self.usageBarStyle,
+                        showsUsed: self.section.percentStyle == .used)
                 }
                 HStack(alignment: .firstTextBaseline) {
                     Text(self.section.spendLine).monospacedDigit().font(.footnote).lineLimit(1)

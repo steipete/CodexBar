@@ -660,6 +660,12 @@
 "workday_tick_appearance_hidden" = "Masqués";
 "workday_tick_appearance_subtle" = "Discrets";
 "workday_tick_appearance_high_contrast" = "Contraste élevé";
+"usage_bar_style_title" = "Style des barres d’utilisation";
+"usage_bar_style_subtitle" = "Choisissez l’affichage des barres d’utilisation dans le menu.";
+"menu_bar_usage_bar_style_title" = "Style des barres d’utilisation de la barre de menus";
+"menu_bar_usage_bar_style_subtitle" = "Choisissez l’affichage des barres d’utilisation dans la barre de menu.";
+"usage_bar_style_capsule" = "Capsule";
+"usage_bar_style_battery" = "Batterie";
 "show_provider_changelog_links_title" = "Afficher les liens du journal des modifications du fournisseur";
 "highlight_menu_cards_on_hover_title" = "Mettre les cartes du menu en surbrillance au survol";
 "show_provider_changelog_links_subtitle" = "Ajoute au menu des liens de notes de version pour les fournisseurs pris en charge par CLI.";

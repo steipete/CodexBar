@@ -53,6 +53,18 @@ struct MenuPane: View {
                     .disabled(self.settings.weeklyProgressWorkDays == nil)
 
                 SettingsMenuPicker(
+                    selection: self.$settings.usageBarStyle,
+                    options: MenuSettingsMenuOptions.usageBarStyles,
+                    label: {
+                        SettingsRowLabel(
+                            L("usage_bar_style_title"),
+                            subtitle: L("usage_bar_style_subtitle"))
+                    },
+                    optionLabel: { style in
+                        Text(style.label)
+                    })
+
+                SettingsMenuPicker(
                     selection: self.$settings.resetTimesOption,
                     options: MenuSettingsMenuOptions.resetTimes,
                     label: { Text(L("reset_times_title")) },

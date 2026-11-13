@@ -170,6 +170,22 @@ enum WorkdayTickAppearance: String, CaseIterable, Identifiable {
     }
 }
 
+enum UsageBarStyle: String, CaseIterable, Identifiable {
+    case capsule
+    case battery
+
+    var id: String {
+        self.rawValue
+    }
+
+    var label: String {
+        switch self {
+        case .capsule: L("usage_bar_style_capsule")
+        case .battery: L("usage_bar_style_battery")
+        }
+    }
+}
+
 enum CostSummaryDisplayStyle: String, CaseIterable, Identifiable {
     case inlineSummary
     case costSubmenu
@@ -618,6 +634,9 @@ extension SettingsStore {
             weeklyProgressWorkDays: userDefaults.object(forKey: "weeklyProgressWorkDays") as? Int,
             workdayTickAppearanceRaw: userDefaults.string(forKey: "workdayTickAppearance")
                 ?? WorkdayTickAppearance.subtle.rawValue,
+            usageBarStyleRaw: userDefaults.string(forKey: "usageBarStyle") ?? UsageBarStyle.capsule.rawValue,
+            menuBarUsageBarStyleRaw: userDefaults.string(forKey: "menuBarUsageBarStyle")
+                ?? UsageBarStyle.capsule.rawValue,
             usageBarsShowUsed: userDefaults.object(forKey: "usageBarsShowUsed") as? Bool ?? false,
             resetTimesShowAbsolute: userDefaults.object(forKey: "resetTimesShowAbsolute") as? Bool ?? false,
             providerChangelogLinksEnabled: userDefaults.object(

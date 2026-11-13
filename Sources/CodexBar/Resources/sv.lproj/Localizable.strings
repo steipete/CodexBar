@@ -659,6 +659,12 @@
 "workday_tick_appearance_hidden" = "Dolda";
 "workday_tick_appearance_subtle" = "Diskreta";
 "workday_tick_appearance_high_contrast" = "Hög kontrast";
+"usage_bar_style_title" = "Stil för användningsstaplar";
+"usage_bar_style_subtitle" = "Välj hur användningsstaplar visas i menyn.";
+"menu_bar_usage_bar_style_title" = "Stil för användningsstaplar i menyraden";
+"menu_bar_usage_bar_style_subtitle" = "Välj hur användningsstaplar visas i menyraden.";
+"usage_bar_style_capsule" = "Kapsel";
+"usage_bar_style_battery" = "Batteri";
 "show_provider_changelog_links_title" = "Visa länkar till leverantörers ändringsloggar";
 "highlight_menu_cards_on_hover_title" = "Markera menykort vid hovring";
 "show_provider_changelog_links_subtitle" = "Lägger till länkar till utgåvekommentarer för stödda CLI-baserade leverantörer i menyn.";

@@ -43,6 +43,8 @@ public struct PreferencesDocument: Codable, Sendable {
         ],
         "costSummaryDisplayStyle": ["inlineSummary", "costSubmenu", "both"],
         "workdayTickAppearance": ["hidden", "subtle", "highContrast"],
+        "usageBarStyle": ["capsule", "battery"],
+        "menuBarUsageBarStyle": ["capsule", "battery"],
         "mergedOverviewLayout": ["detailed", "compact"],
         "unifiedIconSource": ["currentSelection", "highestUsage", "frontmostApp"],
     ]
@@ -113,7 +115,8 @@ public struct PreferencesDocument: Codable, Sendable {
             [String: ProviderConfigExtensionValue].self, from: JSONEncoder().encode(current))
         // Optional fields omitted by the encoder still belong to the sync projection.
         let keys = Set(values.keys).union([
-            "weeklyProgressWorkDays", "paceVisible", "workdayTickAppearance", "unifiedIconSource",
+            "weeklyProgressWorkDays", "paceVisible", "workdayTickAppearance", "unifiedIconSource", "usageBarStyle",
+            "menuBarUsageBarStyle",
         ])
         values.merge(self.importingPreferences.filter { keys.contains($0.key) }) { _, new in new }
         return try JSONDecoder().decode(SyncedPreferences.self, from: JSONEncoder().encode(values))

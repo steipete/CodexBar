@@ -649,6 +649,12 @@
 "workday_tick_appearance_hidden" = "Hidden";
 "workday_tick_appearance_subtle" = "Subtle";
 "workday_tick_appearance_high_contrast" = "High contrast";
+"usage_bar_style_title" = "Usage bar style";
+"usage_bar_style_subtitle" = "Choose how usage bars render in the menu.";
+"menu_bar_usage_bar_style_title" = "Menu bar usage bar style";
+"menu_bar_usage_bar_style_subtitle" = "Choose how usage bars render in the menu bar.";
+"usage_bar_style_capsule" = "Capsule";
+"usage_bar_style_battery" = "Battery";
 "show_provider_changelog_links_title" = "Show provider changelog links";
 "highlight_menu_cards_on_hover_title" = "Highlight menu cards on hover";
 "show_provider_changelog_links_subtitle" = "Adds release-notes links for supported CLI-backed providers to the menu.";

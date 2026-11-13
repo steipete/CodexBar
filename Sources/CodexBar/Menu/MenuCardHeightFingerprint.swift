@@ -36,6 +36,7 @@ extension UsageMenuCardView.Model {
             "providerCost=\(self.providerCost?.heightFingerprint ?? "")",
             "tokenUsage=\(self.tokenUsage?.heightFingerprint ?? "")",
             "openaiAPI=\(self.openAIAPIUsage == nil ? "0" : "1")",
+            "usageBarStyle=\(self.usageBarStyle.rawValue)",
         ] + additional)
     }
 

@@ -104,6 +104,7 @@ struct PreferencesPaneSmokeTests {
         #expect(MenuSettingsMenuOptions.weeklyProgressWorkDaysLabel(nil) == L("Automatic"))
         #expect(MenuSettingsMenuOptions.weeklyProgressWorkDaysLabel(6) == L("%d days", 6))
         #expect(MenuSettingsMenuOptions.workdayTickAppearances == WorkdayTickAppearance.allCases)
+        #expect(MenuSettingsMenuOptions.usageBarStyles == UsageBarStyle.allCases)
         #expect(MenuSettingsMenuOptions.multiAccountLayouts == MultiAccountMenuLayout.allCases)
         #expect(MenuSettingsMenuOptions.usageBarsFill == UsageBarsFillOption.allCases)
         #expect(MenuSettingsMenuOptions.resetTimes == ResetTimesOption.allCases)
@@ -115,6 +116,7 @@ struct PreferencesPaneSmokeTests {
         settings.menuBarDisplayMode = .resetTime
         settings.weeklyProgressWorkDays = 7
         settings.workdayTickAppearance = .highContrast
+        settings.usageBarStyle = .battery
         settings.multiAccountMenuLayout = .stacked
         settings.costSummaryDisplayStyle = .costSubmenu
 
@@ -122,6 +124,7 @@ struct PreferencesPaneSmokeTests {
         #expect(reloaded.menuBarDisplayMode == .resetTime)
         #expect(reloaded.weeklyProgressWorkDays == 7)
         #expect(reloaded.workdayTickAppearance == .highContrast)
+        #expect(reloaded.usageBarStyle == .battery)
         #expect(reloaded.multiAccountMenuLayout == .stacked)
         #expect(reloaded.costSummaryDisplayStyle == .costSubmenu)
 

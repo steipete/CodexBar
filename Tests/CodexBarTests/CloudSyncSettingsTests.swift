@@ -37,6 +37,7 @@ struct CloudSyncSettingsTests {
         remote.preferredCurrencyCode = "EUR"
         remote.refreshFrequency = RefreshFrequency.thirtyMinutes.rawValue
         remote.workdayTickAppearance = WorkdayTickAppearance.highContrast.rawValue
+        remote.usageBarStyle = UsageBarStyle.battery.rawValue
 
         store.applySyncedPreferences(remote)
 
@@ -46,8 +47,82 @@ struct CloudSyncSettingsTests {
         #expect(store.preferredCurrencyCode == "EUR")
         #expect(store.refreshFrequency == .thirtyMinutes)
         #expect(store.workdayTickAppearance == .highContrast)
+        #expect(store.usageBarStyle == .battery)
         #expect(store.debugMenuEnabled)
         #expect(store.iCloudSyncEnabled)
+    }
+
+    @Test
+    func `legacy synced preferences without usage bar style decode compatibly`() throws {
+        let fixture = try self.makeFixture("legacy-usage-bar-style")
+        let payload = PreferencesSyncPayload(preferences: fixture.store.syncedPreferences)
+        let encoded = try CanonicalSyncJSON.encode(payload)
+        var object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        var preferences = try #require(object["preferences"] as? [String: Any])
+        preferences.removeValue(forKey: "usageBarStyle")
+        object["preferences"] = preferences
+        let legacyData = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try CanonicalSyncJSON.decode(PreferencesSyncPayload.self, from: legacyData)
+
+        #expect(decoded.preferences.usageBarStyle == nil)
+    }
+
+    @Test
+    func `synced usage bar style ignores an unknown raw value`() throws {
+        let fixture = try self.makeFixture("invalid-usage-bar-style")
+        let store = fixture.store
+        store.usageBarStyle = .battery
+        var remote = store.syncedPreferences
+        remote.usageBarStyle = "not-a-style"
+
+        store.applySyncedPreferences(remote)
+
+        #expect(store.usageBarStyle == .battery)
+    }
+
+    @Test
+    func `synced menu bar usage bar style applies independently of the card style`() throws {
+        let fixture = try self.makeFixture("menu-bar-style-independent")
+        let store = fixture.store
+        store.usageBarStyle = .capsule
+        store.menuBarUsageBarStyle = .capsule
+        var remote = store.syncedPreferences
+        remote.menuBarUsageBarStyle = UsageBarStyle.battery.rawValue
+
+        store.applySyncedPreferences(remote)
+
+        #expect(store.menuBarUsageBarStyle == .battery)
+        #expect(store.usageBarStyle == .capsule)
+    }
+
+    @Test
+    func `legacy synced preferences without menu bar usage bar style decode compatibly`() throws {
+        let fixture = try self.makeFixture("legacy-menu-bar-usage-bar-style")
+        let payload = PreferencesSyncPayload(preferences: fixture.store.syncedPreferences)
+        let encoded = try CanonicalSyncJSON.encode(payload)
+        var object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        var preferences = try #require(object["preferences"] as? [String: Any])
+        preferences.removeValue(forKey: "menuBarUsageBarStyle")
+        object["preferences"] = preferences
+        let legacyData = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try CanonicalSyncJSON.decode(PreferencesSyncPayload.self, from: legacyData)
+
+        #expect(decoded.preferences.menuBarUsageBarStyle == nil)
+    }
+
+    @Test
+    func `synced menu bar usage bar style ignores an unknown raw value`() throws {
+        let fixture = try self.makeFixture("invalid-menu-bar-usage-bar-style")
+        let store = fixture.store
+        store.menuBarUsageBarStyle = .battery
+        var remote = store.syncedPreferences
+        remote.menuBarUsageBarStyle = "not-a-style"
+
+        store.applySyncedPreferences(remote)
+
+        #expect(store.menuBarUsageBarStyle == .battery)
     }
 
     @Test

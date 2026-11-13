@@ -166,6 +166,9 @@ struct MenuBarLayoutRenderOptions: Hashable {
     /// produces a single line. Used to render one row of a multi-provider stacked status item, where
     /// each provider is rendered independently and the results are joined afterward.
     let forceStackedStyle: Bool
+    /// Opt-in meter shape for the graphical `progressBar` tokens. The character `usageBar` token
+    /// is text and stays unchanged.
+    let usageBarStyle: UsageBarStyle
 
     init(
         size: MenuBarLayoutSize,
@@ -182,7 +185,8 @@ struct MenuBarLayoutRenderOptions: Hashable {
         colorByProvider: Bool = false,
         forceStackedStyle: Bool = false,
         monospacedDigits: Bool = false,
-        showWindowLabels: Bool = true)
+        showWindowLabels: Bool = true,
+        usageBarStyle: UsageBarStyle = .capsule)
     {
         self.size = size
         self.monospacedDigits = monospacedDigits
@@ -199,6 +203,7 @@ struct MenuBarLayoutRenderOptions: Hashable {
         self.now = now
         self.verticalAdjustment = verticalAdjustment
         self.forceStackedStyle = forceStackedStyle
+        self.usageBarStyle = usageBarStyle
     }
 }
 
@@ -218,6 +223,7 @@ struct MenuBarLayoutRenderKey: Hashable {
     let isHighlighted: Bool
     let verticalAdjustment: Int
     let forceStackedStyle: Bool
+    let usageBarStyle: UsageBarStyle
     let providerAccentColor: String?
     let resetText: [MenuBarLayoutResetText]
     /// Truth value per conditional id. Predicates can read the clock (time to reset), so two renders
@@ -369,6 +375,7 @@ final class MenuBarLayoutRenderer {
             isHighlighted: options.isHighlighted,
             verticalAdjustment: options.verticalAdjustment,
             forceStackedStyle: options.forceStackedStyle,
+            usageBarStyle: options.usageBarStyle,
             providerAccentColor: accentColor,
             resetText: resetText,
             conditionalOutcomes: outcomes)
@@ -1451,11 +1458,14 @@ extension MenuBarLayoutRenderer {
         let percent = options.showUsed ? rateWindow.usedPercent : rateWindow.remainingPercent
         let clamped = percent.clamped(to: 0...100)
         let barSize = self.progressBarSize(size: options.size, font: style.font)
-        let image = self.progressBarImage(
+        let image = self.progressBarImage(MenuBarMeterSpec(
             fillPercent: clamped,
             size: barSize,
             tint: style.foregroundColor,
-            stale: options.isStale)
+            isStale: options.isStale,
+            style: options.usageBarStyle,
+            remainingPercent: rateWindow.remainingPercent,
+            highContrast: options.highContrast))
         let attachment = NSTextAttachment()
         attachment.image = image
         attachment.bounds = NSRect(
@@ -1513,7 +1523,18 @@ extension MenuBarLayoutRenderer {
         return NSSize(width: width, height: height)
     }
 
-    private static func progressBarImage(
+    static func progressBarImage(_ spec: MenuBarMeterSpec) -> NSImage {
+        guard spec.style == .battery else {
+            return self.capsuleProgressBarImage(
+                fillPercent: spec.fillPercent,
+                size: spec.size,
+                tint: spec.tint,
+                stale: spec.isStale)
+        }
+        return MenuBarBatteryMeter.image(spec)
+    }
+
+    private static func capsuleProgressBarImage(
         fillPercent: Double,
         size: NSSize,
         tint: NSColor,

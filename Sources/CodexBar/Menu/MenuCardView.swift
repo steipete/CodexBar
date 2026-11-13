@@ -206,6 +206,7 @@ struct UsageMenuCardView: View {
         /// The latest refresh failed, so the bars still show the previous measurement.
         var showsRetainedMeasurement = false
         let progressColor: Color
+        var usageBarStyle: UsageBarStyle = .capsule
     }
 
     let model: Model
@@ -262,7 +263,8 @@ struct UsageMenuCardView: View {
                     ProviderDetailSectionsContent(
                         sections: liveModel.providerDetails,
                         chartColor: liveModel.progressColor,
-                        paceVisible: liveModel.detailPaceVisible)
+                        paceVisible: liveModel.detailPaceVisible,
+                        usageBarStyle: liveModel.usageBarStyle)
                 }
             } else {
                 let hasUsage = liveModel.hasUsageContent
@@ -288,7 +290,8 @@ struct UsageMenuCardView: View {
                             scaleText: liveModel.creditsScaleText,
                             hintText: liveModel.creditsHintText,
                             hintCopyText: liveModel.creditsHintCopyText,
-                            progressColor: liveModel.progressColor)
+                            progressColor: liveModel.progressColor,
+                            usageBarStyle: liveModel.usageBarStyle)
                     }
                     if liveModel.creditsOnlyInlineUsageDashboard, let dashboard = liveModel.inlineUsageDashboard {
                         InlineUsageDashboardContent(model: dashboard)
@@ -299,7 +302,8 @@ struct UsageMenuCardView: View {
                     if let providerCost = liveModel.providerCost {
                         ProviderCostContent(
                             section: providerCost,
-                            progressColor: liveModel.progressColor)
+                            progressColor: liveModel.progressColor,
+                            usageBarStyle: liveModel.usageBarStyle)
                     }
                     if hasProviderCost, liveModel.tokenUsage != nil {
                         Divider()
@@ -655,6 +659,7 @@ private struct UsageMenuCardUsageContentView: View {
                 layoutMetric: self.layoutModel.metrics.first { $0.id == metric.id } ?? metric,
                 title: UsageMenuCardView.popupMetricTitle(provider: self.model.provider, metric: metric),
                 progressColor: self.model.progressColor,
+                usageBarStyle: self.model.usageBarStyle,
                 isRetainedMeasurement: self.model.showsRetainedMeasurement,
                 compact: self.compactMetrics)
         }
@@ -695,7 +700,10 @@ private struct UsageMenuCardUsageContentView: View {
                 if self.model.hasUsageContentAboveCloudCredits, self.showsSectionDividers {
                     Divider()
                 }
-                ProviderCostContent(section: cloudCredits, progressColor: self.model.progressColor)
+                ProviderCostContent(
+                    section: cloudCredits,
+                    progressColor: self.model.progressColor,
+                    usageBarStyle: self.model.usageBarStyle)
             }
             if self.showBottomDivider {
                 Divider()
@@ -735,7 +743,8 @@ private struct UsageMenuCardUsageContentView: View {
             ProviderDetailSectionsContent(
                 sections: self.model.providerDetails,
                 chartColor: self.model.progressColor,
-                paceVisible: self.model.detailPaceVisible)
+                paceVisible: self.model.detailPaceVisible,
+                usageBarStyle: self.model.usageBarStyle)
         }
     }
 }
@@ -789,7 +798,8 @@ struct UsageMenuCardCreditsSectionView: View {
                     scaleText: liveModel.creditsScaleText,
                     hintText: liveModel.creditsHintText,
                     hintCopyText: liveModel.creditsHintCopyText,
-                    progressColor: liveModel.progressColor)
+                    progressColor: liveModel.progressColor,
+                    usageBarStyle: liveModel.usageBarStyle)
                 if self.showBottomDivider {
                     Divider()
                 }
@@ -814,6 +824,7 @@ private struct CreditsBarContent: View {
     let hintText: String?
     let hintCopyText: String?
     let progressColor: Color
+    var usageBarStyle: UsageBarStyle = .capsule
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
     var body: some View {
@@ -825,7 +836,8 @@ private struct CreditsBarContent: View {
                 UsageProgressBar(
                     percent: min(100, max(0, progressPercent)),
                     tint: self.progressColor,
-                    accessibilityLabel: L("Credits remaining"))
+                    accessibilityLabel: L("Credits remaining"),
+                    usageBarStyle: self.usageBarStyle)
                 HStack(alignment: .firstTextBaseline) {
                     Text(self.creditsText).monospacedDigit()
                         .font(.caption)
@@ -868,7 +880,8 @@ struct UsageMenuCardExtraUsageSectionView: View {
             if let providerCost = liveModel.providerCost {
                 ProviderCostContent(
                     section: providerCost,
-                    progressColor: liveModel.progressColor)
+                    progressColor: liveModel.progressColor,
+                    usageBarStyle: liveModel.usageBarStyle)
                     .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
                     .padding(.top, self.topPadding)
                     .padding(.bottom, self.bottomPadding)
@@ -1020,7 +1033,8 @@ extension UsageMenuCardView.Model {
             placeholder: placeholder,
             showsRetainedMeasurement: showsRetainedMeasurement,
             // Quota rows apply retained-measurement tint independently of supplemental costs and charts.
-            progressColor: Self.progressColor(for: input.provider))
+            progressColor: Self.progressColor(for: input.provider),
+            usageBarStyle: input.usageBarStyle)
     }
 
     private static func resolvedProviderCost(input: Input) -> ProviderCostSnapshot? {

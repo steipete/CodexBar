@@ -296,6 +296,16 @@ extension SettingsStore {
         set { self.setDefault(\.workdayTickAppearanceRaw, newValue.rawValue, key: "workdayTickAppearance") }
     }
 
+    var usageBarStyle: UsageBarStyle {
+        get { UsageBarStyle(rawValue: self.defaultsState.usageBarStyleRaw) ?? .capsule }
+        set { self.setDefault(\.usageBarStyleRaw, newValue.rawValue, key: "usageBarStyle") }
+    }
+
+    var menuBarUsageBarStyle: UsageBarStyle {
+        get { UsageBarStyle(rawValue: self.defaultsState.menuBarUsageBarStyleRaw) ?? .capsule }
+        set { self.setDefault(\.menuBarUsageBarStyleRaw, newValue.rawValue, key: "menuBarUsageBarStyle") }
+    }
+
     var usageBarsShowUsed: Bool {
         get { self.defaultsState.usageBarsShowUsed }
         set { self.setDefault(\.usageBarsShowUsed, newValue, key: "usageBarsShowUsed") }

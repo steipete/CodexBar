@@ -32,6 +32,8 @@ struct SettingsDefaultsState {
     var paceVisible: Bool
     var weeklyProgressWorkDays: Int?
     var workdayTickAppearanceRaw: String
+    var usageBarStyleRaw: String
+    var menuBarUsageBarStyleRaw: String
     var usageBarsShowUsed: Bool
     var resetTimesShowAbsolute: Bool
     var providerChangelogLinksEnabled: Bool

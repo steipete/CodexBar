@@ -660,6 +660,12 @@
 "workday_tick_appearance_hidden" = "Приховані";
 "workday_tick_appearance_subtle" = "Ненав’язливі";
 "workday_tick_appearance_high_contrast" = "Високий контраст";
+"usage_bar_style_title" = "Стиль смуг використання";
+"usage_bar_style_subtitle" = "Виберіть, як відображати смуги використання в меню.";
+"menu_bar_usage_bar_style_title" = "Стиль смуг використання на панелі меню";
+"menu_bar_usage_bar_style_subtitle" = "Виберіть, як відображати смуги використання на панелі меню.";
+"usage_bar_style_capsule" = "Капсула";
+"usage_bar_style_battery" = "Батарея";
 "show_provider_changelog_links_title" = "Показувати посилання на історію змін постачальника";
 "highlight_menu_cards_on_hover_title" = "Підсвічувати картки меню при наведенні";
 "show_provider_changelog_links_subtitle" = "Додає в меню посилання на нотатки до випусків для постачальників, що підтримують CLI.";

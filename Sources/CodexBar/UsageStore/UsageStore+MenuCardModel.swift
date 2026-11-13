@@ -178,6 +178,7 @@ extension UsageStore {
             workDaysPerWeek: self.settings.weeklyProgressWorkDays,
             workdayTickAppearance: self.settings.workdayTickAppearance,
             paceVisible: self.settings.paceVisible,
+            usageBarStyle: self.settings.usageBarStyle,
             usesLiveSubtitle: !isSettings && isLive,
             preferredCurrencyCode: isSettings ? "auto" : self.settings.preferredCurrencyCode,
             costUsageBucketCalendar: self.settings.costUsageBucketCalendar,

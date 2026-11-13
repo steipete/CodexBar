@@ -643,6 +643,12 @@
 "workday_tick_appearance_hidden" = "Ocultes";
 "workday_tick_appearance_subtle" = "Subtils";
 "workday_tick_appearance_high_contrast" = "Alt contrast";
+"usage_bar_style_title" = "Estil de les barres d'ús";
+"usage_bar_style_subtitle" = "Trieu com es mostren les barres d’ús al menú.";
+"menu_bar_usage_bar_style_title" = "Estil de les barres d’ús de la barra de menús";
+"menu_bar_usage_bar_style_subtitle" = "Trieu com es mostren les barres d’ús a la barra de menús.";
+"usage_bar_style_capsule" = "Càpsula";
+"usage_bar_style_battery" = "Bateria";
 "show_provider_changelog_links_title" = "Mostreu els enllaços al registre de canvis del proveïdor";
 "highlight_menu_cards_on_hover_title" = "Ressalta les targetes del menú en passar-hi el cursor";
 "show_provider_changelog_links_subtitle" = "Afegiu al menú enllaços a les notes de versió dels proveïdors compatibles basats en CLI.";

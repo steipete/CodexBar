@@ -321,4 +321,34 @@ struct UserFacingLocalizationCoverageTests {
                 == "2 hours of usage data across 2 services")
         }
     }
+
+    @Test
+    func `localized catalogs include usage bar style setting copy`() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/CodexBar/Resources")
+        let catalogs = try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "lproj" }
+        #expect(catalogs.count == 23)
+
+        let styleKeys = [
+            "usage_bar_style_title",
+            "usage_bar_style_subtitle",
+            "usage_bar_style_capsule",
+            "usage_bar_style_battery",
+            "menu_bar_usage_bar_style_title",
+            "menu_bar_usage_bar_style_subtitle",
+        ]
+
+        for catalogURL in catalogs {
+            let stringsURL = catalogURL.appendingPathComponent("Localizable.strings")
+            let catalog = try #require(NSDictionary(contentsOf: stringsURL) as? [String: String])
+            for key in styleKeys {
+                let value = catalog[key]?.trimmingCharacters(in: .whitespacesAndNewlines)
+                #expect(value?.isEmpty == false, "Missing \(key) in \(catalogURL.lastPathComponent)")
+            }
+        }
+    }
 }

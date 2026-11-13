@@ -666,6 +666,12 @@
 "workday_tick_appearance_hidden" = "ซ่อน";
 "workday_tick_appearance_subtle" = "ละเอียดอ่อน";
 "workday_tick_appearance_high_contrast" = "คอนทราสต์สูง";
+"usage_bar_style_title" = "รูปแบบแถบการใช้งาน";
+"usage_bar_style_subtitle" = "เลือกวิธีแสดงแถบการใช้งานในเมนู";
+"menu_bar_usage_bar_style_title" = "รูปแบบแถบการใช้งานบนแถบเมนู";
+"menu_bar_usage_bar_style_subtitle" = "เลือกวิธีแสดงแถบการใช้งานบนแถบเมนู";
+"usage_bar_style_capsule" = "แคปซูล";
+"usage_bar_style_battery" = "แบตเตอรี่";
 "show_provider_changelog_links_title" = "แสดงลิงก์บันทึกการเปลี่ยนแปลงของผู้ให้บริการ";
 "highlight_menu_cards_on_hover_title" = "ไฮไลต์การ์ดเมนูเมื่อวางเมาส์เหนือ";
 "show_provider_changelog_links_subtitle" = "เพิ่มลิงก์บันทึกประจํารุ่นสําหรับผู้ให้บริการที่ได้รับการสนับสนุน CLI ในเมนู";

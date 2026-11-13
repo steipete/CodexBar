@@ -28,6 +28,8 @@ extension SettingsStore {
         _ = self.paceVisible
         _ = self.weeklyProgressWorkDays
         _ = self.workdayTickAppearance
+        _ = self.usageBarStyle
+        _ = self.menuBarUsageBarStyle
         _ = self.usageBarsShowUsed
         _ = self.resetTimesShowAbsolute
         _ = self.providerChangelogLinksEnabled

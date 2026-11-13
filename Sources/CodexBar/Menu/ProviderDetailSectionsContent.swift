@@ -5,6 +5,7 @@ struct ProviderDetailSectionsContent: View {
     let sections: [ProviderDetailSection]
     let chartColor: Color
     var paceVisible: Bool = true
+    var usageBarStyle: UsageBarStyle = .capsule
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
     var body: some View {
@@ -76,7 +77,9 @@ struct ProviderDetailSectionsContent: View {
                             tint: Self.progressColor(row.severity, fallback: self.chartColor),
                             accessibilityLabel: row.label,
                             pacePercent: self.paceVisible ? progress.expectedUsedPercent : nil,
-                            paceOnTop: progress.usedPercent <= progress.expectedUsedPercent ?? .infinity)
+                            paceOnTop: progress.usedPercent <= progress.expectedUsedPercent ?? .infinity,
+                            usageBarStyle: self.usageBarStyle,
+                            showsUsed: true)
                     }
                 }
             }

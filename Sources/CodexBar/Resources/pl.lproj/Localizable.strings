@@ -668,6 +668,12 @@
 "workday_tick_appearance_hidden" = "Ukryte";
 "workday_tick_appearance_subtle" = "Subtelne";
 "workday_tick_appearance_high_contrast" = "Wysoki kontrast";
+"usage_bar_style_title" = "Styl pasków użycia";
+"usage_bar_style_subtitle" = "Wybierz sposób wyświetlania pasków użycia w menu.";
+"menu_bar_usage_bar_style_title" = "Styl pasków użycia na pasku menu";
+"menu_bar_usage_bar_style_subtitle" = "Wybierz sposób wyświetlania pasków użycia na pasku menu.";
+"usage_bar_style_capsule" = "Kapsuła";
+"usage_bar_style_battery" = "Bateria";
 "show_provider_changelog_links_title" = "Pokaż linki do changelogów dostawców";
 "highlight_menu_cards_on_hover_title" = "Podświetlaj karty menu po najechaniu kursorem";
 "show_provider_changelog_links_subtitle" = "Dodaje linki do informacji o wydaniach dla obsługiwanych dostawców CLI w menu.";

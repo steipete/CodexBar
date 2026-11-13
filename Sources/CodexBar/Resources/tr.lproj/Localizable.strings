@@ -666,6 +666,12 @@
 "workday_tick_appearance_hidden" = "Gizli";
 "workday_tick_appearance_subtle" = "Hafif";
 "workday_tick_appearance_high_contrast" = "Yüksek kontrast";
+"usage_bar_style_title" = "Kullanım çubuğu stili";
+"usage_bar_style_subtitle" = "Kullanım çubuklarının menüde nasıl görüneceğini seçin.";
+"menu_bar_usage_bar_style_title" = "Menü çubuğu kullanım çubuğu stili";
+"menu_bar_usage_bar_style_subtitle" = "Kullanım çubuklarının menü çubuğunda nasıl görüneceğini seçin.";
+"usage_bar_style_capsule" = "Kapsül";
+"usage_bar_style_battery" = "Pil";
 "show_provider_changelog_links_title" = "Sağlayıcı değişiklik günlüğü bağlantılarını göster";
 "highlight_menu_cards_on_hover_title" = "Üzerine gelindiğinde menü kartlarını vurgula";
 "show_provider_changelog_links_subtitle" = "CLI kullanan desteklenen sağlayıcıların menüsüne sürüm notları bağlantıları ekler.";

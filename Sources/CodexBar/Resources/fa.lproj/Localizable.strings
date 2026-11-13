@@ -666,6 +666,12 @@
 "workday_tick_appearance_hidden" = "پنهان";
 "workday_tick_appearance_subtle" = "ملایم";
 "workday_tick_appearance_high_contrast" = "کنتراست بالا";
+"usage_bar_style_title" = "سبک نوار استفاده";
+"usage_bar_style_subtitle" = "نحوهٔ نمایش نوارهای استفاده در منو را انتخاب کنید.";
+"menu_bar_usage_bar_style_title" = "سبک نوار استفاده در نوار منو";
+"menu_bar_usage_bar_style_subtitle" = "نحوهٔ نمایش نوارهای استفاده در نوار منو را انتخاب کنید.";
+"usage_bar_style_capsule" = "کپسول";
+"usage_bar_style_battery" = "باتری";
 "show_provider_changelog_links_title" = "لینک های تغییرات ارائه دهنده را نمایش دهید";
 "highlight_menu_cards_on_hover_title" = "برجسته‌کردن کارت‌های منو هنگام قرارگیری نشانگر";
 "show_provider_changelog_links_subtitle" = "لینک های یادداشت های انتشار برای ارائه دهندگان پشتیبانی شده با پشتیبانی CLI به منو اضافه می شود.";

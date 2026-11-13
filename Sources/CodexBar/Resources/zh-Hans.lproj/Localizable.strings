@@ -1061,6 +1061,12 @@
 "workday_tick_appearance_hidden" = "隐藏";
 "workday_tick_appearance_subtle" = "柔和";
 "workday_tick_appearance_high_contrast" = "高对比度";
+"usage_bar_style_title" = "用量条样式";
+"usage_bar_style_subtitle" = "选择菜单中用量条的显示样式。";
+"menu_bar_usage_bar_style_title" = "菜单栏用量条样式";
+"menu_bar_usage_bar_style_subtitle" = "选择菜单栏中用量条的显示样式。";
+"usage_bar_style_capsule" = "胶囊";
+"usage_bar_style_battery" = "电池";
 "copilot_device_code" = "设备代码已复制到剪贴板：%1$@\n\n请在以下地址验证：%2$@";
 "copilot_waiting_text" = "请在浏览器中完成登录。\n登录完成后，此窗口会自动关闭。";
 "vertex_ai_login_instructions" = "要跟踪 Vertex AI 用量，请通过 Google Cloud 进行认证。\n\n1. 打开终端\n2. 运行：gcloud auth application-default login\n3. 按照浏览器提示登录\n4. 设置你的项目：gcloud config set project PROJECT_ID\n\n是否现在打开终端？";

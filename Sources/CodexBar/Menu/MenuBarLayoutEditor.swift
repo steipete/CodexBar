@@ -965,7 +965,8 @@ struct MenuBarLayoutPreview: View {
                 colorPace: self.settings.menuBarColorPace,
                 colorByProvider: self.settings.menuBarColorByProvider,
                 monospacedDigits: self.settings.menuBarLayoutMonospacedDigits,
-                showWindowLabels: self.settings.menuBarLayoutShowWindowLabels))
+                showWindowLabels: self.settings.menuBarLayoutShowWindowLabels,
+                usageBarStyle: self.settings.menuBarUsageBarStyle))
         MenuBarLayoutPreviewText(rendered: rendered)
     }
 

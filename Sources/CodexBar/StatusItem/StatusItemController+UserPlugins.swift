@@ -115,6 +115,7 @@ extension StatusItemController {
                 isRefreshing: self.store.refreshingProviders.contains(plugin.manifest.id),
                 showUsed: self.settings.usageBarsShowUsed,
                 paceVisible: self.settings.paceVisible,
+                usageBarStyle: self.settings.usageBarStyle,
                 resetStyle: self.settings.resetTimeDisplayStyle,
                 width: width,
                 onRefresh: { [weak self] in
@@ -252,6 +253,7 @@ struct UserPluginMenuCardView: View {
     let isRefreshing: Bool
     let showUsed: Bool
     var paceVisible: Bool = true
+    var usageBarStyle: UsageBarStyle = .capsule
     let resetStyle: ResetTimeDisplayStyle
     let width: CGFloat
     let onRefresh: () -> Void
@@ -309,7 +311,10 @@ struct UserPluginMenuCardView: View {
                 if !snapshot.details.isEmpty {
                     Divider()
                     ProviderDetailSectionsContent(
-                        sections: snapshot.details, chartColor: self.tint, paceVisible: self.paceVisible)
+                        sections: snapshot.details,
+                        chartColor: self.tint,
+                        paceVisible: self.paceVisible,
+                        usageBarStyle: self.usageBarStyle)
                 }
                 if let identity = snapshot.identity(for: self.plugin.manifest.id) {
                     self.identity(identity)
@@ -366,7 +371,9 @@ struct UserPluginMenuCardView: View {
                 UsageProgressBar(
                     percent: presentation.percent,
                     tint: self.tint,
-                    accessibilityLabel: presentation.title)
+                    accessibilityLabel: presentation.title,
+                    usageBarStyle: self.usageBarStyle,
+                    showsUsed: self.showUsed)
                 if let reset = presentation.resetText {
                     Text(reset).font(.caption2).foregroundStyle(.secondary)
                 }

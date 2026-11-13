@@ -661,6 +661,12 @@
 "workday_tick_appearance_hidden" = "Скрыты";
 "workday_tick_appearance_subtle" = "Ненавязчивые";
 "workday_tick_appearance_high_contrast" = "Высокий контраст";
+"usage_bar_style_title" = "Стиль индикаторов использования";
+"usage_bar_style_subtitle" = "Выберите, как отображать индикаторы использования в меню.";
+"menu_bar_usage_bar_style_title" = "Стиль индикаторов использования в строке меню";
+"menu_bar_usage_bar_style_subtitle" = "Выберите, как отображать индикаторы использования в строке меню.";
+"usage_bar_style_capsule" = "Капсула";
+"usage_bar_style_battery" = "Батарея";
 "show_provider_changelog_links_title" = "Показывать ссылки на журналы изменений провайдеров";
 "highlight_menu_cards_on_hover_title" = "Подсвечивать карточки меню при наведении";
 "show_provider_changelog_links_subtitle" = "Добавляет в меню ссылки на заметки к релизам для поддерживаемых CLI-провайдеров.";

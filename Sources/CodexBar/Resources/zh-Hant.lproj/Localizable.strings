@@ -659,6 +659,12 @@
 "workday_tick_appearance_hidden" = "隱藏";
 "workday_tick_appearance_subtle" = "柔和";
 "workday_tick_appearance_high_contrast" = "高對比度";
+"usage_bar_style_title" = "使用量條樣式";
+"usage_bar_style_subtitle" = "選擇選單中用量條的顯示樣式。";
+"menu_bar_usage_bar_style_title" = "選單列用量條樣式";
+"menu_bar_usage_bar_style_subtitle" = "選擇選單列中用量條的顯示樣式。";
+"usage_bar_style_capsule" = "膠囊";
+"usage_bar_style_battery" = "電池";
 "show_provider_changelog_links_title" = "顯示提供者版本資訊連結";
 "highlight_menu_cards_on_hover_title" = "滑鼠停留時反白選單卡片";
 "show_provider_changelog_links_subtitle" = "在選單中為支援的 CLI 提供者新增發行說明連結。";
