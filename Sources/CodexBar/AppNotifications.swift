@@ -87,10 +87,7 @@ final class AppNotifications: NSObject, UNUserNotificationCenterDelegate {
                 let delivered = try await Self.deliverIfCurrent(
                     authorize: { await self.ensureAuthorized() },
                     submit: { try await center.add(request) },
-                    remove: {
-                        center.removePendingNotificationRequests(withIdentifiers: [request.identifier])
-                        center.removeDeliveredNotifications(withIdentifiers: [request.identifier])
-                    },
+                    remove: { self.remove(identifier: request.identifier) },
                     isCurrent: isCurrent)
                 onCompletion?(delivered)
             } catch {
@@ -103,10 +100,28 @@ final class AppNotifications: NSObject, UNUserNotificationCenterDelegate {
 
     func remove(identifier: String) {
         guard !Self.isRunningUnderTests else { return }
-        let center = self.centerProvider()
-        center.removePendingNotificationRequests(withIdentifiers: [identifier])
-        center.removeDeliveredNotifications(withIdentifiers: [identifier])
+        let centerProvider = self.centerProvider
+        Self.scheduleRemoval(identifiers: [identifier]) { identifiers in
+            let center = centerProvider()
+            center.removePendingNotificationRequests(withIdentifiers: identifiers)
+            center.removeDeliveredNotifications(withIdentifiers: identifiers)
+        }
     }
+
+    /// `removePendingNotificationRequests` waits on a synchronous XPC reply from usernotificationsd.
+    /// When the daemon never answers, a main-actor caller freezes the menu bar app for good, so
+    /// removals run on a serial background queue that keeps them in order without blocking the UI.
+    nonisolated static func scheduleRemoval(
+        identifiers: [String],
+        queue: DispatchQueue = AppNotifications.removalQueue,
+        perform: @escaping @Sendable ([String]) -> Void)
+    {
+        queue.async { perform(identifiers) }
+    }
+
+    nonisolated static let removalQueue = DispatchQueue(
+        label: "com.steipete.codexbar.notifications.removal",
+        qos: .utility)
 
     @discardableResult
     static func deliverIfCurrent(
