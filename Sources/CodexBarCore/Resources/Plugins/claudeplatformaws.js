@@ -333,6 +333,24 @@ defineProvider({
 
     const cost = "/v1/organizations/analytics/cost";
     const usage = "/v1/organizations/analytics/usage";
+    const statusFailure = (region, response) => {
+      // The API's own message names the denied IAM action; response bodies are otherwise not echoed.
+      let reason = "";
+      try {
+        const error = JSON.parse(response.bodyText).error;
+        if (error && error.type === "permission_error" && typeof error.message === "string") {
+          reason = ` ${error.message.replace(/\s+/g, " ").slice(0, 200)}`;
+        }
+      } catch (error) {
+        void error;
+      }
+      const message = `Claude Platform on AWS (${region}) returned HTTP ${response.status}.${reason}`;
+      if (response.status === 401) return ctx.fail.authenticationExpired(message);
+      if (response.status === 403) return ctx.fail.permissionDenied(message);
+      if (response.status === 429) return ctx.fail.rateLimited(message);
+      if (response.status >= 500) return ctx.fail.providerUnavailable(message);
+      return ctx.fail.apiFailure(message);
+    };
     // A failed region fails the refresh: a partial sum would silently understate the month.
     const fetchTotal = async (region) => {
       if (!monthQueryable) return { rows: [], hasMore: false, nextPage: null, refreshedAt: null };
@@ -349,24 +367,7 @@ defineProvider({
         ],
         analyticsHeaders,
       );
-      if (response.status !== 200) {
-        // The API's own message names the denied IAM action; response bodies are otherwise not echoed.
-        let reason = "";
-        try {
-          const error = JSON.parse(response.bodyText).error;
-          if (error && error.type === "permission_error" && typeof error.message === "string") {
-            reason = ` ${error.message.replace(/\s+/g, " ").slice(0, 200)}`;
-          }
-        } catch (error) {
-          void error;
-        }
-        const message = `Claude Platform on AWS (${region}) returned HTTP ${response.status}.${reason}`;
-        if (response.status === 401) throw ctx.fail.authenticationExpired(message);
-        if (response.status === 403) throw ctx.fail.permissionDenied(message);
-        if (response.status === 429) throw ctx.fail.rateLimited(message);
-        if (response.status >= 500) throw ctx.fail.providerUnavailable(message);
-        throw ctx.fail.apiFailure(message);
-      }
+      if (response.status !== 200) throw statusFailure(region, response);
       const total = parseCost(response.bodyText);
       if (!total) {
         throw ctx.fail.parseFailure(`Claude Platform on AWS (${region}) returned an unrecognized cost response.`);
@@ -388,6 +389,7 @@ defineProvider({
         let cursor = null;
         for (let pages = 0; pages < 20; pages += 1) {
           let parsed = null;
+          let failure = null;
           try {
             const response = await get(
               region,
@@ -396,9 +398,12 @@ defineProvider({
               analyticsHeaders,
             );
             if (response.status === 200) parsed = parse(response.bodyText);
+            // With no month read to report a rejected key or a denied action, the series has to.
+            else if (!monthQueryable) failure = statusFailure(region, response);
           } catch (error) {
             rethrowCancellation(error);
           }
+          if (failure) throw failure;
           if (!parsed) return null;
           for (const row of parsed.rows) rows.push(row);
           if (!parsed.hasMore) return rows;
@@ -487,9 +492,9 @@ defineProvider({
     const quietCheckMillis = 3600000;
     const dueCheckMillis = 600000;
     const fetchRegion = async (region) => {
-      // Keyed by day so today and the month never outlive midnight, by key so accounts never mix, and by time
-      // zone because it decides how days are cut.
-      const cacheKey = `spend|${region}|${keyFingerprint}|${zone}|${todayLabel}`;
+      // Keyed by day so today and the month never outlive midnight, by key so accounts never mix, and by the
+      // zone days are cut in, which in local mode is whichever zone the Mac is in now.
+      const cacheKey = `spend|${region}|${keyFingerprint}|${local ? ctx.env.timeZone : zone}|${todayLabel}`;
       const cached = ctx.cache.get(cacheKey);
       if (cached) {
         const due = !(now - Date.parse(cached.watermark) < quietMillis);
@@ -553,8 +558,20 @@ defineProvider({
       for (let offset = 1; offset <= 7; offset += 1) recent.push(byDay[dayLabel(daysAgo(offset))] || 0);
       if (recent.filter((amount) => amount > 0).length >= 3) {
         const dailyAverage = recent.reduce((total, amount) => total + amount, 0) / recent.length;
-        const watermark = refreshed.length ? Date.parse(refreshed[0]) : now;
-        const from = Math.min(now, Math.max(monthStart, Number.isFinite(watermark) ? watermark : now));
+        // Each region's spend is counted up to its own watermark, so each is projected from there. The
+        // combined rate then starts at the rate-weighted mean of those points.
+        const firstRecent = dayLabel(daysAgo(7));
+        let weighted = 0;
+        for (const result of results) {
+          const spent = sum(
+            result.daily.filter((row) => row.day >= firstRecent && row.day < todayLabel && row.amount > 0),
+            "amount",
+          );
+          const watermark = Date.parse(result.total.refreshedAt);
+          const start = Math.min(now, Math.max(monthStart, Number.isFinite(watermark) ? watermark : now));
+          weighted += (spent / recent.length) * start;
+        }
+        const from = weighted / dailyAverage;
         rows.push({
           label: "Projected this month",
           value: ctx.format.usd(used + (dailyAverage * (nextMonthStart - from)) / dayMillis),

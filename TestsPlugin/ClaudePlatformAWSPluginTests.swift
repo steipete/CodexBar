@@ -288,6 +288,44 @@ struct ClaudePlatformAWSPluginTests {
     }
 
     @Test(arguments: BundledPluginTestSupport.engines)
+    func `each region is projected from its own watermark`(engine: ProviderPluginEngineKind) async throws {
+        var fixture = Fixture()
+        fixture.extraWestDailyRows = [
+            Self.costRow("2026-11-08T00:00:00Z", amount: "2100.000000", requests: 10, model: Self.modelA),
+            Self.costRow("2026-11-09T00:00:00Z", amount: "3500.000000", requests: 10, model: Self.modelA),
+            Self.costRow("2026-11-10T00:00:00Z", amount: "1400.000000", requests: 10, model: Self.modelA),
+        ]
+        // us-east-1 was refreshed four hours before us-west-2.
+        fixture.totalBody["us-east-1"] = fixture.totalBody["us-east-1"]?
+            .replacingOccurrences(of: Self.refreshedAt, with: "2026-11-11T08:02:11Z")
+        let snapshot = try await Self.fetch(engine: engine, fixture: fixture)
+        let row = try #require(snapshot.details[0].rows.first { $0.label == "Projected this month" })
+        // us-west-2 averages $52.86 a day for its 19.4985 remaining days, us-east-1 $7.14 for its 19.6652,
+        // on top of the $485.60 spent. One shared, oldest watermark would give $1,665.51.
+        #expect(row.value == "$1,656.70")
+        #expect(row.secondaryValue == "$60.00/day (7-day avg)")
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `a rejected request in the first hour of a month is still classified`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        var fixture = Fixture()
+        fixture.checksDayRange = false
+        fixture.dailyCode = 403
+        do {
+            _ = try await Self.usage(
+                Self.runtime(engine: engine, fixture: fixture, recorder: Recorder()),
+                regions: "us-west-2",
+                now: Date(timeIntervalSince1970: 1_793_493_000))
+            Issue.record("Expected a permission failure")
+        } catch let error as ProviderFetchClassifiedError {
+            #expect(error.kind == .permissionDenied)
+            #expect(error.message.contains("us-west-2"))
+        }
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
     func `workspaces sharing a name stay separate and unknown list prices are not shown`(
         engine: ProviderPluginEngineKind) async throws
     {

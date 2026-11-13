@@ -76,7 +76,9 @@ plugin host has no AWS credential or SigV4 support, and sends them only to
 
 The API buckets days in UTC. With `utc`, CodexBar reads daily buckets plus today as its own range. With `local`, it
 reads hourly buckets and cuts days at local midnight, which takes more rows and, for busy accounts, more pages per
-refresh; zones with a half-hour offset are approximated to the hour for the month total. Series longer than one
+refresh; the API has no finer bucket, so in a zone whose offset is not a
+whole hour (UTC+05:30, for example) the hour that straddles local midnight counts toward the earlier day, in the
+month total, Today, the history, and the period breakdowns alike. Use `utc` there for exact days. Series longer than one
 page are read by following the cursor, up to 20 pages.
 
 Missing daily or token series leave the month total in place and omit the 30-day history, and every breakdown
@@ -94,7 +96,8 @@ re-read identical numbers. Each region's last complete result is therefore kept 
   `local`, plus any further pages).
 
 Four hours is the documented typical cadence, used as a hint for when to look, not as a schedule. The kept result
-is dropped at midnight in the configured time zone and when CodexBar restarts, is never written to disk, and is not used when its daily or
+is dropped at midnight in the configured time zone, when the Mac's time zone changes in `local` mode, and when
+CodexBar restarts, is never written to disk, and is not used when its daily or
 token series was unavailable. A manual refresh follows the same rules, so during the quiet period it can show data
 up to an hour older than the API has.
 
