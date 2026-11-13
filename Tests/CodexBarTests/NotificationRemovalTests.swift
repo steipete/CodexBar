@@ -19,24 +19,40 @@ struct NotificationRemovalTests {
     func `a removal that never returns does not block the caller`() async {
         let queue = DispatchQueue(label: "codexbar.test.notification-removal")
         let release = DispatchSemaphore(value: 0)
-        let started = DispatchSemaphore(value: 0)
+        let completed = CompletedRemovals()
 
         // Stands in for usernotificationsd never replying to the synchronous XPC removal.
-        AppNotifications.scheduleRemoval(identifiers: ["stuck"], queue: queue) { _ in
-            started.signal()
-            release.wait()
+        await withCheckedContinuation { (started: CheckedContinuation<Void, Never>) in
+            AppNotifications.scheduleRemoval(identifiers: ["stuck"], queue: queue) { identifiers in
+                started.resume()
+                _ = release.wait(timeout: .now() + 5)
+                completed.append(identifiers)
+            }
         }
 
-        // Reaching this line on the main actor proves scheduling returned while the removal is still blocked.
-        let removalStarted = await Task.detached { started.wait(timeout: .now() + 5) == .success }.value
-        #expect(removalStarted)
+        // An inline removal would have finished before scheduling returned.
+        #expect(completed.snapshot.isEmpty)
 
         let order: [String] = await withCheckedContinuation { continuation in
             AppNotifications.scheduleRemoval(identifiers: ["next"], queue: queue) { identifiers in
-                continuation.resume(returning: identifiers)
+                completed.append(identifiers)
+                continuation.resume(returning: completed.snapshot)
             }
             release.signal()
         }
-        #expect(order == ["next"])
+        #expect(order == ["stuck", "next"])
+    }
+}
+
+private final class CompletedRemovals: @unchecked Sendable {
+    private let lock = NSLock()
+    private var identifiers: [String] = []
+
+    var snapshot: [String] {
+        self.lock.withLock { self.identifiers }
+    }
+
+    func append(_ newIdentifiers: [String]) {
+        self.lock.withLock { self.identifiers.append(contentsOf: newIdentifiers) }
     }
 }
