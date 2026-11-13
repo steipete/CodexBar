@@ -55,15 +55,16 @@ enum MenuBarBatteryMeter {
     static func image(_ spec: MenuBarMeterSpec) -> NSImage {
         let alpha: CGFloat = spec.isStale ? 0.55 : 1.0
         let rects = self.rects(size: spec.size)
-        let shellColor = spec.tint.withAlphaComponent(0.5 * alpha)
-        let trackColor = spec.tint.withAlphaComponent(0.18 * alpha)
-        // High contrast is the menu bar's monochrome switch, so the severity palette yields to the tint.
-        let fillColor = (spec.highContrast ? spec.tint : self.tint(remainingPercent: spec.remainingPercent))
-            .withAlphaComponent(alpha)
         let fillWidth = self.fillWidth(percent: spec.fillPercent, size: spec.size)
         let bodyRadius = min(2, spec.size.height * 0.3)
         let innerRadius = max(0.5, spec.size.height * 0.15)
         return NSImage(size: spec.size, flipped: false) { _ in
+            // Resolve dynamic tints here so they adapt to the destination appearance, not the creation one.
+            let shellColor = spec.tint.withAlphaComponent(0.5 * alpha)
+            let trackColor = spec.tint.withAlphaComponent(0.18 * alpha)
+            // High contrast is the menu bar's monochrome switch, so the severity palette yields to the tint.
+            let fillColor = (spec.highContrast ? spec.tint : self.tint(remainingPercent: spec.remainingPercent))
+                .withAlphaComponent(alpha)
             let innerPath = NSBezierPath(
                 roundedRect: rects.inner,
                 xRadius: innerRadius,

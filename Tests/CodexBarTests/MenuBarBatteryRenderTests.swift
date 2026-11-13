@@ -154,6 +154,39 @@ final class MenuBarBatteryRenderTests: XCTestCase {
         XCTAssertEqual(battery.attributedTitle.string, "▮▮▯")
     }
 
+    func test_batteryShellResolvesDynamicTintInDestinationAppearance() throws {
+        let size = NSSize(width: 44, height: 6)
+        let spec = MenuBarMeterSpec(
+            fillPercent: 0,
+            size: size,
+            tint: .labelColor,
+            isStale: false,
+            style: .battery,
+            remainingPercent: 0)
+        // Create under light appearance; the shell must not bake this appearance into the image.
+        var created: NSImage?
+        NSAppearance(named: .aqua)?.performAsCurrentDrawingAppearance {
+            created = MenuBarBatteryMeter.image(spec)
+        }
+        let image = try XCTUnwrap(created)
+        // The status button draws under dark appearance, so the dynamic tint must resolve there.
+        var sampled: NSColor?
+        var sampleError: Error?
+        NSAppearance(named: .darkAqua)?.performAsCurrentDrawingAppearance {
+            do {
+                sampled = try self.color(in: image, size: size, x: 43, y: 3)
+            } catch {
+                sampleError = error
+            }
+        }
+        if let sampleError { throw sampleError }
+        let shell = try XCTUnwrap(sampled)
+        XCTAssertGreaterThan(
+            shell.redComponent,
+            0.5,
+            "battery shell must resolve the dynamic tint in the destination (dark) appearance")
+    }
+
     private func coreColor(in image: NSImage) throws -> NSColor {
         let size = image.size
         let inner = MenuBarBatteryMeter.rects(size: size).inner
