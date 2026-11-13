@@ -1309,24 +1309,17 @@ extension StatusItemController {
         }
 
         if layoutModel.hasUsageContent {
-            let usageView = UsageMenuCardHeaderAndUsageSectionView(
-                model: model,
-                layoutModel: layoutModel,
-                bottomPadding: bottomPadding,
-                width: width)
             let usageSubmenu = self.makeUsageSubmenu(
                 provider: provider,
                 webItems: webItems,
                 hasInlineCostDashboard: layoutModel.inlineUsageDashboard != nil,
                 width: width)
-            menu.addItem(self.makeMenuCardItem(
-                usageView,
-                id: "menuCardUsage",
+            self.addUsageMenuCardSection(
+                to: menu,
+                model: model,
+                layoutModel: layoutModel,
                 width: width,
-                heightCacheScope: provider.rawValue,
-                heightCacheFingerprint: layoutModel.heightFingerprint(section: "usage"),
-                submenu: usageSubmenu,
-                containsInteractiveControls: true))
+                submenu: usageSubmenu)
         } else {
             let headerView = UsageMenuCardHeaderSectionView(
                 model: layoutModel,

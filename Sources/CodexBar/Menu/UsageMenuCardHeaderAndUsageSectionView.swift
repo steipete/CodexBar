@@ -5,6 +5,7 @@ struct UsageMenuCardHeaderAndUsageSectionView: View {
     let layoutModel: UsageMenuCardView.Model
     let bottomPadding: CGFloat
     let width: CGFloat
+    var showsProviderDetails = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -17,7 +18,8 @@ struct UsageMenuCardHeaderAndUsageSectionView: View {
                 layoutModel: self.layoutModel,
                 showBottomDivider: false,
                 bottomPadding: self.bottomPadding,
-                width: self.width)
+                width: self.width,
+                showsProviderDetails: self.showsProviderDetails)
         }
         .frame(width: self.width, alignment: .leading)
     }

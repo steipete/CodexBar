@@ -66,8 +66,9 @@ plugin host has no AWS credential or SigV4 support, and sends them only to
 - **By region** (with more than one region).
 - **By model / By workspace**: one breakdown at a time, chosen with two pickers on the card: **Model** (top eight;
   spend without a model, such as code execution, is listed as Other usage) or **Workspace** (top ten), over
-  **30d** (the last 30 days), **MTD** (month to date), **7d** (the last seven days including today), or **Today**.
-  Percentages are shares of the selected period. The choice is remembered. The CLI lists all eight breakdowns.
+  **30d** (the last 30 days), **MTD** (month to date), **7d** (the last seven days including today), **Yesterday**, or
+  **Today**. Percentages are shares of the selected period. The choice is remembered. The CLI lists all ten
+  breakdowns.
 - **Today** and **This month** usage bars when the optional budgets are set, plus the date a monthly budget would
   run out at the seven-day average.
 - **At list prices** when it differs from the charged amount, the request count, **Data as of** (the oldest

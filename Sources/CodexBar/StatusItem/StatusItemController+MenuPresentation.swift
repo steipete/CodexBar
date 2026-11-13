@@ -169,6 +169,15 @@ struct MenuCardRowPayload {
     let containsInteractiveControls: Bool
     let usesGPUSelection: Bool
     let onClick: (() -> Void)?
+    /// Re-measures the row after its content changed height on its own. It receives the view hosting the
+    /// payload at that moment, because payloads move between views and views between menu items.
+    var remeasure: (@MainActor @Sendable (MenuRowContainerView) -> Void)?
+}
+
+/// Points hosted content back at the view that currently hosts it.
+@MainActor
+final class MenuCardLayoutRelay {
+    weak var container: MenuRowContainerView?
 }
 
 /// One stable AppKit class for every menu-card row. Keeping the outer view attached while payloads
@@ -177,6 +186,7 @@ struct MenuCardRowPayload {
 final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasuring {
     let highlightState: MenuCardHighlightState
     let interactiveRegionStore: MenuCardInteractiveRegionStore
+    private let layoutRelay: MenuCardLayoutRelay
     // Forced vibrancy makes white GPU-tinted content disappear on macOS 15.
     private let hosting: NSHostingView<MenuCardSectionContainerView<AnyView>>
     private var measuredSize: NSSize?
@@ -231,8 +241,10 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
     {
         let highlightState = MenuCardHighlightState()
         let interactiveRegionStore = MenuCardInteractiveRegionStore()
+        let layoutRelay = MenuCardLayoutRelay()
         self.highlightState = highlightState
         self.interactiveRegionStore = interactiveRegionStore
+        self.layoutRelay = layoutRelay
         self.rowPayload = payload
         self.allowsMenuHighlight = payload.allowsMenuHighlight
         self.containsInteractiveControls = payload.containsInteractiveControls
@@ -241,8 +253,10 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
             payload: payload,
             highlightState: highlightState,
             refreshMonitor: refreshMonitor,
-            interactiveRegionStore: interactiveRegionStore))
+            interactiveRegionStore: interactiveRegionStore,
+            layoutRelay: layoutRelay))
         super.init(frame: .zero)
+        layoutRelay.container = self
         self.wantsLayer = true
         self.hosting.wantsLayer = true
         self.hosting.autoresizingMask = [.width, .height]
@@ -270,7 +284,8 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
             payload: payload,
             highlightState: self.highlightState,
             refreshMonitor: refreshMonitor,
-            interactiveRegionStore: self.interactiveRegionStore)
+            interactiveRegionStore: self.interactiveRegionStore,
+            layoutRelay: self.layoutRelay)
         self.configureSelectionMode(animated: false)
         self.invalidateIntrinsicContentSize()
     }
@@ -522,9 +537,14 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
         payload: MenuCardRowPayload,
         highlightState: MenuCardHighlightState,
         refreshMonitor: MenuCardRefreshMonitor?,
-        interactiveRegionStore: MenuCardInteractiveRegionStore) -> MenuCardSectionContainerView<AnyView>
+        interactiveRegionStore: MenuCardInteractiveRegionStore,
+        layoutRelay: MenuCardLayoutRelay) -> MenuCardSectionContainerView<AnyView>
     {
-        MenuCardSectionContainerView(
+        let layoutAction = MenuCardLayoutAction(invalidate: { [remeasure = payload.remeasure] in
+            guard let container = layoutRelay.container else { return }
+            remeasure?(container)
+        })
+        return MenuCardSectionContainerView(
             highlightState: highlightState,
             showsSubmenuIndicator: payload.showsSubmenuIndicator,
             submenuIndicatorAlignment: payload.submenuIndicatorAlignment,
@@ -532,7 +552,7 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
             refreshMonitor: refreshMonitor,
             interactiveRegionStore: interactiveRegionStore)
         {
-            payload.content
+            AnyView(payload.content.environment(\.menuCardLayout, layoutAction))
         }
     }
 

@@ -108,6 +108,8 @@ struct ClaudePlatformAWSPluginTests {
         let workspacesToday = try section("By workspace · Today").rows
         #expect(workspacesToday.map(\.label) == ["Fixture Production", "No workspace in us-east-1"])
         #expect(workspacesToday.map(\.value) == ["$112.80", "$22.80"])
+        // A period without spend still has its section, so its picker choice never leads nowhere.
+        #expect(try section("By workspace · Yesterday").rows.map(\.label) == ["No spend"])
 
         let history = try #require(snapshot.costUsage)
         #expect(history.historyDays == 30)
@@ -266,6 +268,11 @@ struct ClaudePlatformAWSPluginTests {
         let rows = try #require(snapshot.details.first { $0.title == "By model · Last 7 days" }).rows
         #expect(rows.first { $0.label == "constructor" }?.value == "$21.00")
         #expect(rows.first { $0.label == "__proto__" }?.value == "$14.00")
+        // Yesterday is 2026-11-10 alone: neither the day before nor today is counted.
+        let yesterday = try #require(snapshot.details.first { $0.title == "By model · Yesterday" }).rows
+        #expect(yesterday.map(\.label) == ["__proto__"])
+        #expect(yesterday.map(\.value) == ["$14.00"])
+        #expect(yesterday.map(\.secondaryValue) == ["100%"])
     }
 
     @Test
@@ -432,7 +439,8 @@ struct ClaudePlatformAWSPluginTests {
 
     private static let breakdownPeriods = [
         (pick: "30d", title: "Last 30 days"), (pick: "MTD", title: "Month to date"),
-        (pick: "7d", title: "Last 7 days"), (pick: "Today", title: "Today"),
+        (pick: "7d", title: "Last 7 days"), (pick: "Yesterday", title: "Yesterday"),
+        (pick: "Today", title: "Today"),
     ]
     private static let breakdownTitles = ["By model", "By workspace"].flatMap { dimension in
         breakdownPeriods.map { "\(dimension) · \($0.title)" }

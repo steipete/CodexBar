@@ -630,7 +630,7 @@ defineProvider({
       });
     }
 
-    // Spend by model and by workspace, each over four periods. The sections are variants of one another, so
+    // Spend by model and by workspace, each over five periods. The sections are variants of one another, so
     // the card shows one at a time behind two pickers; shares are of the period's own total.
     const labelled = (rowsOf) =>
       results.flatMap((result) =>
@@ -646,13 +646,16 @@ defineProvider({
     const periods = [{ pick: "MTD", title: "Month to date", rows: labelled((result) => result.total.rows) }];
     if (dailyRows) {
       const series = labelled((result) => result.daily);
-      const since = (start) => {
+      // Whole days, from the first through the last.
+      const days = (start, end) => {
         const first = dayLabel(start);
-        return series.filter((row) => row.day >= first && row.day <= todayLabel);
+        const last = dayLabel(end);
+        return series.filter((row) => row.day >= first && row.day <= last);
       };
-      periods.unshift({ pick: "30d", title: "Last 30 days", rows: since(windowStart) });
-      periods.push({ pick: "7d", title: "Last 7 days", rows: since(daysAgo(6)) });
-      periods.push({ pick: "Today", title: "Today", rows: since(dayStart) });
+      periods.unshift({ pick: "30d", title: "Last 30 days", rows: days(windowStart, dayStart) });
+      periods.push({ pick: "7d", title: "Last 7 days", rows: days(daysAgo(6), dayStart) });
+      periods.push({ pick: "Yesterday", title: "Yesterday", rows: days(daysAgo(1), daysAgo(1)) });
+      periods.push({ pick: "Today", title: "Today", rows: days(dayStart, dayStart) });
     }
     // Sums spend per label and lists the largest, folding the remainder into one row.
     const breakdown = (period, field, limit) => {

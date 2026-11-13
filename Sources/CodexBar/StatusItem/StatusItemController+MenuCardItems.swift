@@ -68,33 +68,26 @@ extension StatusItemController {
             sender.representedObject = object
             NSApp.sendAction(selector, to: self, from: sender)
         })
-        let layoutAction = MenuCardLayoutAction(invalidate: { [weak self, actionTarget] in
-            // NSMenu tracking does not drain main-actor Tasks, but the main queue still runs; by then SwiftUI
-            // has applied the state change that altered the content height.
-            DispatchQueue.main.async {
-                MainActor.assumeIsolated {
-                    guard let self else { return }
-                    // Cached heights are keyed by content, which does not know the card's own view state.
-                    self.menuCardHeightCache.removeAll(keepingCapacity: true)
-                    guard let view = actionTarget.item?.view, let measuring = view as? any MenuCardMeasuring
-                    else { return }
-                    let width = view.frame.width
-                    measuring.applyMeasuredSize(width: width, height: self.menuCardHeight(for: view, width: width))
-                }
-            }
-        })
         let payload = MenuCardRowPayload(
             content: AnyView(view
                 .environment(\.providerMenuChartSettings, self.settings)
-                .environment(\.providerCardAction, cardAction)
-                .environment(\.menuCardLayout, layoutAction)),
+                .environment(\.providerCardAction, cardAction)),
             showsSubmenuIndicator: submenu != nil,
             submenuIndicatorAlignment: submenuIndicatorAlignment,
             submenuIndicatorTopPadding: submenuIndicatorTopPadding,
             allowsMenuHighlight: allowsMenuHighlight,
             containsInteractiveControls: containsInteractiveControls,
             usesGPUSelection: usesGPUSelection,
-            onClick: onClick)
+            onClick: onClick,
+            remeasure: { [weak self] container in
+                // NSMenu tracking does not drain main-actor Tasks, but the main queue still runs; by then
+                // SwiftUI has applied the state change that altered the content height.
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        self?.remeasureMenuCard(container)
+                    }
+                }
+            })
         let hosting: ErasedMenuCardHostingView
         if let recycled = self.takeRecyclableMenuCardView(
             for: id,
@@ -146,6 +139,68 @@ extension StatusItemController {
             item.action = #selector(self.menuCardNoOp(_:))
         }
         return item
+    }
+
+    /// Adds the header and usage row of a sectioned card.
+    ///
+    /// A submenu opens from anywhere on its row. When the row has one and an inline chart to hang it on,
+    /// provider details move to a row of their own below, so the submenu follows the pointer over the usage
+    /// part only and not over the details and their pickers.
+    func addUsageMenuCardSection(
+        to menu: NSMenu,
+        model: UsageMenuCardView.Model,
+        layoutModel: UsageMenuCardView.Model,
+        width: CGFloat,
+        submenu: NSMenu?)
+    {
+        let scope = layoutModel.provider.rawValue
+        let bottomPadding: CGFloat = layoutModel.creditsText != nil ? 4 : 6
+        let splitsDetails = submenu != nil && layoutModel.inlineUsageDashboard != nil &&
+            !layoutModel.providerDetails.isEmpty
+        menu.addItem(self.makeMenuCardItem(
+            UsageMenuCardHeaderAndUsageSectionView(
+                model: model,
+                layoutModel: layoutModel,
+                bottomPadding: bottomPadding,
+                width: width,
+                showsProviderDetails: !splitsDetails),
+            id: "menuCardUsage",
+            width: width,
+            heightCacheScope: scope,
+            heightCacheFingerprint: layoutModel.heightFingerprint(
+                section: splitsDetails ? "usageWithoutDetails" : "usage"),
+            submenu: submenu,
+            containsInteractiveControls: true))
+        guard splitsDetails else { return }
+        menu.addItem(.separator())
+        menu.addItem(self.makeMenuCardItem(
+            UsageMenuCardProviderDetailsSectionView(
+                model: model,
+                topPadding: 6,
+                bottomPadding: bottomPadding,
+                width: width),
+            id: "menuCardDetails",
+            width: width,
+            heightCacheScope: scope,
+            heightCacheFingerprint: layoutModel.heightFingerprint(section: "details"),
+            containsInteractiveControls: true))
+    }
+
+    /// Gives a row the height its content has now, after the content changed height on its own.
+    func remeasureMenuCard(_ container: MenuRowContainerView) {
+        // Cached heights are keyed by content, which does not know the card's own view state.
+        self.menuCardHeightCache.removeAll(keepingCapacity: true)
+        let width = container.frame.width
+        guard width > 0 else { return }
+        let height = self.menuCardHeight(for: container, width: width)
+        guard abs(container.intrinsicContentSize.height - height) > 0.5 else { return }
+        container.applyMeasuredSize(width: width, height: height)
+        // AppKit's table-backed menu keeps an attached row's height (#3549), so the item is presented again.
+        guard let item = container.enclosingMenuItem, let menu = item.menu else { return }
+        let index = menu.index(of: item)
+        guard index >= 0 else { return }
+        menu.removeItem(at: index)
+        menu.insertItem(item, at: index)
     }
 
     private func menuCardHeight(for view: NSView, width: CGFloat) -> CGFloat {

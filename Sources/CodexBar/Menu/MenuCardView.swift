@@ -626,6 +626,7 @@ private struct UsageMenuCardUsageContentView: View {
     let showBottomDivider: Bool
     var showsSectionDividers = true
     var compactMetrics = false
+    var showsProviderDetails = true
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
     /// Doubao ships Coding Plan and Agent Plan subscriptions, each with personal
@@ -732,13 +733,41 @@ private struct UsageMenuCardUsageContentView: View {
                 .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                 .font(.subheadline)
         }
-        if !self.model.providerDetails.isEmpty {
+        if self.showsProviderDetails, !self.model.providerDetails.isEmpty {
             ProviderDetailSectionsContent(
                 sections: self.model.providerDetails,
                 chartColor: self.model.progressColor,
                 paceVisible: self.model.detailPaceVisible,
                 provider: self.model.provider.instanceID)
         }
+    }
+}
+
+/// Provider details as a menu row of their own, for cards whose usage row opens a submenu: the submenu then
+/// follows the pointer over the usage part only, not over the details and their pickers.
+struct UsageMenuCardProviderDetailsSectionView: View {
+    let model: UsageMenuCardView.Model
+    let topPadding: CGFloat
+    let bottomPadding: CGFloat
+    let width: CGFloat
+    @Environment(\.menuCardRefreshMonitor) private var refreshMonitor
+
+    var body: some View {
+        let liveModel = self.liveModel
+        ProviderDetailSectionsContent(
+            sections: liveModel.providerDetails,
+            chartColor: liveModel.progressColor,
+            paceVisible: liveModel.detailPaceVisible,
+            provider: liveModel.provider.instanceID)
+            .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
+            .padding(.top, self.topPadding)
+            .padding(.bottom, self.bottomPadding)
+            .frame(width: self.width, alignment: .leading)
+    }
+
+    private var liveModel: UsageMenuCardView.Model {
+        guard self.model.usesLiveSubtitle else { return self.model }
+        return self.refreshMonitor?.model(for: self.model.provider, fallback: self.model) ?? self.model
     }
 }
 
@@ -750,6 +779,7 @@ struct UsageMenuCardUsageSectionView: View {
     let width: CGFloat
     var showsSectionDividers = true
     var compactMetrics = false
+    var showsProviderDetails = true
     @Environment(\.menuCardRefreshMonitor) private var refreshMonitor
 
     var body: some View {
@@ -759,7 +789,8 @@ struct UsageMenuCardUsageSectionView: View {
             layoutModel: self.layoutModel,
             showBottomDivider: self.showBottomDivider,
             showsSectionDividers: self.showsSectionDividers,
-            compactMetrics: self.compactMetrics)
+            compactMetrics: self.compactMetrics,
+            showsProviderDetails: self.showsProviderDetails)
             .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
             .padding(.top, UsageMenuCardLayout.usageSectionTopPadding)
             .padding(.bottom, self.bottomPadding)
