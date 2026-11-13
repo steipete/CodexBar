@@ -328,6 +328,9 @@ defineProvider({
     };
     const sum = (rows, field) => rows.reduce((total, row) => total + (row[field] || 0), 0);
 
+    // Caches are keyed by this so one account's results and workspace names never serve another's.
+    const keyFingerprint = hex(sha256(utf8(credentials.id))).slice(0, 12);
+
     const cost = "/v1/organizations/analytics/cost";
     const usage = "/v1/organizations/analytics/usage";
     // A failed region fails the refresh: a partial sum would silently understate the month.
@@ -443,7 +446,7 @@ defineProvider({
 
       // Names are best effort and cached: listing is an extra permission and a CloudTrail management event.
       const hasWorkspaces = total.rows.some((row) => row.amount > 0 && row.workspace);
-      const cacheKey = `workspaces-${region}`;
+      const cacheKey = `workspaces|${region}|${keyFingerprint}`;
       let names = ctx.cache.get(cacheKey);
       if (hasWorkspaces && !names) {
         names = {};
@@ -486,7 +489,7 @@ defineProvider({
     const fetchRegion = async (region) => {
       // Keyed by day so today and the month never outlive midnight, by key so accounts never mix, and by time
       // zone because it decides how days are cut.
-      const cacheKey = `spend|${region}|${hex(sha256(utf8(credentials.id))).slice(0, 12)}|${zone}|${todayLabel}`;
+      const cacheKey = `spend|${region}|${keyFingerprint}|${zone}|${todayLabel}`;
       const cached = ctx.cache.get(cacheKey);
       if (cached) {
         const due = !(now - Date.parse(cached.watermark) < quietMillis);
@@ -508,7 +511,8 @@ defineProvider({
 
     const totalRows = results.flatMap((result) => result.total.rows);
     const used = sum(totalRows, "amount");
-    const list = sum(totalRows, "list");
+    // A row without a list amount leaves the list-price total unknown rather than lower.
+    const list = totalRows.every((row) => row.list != null) ? sum(totalRows, "list") : null;
     const requests = totalRows.some((row) => row.requests != null) ? sum(totalRows, "requests") : null;
     const dailyRows = results.every((result) => result.daily) ? results.flatMap((result) => result.daily) : null;
     const tokenRows = results.every((result) => result.tokens) ? results.flatMap((result) => result.tokens) : null;
@@ -599,7 +603,8 @@ defineProvider({
         };
       }
     }
-    if (Math.abs(list - used) >= 0.005) rows.push({ label: "At list prices", value: ctx.format.usd(list) });
+    if (list != null && Math.abs(list - used) >= 0.005)
+      rows.push({ label: "At list prices", value: ctx.format.usd(list) });
     if (requests != null) rows.push({ label: "Requests", value: ctx.format.number(requests) });
     const dataAsOf = refreshed.length ? Date.parse(refreshed[0]) : NaN;
     // Without a month read there is no watermark to report, which is not the same as having no data.
@@ -637,6 +642,9 @@ defineProvider({
           amount: row.amount,
           model: row.model && ctx.isDetailLabel(row.model) ? row.model : "Other usage",
           workspace: row.workspace ? result.names[row.workspace] || row.workspace : `No workspace in ${result.region}`,
+          // Names are for display only: two workspaces may share one, and IDs belong to a region.
+          workspaceKey: `${result.region}|${row.workspace || ""}`,
+          region: result.region,
         })),
       );
     // The month to date comes from the month-total read, so it always matches the cost meter; the other
@@ -655,19 +663,27 @@ defineProvider({
       periods.push({ pick: "Yesterday", title: "Yesterday", rows: days(daysAgo(1), daysAgo(1)) });
       periods.push({ pick: "Today", title: "Today", rows: days(dayStart, dayStart) });
     }
-    // Sums spend per label and lists the largest, folding the remainder into one row.
-    const breakdown = (period, field, limit) => {
-      // Labels come from the account, so no inherited key such as "constructor" may stand in for a total.
-      const totals = Object.create(null);
-      for (const row of period.rows) totals[row[field]] = (totals[row[field]] || 0) + row.amount;
-      const ranked = Object.keys(totals)
-        .map((label) => ({ label, amount: totals[label] }))
+    // Sums spend per group and lists the largest, folding the remainder into one row.
+    const breakdown = (period, dimension) => {
+      // Keys come from the account, so no inherited key such as "constructor" may stand in for a group.
+      const groups = Object.create(null);
+      const named = Object.create(null);
+      for (const row of period.rows) {
+        const key = row[dimension.key];
+        if (!groups[key]) groups[key] = { label: row[dimension.field], region: row.region, amount: 0 };
+        groups[key].amount += row.amount;
+      }
+      const ranked = Object.keys(groups)
+        .map((key) => groups[key])
         .filter((row) => row.amount > 0)
         .sort((left, right) => right.amount - left.amount || (left.label < right.label ? -1 : 1));
+      for (const row of ranked) named[row.label] = (named[row.label] || 0) + 1;
       const total = sum(ranked, "amount");
+      const limit = dimension.limit;
       const shown = ranked.slice(0, limit);
       const sectionRows = shown.map((row) => ({
-        label: row.label,
+        // Groups that share a name stay separate rows, told apart by region.
+        label: dimension.key !== dimension.field && named[row.label] > 1 ? `${row.label} (${row.region})` : row.label,
         value: ctx.format.usd(row.amount),
         secondaryValue: share(row.amount, total),
         usageValue: row.amount,
@@ -684,14 +700,14 @@ defineProvider({
       return sectionRows.length ? sectionRows : [{ label: "No spend", value: ctx.format.usd(0) }];
     };
     for (const dimension of [
-      { pick: "Model", title: "By model", field: "model", limit: 8 },
-      { pick: "Workspace", title: "By workspace", field: "workspace", limit: 10 },
+      { pick: "Model", title: "By model", field: "model", key: "model", limit: 8 },
+      { pick: "Workspace", title: "By workspace", field: "workspace", key: "workspaceKey", limit: 10 },
     ]) {
       for (const period of periods) {
         details.push({
           title: `${dimension.title} · ${period.title}`,
           variant: [dimension.pick, period.pick],
-          rows: breakdown(period, dimension.field, dimension.limit),
+          rows: breakdown(period, dimension),
         });
       }
     }

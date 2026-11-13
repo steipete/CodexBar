@@ -288,6 +288,29 @@ struct ClaudePlatformAWSPluginTests {
     }
 
     @Test(arguments: BundledPluginTestSupport.engines)
+    func `workspaces sharing a name stay separate and unknown list prices are not shown`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        var fixture = Fixture()
+        // us-east-1 now names its workspace too, with the name us-west-2 uses, and one row has no list amount.
+        fixture.workspaceCode["us-east-1"] = 200
+        fixture.totalBody["us-east-1"] = Self.page([
+            Self.costRow(
+                "2026-11-01T00:00:00Z", amount: "6000.000000", requests: 150,
+                workspace: "wrkspc_fixtureA", model: Self.modelA),
+            Self.costRow("2026-11-01T00:00:00Z", amount: "1280.000000", requests: 20),
+        ]).replacingOccurrences(of: #","list_amount":"1280.000000""#, with: "")
+        let snapshot = try await Self.fetch(engine: engine, fixture: fixture)
+        let workspaces = try #require(snapshot.details.first { $0.title == "By workspace · Month to date" }).rows
+        #expect(workspaces.map(\.label) == [
+            "Fixture Production (us-west-2)", "Fixture Production (us-east-1)", "No workspace in us-east-1",
+        ])
+        #expect(workspaces.map(\.value) == ["$412.80", "$60.00", "$12.80"])
+        #expect(abs((snapshot.providerCost?.used ?? 0) - 485.6) < 0.000_001)
+        #expect(!snapshot.details[0].rows.map(\.label).contains("At list prices"))
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
     func `labels matching inherited object keys keep their spend`(engine: ProviderPluginEngineKind) async throws {
         var fixture = Fixture()
         fixture.extraWestDailyRows = [
