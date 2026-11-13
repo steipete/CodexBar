@@ -128,7 +128,10 @@ extension StatusItemController {
             width: width,
             heightCacheScope: plugin.manifest.id.rawValue,
             heightCacheFingerprint: UserPluginMenuCardView.fingerprint(
-                snapshot: snapshot, error: error, resetStyle: self.settings.resetTimeDisplayStyle),
+                snapshot: snapshot,
+                error: error,
+                resetStyle: self.settings.resetTimeDisplayStyle,
+                usageBarStyle: self.settings.usageBarStyle),
             containsInteractiveControls: true,
             onClick: onClick)
     }
@@ -387,13 +390,18 @@ struct UserPluginMenuCardView: View {
     }
 
     static func fingerprint(
-        snapshot: UsageSnapshot?, error: String?, resetStyle: ResetTimeDisplayStyle, now: Date = .now) -> String
+        snapshot: UsageSnapshot?,
+        error: String?,
+        resetStyle: ResetTimeDisplayStyle,
+        usageBarStyle: UsageBarStyle = .capsule,
+        now: Date = .now) -> String
     {
         let resets = [snapshot?.primary, snapshot?.secondary, snapshot?.tertiary].map { window in
             window.flatMap { UsageFormatter.resetLine(for: $0, style: resetStyle, now: now) } ?? ""
         }
         return ([
             codexBarLocalizationSignature(),
+            usageBarStyle.rawValue,
             snapshot?.updatedAt.timeIntervalSinceReferenceDate.description ?? "none",
             String(snapshot?.details.count ?? 0),
             snapshot?.primary?.title ?? "",

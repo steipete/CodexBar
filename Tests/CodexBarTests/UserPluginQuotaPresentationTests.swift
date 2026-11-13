@@ -213,5 +213,24 @@ struct UserPluginQuotaPresentationTests {
         #expect(fingerprint != UserPluginMenuCardView.fingerprint(snapshot: second, error: nil, resetStyle: .countdown))
         #expect(fingerprint != UserPluginMenuCardView.fingerprint(snapshot: third, error: nil, resetStyle: .countdown))
     }
+
+    @MainActor
+    @Test
+    func `plugin height fingerprint includes the usage bar style`() {
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 20,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: "tomorrow",
+                title: "Requests"),
+            secondary: nil,
+            updatedAt: .distantPast)
+        let capsule = UserPluginMenuCardView.fingerprint(
+            snapshot: snapshot, error: nil, resetStyle: .countdown, usageBarStyle: .capsule)
+        let battery = UserPluginMenuCardView.fingerprint(
+            snapshot: snapshot, error: nil, resetStyle: .countdown, usageBarStyle: .battery)
+        #expect(capsule != battery)
+    }
 }
 #endif
