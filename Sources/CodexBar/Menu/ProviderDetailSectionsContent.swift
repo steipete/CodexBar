@@ -111,8 +111,9 @@ struct ProviderDetailSectionsContent: View {
     @Environment(\.menuItemHighlighted) private var isHighlighted
     @Environment(\.providerMenuChartSettings) private var settings
     @Environment(\.menuCardLayout) private var layout
-    /// Keyed by the group's position among the variant groups.
-    @State private var localSelections: [Int: [String]] = [:]
+    /// Keyed by provider and the group's position among the variant groups. A recycled menu row keeps this
+    /// state when it changes provider, so the position alone would hand one provider's choice to another.
+    @State private var localSelections: [String: [String]] = [:]
 
     var body: some View {
         let blocks = ProviderDetailBlock.blocks(self.sections)
@@ -133,7 +134,8 @@ struct ProviderDetailSectionsContent: View {
     }
 
     private func group(_ group: ProviderDetailVariantGroup, ordinal: Int) -> some View {
-        let stored = self.localSelections[ordinal]
+        let key = "\(self.provider?.rawValue ?? "")#\(ordinal)"
+        let stored = self.localSelections[key]
             ?? self.provider.flatMap { self.settings?.detailVariantSelection(for: $0, group: ordinal) }
         let selection = group.selection(stored)
         return VStack(alignment: .leading, spacing: 6) {
@@ -146,7 +148,7 @@ struct ProviderDetailSectionsContent: View {
                             set: { option in
                                 // NSMenu tracking does not drain main-actor Tasks; update view state in this event.
                                 let next = group.selection(selection, choosing: option, at: position)
-                                self.localSelections[ordinal] = next
+                                self.localSelections[key] = next
                                 if let provider = self.provider {
                                     self.settings?.setDetailVariantSelection(next, for: provider, group: ordinal)
                                 }

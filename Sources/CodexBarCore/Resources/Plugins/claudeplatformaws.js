@@ -248,15 +248,9 @@ defineProvider({
     const monthlyWindow = (spent) =>
       monthlyBudget ? { usedPercent: ctx.pct(spent, monthlyBudget), resetsAt: stamp(nextMonthStart) } : null;
 
-    // The API rounds both ends down to the hour, so the first hour of a month has no queryable range yet.
-    if (now - monthStart < 3600000) {
-      return {
-        primary: dailyWindow(0),
-        secondary: monthlyWindow(0),
-        cost: { used: 0, currency: "USD", period: "This month" },
-        identity,
-      };
-    }
+    // The API rounds both ends down to the hour, so the first hour of a month has no queryable month range
+    // yet. The month is then zero without a request, while the earlier days are still read for the history.
+    const monthQueryable = now - monthStart >= 3600000;
 
     // Amounts are decimal strings in cents: "41280.000000" is $412.80.
     const dollars = (value) => {
@@ -338,6 +332,7 @@ defineProvider({
     const usage = "/v1/organizations/analytics/usage";
     // A failed region fails the refresh: a partial sum would silently understate the month.
     const fetchTotal = async (region) => {
+      if (!monthQueryable) return { rows: [], hasMore: false, nextPage: null, refreshedAt: null };
       // Grouped by workspace and model so one read gives both breakdowns and, summed, the month total.
       const response = await get(
         region,
@@ -607,7 +602,10 @@ defineProvider({
     if (Math.abs(list - used) >= 0.005) rows.push({ label: "At list prices", value: ctx.format.usd(list) });
     if (requests != null) rows.push({ label: "Requests", value: ctx.format.number(requests) });
     const dataAsOf = refreshed.length ? Date.parse(refreshed[0]) : NaN;
-    rows.push({ label: "Data as of", value: Number.isFinite(dataAsOf) ? clock(dataAsOf) : "No data yet" });
+    // Without a month read there is no watermark to report, which is not the same as having no data.
+    if (monthQueryable) {
+      rows.push({ label: "Data as of", value: Number.isFinite(dataAsOf) ? clock(dataAsOf) : "No data yet" });
+    }
     const nextData = dataAsOf + quietMillis;
     if (Number.isFinite(nextData)) {
       rows.push({

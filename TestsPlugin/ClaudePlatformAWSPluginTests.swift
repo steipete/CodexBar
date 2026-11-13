@@ -41,6 +41,8 @@ struct ClaudePlatformAWSPluginTests {
         /// Serves the us-west-2 daily cost series as two pages joined by a cursor.
         var pagesDailyCost = false
         var extraWestDailyRows: [String] = []
+        /// Off for refreshes on another day than the wall clock's, whose series ranges differ.
+        var checksDayRange = true
         var usageCode = 200
         var workspaceCode = ["us-west-2": 200, "us-east-1": 403]
     }
@@ -255,6 +257,34 @@ struct ClaudePlatformAWSPluginTests {
         #expect(rows.first { $0.label == "Monthly budget lasts" }?.value == "Until about 2026-11-13")
         // The projection never changes the reported spend.
         #expect(abs((snapshot.providerCost?.used ?? 0) - 412.8) < 0.000_001)
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `the first hour of a month keeps the history without a month read`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        var fixture = Fixture()
+        fixture.checksDayRange = false
+        let recorder = Recorder()
+        // 2026-11-01T00:30:00Z: the month range would round down to nothing, the earlier days are complete.
+        let snapshot = try await Self.usage(
+            Self.runtime(engine: engine, fixture: fixture, recorder: recorder),
+            regions: "us-west-2",
+            now: Date(timeIntervalSince1970: 1_793_493_000))
+        #expect(await recorder.drain() == ["cost:daily", "usage:daily"])
+        #expect(snapshot.providerCost?.used == 0)
+        // No month read means no watermark, so the card does not claim there is no data.
+        #expect(snapshot.details[0].rows.map(\.label) == ["This month", "Today"])
+        #expect(snapshot.details[0].rows.map(\.value) == ["$0.00", "$0.00"])
+        // The fixture's later rows lie after this refresh's today and stay out.
+        let history = try #require(snapshot.costUsage)
+        #expect(history.daily.map(\.date) == ["2026-10-20"])
+        #expect(history.daily.first?.costUSD == 15)
+        let section: (String) -> [String]? = { title in
+            snapshot.details.first { $0.title == title }?.rows.map(\.value)
+        }
+        #expect(section("By model · Last 30 days") == ["$15.00"])
+        #expect(section("By model · Month to date") == ["$0.00"])
     }
 
     @Test(arguments: BundledPluginTestSupport.engines)
@@ -588,7 +618,7 @@ struct ClaudePlatformAWSPluginTests {
                     (body, status) = (fixture.totalBody[region] ?? Self.page([]), west ? fixture.totalCode : 200)
                 case ("cost", "daily"):
                     let cursor = "&page=fixture-cursor"
-                    #expect(query.replacingOccurrences(of: cursor, with: "") == dayRange)
+                    if fixture.checksDayRange { #expect(query.replacingOccurrences(of: cursor, with: "") == dayRange) }
                     let rows = west
                         ? [
                             Self.costRow(
@@ -645,7 +675,7 @@ struct ClaudePlatformAWSPluginTests {
                         Self.usageRow("2026-11-06T12:00:00Z", model: Self.modelA, uncached: 2000, output: 300),
                     ]), fixture.usageCode)
                 case ("usage", "daily"):
-                    #expect(query == dayRange)
+                    if fixture.checksDayRange { #expect(query == dayRange) }
                     let rows = west
                         ? [
                             Self.usageRow(
