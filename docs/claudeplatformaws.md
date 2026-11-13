@@ -76,7 +76,7 @@ plugin host has no AWS credential or SigV4 support, and sends them only to
 
 The API buckets days in UTC. With `utc`, CodexBar reads daily buckets plus today as its own range. With `local`, it
 reads hourly buckets and cuts days at local midnight, which takes more rows and, for busy accounts, more pages per
-refresh; the API has no finer bucket, so in a zone whose offset is not a
+refresh; an hour is the finest bucket it reads, so in a zone whose offset is not a
 whole hour (UTC+05:30, for example) the hour that straddles local midnight counts toward the earlier day, in the
 month total, Today, the history, and the period breakdowns alike. Use `utc` there for exact days. Series longer than one
 page are read by following the cursor, up to 20 pages.
