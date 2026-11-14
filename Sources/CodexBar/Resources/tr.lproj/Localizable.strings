@@ -2807,6 +2807,9 @@
 "SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow istek sıklığını sınırlıyor. Daha sonra tekrar deneyin.";
 "SiliconFlow request failed. Try refreshing later." = "SiliconFlow isteği başarısız oldu. Daha sonra yeniden yenileyin.";
 "SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow tanınmayan bir yanıt döndürdü. CodexBar’ı güncelleyip tekrar deneyin.";
+"Sign in to cloud.siliconflow.cn in your browser, then refresh CodexBar." = "Tarayıcınızda cloud.siliconflow.cn hesabınıza giriş yapın, ardından CodexBar’ı yenileyin.";
+"The SiliconFlow China balance API was retired. Switch SiliconFlow to Web and sign in to cloud.siliconflow.cn." = "SiliconFlow Çin bakiye API’si kullanımdan kaldırıldı. SiliconFlow kaynağını Web olarak ayarlayın ve cloud.siliconflow.cn’ye giriş yapın.";
+"SiliconFlow denied access to the console balance (HTTP 403). Open cloud.siliconflow.cn, check that this account can view billing, then refresh." = "SiliconFlow konsol bakiyesine erişimi reddetti (HTTP 403). cloud.siliconflow.cn’yi açın, bu hesabın faturalandırmayı görebildiğini doğrulayın ve yenileyin.";
 "Claude Platform session validated and saved." = "Claude Platform oturumu doğrulandı ve kaydedildi.";
 "Use %@ or %@." = "%@ veya %@ kullanın.";
 "Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "%@ adresinde oturum açın. sessionKey içeren Cookie başlığını gizli olarak %@ komutuna iletin. Ardından %@ komutunu çalıştırın.";
@@ -2835,3 +2838,4 @@
 "Mistral session expired or invalid." = "Mistral oturumunun süresi doldu veya oturum geçersiz.";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "Komut, boru üzerinden iletilen bir API anahtarını okur ve bağımsız bir anahtar olarak kaydeder. Seçili bir API belirteci hesabı, bağımsız anahtardan önceliklidir.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Abonelik kullanımını görüntülemek için user_read iznine sahip bir API anahtarı kullanın. Komut bağımsız bir anahtar kaydeder; seçili API anahtarı hesabı önceliklidir.";
+"Web" = "Web";

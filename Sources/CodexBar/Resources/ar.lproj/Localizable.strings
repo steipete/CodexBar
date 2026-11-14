@@ -2808,6 +2808,9 @@
 "SiliconFlow is rate limiting requests. Try again later." = "يفرض SiliconFlow حدًا على عدد الطلبات. حاول لاحقًا.";
 "SiliconFlow request failed. Try refreshing later." = "فشل طلب SiliconFlow. حاول التحديث لاحقًا.";
 "SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "أعاد SiliconFlow استجابة غير معروفة. حدّث CodexBar وحاول مجددًا.";
+"Sign in to cloud.siliconflow.cn in your browser, then refresh CodexBar." = "سجّل الدخول إلى cloud.siliconflow.cn في متصفحك، ثم حدّث CodexBar.";
+"The SiliconFlow China balance API was retired. Switch SiliconFlow to Web and sign in to cloud.siliconflow.cn." = "تم إيقاف واجهة برمجة رصيد SiliconFlow في الصين. بدّل مصدر SiliconFlow إلى الويب وسجّل الدخول إلى cloud.siliconflow.cn.";
+"SiliconFlow denied access to the console balance (HTTP 403). Open cloud.siliconflow.cn, check that this account can view billing, then refresh." = "رفضت SiliconFlow الوصول إلى رصيد وحدة التحكم (HTTP 403). افتح cloud.siliconflow.cn وتحقق من أن هذا الحساب يمكنه عرض الفوترة، ثم حدّث.";
 "Claude Platform session validated and saved." = "تم التحقق من جلسة Claude Platform وحفظها.";
 "Use %@ or %@." = "استخدم %@ أو %@.";
 "Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "سجّل الدخول إلى %@. مرّر ترويسة Cookie التي تحتوي على sessionKey بشكل خاص إلى %@. ثم شغّل %@.";
@@ -2836,3 +2839,4 @@
 "Mistral session expired or invalid." = "انتهت صلاحية جلسة Mistral أو أنها غير صالحة.";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "يقرأ الأمر مفتاح API من الإدخال المُمرَّر عبر أنبوب ويحفظه كمفتاح مستقل. يتجاوز حساب رمز API المحدد المفتاح المستقل.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "استخدم مفتاح API بصلاحية user_read للوصول إلى بيانات استخدام الاشتراك. يحفظ الأمر مفتاحًا مستقلًا؛ وتكون الأولوية لحساب مفتاح API المحدد.";
+"Web" = "الويب";

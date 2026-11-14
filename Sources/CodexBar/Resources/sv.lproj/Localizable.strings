@@ -2803,6 +2803,9 @@
 "SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow begränsar antalet förfrågningar. Försök igen senare.";
 "SiliconFlow request failed. Try refreshing later." = "SiliconFlow-förfrågan misslyckades. Försök uppdatera senare.";
 "SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow returnerade ett okänt svar. Uppdatera CodexBar och försök igen.";
+"Sign in to cloud.siliconflow.cn in your browser, then refresh CodexBar." = "Logga in på cloud.siliconflow.cn i webbläsaren och uppdatera sedan CodexBar.";
+"The SiliconFlow China balance API was retired. Switch SiliconFlow to Web and sign in to cloud.siliconflow.cn." = "SiliconFlows saldo-API för Kina har avvecklats. Ställ in källan för SiliconFlow på Webb och logga in på cloud.siliconflow.cn.";
+"SiliconFlow denied access to the console balance (HTTP 403). Open cloud.siliconflow.cn, check that this account can view billing, then refresh." = "SiliconFlow nekade åtkomst till konsolsaldot (HTTP 403). Öppna cloud.siliconflow.cn, kontrollera att kontot kan se fakturering och uppdatera sedan.";
 "Claude Platform session validated and saved." = "Claude Platform-sessionen har validerats och sparats.";
 "Use %@ or %@." = "Använd %@ eller %@.";
 "Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Logga in på %@. Skicka Cookie-headern med sessionKey privat till %@. Kör sedan %@.";
@@ -2831,3 +2834,4 @@
 "Mistral session expired or invalid." = "Mistral-sessionen har gått ut eller är ogiltig.";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "Kommandot läser en API-nyckel som skickas via en pipe och sparar den som en fristående nyckel. Ett valt API-tokenkonto har företräde framför den fristående nyckeln.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Använd en API-nyckel med behörigheten user_read för att visa abonnemangsanvändningen. Kommandot sparar en separat nyckel; det valda API-nyckelkontot har företräde.";
+"Web" = "Webb";

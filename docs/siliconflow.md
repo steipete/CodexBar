@@ -1,9 +1,9 @@
 ---
-summary: "SiliconFlow API key setup and prepaid account balance for China and international origins."
+summary: "SiliconFlow prepaid balance from the China console session or the international API key."
 provider_id: siliconflow
 provider_name: SiliconFlow
-provider_source: API key for the prepaid account balance on the China (CNY) or international (USD) API.
-plugin_scope: Read-only balance through the official user-info API on both engines; no inferred quota or reset.
+provider_source: API key in Auto/API; explicit Web for the China (CNY) console balance. International API balances use USD.
+plugin_scope: Read-only balance on both engines; explicit China Web uses request-scoped console sessions, Auto/API uses the configured key. No inferred quota or reset.
 read_when:
   - Configuring SiliconFlow
   - Debugging SiliconFlow balance
@@ -11,24 +11,61 @@ read_when:
 
 # SiliconFlow
 
-Enable **SiliconFlow** in **Settings → Providers**, paste an API key, and leave the API URL on the China origin
-unless the key was created on the international site. The key follows CodexBar's standard local config storage.
-The CLI also accepts `SILICONFLOW_API_KEY`; a saved provider key takes precedence. A saved API URL takes
-precedence over `SILICONFLOW_BASE_URL`; otherwise the environment value selects the origin.
+Enable **SiliconFlow** in **Settings → Providers**. China (CNY) is the default region; set the API URL to
+`https://api.siliconflow.com` for an international (USD) account. A saved API URL takes precedence over
+`SILICONFLOW_BASE_URL`; otherwise the environment value selects the region.
+
+## China: browser session
+
+SiliconFlow retired the China `GET /v1/user/info` balance API on August 14, 2026
+([release notes](https://docs.siliconflow.cn/docs/release-notes/overview)). China accounts therefore read the
+balance shown in the console only when you select **Usage source → Web**. Sign in to `cloud.siliconflow.cn` in a supported
+browser and leave **Cookie source** on **Automatic**; no API key or subject ID is needed. **Auto** and **API** keep
+using the configured API key and never fall back to a browser account. Cookie controls appear only for Web.
 
 ```sh
-codexbar usage --provider siliconflow --source api --json
+codexbar usage --provider siliconflow --source web --json
 ```
 
-Each refresh makes one non-billable bearer `GET /v1/user/info`. It never sends an inference request, imports
-browser cookies, or starts a login flow. The key is sent only to these origins:
+Each refresh walks the browser sessions offered by the shared cookie importer and access gate. For each session:
 
-- China (default, CNY): `https://api.siliconflow.cn/v1/user/info` — console `https://cloud.siliconflow.cn`
-- International (USD): `https://api.siliconflow.com/v1/user/info` — console `https://cloud.siliconflow.com`
+1. `GET https://cloud.siliconflow.cn/me/expensebill` without a subject. The page body is ignored; the active subject
+   comes from the `x-subject-id` response header.
+2. `GET https://cloud.siliconflow.cn/walletd-server/api/v1/subject/profile/peek` with the same session and that
+   `x-subject-id`.
 
-A saved or environment origin may include a trailing `/v1`. Any other host, scheme, port, path, query, or
-embedded credential is rejected before the key is sent. Amounts are shown in the origin's currency and are not
-converted. The menu dashboard and API-key links follow the selected region; invalid origins do not open a dashboard or offer an API-key link.
+Traversal stops at the first session whose wallet response parses. Cookies and the subject stay within that
+refresh; this provider never reads or writes a persistent cookie cache. HTTP 401, or a redirect to
+`https://account.siliconflow.cn/login`, rejects that session and tries the next.
+When all fail, CodexBar asks you to sign in again in the browser. HTTP 403 reports that console balance access was
+denied and asks you to check billing access in the console; 429 is rate limiting, and 408/5xx are temporary failures.
+These failures stop the refresh without trying another account. Any other 3xx response that reaches the plugin also
+fails the refresh. The shared transport refuses cross-origin and non-HTTPS redirects, so no cookie reaches
+`account.siliconflow.cn`; a same-origin HTTPS redirect is
+followed with cookies reselected for its URL. The session cookie (`__SF_auth.session-token`) is set on
+`.siliconflow.cn`, so the importer reads both that parent domain and `cloud.siliconflow.cn`; cookies are sent only to
+`cloud.siliconflow.cn`.
+
+Wallet amounts are integer strings in 10⁻¹² CNY. **Balance** is `financialInfo.balance`, the only row shown;
+`available` and the cumulative `recharged` and `used` totals are not displayed. Zero and negative
+balances are kept; missing, empty, fractional, or non-string amounts, a missing or malformed subject header, and any
+other response shape fail the refresh without showing a balance.
+
+**Manual** accepts a Cookie header copied from a signed-in `cloud.siliconflow.cn/me/expensebill` request.
+**Off** disables Web refreshes. **Auto** and **API** on the China region still call the retired API; HTTP 410 or
+code `20092` explains the retirement and asks you to switch SiliconFlow to **Web**. Background and settings
+refreshes cannot prompt. Manual refreshes use the shared browser access gate and honor denial cooldowns.
+
+The contributor reported personal-account success; maintainer verification uses synthetic transports only. Live
+endpoints remain independently unverified. Organization subjects, subject switching, and vouchers are not covered.
+
+## International: API key
+
+International accounts paste an API key, or set `SILICONFLOW_API_KEY`; a saved key takes precedence. Each refresh
+makes one non-billable bearer `GET https://api.siliconflow.com/v1/user/info`, console `https://cloud.siliconflow.com`.
+It never imports browser cookies. A saved or environment origin may include a trailing `/v1`. Any other host,
+scheme, port, path, query, or embedded credential is rejected before the key is sent. The international web console
+is not used.
 
 The documented success body is:
 
@@ -49,15 +86,14 @@ The documented success body is:
 **Balance** is `totalBalance` and is the menu-bar balance. **Purchased** is `chargeBalance`.
 **Bonus** is `balance`, the non-top-up component. SiliconFlow does not return a spending limit, so
 CodexBar does not invent a percentage, reset, or pace. A negative total stays visible because an account can be
-overdue. Account status is shown only when it is not `normal`. Name, image, and email are ignored; the provider
-docs say those fields are being removed. Missing or non-numeric amounts fail the refresh. No live account was
-queried for this integration.
+overdue. Account status is shown only when it is not `normal`. Name, image, and email are ignored. Missing or
+non-numeric amounts fail the refresh. No live international account was queried for this integration.
 
 HTTP 401/403, and body code `30014`, ask you to check the API key. HTTP 429 uses the shared rate-limit handling.
-HTTP 410 and body code `20092` say the balance query was refused and point to the console. Error messages never
-include the response body. Both JavaScript engines use the same bundled plugin.
+HTTP 410 and body code `20092` say the balance query was refused and point to the console (on the China origin,
+that the API was retired and the web source should be used). Error messages never include the response body.
+Both JavaScript engines use the same bundled plugins.
 
-Public contract: [Retrieve user info](https://docs.siliconflow.com/en/api-reference/userinfo/get-user-info),
-checked November 4, 2026. Unauthenticated requests to both origins returned HTTP 401 with code `30014` on that
-date, so the route was still present. The monochrome icon preserves the symbol from SiliconFlow's
-[official logo](https://siliconflow.cn/logo-new.svg), whose original fill is `#6E29F5`.
+Public contract: [Retrieve user info](https://docs.siliconflow.com/en/api-reference/userinfo/get-user-info).
+The monochrome icon preserves the symbol from SiliconFlow's [official logo](https://siliconflow.cn/logo-new.svg),
+whose original fill is `#6E29F5`.

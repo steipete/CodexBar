@@ -176,7 +176,7 @@ Abacus, Muse, LongCat, Replicate, and TypeSafe unchanged.
 | chatbox | `cut-over` | QuickJS + JavaScriptCore | Manual License Key; public-client realtime license details |
 | abliteration | `cut-over` | QuickJS + JavaScriptCore | Read-only credits through the official API on both engines. |
 | opendesign | `cut-over` | QuickJS + JavaScriptCore | Opaque first-party browser session; current-workspace lookup and subscription quota GETs on both engines. |
-| siliconflow | `cut-over` | QuickJS + JavaScriptCore | Read-only balance through the official user-info API on both engines; no inferred quota or reset. |
+| siliconflow | `cut-over` | QuickJS + JavaScriptCore | Read-only balance on both engines; explicit China Web uses request-scoped console sessions, Auto/API uses the configured key. No inferred quota or reset. |
 | tripo | `cut-over` | QuickJS + JavaScriptCore | Fixed-origin bearer GET for available and frozen credits, without inferred quotas or dollar conversions, on both engines. |
 
 <!-- End generated provider additions -->

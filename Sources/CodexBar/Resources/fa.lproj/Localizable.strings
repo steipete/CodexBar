@@ -2808,6 +2808,9 @@
 "SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow تعداد درخواست‌ها را محدود کرده است. بعداً دوباره امتحان کنید.";
 "SiliconFlow request failed. Try refreshing later." = "درخواست SiliconFlow ناموفق بود. بعداً دوباره تازه‌سازی کنید.";
 "SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow پاسخی ناشناخته برگرداند. CodexBar را به‌روز کنید و دوباره امتحان کنید.";
+"Sign in to cloud.siliconflow.cn in your browser, then refresh CodexBar." = "در مرورگر خود وارد cloud.siliconflow.cn شوید، سپس CodexBar را تازه‌سازی کنید.";
+"The SiliconFlow China balance API was retired. Switch SiliconFlow to Web and sign in to cloud.siliconflow.cn." = "API موجودی SiliconFlow چین بازنشسته شده است. منبع SiliconFlow را به وب تغییر دهید و وارد cloud.siliconflow.cn شوید.";
+"SiliconFlow denied access to the console balance (HTTP 403). Open cloud.siliconflow.cn, check that this account can view billing, then refresh." = "SiliconFlow دسترسی به موجودی کنسول را رد کرد (HTTP 403). cloud.siliconflow.cn را باز کنید، بررسی کنید که این حساب به صورت‌حساب دسترسی دارد، سپس تازه‌سازی کنید.";
 "Claude Platform session validated and saved." = "نشست Claude Platform اعتبارسنجی و ذخیره شد.";
 "Use %@ or %@." = "از %@ یا %@ استفاده کنید.";
 "Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "در %@ وارد شوید. سرآیند Cookie آن را که شامل sessionKey است، به‌صورت خصوصی به %@ بدهید. سپس %@ را اجرا کنید.";
@@ -2836,3 +2839,4 @@
 "Mistral session expired or invalid." = "نشست Mistral منقضی شده یا نامعتبر است.";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "این فرمان کلید API را از ورودی لوله‌شده می‌خواند و آن را به‌عنوان کلیدی مستقل ذخیره می‌کند. حساب توکن API انتخاب‌شده بر کلید مستقل اولویت دارد.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "برای مشاهده مصرف اشتراک، از یک کلید API با مجوز user_read استفاده کنید. این فرمان یک کلید مستقل ذخیره می‌کند؛ حساب کلید API انتخاب‌شده اولویت دارد.";
+"Web" = "وب";

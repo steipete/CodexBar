@@ -2807,6 +2807,9 @@
 "SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow ogranicza częstotliwość żądań. Spróbuj ponownie później.";
 "SiliconFlow request failed. Try refreshing later." = "Żądanie SiliconFlow nie powiodło się. Spróbuj odświeżyć później.";
 "SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow zwrócił nierozpoznaną odpowiedź. Zaktualizuj CodexBar i spróbuj ponownie.";
+"Sign in to cloud.siliconflow.cn in your browser, then refresh CodexBar." = "Zaloguj się do cloud.siliconflow.cn w przeglądarce, a następnie odśwież CodexBar.";
+"The SiliconFlow China balance API was retired. Switch SiliconFlow to Web and sign in to cloud.siliconflow.cn." = "API salda SiliconFlow dla Chin zostało wycofane. Ustaw źródło SiliconFlow na Web i zaloguj się do cloud.siliconflow.cn.";
+"SiliconFlow denied access to the console balance (HTTP 403). Open cloud.siliconflow.cn, check that this account can view billing, then refresh." = "SiliconFlow odmówił dostępu do salda konsoli (HTTP 403). Otwórz cloud.siliconflow.cn, sprawdź, czy to konto może wyświetlać rozliczenia, a następnie odśwież.";
 "Claude Platform session validated and saved." = "Sesja Claude Platform została zweryfikowana i zapisana.";
 "Use %@ or %@." = "Użyj %@ lub %@.";
 "Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Zaloguj się na %@. Przekaż poufnie nagłówek Cookie zawierający sessionKey do %@. Następnie uruchom %@.";
@@ -2835,3 +2838,4 @@
 "Mistral session expired or invalid." = "Sesja Mistral wygasła lub jest nieprawidłowa.";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "Polecenie odczytuje klucz API przekazany potokiem i zapisuje go jako osobny klucz. Wybrane konto tokenu API ma pierwszeństwo przed osobnym kluczem.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Użyj klucza API z uprawnieniem user_read, aby odczytać zużycie subskrypcji. Polecenie zapisuje osobny klucz; wybrane konto klucza API ma pierwszeństwo.";
+"Web" = "Web";

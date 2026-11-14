@@ -2806,6 +2806,9 @@
 "SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow limita la freqüència de les sol·licituds. Torna-ho a provar més tard.";
 "SiliconFlow request failed. Try refreshing later." = "La sol·licitud a SiliconFlow ha fallat. Torna a actualitzar més tard.";
 "SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow ha retornat una resposta desconeguda. Actualitza CodexBar i torna-ho a provar.";
+"Sign in to cloud.siliconflow.cn in your browser, then refresh CodexBar." = "Inicia sessió a cloud.siliconflow.cn al navegador i actualitza CodexBar.";
+"The SiliconFlow China balance API was retired. Switch SiliconFlow to Web and sign in to cloud.siliconflow.cn." = "L'API de saldo de SiliconFlow per a la Xina s'ha retirat. Canvia la font de SiliconFlow a Web i inicia sessió a cloud.siliconflow.cn.";
+"SiliconFlow denied access to the console balance (HTTP 403). Open cloud.siliconflow.cn, check that this account can view billing, then refresh." = "SiliconFlow ha denegat l'accés al saldo de la consola (HTTP 403). Obre cloud.siliconflow.cn, comprova que aquest compte pot veure la facturació i actualitza.";
 "Claude Platform session validated and saved." = "La sessió de Claude Platform s’ha validat i desat.";
 "Use %@ or %@." = "Feu servir %@ o %@.";
 "Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Inicieu sessió a %@. Proporcioneu de manera privada la seva capçalera Cookie amb sessionKey a %@. Després executeu %@.";
@@ -2834,3 +2837,4 @@
 "Mistral session expired or invalid." = "La sessió de Mistral ha caducat o no és vàlida.";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "L'ordre llegeix una clau d'API rebuda per una canonada i la desa com a clau independent. Un compte de token d'API seleccionat té prioritat sobre la clau independent.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Utilitza una clau API amb el permís user_read per consultar l'ús de la subscripció. L'ordre desa una clau independent; el compte de clau API seleccionat té prioritat.";
+"Web" = "Web";

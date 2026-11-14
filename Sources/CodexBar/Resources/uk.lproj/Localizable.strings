@@ -2805,6 +2805,9 @@
 "SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow обмежує частоту запитів. Спробуйте пізніше.";
 "SiliconFlow request failed. Try refreshing later." = "Запит до SiliconFlow не виконано. Спробуйте оновити пізніше.";
 "SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow повернув невідому відповідь. Оновіть CodexBar і спробуйте знову.";
+"Sign in to cloud.siliconflow.cn in your browser, then refresh CodexBar." = "Увійдіть у cloud.siliconflow.cn у браузері, а потім оновіть CodexBar.";
+"The SiliconFlow China balance API was retired. Switch SiliconFlow to Web and sign in to cloud.siliconflow.cn." = "API балансу SiliconFlow для Китаю вимкнено. Виберіть джерело Веб для SiliconFlow і увійдіть у cloud.siliconflow.cn.";
+"SiliconFlow denied access to the console balance (HTTP 403). Open cloud.siliconflow.cn, check that this account can view billing, then refresh." = "SiliconFlow відмовив у доступі до балансу консолі (HTTP 403). Відкрийте cloud.siliconflow.cn, переконайтеся, що цьому обліковому запису доступні рахунки, і оновіть.";
 "Claude Platform session validated and saved." = "Сеанс Claude Platform перевірено та збережено.";
 "Use %@ or %@." = "Використовуйте %@ або %@.";
 "Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Увійдіть на %@. Конфіденційно передайте заголовок Cookie із sessionKey до %@. Потім виконайте %@.";
@@ -2833,3 +2836,4 @@
 "Mistral session expired or invalid." = "Термін дії сеансу Mistral минув або сеанс недійсний.";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "Команда зчитує ключ API, переданий через канал, і зберігає його як окремий ключ. Вибраний обліковий запис із токеном API має пріоритет над окремим ключем.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Для перегляду використання передплати використовуйте ключ API з дозволом user_read. Команда зберігає окремий ключ; вибраний обліковий запис ключа API має пріоритет.";
+"Web" = "Веб";

@@ -786,6 +786,7 @@ struct LocalizationLanguageCatalogTests {
             "Trae CN",
             "Tripo",
             "User-Agent",
+            "Web",
             "Zed cookie",
             "ZeroGPU",
             "__raycast_session=…; csrf_token=…",

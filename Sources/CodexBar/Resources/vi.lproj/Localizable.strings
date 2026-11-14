@@ -2805,6 +2805,9 @@
 "SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow đang giới hạn tần suất yêu cầu. Hãy thử lại sau.";
 "SiliconFlow request failed. Try refreshing later." = "Yêu cầu SiliconFlow không thành công. Hãy thử làm mới sau.";
 "SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow trả về phản hồi không nhận dạng được. Hãy cập nhật CodexBar rồi thử lại.";
+"Sign in to cloud.siliconflow.cn in your browser, then refresh CodexBar." = "Đăng nhập vào cloud.siliconflow.cn trong trình duyệt, sau đó làm mới CodexBar.";
+"The SiliconFlow China balance API was retired. Switch SiliconFlow to Web and sign in to cloud.siliconflow.cn." = "API số dư SiliconFlow Trung Quốc đã ngừng hoạt động. Chuyển nguồn SiliconFlow sang Web và đăng nhập cloud.siliconflow.cn.";
+"SiliconFlow denied access to the console balance (HTTP 403). Open cloud.siliconflow.cn, check that this account can view billing, then refresh." = "SiliconFlow đã từ chối truy cập số dư bảng điều khiển (HTTP 403). Mở cloud.siliconflow.cn, kiểm tra tài khoản này có thể xem thanh toán, rồi làm mới.";
 "Claude Platform session validated and saved." = "Đã xác thực và lưu phiên Claude Platform.";
 "Use %@ or %@." = "Dùng %@ hoặc %@.";
 "Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Đăng nhập tại %@. Cung cấp riêng tư tiêu đề Cookie chứa sessionKey cho %@. Sau đó chạy %@.";
@@ -2833,3 +2836,4 @@
 "Mistral session expired or invalid." = "Phiên Mistral đã hết hạn hoặc không hợp lệ.";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "Lệnh đọc khóa API được truyền qua pipe và lưu thành khóa riêng. Tài khoản token API được chọn được ưu tiên hơn khóa riêng.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Sử dụng khóa API có quyền user_read để xem mức sử dụng gói đăng ký. Lệnh lưu một khóa riêng; tài khoản khóa API đang chọn được ưu tiên.";
+"Web" = "Web";

@@ -2801,6 +2801,9 @@
 "SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow beperkt het aantal verzoeken. Probeer het later opnieuw.";
 "SiliconFlow request failed. Try refreshing later." = "Het SiliconFlow-verzoek is mislukt. Probeer later opnieuw te vernieuwen.";
 "SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow heeft een onbekend antwoord teruggegeven. Werk CodexBar bij en probeer het opnieuw.";
+"Sign in to cloud.siliconflow.cn in your browser, then refresh CodexBar." = "Log in je browser in bij cloud.siliconflow.cn en vernieuw daarna CodexBar.";
+"The SiliconFlow China balance API was retired. Switch SiliconFlow to Web and sign in to cloud.siliconflow.cn." = "De SiliconFlow-saldo-API voor China is stopgezet. Stel de bron voor SiliconFlow in op Web en log in bij cloud.siliconflow.cn.";
+"SiliconFlow denied access to the console balance (HTTP 403). Open cloud.siliconflow.cn, check that this account can view billing, then refresh." = "SiliconFlow heeft toegang tot het consolesaldo geweigerd (HTTP 403). Open cloud.siliconflow.cn, controleer of dit account facturering mag bekijken en vernieuw daarna.";
 "Claude Platform session validated and saved." = "Claude Platform-sessie gevalideerd en opgeslagen.";
 "Use %@ or %@." = "Gebruik %@ of %@.";
 "Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Log in op %@. Geef de Cookie-header met sessionKey vertrouwelijk door aan %@. Voer vervolgens %@ uit.";
@@ -2829,3 +2832,4 @@
 "Mistral session expired or invalid." = "De Mistral-sessie is verlopen of ongeldig.";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "De opdracht leest een via een pipe aangeleverde API-sleutel en slaat deze op als zelfstandige sleutel. Een geselecteerd API-tokenaccount heeft voorrang op de zelfstandige sleutel.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Gebruik een API-sleutel met de machtiging user_read om het abonnementsgebruik te bekijken. De opdracht slaat een afzonderlijke sleutel op; het geselecteerde API-sleutelaccount heeft voorrang.";
+"Web" = "Web";

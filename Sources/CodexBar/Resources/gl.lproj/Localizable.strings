@@ -2803,6 +2803,9 @@
 "SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow está a limitar as solicitudes. Téntao de novo máis tarde.";
 "SiliconFlow request failed. Try refreshing later." = "Fallou a solicitude a SiliconFlow. Tenta actualizar máis tarde.";
 "SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow devolveu unha resposta descoñecida. Actualiza CodexBar e téntao de novo.";
+"Sign in to cloud.siliconflow.cn in your browser, then refresh CodexBar." = "Inicia sesión en cloud.siliconflow.cn no navegador e actualiza CodexBar.";
+"The SiliconFlow China balance API was retired. Switch SiliconFlow to Web and sign in to cloud.siliconflow.cn." = "A API de saldo de SiliconFlow para China retirouse. Cambia a fonte de SiliconFlow a Web e inicia sesión en cloud.siliconflow.cn.";
+"SiliconFlow denied access to the console balance (HTTP 403). Open cloud.siliconflow.cn, check that this account can view billing, then refresh." = "SiliconFlow denegou o acceso ao saldo da consola (HTTP 403). Abre cloud.siliconflow.cn, comproba que esta conta pode ver a facturación e actualiza.";
 "Claude Platform session validated and saved." = "Validouse e gardouse a sesión de Claude Platform.";
 "Use %@ or %@." = "Usa %@ ou %@.";
 "Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Inicia sesión en %@. Proporciona de forma privada a súa cabeceira Cookie con sessionKey a %@. Despois executa %@.";
@@ -2831,3 +2834,4 @@
 "Mistral session expired or invalid." = "A sesión de Mistral caducou ou non é válida.";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "A orde le unha clave de API recibida por unha canle e gárdaa como clave independente. Unha conta de token de API seleccionada ten prioridade sobre a clave independente.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Usa unha clave API co permiso user_read para consultar o uso da subscrición. A orde garda unha clave independente; a conta de clave API seleccionada ten prioridade.";
+"Web" = "Web";
