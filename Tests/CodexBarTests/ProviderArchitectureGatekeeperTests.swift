@@ -1287,14 +1287,9 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
         SuppressedProviderReference(
             path: "Sources/CodexBar/UsageStore/UsageStore.swift",
-            anchor: "let sourceMode = self.sourceMode(for: .claude)",
+            anchor: "let provider: UsageProvider = .claude",
             expectedProviderIDs: ["claude"],
-            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
-        SuppressedProviderReference(
-            path: "Sources/CodexBar/UsageStore/UsageStore.swift",
-            anchor: "provider: .claude,",
-            expectedProviderIDs: ["claude"],
-            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+            reason: "Claude debug configuration scopes source mode, settings, and environment to Claude."),
         SuppressedProviderReference(
             path: "Sources/CodexBarCLI/CLICardsRenderer.swift",
             occurrence: 2,
