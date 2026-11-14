@@ -54,12 +54,14 @@ struct XAICostUsageMappingTests {
             updatedAt: Date())
         #expect(XAICostUsageMapping.tokenSnapshot(from: snapshot, historyDays: 30) == nil)
         #expect(XAICostUsageMapping.isAnalyticsUnavailable(snapshot))
+        #expect(XAIProviderDescriptor.descriptor.tokenCost.isUsageUnavailable(snapshot))
     }
 
     @Test
     func `empty successful chart is confirmed empty not unavailable`() throws {
         let snapshot = try self.snapshot(points: [], confidence: .exact)
         #expect(XAICostUsageMapping.isAnalyticsUnavailable(snapshot) == false)
+        #expect(XAIProviderDescriptor.descriptor.tokenCost.isUsageUnavailable(snapshot) == false)
         let mapped = try #require(XAICostUsageMapping.tokenSnapshot(from: snapshot, historyDays: 30))
         #expect(mapped.daily.isEmpty)
         #expect(mapped.last30DaysCostUSD == 0)
