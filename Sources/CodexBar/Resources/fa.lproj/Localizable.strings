@@ -2836,3 +2836,19 @@
 "Mistral session expired or invalid." = "نشست Mistral منقضی شده یا نامعتبر است.";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "این فرمان کلید API را از ورودی لوله‌شده می‌خواند و آن را به‌عنوان کلیدی مستقل ذخیره می‌کند. حساب توکن API انتخاب‌شده بر کلید مستقل اولویت دارد.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "برای مشاهده مصرف اشتراک، از یک کلید API با مجوز user_read استفاده کنید. این فرمان یک کلید مستقل ذخیره می‌کند؛ حساب کلید API انتخاب‌شده اولویت دارد.";
+/* Google Developer Program provider */
+"Google Developer Program exposes the current monthly Cloud credit, not local token cost history." = "Google Developer Program اعتبار ماهانه فعلی Cloud را نشان می‌دهد، نه تاریخچه هزینه محلی توکن‌ها.";
+"Paste a me.developers.google.com Cookie header from a signed-in Google account." = "سرآیند Cookie از me.developers.google.com را از یک حساب Google واردشده جای‌گذاری کنید.";
+
+"Billing account" = "حساب صورت‌حساب";
+"Granted" = "اعطا شده";
+"Not applied" = "اعمال نشده";
+"%@ of %@ left" = "%@ از %@ باقی مانده";
+"No Cloud credit found. Check your Google Developer Program benefits." = "اعتبار Cloud یافت نشد. مزایای Google Developer Program خود را بررسی کنید.";
+"Google Developer Program" = "Google Developer Program";
+"Browser session" = "نشست مرورگر";
+"Google Developer Program is rate limiting requests. Try again later." = "Google Developer Program تعداد درخواست‌ها را محدود کرده است. بعداً دوباره امتحان کنید.";
+"Google Developer Program request failed. Try refreshing later." = "درخواست Google Developer Program ناموفق بود. بعداً دوباره تازه‌سازی کنید.";
+"Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program پاسخی ناشناخته برگرداند. CodexBar را به‌روز کنید و دوباره امتحان کنید.";
+"Google session expired or invalid." = "نشست Google منقضی شده یا نامعتبر است.";
+"No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "هیچ کوکی نشست Google Developer Program پیدا نشد. در me.developers.google.com/benefits وارد شوید یا یک سرآیند Cookie جای‌گذاری کنید.";

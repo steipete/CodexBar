@@ -2834,3 +2834,19 @@
 "Mistral session expired or invalid." = "Sesi Mistral telah kedaluwarsa atau tidak valid.";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "Perintah ini membaca kunci API yang disalurkan melalui pipe dan menyimpannya sebagai kunci mandiri. Akun token API yang dipilih mengesampingkan kunci mandiri tersebut.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Gunakan kunci API dengan izin user_read untuk melihat penggunaan langganan. Perintah ini menyimpan kunci terpisah; akun kunci API yang dipilih diprioritaskan.";
+/* Google Developer Program provider */
+"Google Developer Program exposes the current monthly Cloud credit, not local token cost history." = "Google Developer Program menampilkan kredit Cloud bulanan saat ini, bukan riwayat biaya token lokal.";
+"Paste a me.developers.google.com Cookie header from a signed-in Google account." = "Tempel header Cookie me.developers.google.com dari akun Google yang sudah masuk.";
+
+"Billing account" = "Akun penagihan";
+"Granted" = "Diberikan";
+"Not applied" = "Belum diterapkan";
+"%@ of %@ left" = "%@ dari %@ tersisa";
+"No Cloud credit found. Check your Google Developer Program benefits." = "Kredit Cloud tidak ditemukan. Periksa manfaat Google Developer Program Anda.";
+"Google Developer Program" = "Google Developer Program";
+"Browser session" = "Sesi browser";
+"Google Developer Program is rate limiting requests. Try again later." = "Google Developer Program membatasi frekuensi permintaan. Coba lagi nanti.";
+"Google Developer Program request failed. Try refreshing later." = "Permintaan Google Developer Program gagal. Coba segarkan lagi nanti.";
+"Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program mengembalikan respons yang tidak dikenali. Perbarui CodexBar dan coba lagi.";
+"Google session expired or invalid." = "Sesi Google telah kedaluwarsa atau tidak valid.";
+"No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Cookie sesi Google Developer Program tidak ditemukan. Masuk di me.developers.google.com/benefits atau tempel header Cookie.";

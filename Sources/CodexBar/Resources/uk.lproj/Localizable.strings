@@ -2833,3 +2833,19 @@
 "Mistral session expired or invalid." = "Термін дії сеансу Mistral минув або сеанс недійсний.";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "Команда зчитує ключ API, переданий через канал, і зберігає його як окремий ключ. Вибраний обліковий запис із токеном API має пріоритет над окремим ключем.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Для перегляду використання передплати використовуйте ключ API з дозволом user_read. Команда зберігає окремий ключ; вибраний обліковий запис ключа API має пріоритет.";
+/* Google Developer Program provider */
+"Google Developer Program exposes the current monthly Cloud credit, not local token cost history." = "Google Developer Program показує поточний щомісячний кредит Cloud, а не локальну історію вартості токенів.";
+"Paste a me.developers.google.com Cookie header from a signed-in Google account." = "Вставте заголовок Cookie з me.developers.google.com з облікового запису Google, у який виконано вхід.";
+
+"Billing account" = "Платіжний обліковий запис";
+"Granted" = "Надано";
+"Not applied" = "Не застосовано";
+"%@ of %@ left" = "Залишилося %@ з %@";
+"No Cloud credit found. Check your Google Developer Program benefits." = "Кредити Cloud не знайдено. Перевірте свої переваги Google Developer Program.";
+"Google Developer Program" = "Google Developer Program";
+"Browser session" = "Сесія браузера";
+"Google Developer Program is rate limiting requests. Try again later." = "Google Developer Program обмежує частоту запитів. Спробуйте пізніше.";
+"Google Developer Program request failed. Try refreshing later." = "Запит до Google Developer Program не виконано. Спробуйте оновити пізніше.";
+"Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program повернув невідому відповідь. Оновіть CodexBar і спробуйте знову.";
+"Google session expired or invalid." = "Термін дії сеансу Google минув або сеанс недійсний.";
+"No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Файли cookie сеансу Google Developer Program не знайдено. Увійдіть на me.developers.google.com/benefits або вставте заголовок Cookie.";

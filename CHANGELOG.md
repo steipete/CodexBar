@@ -4,6 +4,7 @@
 
 ### Added
 
+- Google Developer Program: show the current monthly Gen AI & Cloud credit of Google AI Pro and Ultra from the benefits page, using the signed-in browser session and finding the Google account that holds the credit.
 - Pi: group local cost by session and project in the cost-history menu, Usage & Spend, and `codexbar cost --group-by session|project`; Pi JSON cost payloads include `projects[]`. The Pi cost cache rebuilds once (v10).
 - CLI: declare DeepInfra setup guidance with API-key alternatives, piped input, and saved-account priority.
 - CLI: declare ElevenLabs setup guidance, including API-key alternatives, subscription-read permission, and saved-account priority (#5020). Thanks @vincent-peng!
