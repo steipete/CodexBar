@@ -180,6 +180,98 @@ struct SpendDashboardSnapshotBackedRevisionTests {
         #expect(corrected.sourceRevisions != first.sourceRevisions)
     }
 
+    private actor RefreshFailure {
+        private var enabled = false
+        func set(_ enabled: Bool) { self.enabled = enabled }
+        func get() -> Bool { self.enabled }
+    }
+
+    @Test
+    func `unchanged refreshes do not reload the dashboard`() async throws {
+        let fixture = Self.makeFixture(
+            suiteName: "SpendDashboardSnapshotBackedRevisionTests-work", snapshotBackedProvider: .openrouter)
+        defer { fixture.cleanup() }
+        let now = Self.sameDayScanTimes(calendar: fixture.settings.costUsageBucketCalendar).first
+        let events = AsyncStream<SpendDashboardPublication>.makeStream()
+        let failures = RefreshFailure()
+        let controller = SpendDashboardController(
+            userDefaults: InMemoryUserDefaults(),
+            requestBuilder: { mode in
+                SpendDashboardLoadRequest(
+                    configuration: SpendDashboardSource.configuration(settings: fixture.settings, store: fixture.store),
+                    capturedInputs: [.init(
+                        provider: .openrouter,
+                        displayName: "OpenRouter",
+                        snapshot: fixture.store.snapshot(for: .openrouter)!.costUsage!)],
+                    unavailableSourceIDs: [],
+                    codexRequests: [],
+                    now: now,
+                    force: mode.forcesLoader)
+            },
+            loader: { request in
+                if await failures.get() { return .init(inputs: [], failedSourceIDs: ["openrouter"]) }
+                return .init(inputs: request.capturedInputs, failedSourceIDs: [])
+            },
+            nowProvider: { now },
+            publicationHandler: { _ = events.continuation.yield($0) })
+        defer { controller.stop(); events.continuation.finish() }
+        var iterator = events.stream.makeAsyncIterator()
+        for cycle in 0..<6 {
+            let entry = CostUsageDailyReport.Entry(
+                date: Self.dayKey(now, calendar: fixture.settings.costUsageBucketCalendar),
+                inputTokens: nil,
+                outputTokens: nil,
+                totalTokens: 40,
+                requestCount: 1,
+                costUSD: 3,
+                modelsUsed: ["fixture-model"],
+                modelBreakdowns: [.init(modelName: "fixture-model", costUSD: 3, totalTokens: 40)])
+            Self.completeRefresh(
+                fixture.store,
+                provider: .openrouter,
+                daily: [entry],
+                scannedAt: now.addingTimeInterval(Double(cycle * 60)))
+            let previous = controller.generation
+            controller.update(configuration: SpendDashboardSource.configuration(
+                settings: fixture.settings,
+                store: fixture.store))
+            if controller.generation != previous {
+                while let publication = await iterator.next() {
+                    if !publication.isRefreshing { break }
+                }
+            }
+            #expect(controller.model.groups.first?.totalTokens == 40)
+            #expect(controller.model.groups.first?.totalCost == 3)
+        }
+        print("[snapshot-refresh-work] refreshes=6 loads=\(controller.generation) tokens=40 cost=3")
+        #expect(controller.generation == 1)
+        await failures.set(true)
+        controller.refresh()
+        while let publication = await iterator.next() {
+            if !publication.isRefreshing { break }
+        }
+        #expect(controller.failedSourceCount == 1)
+        await failures.set(false)
+        let priorGeneration = controller.generation
+        try Self.completeRefresh(
+            fixture.store,
+            provider: .openrouter,
+            daily: #require(fixture.store.snapshot(for: .openrouter)?.costUsage?.daily),
+            scannedAt: now.addingTimeInterval(7 * 60))
+        controller.update(configuration: SpendDashboardSource.configuration(
+            settings: fixture.settings,
+            store: fixture.store))
+        #expect(controller.generation > priorGeneration)
+        if controller.generation > priorGeneration {
+            while let publication = await iterator.next() {
+                if !publication.isRefreshing { break }
+            }
+        }
+        #expect(controller.failedSourceCount == 0)
+        #expect(controller.model.groups.first?.totalCost == 3)
+        #expect(controller.model.groups.first?.totalTokens == 40)
+    }
+
     // MARK: - Fixtures
 
     private struct Fixture {
@@ -192,7 +284,7 @@ struct SpendDashboardSnapshotBackedRevisionTests {
         suiteName: String,
         snapshotBackedProvider: UsageProvider = .grok) -> Fixture
     {
-        let settings = testSettingsStore(suiteName: suiteName)
+        let settings = testSettingsStore(suiteName: suiteName, userDefaults: InMemoryUserDefaults())
         settings.costUsageEnabled = true
         settings.refreshFrequency = .manual
         settings.statusChecksEnabled = false
