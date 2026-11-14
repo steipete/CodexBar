@@ -81,13 +81,14 @@ struct MuseAIPluginTests {
         #expect(result.storedID == Self.actionID)
     }
 
-    @Test(arguments: BundledPluginTestSupport.engines)
-    func `a stale action with an unstructured bad request response is rediscovered`(
+    @Test(arguments: [400, 409], BundledPluginTestSupport.engines)
+    func `a stale action answered with an unstructured error is rediscovered`(
+        staleStatus: Int,
         engine: ProviderPluginEngineKind) async throws
     {
         let result = try await Self.fetch(
             engine: engine, storedID: "40aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", action: Self.free,
-            staleStatus: 400)
+            staleStatus: staleStatus)
         #expect(result.snapshot.primary?.usedPercent == 28)
         #expect(result.requests.filter { $0.hasPrefix("POST") }.count == 2)
         #expect(result.storedID == Self.actionID)

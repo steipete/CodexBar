@@ -21,7 +21,7 @@ percentage, reset time, plan, tokens left (paid plans), renewal date, and any ad
 
 muse.ai has no usage API. `museai.js` posts the settings dialog's Next.js server action (`fetchSubscriptionAction`) with
 `Sec-Fetch-*` headers and the browser's `text/plain;charset=UTF-8` content type. The action ID changes on each deploy,
-so the plugin stores the ID only after a successful subscription response. On HTTP 400 or 404 it loads the signed-in page's chunks, finds
+so the plugin stores the ID only after a successful subscription response. On HTTP 400, 404 or 409 it loads the signed-in page's chunks, finds
 the lazy module that preloads settings, and reads the new ID from that module's chunk. A redirect to `auth.muse.ai` or a
 403 means that session expired, and the plugin tries the next browser session before reporting it.
 
