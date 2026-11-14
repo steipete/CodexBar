@@ -66,8 +66,10 @@ retain thread-safe `register(_:)` methods for future dynamic providers.
 Runtime settings follow the same boundary. A provider owns its `ProviderSettingsSectionKey` and section payload in its
 core folder, registers that key on its descriptor, and contributes the payload from its app implementation. The generic
 `ProviderSettingsSnapshot` container performs the sole type-erased cast behind its constrained subscript; provider-local
-accessors keep fetch strategies fully typed. Providers that share a payload type still declare a distinct key for each
-`ProviderInstanceID`, while providers with no runtime settings receive an empty section from the descriptor default.
+accessors keep fetch strategies fully typed. App fetch contexts construct only the requested provider's section plus
+the shared debug flags, reading current settings for each fetch. Providers that share a payload type still declare a
+distinct key for each `ProviderInstanceID`, while providers with no runtime settings receive an empty section from the
+descriptor default.
 
 Credential and config behavior follows the descriptor boundary too. Providers with credentials register a Sendable
 `ProviderCredentialAdapter` that owns config-to-environment projection, token resolution, token-account support,

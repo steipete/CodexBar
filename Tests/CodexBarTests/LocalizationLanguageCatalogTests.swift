@@ -766,6 +766,7 @@ struct LocalizationLanguageCatalogTests {
             "Gemini app",
             "GitHub",
             "GitHub cookies",
+            "Google Developer Program",
             "Google OAuth",
             "Grok CLI",
             "Helmcode Cloud",

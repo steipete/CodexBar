@@ -168,10 +168,13 @@ state can follow a read suppressed by the selected policy. Refresh retries withi
 - Options:
   - `Never prompt`: never attempts interactive Claude OAuth Keychain prompts.
   - `Only on user action` (default): interactive prompts are reserved for user-initiated repair flows.
-  - `Always allow prompts`: allows interactive prompts in both user and background flows.
+  - `Always allow prompts`: permits consented background recovery when access is confirmed without UI;
+    interactive OAuth repair remains manual.
 - Explicit Refresh can repair Claude OAuth Keychain access when direct-read consent is enabled and the policy
-  allows user prompts. Ordinary OAuth fetches remain noninteractive, including with `Always allow prompts`;
-  that policy still governs the existing delegated refresh and experimental reader paths.
+  allows user prompts. The direct credential read shares the manual action's single interactive allowance with
+  browser imports, and a denial suppresses further interactive reads for six hours. Ordinary OAuth fetches remain
+  noninteractive, including with `Always allow prompts`. They inspect both the decrypt ACL and the signing-team
+  partition before reading the credential payload; rejected or inconclusive checks leave it unread.
 - After a missing-credentials failure, a newer Claude Code credential timestamp replaces the stale error with
   **Claude Code credentials changed** and a **Refresh** instruction in the menu and OAuth CLI output. Click the
   existing menu **Refresh** action to retry; direct-read consent and the prompt policy still control access.
@@ -182,15 +185,18 @@ state can follow a read suppressed by the selected policy. Refresh retries withi
   only the last failure time per profile so the guidance survives restarts and is shared with the bundled CLI;
   a readable credential clears it. Auto continues to configured CLI/Web sources under their existing access gates.
 - This setting only affects Claude OAuth Keychain prompting behavior; it does not switch your Claude usage source.
-- The policy also applies to the experimental `/usr/bin/security` reader and delegated OAuth refresh through
-  `claude`: background operations that can prompt require `Always allow prompts`.
-- CodexBar's `Always allow prompts` permits future prompts; macOS's **Always Allow** grants access to the current
-  Keychain item. Claude Code can recreate `Claude Code-credentials` and reset that grant. An ACL entry still named
-  CodexBar does not prove that its stored code-signing requirement matches the running binary. `Only on user action`
-  reduces background interruptions but may require a manual Refresh to recover OAuth access. In #3798, a
-  before/after trace shows Claude Code preserving the decrypt ACL's CodexBar entry but removing CodexBar's Team ID
-  from the separate partition ACL. Decrypt-ACL preflight alone cannot establish partition authorization; repeated
-  manual grants therefore need not survive the next Claude Code refresh.
+- Delegated OAuth refresh through `claude` runs only for an explicit user action, never a scheduled or
+  settings-change refresh, even with `Always allow prompts`. Claude Code controls its own credential reads;
+  CodexBar's no-UI query flags cannot constrain that child process.
+- CodexBar's prompt policy and macOS's **Always Allow** are separate. The latter grants access to the current
+  Keychain item and signing identity. Claude Code saves credentials with `security add-generic-password -U`;
+  an update can replace partition authorization without deleting the item or removing the visible CodexBar
+  entry from its decrypt ACL. The before/after traces in #3798 show CodexBar's Team ID disappearing from that
+  separate partition list. **Always Allow** therefore cannot guarantee access after the next Claude Code write.
+  CodexBar does not rewrite Claude Code's access controls; use **Refresh** when authorization is needed again.
+- To avoid CodexBar's direct read of this item, use an existing OAuth credentials file or choose the CLI usage
+  source. Claude Code can still request its own authorization when run. Web uses a separate browser session and
+  may require a manual Safe Storage grant; it does not repair the Claude Code credential item.
 - If Preferences → Advanced → Disable Keychain access is enabled, this policy remains visible but inactive until
   Keychain access is re-enabled.
 
@@ -351,6 +357,8 @@ is stored on the token account in the config file and does not change quota fetc
   including Firefox import, remains unavailable. This enables the same API request path as macOS; it does not
   bypass Cloudflare challenges, refresh Claude Code OAuth credentials, or guarantee that a browser session will
   work outside the browser. Use the OAuth source when the web request is challenged.
+  Successful OAuth quota and a valid manual cookie can still leave subscription dates unavailable:
+  a challenge on the optional web account check stops billing enrichment before subscription details are fetched.
 - Linux CLI Auto mode: an existing valid manual cookie makes Web eligible ahead of CLI after upgrading.
   Web success returns without launching Claude Code; authentication rejection or a Cloudflare challenge falls
   back to an available CLI using the existing Auto policy. Cancellation stops without launching the CLI.
@@ -523,6 +531,10 @@ The accepted multi-account design in
   `~/.config/codexbar/config.json`; legacy installs may use `~/.codexbar/config.json`). The option defaults off,
   zero accounts still use the ambient presentation, and account identity is `claude-swap:<slot>`, never the display
   email.
+- With **Show all accounts in Overview** off, the single Claude Overview card follows the presented adapter slot:
+  a pending switch, an inspected account, a failed switch, or the active account, in that order. It retains the
+  provider's combined local costs and uses the ambient card when no adapter account is presented. Expanded
+  **Show all accounts** rows keep their account-specific usage without borrowing those combined costs.
 - Session forecasts use each account's own recorded usage. History keys hash the normalized email and organization
   UUID from the existing list response, so moving slots preserves history and the same email in different workspaces
   stays separate. Empty organization UUIDs identify personal accounts; an email change starts a new history.

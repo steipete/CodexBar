@@ -80,18 +80,20 @@ struct CLICostTests {
     }
 
     @Test
-    func `session grouping is codex only in text mode`() {
-        let textProviders = CodexBarCLI.costProviders(
-            [.claude, .codex],
-            groupBy: .session,
-            format: .text)
-        #expect(textProviders.map(\.rawValue) == ["codex"])
+    func `session and project grouping keep pi in text mode`() {
+        for groupBy in [CodexBarCLI.CostGroupBy.session, .project] {
+            let textProviders = CodexBarCLI.costProviders(
+                [.claude, .codex, .pi],
+                groupBy: groupBy,
+                format: .text)
+            #expect(textProviders.map(\.rawValue) == ["codex", "pi"])
 
-        let jsonProviders = CodexBarCLI.costProviders(
-            [.claude, .codex],
-            groupBy: .session,
-            format: .json)
-        #expect(jsonProviders.map(\.rawValue) == ["claude", "codex"])
+            let jsonProviders = CodexBarCLI.costProviders(
+                [.claude, .codex, .pi],
+                groupBy: groupBy,
+                format: .json)
+            #expect(jsonProviders.map(\.rawValue) == ["claude", "codex", "pi"])
+        }
     }
 
     @Test

@@ -51,7 +51,8 @@ struct ClaudeSwapAccountMenuDisplay {
         planLabel: String?,
         adapterError: String?,
         switchError: String?,
-        historySelection: PlanUtilizationHistorySelection? = nil) -> UsageMenuCardContext
+        historySelection: PlanUtilizationHistorySelection? = nil,
+        includesStoredTokenCosts: Bool = false) -> UsageMenuCardContext
     {
         .account(.init(
             snapshot: account.snapshot,
@@ -67,7 +68,8 @@ struct ClaudeSwapAccountMenuDisplay {
             planEmphasis: account.isActive ? .active : .none,
             lastKnownUsageCapturedAt: account.usesLastKnownUsage ? account.snapshot?.updatedAt : nil,
             sourceLabel: ClaudeSwapAccountSource(identitySource: account.id.source)?.label
-                ?? ClaudeSwapAccountProjection.sourceLabel))
+                ?? ClaudeSwapAccountProjection.sourceLabel,
+            includesStoredTokenCosts: includesStoredTokenCosts))
     }
 
     static func actionLabel(

@@ -466,6 +466,9 @@ final class MenuBarLayoutRenderer {
         let providerTintColor = Self.effectiveProviderTintColor(for: data.provider.firstPartyProvider, options: options)
         let foregroundColor = providerTintColor ?? Self.neutralForegroundColor(options)
         let isTintActive = providerTintColor != nil
+        let renderedIcon = icon.map { image in
+            providerTintColor.map { Self.attachmentImage(image, tint: $0, isMonochrome: false) } ?? image
+        }
         let paragraphStyle = NSMutableParagraphStyle()
         if isStacked {
             let lineHeight: CGFloat = options.size == .large ? 11 : 9.5
@@ -490,18 +493,23 @@ final class MenuBarLayoutRenderer {
         let canSurfaceStackedIcon = !options.forceStackedStyle && renderedLines.count == 2
             && renderedLines.joined().filter { $0 == .icon }.count == 1
             && renderedLines[0].contains { $0 != .icon && $0 != .space }
+        let spanningIcon = options.highContrast && canSurfaceStackedIcon && renderedLines.first?.first == .icon
+            ? icon : nil
         // High-contrast layouts keep icon + text together for consistent rendering.
-        // Provider-colored layouts keep the icon in attributed title to preserve the custom tint.
+        // Colored spanning icons carry their tint in the image; inline icons reuse it.
         // With a missing icon the token still renders its placeholder inside the title.
-        let leadingIcon: NSImage? = if options.highContrast || (isStacked && !canSurfaceStackedIcon) || isTintActive {
+        let leadingIcon: NSImage? = if options.highContrast || (isStacked && !canSurfaceStackedIcon)
+            || (isTintActive && !canSurfaceStackedIcon)
+        {
             nil
         } else if renderedLines.first?.first == .icon, icon != nil {
-            icon.map { Self.offsetLeadingIcon($0, adjustment: options.verticalAdjustment) }
+            renderedIcon.map { Self.offsetLeadingIcon($0, adjustment: options.verticalAdjustment) }
         } else {
             nil
         }
 
-        if isStacked, options.size == .large, leadingIcon == nil, icon != nil,
+        let hasPromotedIcon = leadingIcon != nil || spanningIcon != nil
+        if isStacked, options.size == .large, !hasPromotedIcon, icon != nil,
            renderedLines.joined().contains(.icon)
         {
             // Inline attachments need less baseline lowering to fit both rows in the 22pt status bar.
@@ -516,10 +524,9 @@ final class MenuBarLayoutRenderer {
             var accessibilityParts: [String] = []
             var lineWindowLabel: String?
             for (tokenIndex, token) in renderedLine.enumerated() {
-                // The leading icon is surfaced as `button.image` so AppKit applies the system's
-                // active/inactive display tinting; it is not repeated inside the attributed title,
-                // but its accessibility description must survive for VoiceOver.
-                if leadingIcon != nil, lineIndex == 0, tokenIndex == 0, token == .icon {
+                // Promoted icons are drawn beside the whole text block, through the native image
+                // or the shared high-contrast title. Keep their VoiceOver description in row one.
+                if hasPromotedIcon, lineIndex == 0, tokenIndex == 0, token == .icon {
                     accessibilityParts.append(Self.iconAccessibilityText(data: data))
                     continue
                 }
@@ -529,14 +536,13 @@ final class MenuBarLayoutRenderer {
                 var renderedItem = Self.renderItem(
                     token,
                     data: data,
-                    icon: icon,
+                    icon: renderedIcon,
                     style: TokenStyle(
                         font: font,
                         foregroundColor: foregroundColor,
                         iconHeight: Self.iconHeight(size: options.size, isStacked: isStacked),
                         attributes: attributes),
-                    options: options,
-                    providerTintColor: providerTintColor)
+                    options: options)
                 switch token {
                 case .percent(window: .automatic), .pace(window: .automatic), .resetCountdown, .resetAbsolute,
                      .windowResetCountdown(window: .automatic), .windowResetAbsolute(window: .automatic):
@@ -565,7 +571,7 @@ final class MenuBarLayoutRenderer {
         }
 
         if isStacked {
-            Self.alignWindowPrefixes(in: result, promotedIcon: leadingIcon != nil)
+            Self.alignWindowPrefixes(in: result, promotedIcon: hasPromotedIcon)
         }
         if options.isDebugApp {
             result.append(NSAttributedString(string: " D", attributes: attributes))
@@ -580,7 +586,9 @@ final class MenuBarLayoutRenderer {
             index == 0 ? line : "\(L("menu_bar_layout_line", index + 1)), \(line)"
         }.joined(separator: ", ")
         return MenuBarLayoutRenderedTitle(
-            attributedTitle: result,
+            attributedTitle: spanningIcon.map {
+                Self.spanningIconTitle($0, title: result, font: font, options: options)
+            } ?? result,
             accessibilityLabel: accessibilityLabel,
             leadingIcon: leadingIcon,
             statusImage: !options.highContrast && !options.isStale && !isTintActive && leadingIcon == nil
@@ -756,8 +764,7 @@ final class MenuBarLayoutRenderer {
         data: MenuBarLayoutRenderData,
         icon: NSImage?,
         style: TokenStyle,
-        options: MenuBarLayoutRenderOptions,
-        providerTintColor: NSColor? = nil)
+        options: MenuBarLayoutRenderOptions)
         -> (value: NSAttributedString, accessibilityText: String?)
     {
         if let rendered = self.renderProviderTextItem(
@@ -785,12 +792,8 @@ final class MenuBarLayoutRenderer {
                     accessibilityText: L("Icon unavailable"),
                     attributes: style.attributes)
             }
-            let tintColor = providerTintColor ?? style.foregroundColor
             let attachment = NSTextAttachment()
-            attachment.image = Self.attachmentImage(
-                icon,
-                tint: tintColor,
-                isMonochrome: providerTintColor == nil)
+            attachment.image = Self.attachmentImage(icon, tint: style.foregroundColor)
             let height = style.iconHeight
             let width = icon.size.height > 0 ? icon.size.width * height / icon.size.height : height
             attachment.bounds = NSRect(
@@ -1167,6 +1170,69 @@ final class MenuBarLayoutRenderer {
               let suffixRange = withoutPrefix.range(of: suffix)
         else { return String(withoutPrefix) }
         return String(withoutPrefix[..<suffixRange.lowerBound]) + String(withoutPrefix[suffixRange.upperBound...])
+    }
+
+    /// High contrast keeps the full mark and both rows in the attributed-title path, so AppKit
+    /// cannot dim just the mark on an inactive display. The handler preserves the destination scale.
+    private static func spanningIconTitle(
+        _ icon: NSImage,
+        title: NSAttributedString,
+        font: NSFont,
+        options: MenuBarLayoutRenderOptions) -> NSAttributedString
+    {
+        let baseline = (title.attribute(.baselineOffset, at: 0, effectiveRange: nil) as? NSNumber)?.doubleValue ?? 0
+        let unshifted = NSMutableAttributedString(attributedString: title)
+        // Meter runs put their shift in attachment bounds instead of baselineOffset. Normalize
+        // those as well before moving the complete title, otherwise meters move twice.
+        title.enumerateAttributes(in: NSRange(location: 0, length: title.length)) { attributes, range, _ in
+            guard attributes[.baselineOffset] == nil,
+                  let source = attributes[.attachment] as? NSTextAttachment else { return }
+            let attachment = NSTextAttachment()
+            attachment.image = source.image
+            attachment.bounds = source.bounds.offsetBy(dx: 0, dy: -baseline)
+            unshifted.addAttribute(.attachment, value: attachment, range: range)
+        }
+        unshifted.removeAttribute(.baselineOffset, range: NSRange(location: 0, length: title.length))
+        let immutableTitle = NSAttributedString(attributedString: unshifted)
+        let bounds = immutableTitle.boundingRect(
+            with: NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading])
+        let size = NSSize(width: max(1, ceil(icon.size.width + bounds.width)), height: 22)
+        let titleRect = NSRect(
+            x: icon.size.width - bounds.minX,
+            y: floor((size.height - bounds.height) / 2) - bounds.minY + baseline + 1,
+            width: bounds.width,
+            height: bounds.height)
+        let mark = Self.offsetLeadingIcon(
+            Self.attachmentImage(icon, tint: .labelColor), adjustment: options.verticalAdjustment)
+        let iconRect = NSRect(
+            x: 0,
+            y: (size.height - mark.size.height) / 2,
+            width: mark.size.width,
+            height: mark.size.height)
+        let appearance = NSAppearance(named: NSAppearance.Name(rawValue: options.appearanceName))
+        // No renderer, options, mutable attributed strings, or actor-isolated state escapes here.
+        let image = NSImage(size: size, flipped: false) { _ in
+            let draw = {
+                mark.draw(in: iconRect)
+                immutableTitle.draw(with: titleRect, options: [.usesLineFragmentOrigin, .usesFontLeading])
+            }
+            if let appearance {
+                appearance.performAsCurrentDrawingAppearance(draw)
+            } else {
+                draw()
+            }
+            return true
+        }
+        image.isTemplate = false
+        let attachment = NSTextAttachment()
+        attachment.image = image
+        // AppKit rounds the font descent down to a whole point when measuring the title line.
+        // Match that baseline so the attachment stays exactly 22pt and lands on whole pixels.
+        attachment.bounds = NSRect(x: 0, y: floor(font.descender), width: size.width, height: size.height)
+        let result = NSMutableAttributedString(attachment: attachment)
+        result.addAttribute(.font, value: font, range: NSRange(location: 0, length: result.length))
+        return result
     }
 
     private static func offsetLeadingIcon(_ image: NSImage, adjustment: Int) -> NSImage {

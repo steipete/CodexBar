@@ -880,6 +880,7 @@ extension UsageStore {
             settings: self.settings,
             account: account)
         let snapshot = ProviderRegistry.makeSettingsSnapshot(
+            provider: provider,
             settings: self.settings,
             tokenOverride: override,
             codexActiveSourceOverride: codexActiveSourceOverride)
