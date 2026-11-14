@@ -854,11 +854,6 @@ struct CostHistoryChartMenuView: View {
         return [source]
     }
 
-    /// Provider-specific by design: only Codex and Claude transcripts attribute usage to projects and sessions.
-    nonisolated static func showsProjectBreakdowns(provider: UsageProvider) -> Bool {
-        provider == .codex || provider == .claude
-    }
-
     private static func defaultSelectedDateKey(model: Model) -> String? {
         model.dateKeys.last?.key
     }
@@ -1211,6 +1206,12 @@ extension CostHistoryChartMenuView {
         let models: [VisibleModelBreakdownFingerprint]
     }
 
+    /// Providers whose local session ledgers publish project and conversation rows.
+    nonisolated static func showsLocalBreakdowns(provider: UsageProvider) -> Bool {
+        // Provider-specific by design: only Codex, Claude, and Pi session ledgers carry project/session rows.
+        provider == .codex || provider == .claude || provider == .pi
+    }
+
     static func renderFingerprint(
         from snapshot: CostUsageTokenSnapshot,
         provider: UsageProvider,
@@ -1218,7 +1219,7 @@ extension CostHistoryChartMenuView {
         displayCurrencyCode: String? = nil,
         displayCostMultiplier: Double = 1.0) -> RenderFingerprint
     {
-        let showsBreakdowns = self.showsProjectBreakdowns(provider: provider)
+        let showsBreakdowns = Self.showsLocalBreakdowns(provider: provider)
         let projects = showsBreakdowns ? snapshot.projects : []
         let sessions = showsBreakdowns ? snapshot.sessions : []
         return RenderFingerprint(

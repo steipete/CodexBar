@@ -419,6 +419,7 @@ Switching from **Icon & percent** back to **Meters** or **Critters** redraws the
 
 An empty secondary meter keeps the same height and position as a populated meter. The compact lower lane is reserved for layouts showing a taller credits meter.
 
+Custom two-line layouts show a single leading provider icon at full size beside both text rows, including in high-contrast mode. High contrast keeps the icon and text together in the existing contrast rendering path. Merged-provider rows, multiple icons, icon-only rows, and provider-colored layouts retain inline icons.
 Custom two-line layouts show a single leading provider icon at full size beside both text rows. Merged-provider rows, multiple icons, icon-only rows, high-contrast mode, and provider-colored layouts retain inline icons.
 
 The layout editor's **Usage** palette includes graphical bars for session, weekly, scoped weekly, and automatic windows. **Progress bars stacked** places session and weekly bars on separate rows with their reset countdowns. Bars follow the used/remaining display preference and keep balance-only automatic values as text. The compact three-character **Usage bar** remains available.

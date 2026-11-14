@@ -16,7 +16,7 @@ struct HelmcodeCookieCompatibilityTests {
             let result = try await Self.fetch(engine: engine, broker: broker)
 
             #expect(result.usage.identity?.accountOrganization == "Helmcode Cloud")
-            #expect(result.requests.count == 3)
+            #expect(result.requests.count == 4)
             #expect(result.requests.allSatisfy { $0.url?.host == "cloud-api.helmcode.com" })
             #expect(result.requests.allSatisfy { $0.value(forHTTPHeaderField: "Cookie") == cloud.cookieHeader })
             #expect(imports.value.isEmpty)
@@ -37,12 +37,12 @@ struct HelmcodeCookieCompatibilityTests {
             let imports = LockIsolated<[String]>([])
             let broker = Self.broker(imports: imports)
 
-            let result = try await Self.fetch(engine: engine, broker: broker, quotaStatus: { request in
+            let result = try await Self.fetch(engine: engine, broker: broker, sessionStatus: { request in
                 request.value(forHTTPHeaderField: "Cookie") == "session=rejected-cloud" ? 401 : 200
             })
 
             #expect(result.usage.identity?.accountOrganization == "Helmcode Cloud")
-            #expect(result.requests.count == 4)
+            #expect(result.requests.count == 5)
             #expect(result.requests.last?.value(forHTTPHeaderField: "Cookie") == cloud.cookieHeader)
             #expect(imports.value.isEmpty)
             #expect(Self.cached("helmcode.com") == nil)
@@ -59,7 +59,7 @@ struct HelmcodeCookieCompatibilityTests {
             let imports = LockIsolated<[String]>([])
             let broker = Self.broker(imports: imports)
 
-            let result = try await Self.fetch(engine: engine, broker: broker, quotaStatus: { request in
+            let result = try await Self.fetch(engine: engine, broker: broker, sessionStatus: { request in
                 guard request.value(forHTTPHeaderField: "Cookie") == "session=old-cloud" else { return 200 }
                 CookieHeaderCache.store(
                     provider: .helmcode,
@@ -88,7 +88,7 @@ struct HelmcodeCookieCompatibilityTests {
             let result = try await Self.fetch(engine: engine, broker: broker)
 
             #expect(result.usage.identity?.accountOrganization == "NaN Builders")
-            #expect(result.requests.count == 2)
+            #expect(result.requests.count == 3)
             #expect(result.requests.allSatisfy { $0.url?.host == "cloud-api.nan.builders" })
             #expect(result.requests.allSatisfy { $0.value(forHTTPHeaderField: "Cookie") == nan.cookieHeader })
             #expect(imports.value == ["cloud-api.helmcode.com", "helmcode.com"])
@@ -167,7 +167,7 @@ struct HelmcodeCookieCompatibilityTests {
         broker: ProviderPluginCookieBroker,
         source: ProviderCookieSource = .auto,
         tenant: String = "helmcode",
-        quotaStatus: @escaping @Sendable (URLRequest) -> Int = { _ in 200 }) async throws
+        sessionStatus: @escaping @Sendable (URLRequest) -> Int = { _ in 200 }) async throws
         -> (usage: UsageSnapshot, requests: [URLRequest])
     {
         let context = try #require(Self.cacheContext)
@@ -184,7 +184,12 @@ struct HelmcodeCookieCompatibilityTests {
             switch url.path {
             case "/api/usage/quota":
                 body = quota
-                status = context.perform { quotaStatus(request) }
+                status = context.perform { sessionStatus(request) }
+            case "/api/usage/credits":
+                // The compatibility fixtures only cover token-metered tenants.
+                body = "{}"
+                let code = context.perform { sessionStatus(request) }
+                status = code == 200 ? 404 : code
             case "/api/billing":
                 body = billing
                 status = 200

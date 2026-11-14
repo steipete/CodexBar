@@ -156,9 +156,9 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        // Tripo extends the audited palette without changing existing provider colors.
-        #expect(widgetFingerprint == 8_165_290_587_712_788_196)
-        #expect(burnDownFingerprint == 4_518_705_644_902_934_406)
+        // Tripo and Google Developer Program extend the audited palette without changing existing provider colors.
+        #expect(widgetFingerprint == 14_281_859_890_132_692_949)
+        #expect(burnDownFingerprint == 4_767_200_688_375_901_465)
     }
 
     @Test
@@ -204,6 +204,7 @@ struct ProviderArchitectureGatekeeperTests {
             .perplexity,
             .warp, .kilo, .mistral, .deepseek, .deepinfra, .qoder, .chutes, .longcat, .litellm, .bifrost, .manus,
             .mimo, .neuralwatt, .abacus, .v0, .llmman, .aixy, .raycast, .workbuddy, .claudeplatform, .abliteration,
+            .googledeveloper,
         ])
         #if os(macOS)
         // Antigravity and Muse use bounded local usage readers.
@@ -1648,7 +1649,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/IconRenderer.swift",
-            anchor: "let twistGemini = decorations.contains(.gemini)",
+            anchor: "let addGeminiTwist = decorations.contains(.gemini)",
             expectedProviderIDs: ["antigravity", "factory", "gemini", "grok", "warp"],
             expectedReferenceCount: 5,
             expectedReferenceFingerprint: ["gemini@0", "antigravity@1", "factory@2", "warp@3", "grok@4"],
@@ -3131,11 +3132,11 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact CLI construct preserves the provider-specific command and output contract."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCLI/CLICostCommand.swift",
-            anchor: "static let costGroupingProviders: Set<UsageProvider> = [.codex, .claude]",
-            expectedProviderIDs: ["claude", "codex"],
-            expectedReferenceCount: 2,
-            expectedReferenceFingerprint: ["claude@0", "codex@0"],
-            reason: "Only the Codex and Claude local ledgers currently publish project and session attribution."),
+            anchor: "static let costGroupingProviders: Set<UsageProvider> = [.codex, .claude, .pi]",
+            expectedProviderIDs: ["claude", "codex", "pi"],
+            expectedReferenceCount: 3,
+            expectedReferenceFingerprint: ["claude@0", "codex@0", "pi@0"],
+            reason: "Only the Codex, Claude, and Pi local ledgers currently publish project and session attribution."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCLI/CLICostCommand.swift",
             anchor: "guard provider == .cursor else { return nil }",
@@ -3258,6 +3259,13 @@ struct ProviderArchitectureGatekeeperTests {
             expectedReferenceCount: 2,
             expectedReferenceFingerprint: ["vertexai@0", "claude@2"],
             reason: "This exact cost scanner dispatch selects a provider-owned transcript, cache, or pricing format."),
+        AllowedProviderConstruct(
+            path: "Sources/CodexBarCore/PiSessionCostScanner.swift",
+            anchor: "report: provider == .codex ? reports.codex : reports.claude,",
+            expectedProviderIDs: ["claude", "codex"],
+            expectedReferenceCount: 3,
+            expectedReferenceFingerprint: ["claude@0", "codex@0", "codex@0"],
+            reason: "Native Codex and Claude mirrors return their own backend partitions without standalone Pi groups."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/LocalAgentSessionScanner.swift",
             anchor: "let codexCWDs = processes.filter { AgentPSOutputParser.provider(for: $0) == .codex }",

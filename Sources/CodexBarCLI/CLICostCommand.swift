@@ -20,14 +20,12 @@ extension CodexBarCLI {
         let selection = CodexBarCLI.decodeProvider(from: values, config: config, output: output)
         let providers = Self.costProviders(from: selection)
         let unsupported = selection.asList.filter { !Self.costSupportedProviders.contains($0) }
-        if !unsupported.isEmpty {
+        if !unsupported.isEmpty, !output.jsonOnly {
             let names = unsupported
                 .map { ProviderDescriptorRegistry.descriptor(for: $0).metadata.displayName }
                 .sorted()
                 .joined(separator: ", ")
-            if !output.jsonOnly {
-                Self.writeStderr("Skipping providers without local cost usage: \(names)\n")
-            }
+            Self.writeStderr("Skipping providers without local cost usage: \(names)\n")
         }
         guard !providers.isEmpty else {
             Self.exit(
@@ -70,12 +68,17 @@ extension CodexBarCLI {
         }
         let groupBy = Self.decodeCostGroupBy(from: values)
         Self.warnSkippedGroupingProviders(groupBy: groupBy, providers: providers, jsonOnly: output.jsonOnly)
-        Self.warnSessionGroupingPiOmissions(
-            groupBy: groupBy,
-            providers: providers,
-            format: format,
-            includePiSessions: includePiSessions,
-            jsonOnly: output.jsonOnly)
+        for provider in providers where !output.jsonOnly {
+            if let warning = Self.sessionGroupingPiOmissionWarning(
+                provider: provider,
+                selectedProviders: providers,
+                groupBy: groupBy,
+                format: format,
+                includePiSessions: includePiSessions)
+            {
+                Self.writeStderr("Warning: \(warning)\n")
+            }
+        }
 
         let fetcher = CostUsageFetcher(calendar: bucketCalendar)
         let outputProviders = Self.costProviders(providers, groupBy: groupBy, format: format)
@@ -169,9 +172,6 @@ extension CodexBarCLI {
         Self.exit(code: exitCode, output: output, kind: exitCode == .success ? .runtime : .provider)
     }
 
-    /// Providers whose local transcripts carry project and session attribution.
-    static let costGroupingProviders: Set<UsageProvider> = [.codex, .claude]
-
     enum CostGroupBy: String {
         case none
         case project
@@ -185,6 +185,9 @@ extension CodexBarCLI {
             }
         }
     }
+
+    /// Providers whose local session ledgers publish project and session rows.
+    static let costGroupingProviders: Set<UsageProvider> = [.codex, .claude, .pi]
 
     static func renderCostText(
         provider: UsageProvider,
@@ -222,13 +225,13 @@ extension CodexBarCLI {
         }
         if groupBy == .project, Self.costGroupingProviders.contains(provider) {
             return Self.renderProjectCostText(
+                provider: provider,
                 header: ([header, historyNotice].compactMap(\.self) + notices).joined(separator: "\n"),
-                snapshot: snapshot,
-                provider: provider)
+                snapshot: snapshot)
         }
         if groupBy == .session, Self.costGroupingProviders.contains(provider) {
             return Self.renderSessionCostText(
-                header: ([header] + notices).joined(separator: "\n"), snapshot: snapshot, provider: provider)
+                provider: provider, header: ([header] + notices).joined(separator: "\n"), snapshot: snapshot)
         }
 
         let todayIncomplete = snapshot.summary(forLastDays: 1, calendar: calendar).incompleteRequestCount
@@ -482,9 +485,9 @@ extension CodexBarCLI {
     }
 
     private static func renderProjectCostText(
+        provider: UsageProvider,
         header: String,
-        snapshot: CostUsageTokenSnapshot,
-        provider: UsageProvider) -> String
+        snapshot: CostUsageTokenSnapshot) -> String
     {
         let historyLabel = snapshot.periodLabel
         var lines = [header, "Projects (\(historyLabel)):"]
@@ -521,9 +524,9 @@ extension CodexBarCLI {
     }
 
     private static func renderSessionCostText(
+        provider: UsageProvider,
         header: String,
-        snapshot: CostUsageTokenSnapshot,
-        provider: UsageProvider) -> String
+        snapshot: CostUsageTokenSnapshot) -> String
     {
         let historyLabel = snapshot.periodLabel
         var lines = [header, "Conversations (\(historyLabel)):"]
@@ -643,12 +646,14 @@ extension CodexBarCLI {
 
     static func sessionGroupingPiOmissionWarning(
         provider: UsageProvider,
+        selectedProviders: [UsageProvider] = [],
         groupBy: CostGroupBy,
         format: OutputFormat,
         includePiSessions: Bool) -> String?
     {
         // Provider-specific by design: only local session text warns about omitted mirrors.
-        guard self.costGroupingProviders.contains(provider),
+        guard provider == .codex || provider == .claude,
+              !selectedProviders.contains(.pi),
               groupBy == .session,
               format == .text,
               includePiSessions
@@ -658,27 +663,7 @@ extension CodexBarCLI {
             + "Use the default cost view for merged totals."
     }
 
-    private static func warnSessionGroupingPiOmissions(
-        groupBy: CostGroupBy,
-        providers: [UsageProvider],
-        format: OutputFormat,
-        includePiSessions: Bool,
-        jsonOnly: Bool)
-    {
-        guard !jsonOnly else { return }
-        for provider in providers {
-            if let warning = sessionGroupingPiOmissionWarning(
-                provider: provider,
-                groupBy: groupBy,
-                format: format,
-                includePiSessions: includePiSessions)
-            {
-                writeStderr("Warning: \(warning)\n")
-            }
-        }
-    }
-
-    /// Provider-specific by design: only Codex and Claude transcripts carry local project/session indexes,
+    /// Provider-specific by design: only Codex, Claude, and Pi transcripts carry local project/session indexes,
     /// so text-mode grouping skips other providers with a concise stderr notice.
     static func warnSkippedGroupingProviders(
         groupBy: CostGroupBy,

@@ -162,6 +162,7 @@ extension CodexBarCLI {
           codexbar cost --provider codex --group-by project
           codexbar cost --provider codex --group-by session
           codexbar cost --provider claude --group-by session
+          codexbar cost --provider pi --group-by session
           codexbar cost --provider claude --format json --pretty
           codexbar cost --provider antigravity --format json
           codexbar cost --provider muse --format json

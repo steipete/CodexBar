@@ -438,6 +438,7 @@ extension StatusItemController {
         }
 
         let displayConversion = self.costHistoryDisplayConversion(for: tokenSnapshot)
+        let showsBreakdowns = CostHistoryChartMenuView.showsLocalBreakdowns(provider: provider)
         let chartView = CostHistoryChartMenuView(
             provider: provider,
             daily: tokenSnapshot.daily,
@@ -447,8 +448,8 @@ extension StatusItemController {
             historyDays: tokenSnapshot.displayHistoryDays(calendar: self.settings.costUsageBucketCalendar),
             historyCoverageIsEstablished: tokenSnapshot.historyCoverageIsEstablished,
             windowLabel: tokenSnapshot.historyLabel,
-            projects: CostHistoryChartMenuView.showsProjectBreakdowns(provider: provider) ? tokenSnapshot.projects : [],
-            sessions: tokenSnapshot.sessions,
+            projects: showsBreakdowns ? tokenSnapshot.projects : [],
+            sessions: showsBreakdowns ? tokenSnapshot.sessions : [],
             hidePersonalInfo: self.settings.hidePersonalInfo,
             width: width,
             onBrowseSessions: { [weak self, weak submenu] sessionID in

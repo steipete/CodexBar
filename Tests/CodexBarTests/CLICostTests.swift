@@ -80,18 +80,20 @@ struct CLICostTests {
     }
 
     @Test
-    func `session grouping keeps codex and claude in text mode`() {
-        let textProviders = CodexBarCLI.costProviders(
-            [.claude, .codex, .vertexai],
-            groupBy: .session,
-            format: .text)
-        #expect(textProviders.map(\.rawValue) == ["claude", "codex"])
+    func `session and project grouping keep all local session providers in text mode`() {
+        for groupBy in [CodexBarCLI.CostGroupBy.session, .project] {
+            let textProviders = CodexBarCLI.costProviders(
+                [.claude, .codex, .pi, .vertexai],
+                groupBy: groupBy,
+                format: .text)
+            #expect(textProviders.map(\.rawValue) == ["claude", "codex", "pi"])
 
-        let jsonProviders = CodexBarCLI.costProviders(
-            [.claude, .codex, .vertexai],
-            groupBy: .session,
-            format: .json)
-        #expect(jsonProviders.map(\.rawValue) == ["claude", "codex", "vertexai"])
+            let jsonProviders = CodexBarCLI.costProviders(
+                [.claude, .codex, .pi, .vertexai],
+                groupBy: groupBy,
+                format: .json)
+            #expect(jsonProviders.map(\.rawValue) == ["claude", "codex", "pi", "vertexai"])
+        }
     }
 
     @Test
@@ -176,7 +178,9 @@ struct CLICostTests {
             format: .text,
             includePiSessions: true) == nil)
     }
+}
 
+extension CLICostTests {
     @Test
     func `session grouping falls back for unsupported providers`() {
         let snap = CostUsageTokenSnapshot(
@@ -866,9 +870,7 @@ struct CLICostTests {
         #expect(payload.provenance == CostProvenance.listPriceEstimate.rawValue)
         #expect(payload.coverage?.estimated == 1)
     }
-}
 
-extension CLICostTests {
     @Test
     func `renders claude session grouped cost text`() {
         let sessionDate = Date(timeIntervalSince1970: 1_750_000_000)

@@ -1,5 +1,5 @@
 ---
-summary: "Helmcode plugin: Cloud and NaN Builders sessions, model quotas, and prepaid balances."
+summary: "Helmcode plugin: Cloud and NaN Builders sessions, credit plans, model quotas, and prepaid balances."
 read_when:
   - Setting up or changing the Helmcode provider
   - Debugging Helmcode tenant selection or quota parsing
@@ -32,10 +32,22 @@ browser imports and the automatic cache. There is no cURL-capture tenant detecti
 CLI users can configure `cookieSource: "manual"`, `cookieHeader`, and `region: "helmcode" | "nanBuilders"` in their
 provider config. API-only source policy cannot resolve browser cookies.
 
-The plugin requests `/api/usage/quota` for model usage and `/api/billing` for premium eligibility. Only Cloud requests
-`/api/billing/credits`; NaN has no prepaid balance. Requests carry the selected tenant's Cookie, Origin and Referer.
+The plugin first requests `/api/usage/credits`. Token-metered tenants then use `/api/usage/quota` for model usage
+and `/api/billing` for premium eligibility. Only Cloud requests `/api/billing/credits` for a prepaid currency balance.
+Requests carry the selected tenant's Cookie, Origin and Referer.
 The complete cookie header is used for these endpoints. No endpoint rejection requiring request-path filtering has
 been established; path-aware cookie filtering is outside this implementation.
+
+NaN metered inference in credits from 10 November 2026, and `/api/usage/quota` kept answering with the per-model
+token caps it had before the switch, frozen at the last legacy request. The plugin therefore asks
+`/api/usage/credits` first; when the tenant reports `enabled: true` that plan replaces the token windows entirely. Its
+allowance is credited per billing period rather than per calendar month, so the primary **Credits** window uses
+`usedCredits / allowanceCredits` with the plan's own `periodEnd` as its reset, and carries the absolute allowance as
+`quotaLimit`/`quotaUnit: "credits"`. Each model's `creditsThisMonth` and `approxCreditsPerMTokens` weight become detail
+rows in **Credits used** and **Credits per million tokens** sections. Top-up credits and a paused plan add labelled
+rows. Missing model measurements stay unavailable (—), never zero; labels follow the app language. Credit-metered
+tenants never request legacy quota or billing, so neither endpoint can hide valid credits. A tenant that answers
+404 or `enabled: false` keeps the token quotas below and the `Model quota` label.
 
 Positive model caps become rate windows, ordered by utilization. Each model's `periodEnd` supplies its reset, falling
 back to the first day of the month after `periodStart`. Rolling tiers retain `windowHours` as their window length and
@@ -43,7 +55,12 @@ appear only when billing explicitly reports `subscription.premium: true`. Missin
 therefore hides premium tiers. Unlimited models have no invented percentage. Optional credit-funded tokens appear in
 the detail text, and Cloud prepaid micros are converted to the reported currency (EUR when omitted).
 
-Quota schema changes fail visibly. Quota requests have an eight-second deadline; billing and credits are best-effort
-with two-second deadlines, so their failure cannot hide valid quota.
+Quota and credit-plan requests have an eight-second deadline; billing is best-effort with a two-second deadline, so its
+failure cannot hide valid quota. The credit plan is read before billing, which a credit-metered tenant does not need.
+Because that plan decides the whole snapshot, only a 404 or `enabled: false` falls back to token quotas: a timeout, a
+rate limit, a 5xx, or a 200 that omits the boolean `enabled` fails the refresh instead of republishing the frozen
+windows. Missing, nonnumeric, nonfinite or negative totals fail parsing, as does a zero allowance; a reported zero
+usage remains valid. Missing billing-period dates stay unavailable instead of using a calendar-month reset.
+
 All identity and tenant fields come from this provider. The dashboard contract is unversioned; synthetic fixtures cover
-both tenants, premium eligibility, per-model resets, optional billing failures, and malformed quota responses.
+both tenants, premium eligibility, per-model resets, optional billing failures, credit metering, and malformed quota responses.
