@@ -84,7 +84,8 @@ Automatic cookie traversal reads one browser at a time in the provider's existin
 its candidate sessions before requesting another browser; missing or rejected sessions retain fallback.
 The plugin broker applies the same rule to both header and cookie-jar imports, while explicit browser/profile
 selections remain isolated. Public exhaustive import APIs retain their array return types; live fetches consume
-lazy candidates instead.
+lazy candidates instead. The shared candidate retry runner checks cancellation before reading candidates and
+before attempts, so a cancelled refresh stops traversal even after a retryable authentication failure.
 
 ### Provider architecture gatekeeper threat model
 
@@ -123,6 +124,11 @@ Introduce a single descriptor per provider:
 - CLI metadata (cliName, aliases, version provider)
 - account behavior (e.g., `usesAccountFallback` for Codex auth.json)
 - `nativeAppBundleIdentifiers`: exact provider-owned desktop app bundle IDs for the opt-in frontmost merged icon. The shared monitor matches only enabled providers and rejects ambiguous matches; general-purpose browsers and terminals must not claim a provider.
+
+For snapshot-backed spend, `tokenCost.isUsageUnavailable` distinguishes missing analytics from confirmed empty history
+when no cost projection exists. Balance providers such as DeepSeek and xAI declare this on their descriptors so a
+successful balance fetch alone cannot establish zero spend. Both normal refreshes and direct publication use the same
+shared publisher; pending local history retains the last published spend.
 
 UI and settings should become descriptor-driven:
 - no provider-specific branching for labels/links/toggle titles

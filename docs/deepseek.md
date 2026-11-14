@@ -85,6 +85,10 @@ DeepSeek Platform in a Chromium-based browser. Authentication failures returned 
 - The API separates granted balance from topped-up balance; CodexBar labels these as granted vs. paid credit.
 - With optional extra usage enabled, the menu shows today's and last-30-days cost and tokens,
   request counts, API-key count, the top model, per-model spend, a daily token chart, and a daily spend chart.
+- The same Platform data supplies the menu-bar **Today cost** and **Cost (history window)** elements and
+  **Usage & Spend**. Amounts retain their reported billing currency; the monthly fallback keeps its **This month**
+  label and Gregorian UTC reporting dates. A balance-only refresh does not establish zero spend. Missing detailed
+  usage and browser-profile changes clear the spend projection, while the remaining balance stays independent.
 - Per-model spend uses the same reporting period and currency as detailed usage: **Last 30 days** for the preferred
   endpoints, or **This month** for monthly fallback. These are Platform-account totals across API keys. Missing or
   invalid model costs are omitted; a reported zero is retained.

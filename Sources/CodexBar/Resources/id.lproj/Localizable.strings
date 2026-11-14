@@ -2806,6 +2806,9 @@
 "SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow membatasi frekuensi permintaan. Coba lagi nanti.";
 "SiliconFlow request failed. Try refreshing later." = "Permintaan SiliconFlow gagal. Coba segarkan lagi nanti.";
 "SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow mengembalikan respons yang tidak dikenali. Perbarui CodexBar dan coba lagi.";
+"Sign in to cloud.siliconflow.cn in your browser, then refresh CodexBar." = "Masuk ke cloud.siliconflow.cn di browser Anda, lalu segarkan CodexBar.";
+"The SiliconFlow China balance API was retired. Switch SiliconFlow to Web and sign in to cloud.siliconflow.cn." = "API saldo SiliconFlow China telah dihentikan. Ubah sumber SiliconFlow ke Web dan masuk ke cloud.siliconflow.cn.";
+"SiliconFlow denied access to the console balance (HTTP 403). Open cloud.siliconflow.cn, check that this account can view billing, then refresh." = "SiliconFlow menolak akses ke saldo konsol (HTTP 403). Buka cloud.siliconflow.cn, pastikan akun ini dapat melihat penagihan, lalu segarkan.";
 "Claude Platform session validated and saved." = "Sesi Claude Platform telah divalidasi dan disimpan.";
 "Use %@ or %@." = "Gunakan %@ atau %@.";
 "Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Masuk di %@. Berikan header Cookie yang berisi sessionKey secara privat ke %@. Lalu jalankan %@.";
@@ -2834,6 +2837,7 @@
 "Mistral session expired or invalid." = "Sesi Mistral telah kedaluwarsa atau tidak valid.";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "Perintah ini membaca kunci API yang disalurkan melalui pipe dan menyimpannya sebagai kunci mandiri. Akun token API yang dipilih mengesampingkan kunci mandiri tersebut.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Gunakan kunci API dengan izin user_read untuk melihat penggunaan langganan. Perintah ini menyimpan kunci terpisah; akun kunci API yang dipilih diprioritaskan.";
+"Web" = "Web";
 "Credits per million tokens" = "Kredit per juta token";
 "Paused during grace period" = "Dijeda selama masa tenggang";
 "Google Developer Program exposes the current monthly Cloud credit, not local token cost history." = "Google Developer Program menampilkan kredit Cloud bulanan saat ini, bukan riwayat biaya token lokal.";

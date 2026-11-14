@@ -3,6 +3,7 @@ extension UsageSnapshot {
         state: DeepSeekDetailedUsageState = .unavailable) -> UsageSnapshot
     {
         self.replacing(
+            costUsage: .value(nil),
             details: .value([]),
             deepseekDetailedUsageState: .value(state))
     }

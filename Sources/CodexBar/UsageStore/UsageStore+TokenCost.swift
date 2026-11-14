@@ -362,10 +362,7 @@ extension UsageStore {
         guard provider != .opencodego || snapshot.opencodegoUsage?.localHistoryPending != true else { return }
         if let tokenSnapshot = self.tokenSnapshot(fromProviderSnapshot: snapshot, provider: provider) {
             self.publishTokenSnapshot(tokenSnapshot, for: provider)
-            // Provider-specific by design: a prepaid-balance snapshot without a usage chart means
-            // analytics failed. Leave the source unpublished so Overview counts it unavailable
-            // instead of known-zero spend.
-        } else if provider == .xai, XAICostUsageMapping.isAnalyticsUnavailable(snapshot) {
+        } else if ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.isUsageUnavailable(snapshot) {
             self.clearTokenSnapshot(for: provider)
         } else {
             self.publishConfirmedEmptyTokenSnapshot(for: provider)
@@ -750,7 +747,7 @@ extension UsageStore {
                 usage.daily.isEmpty ? nil : usage
                     .toCostUsageTokenSnapshot(historyDays: windowDays)
             }
-        case .openrouter:
+        case .openrouter, .deepseek:
             snapshot?.costUsage
         case .xai:
             snapshot.flatMap { XAICostUsageMapping.tokenSnapshot(from: $0, historyDays: windowDays) }
@@ -770,7 +767,7 @@ extension UsageStore {
         // Provider-specific by design: these providers project live usage snapshots into the
         // shared spend catalog instead of running the local CostUsageFetcher JSONL pipeline.
         switch provider {
-        case .grok, .mistral, .openai, .opencodego, .openrouter, .xai:
+        case .grok, .mistral, .openai, .opencodego, .openrouter, .xai, .deepseek:
             true
         default:
             false

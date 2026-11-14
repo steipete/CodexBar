@@ -1,5 +1,3 @@
-import Foundation
-
 enum ProviderCandidateRetryRunnerError: Error {
     case noCandidates
 }

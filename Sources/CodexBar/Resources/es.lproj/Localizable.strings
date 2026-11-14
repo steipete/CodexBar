@@ -2802,6 +2802,9 @@
 "SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow está limitando las solicitudes. Inténtalo más tarde.";
 "SiliconFlow request failed. Try refreshing later." = "La solicitud a SiliconFlow ha fallado. Intenta actualizar más tarde.";
 "SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow ha devuelto una respuesta desconocida. Actualiza CodexBar e inténtalo de nuevo.";
+"Sign in to cloud.siliconflow.cn in your browser, then refresh CodexBar." = "Inicia sesión en cloud.siliconflow.cn en tu navegador y actualiza CodexBar.";
+"The SiliconFlow China balance API was retired. Switch SiliconFlow to Web and sign in to cloud.siliconflow.cn." = "La API de saldo de SiliconFlow para China se retiró. Cambia la fuente de SiliconFlow a Web e inicia sesión en cloud.siliconflow.cn.";
+"SiliconFlow denied access to the console balance (HTTP 403). Open cloud.siliconflow.cn, check that this account can view billing, then refresh." = "SiliconFlow denegó el acceso al saldo de la consola (HTTP 403). Abre cloud.siliconflow.cn, comprueba que esta cuenta puede ver la facturación y actualiza.";
 "Claude Platform session validated and saved." = "La sesión de Claude Platform se ha validado y guardado.";
 "Use %@ or %@." = "Usa %@ o %@.";
 "Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Inicia sesión en %@. Proporciona de forma privada su cabecera Cookie con sessionKey a %@. Después ejecuta %@.";
@@ -2830,6 +2833,7 @@
 "Mistral session expired or invalid." = "La sesión de Mistral ha caducado o no es válida.";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "El comando lee una clave de API enviada mediante una tubería y la guarda como clave independiente. Una cuenta de token de API seleccionada tiene prioridad sobre la clave independiente.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Usa una clave API con el permiso user_read para consultar el uso de la suscripción. El comando guarda una clave independiente; la cuenta de clave API seleccionada tiene prioridad.";
+"Web" = "Web";
 "Credits per million tokens" = "Créditos por millón de tokens";
 "Paused during grace period" = "En pausa durante el período de gracia";
 "Google Developer Program exposes the current monthly Cloud credit, not local token cost history." = "Google Developer Program muestra el crédito mensual actual de Cloud, no el historial de costos local de tokens.";

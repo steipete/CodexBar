@@ -48,7 +48,9 @@ struct ProviderCandidateRetryCancellationTests {
 
     @Test
     func `cancellation during a failed attempt stops lazy browser traversal`() async {
-        await Task {
+        let (entered, signalEntered) = AsyncStream<Void>.makeStream()
+        let (released, release) = AsyncStream<Void>.makeStream()
+        let refresh = Task {
             var loaded: [Int] = []
             var attempted: [Int] = []
             var retried: [Int] = []
@@ -63,13 +65,24 @@ struct ProviderCandidateRetryCancellationTests {
                     onRetry: { candidate, _ in retried.append(candidate) },
                     attempt: { candidate -> Int in
                         attempted.append(candidate)
-                        withUnsafeCurrentTask { $0?.cancel() }
+                        signalEntered.yield()
+                        signalEntered.finish()
+                        for await _ in released {
+                            break
+                        }
                         throw TestError.authenticationExpired
                     })
             }
             #expect(loaded == [1])
             #expect(attempted == [1])
             #expect(retried.isEmpty)
-        }.value
+        }
+        for await _ in entered {
+            break
+        }
+        refresh.cancel()
+        release.yield()
+        release.finish()
+        await refresh.value
     }
 }

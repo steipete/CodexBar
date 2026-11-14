@@ -77,6 +77,7 @@ extension UsageStore {
     }
 
     func beginDeepSeekProfileTransition(preservingBalance: Bool = true) {
+        self.clearTokenSnapshot(for: .deepseek)
         guard self.deepseekProfileTransition == nil,
               let snapshot = self.snapshots[.deepseek] ?? self.lastKnownResetSnapshots[.deepseek]
         else { return }

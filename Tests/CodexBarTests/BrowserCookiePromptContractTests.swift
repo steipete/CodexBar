@@ -8,7 +8,7 @@ import Testing
 @testable import CodexBarCore
 @testable import SweetCookieKit
 
-@Suite(.serialized, CodexCredentialFixtures())
+@Suite(.serialized, CodexCredentialFixtures(), BrowserCookiePromptFixtures())
 struct BrowserCookiePromptContractTests {
     private final class FakeKeychain: @unchecked Sendable {
         private let lock = NSLock()
@@ -158,7 +158,9 @@ struct BrowserCookiePromptContractTests {
                 "is_secure INTEGER, is_httponly INTEGER, value TEXT, encrypted_value BLOB); " +
                 "INSERT INTO cookies VALUES ('unrelated.example', 'session', '/', 0, 1, 1, '', X'763130'), " +
                 "('platform.minimax.cn.evil.example', 'session', '/', 0, 1, 1, '', X'763130'), " +
-                "('notminimax.cn', 'session', '/', 0, 1, 1, '', X'763130')",
+                "('notminimax.cn', 'session', '/', 0, 1, 1, '', X'763130'), " +
+                "('cloud.siliconflow.cn.evil.example', 'session', '/', 0, 1, 1, '', X'763130'), " +
+                "('notsiliconflow.cn', 'session', '/', 0, 1, 1, '', X'763130')",
             nil,
             nil,
             nil) == SQLITE_OK)
@@ -177,6 +179,7 @@ struct BrowserCookiePromptContractTests {
                     for query in [
                         BrowserCookieQuery(domains: ["xiaomimimo.com"], domainMatch: .exact),
                         MiniMaxCookieImporter.cookieQuery,
+                        BrowserCookieQuery(domains: ["cloud.siliconflow.cn", "siliconflow.cn"], domainMatch: .exact),
                     ] {
                         let records = try client.codexBarRecords(matching: query, in: store)
                         #expect(records.isEmpty)
@@ -793,6 +796,23 @@ struct BrowserCookiePromptContractTests {
                         }
                     }
                 }
+        }
+    }
+}
+
+/// Cooldown resets in this suite must not erase another suite's denial state.
+private struct BrowserCookiePromptFixtures: TestTrait, SuiteTrait, TestScoping {
+    var isRecursive: Bool {
+        true
+    }
+
+    func provideScope(
+        for test: Test,
+        testCase: Test.Case?,
+        performing function: @Sendable () async throws -> Void) async throws
+    {
+        try await BrowserCookieAccessGate.withIsolatedStateForTesting {
+            try await function()
         }
     }
 }
