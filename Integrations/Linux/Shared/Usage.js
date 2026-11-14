@@ -166,7 +166,18 @@ function number(value) { return typeof value === "number" && isFinite(value) ? v
 function money(value) { return number(value) === null ? "Unavailable" : "$" + value.toFixed(2); }
 
 function count(value) {
-    return number(value) === null ? "—" : Math.round(value).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    if (number(value) === null) return "—";
+    var rounded = Math.round(value);
+    var digits = Math.abs(rounded).toString();
+    if (digits.indexOf("e") !== -1) return rounded.toString();
+    var groups = [];
+    // Qt 6.4's JS engine can replace a zero-width regex match twice. Group explicitly.
+    while (digits.length > 3) {
+        groups.unshift(digits.slice(-3));
+        digits = digits.slice(0, -3);
+    }
+    groups.unshift(digits);
+    return (rounded < 0 ? "-" : "") + groups.join(",");
 }
 
 function provenance(value) {

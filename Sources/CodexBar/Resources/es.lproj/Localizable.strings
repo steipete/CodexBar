@@ -2832,3 +2832,17 @@
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Usa una clave API con el permiso user_read para consultar el uso de la suscripción. El comando guarda una clave independiente; la cuenta de clave API seleccionada tiene prioridad.";
 "Credits per million tokens" = "Créditos por millón de tokens";
 "Paused during grace period" = "En pausa durante el período de gracia";
+"Google Developer Program exposes the current monthly Cloud credit, not local token cost history." = "Google Developer Program muestra el crédito mensual actual de Cloud, no el historial de costos local de tokens.";
+"Paste a me.developers.google.com Cookie header from a signed-in Google account." = "Pega una cabecera Cookie de me.developers.google.com de una cuenta de Google con sesión iniciada.";
+"Billing account" = "Cuenta de facturación";
+"Granted" = "Concedido";
+"Not applied" = "Sin aplicar";
+"%@ of %@ left" = "Quedan %@ de %@";
+"No Cloud credit found. Check your Google Developer Program benefits." = "No se encontró crédito de Cloud. Revisa tus ventajas de Google Developer Program.";
+"Google Developer Program" = "Google Developer Program";
+"Browser session" = "Sesión del navegador";
+"Google Developer Program is rate limiting requests. Try again later." = "Google Developer Program está limitando las solicitudes. Inténtalo más tarde.";
+"Google Developer Program request failed. Try refreshing later." = "La solicitud a Google Developer Program ha fallado. Intenta actualizar más tarde.";
+"Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program ha devuelto una respuesta desconocida. Actualiza CodexBar e inténtalo de nuevo.";
+"Google session expired or invalid." = "La sesión de Google ha caducado o no es válida.";
+"No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "No se han encontrado cookies de sesión de Google Developer Program. Inicia sesión en me.developers.google.com/benefits o pega una cabecera Cookie.";

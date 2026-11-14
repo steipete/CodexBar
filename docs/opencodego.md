@@ -59,6 +59,12 @@ parsed rows; larger histories keep daily totals and only timestamp/cost pairs fo
 Moving quota windows and resets remain live. Aggregate reuse ends at calendar or billing boundaries, future records,
 backward clock changes, or a wider requested history range; changed sources always rescan. Payloads exceeding the
 budget remain readable without being retained. Separate CLI invocations each perform their own initial scan.
+Auto waits at most 5 seconds for local history on the shared serial scan executor. A running read keeps filling
+this cache while the refresh obtains quota through the configured API key, a browser session, or the CLI login.
+Once that refresh finishes, cancellation discards obsolete reads still queued behind other scans.
+Pending history keeps the last same-scope cost snapshot, or leaves cost unavailable when none exists; it never
+publishes a false empty history. Without remote quota, the refresh waits for the same scan and returns the local
+estimate. Later app or server refreshes reuse the finished scan; a CLI process that exits first discards it.
 
 The shared [OpenCode guide](opencode.md) documents authentication, scoped source selection, usage mapping, and the
 boundary between device-local estimates and account quota. Keep those details there so the two guides do not drift.
