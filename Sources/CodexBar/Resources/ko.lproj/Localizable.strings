@@ -2800,3 +2800,5 @@
 "Mistral session expired or invalid." = "Mistral 세션이 만료되었거나 유효하지 않습니다.";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "이 명령은 파이프로 전달된 API 키를 읽어 별도의 키로 저장합니다. 선택한 API 토큰 계정이 별도의 키보다 우선합니다.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "구독 사용량을 조회하려면 user_read 권한이 있는 API 키를 사용하세요. 이 명령은 독립적인 키를 저장하며, 선택된 API 키 계정이 우선합니다.";
+"Credits per million tokens" = "100만 토큰당 크레딧";
+"Paused during grace period" = "유예 기간 동안 일시 중지됨";

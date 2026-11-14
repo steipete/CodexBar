@@ -2824,3 +2824,5 @@
 "Mistral session expired or invalid." = "Mistral 会话已过期或无效。";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "此命令读取通过管道传入的 API 密钥，并将其保存为独立密钥。选中的 API 令牌账户优先于独立密钥。";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "使用具有 user_read 权限的 API 密钥查看订阅用量。此命令保存独立密钥；所选 API 密钥账户优先。";
+"Credits per million tokens" = "每百万 token 的额度";
+"Paused during grace period" = "宽限期内已暂停";

@@ -2837,3 +2837,5 @@
 "Mistral session expired or invalid." = "Mistral session expired or invalid.";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority.";
+"Credits per million tokens" = "Credits per million tokens";
+"Paused during grace period" = "Paused during grace period";

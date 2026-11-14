@@ -2829,3 +2829,5 @@
 "Mistral session expired or invalid." = "De Mistral-sessie is verlopen of ongeldig.";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "De opdracht leest een via een pipe aangeleverde API-sleutel en slaat deze op als zelfstandige sleutel. Een geselecteerd API-tokenaccount heeft voorrang op de zelfstandige sleutel.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Gebruik een API-sleutel met de machtiging user_read om het abonnementsgebruik te bekijken. De opdracht slaat een afzonderlijke sleutel op; het geselecteerde API-sleutelaccount heeft voorrang.";
+"Credits per million tokens" = "Kredieten per miljoen tokens";
+"Paused during grace period" = "Gepauzeerd tijdens de respijtperiode";

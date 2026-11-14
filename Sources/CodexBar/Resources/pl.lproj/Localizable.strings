@@ -2835,3 +2835,5 @@
 "Mistral session expired or invalid." = "Sesja Mistral wygasła lub jest nieprawidłowa.";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "Polecenie odczytuje klucz API przekazany potokiem i zapisuje go jako osobny klucz. Wybrane konto tokenu API ma pierwszeństwo przed osobnym kluczem.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Użyj klucza API z uprawnieniem user_read, aby odczytać zużycie subskrypcji. Polecenie zapisuje osobny klucz; wybrane konto klucza API ma pierwszeństwo.";
+"Credits per million tokens" = "Kredyty na milion tokenów";
+"Paused during grace period" = "Wstrzymano na czas okresu prolongaty";

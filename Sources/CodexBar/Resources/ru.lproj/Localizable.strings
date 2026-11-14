@@ -2833,3 +2833,5 @@
 "Mistral session expired or invalid." = "Срок действия сеанса Mistral истёк или сеанс недействителен.";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "Команда считывает ключ API, переданный через канал, и сохраняет его как отдельный ключ. Выбранная учётная запись с токеном API имеет приоритет над отдельным ключом.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Для просмотра использования подписки используйте ключ API с разрешением user_read. Команда сохраняет отдельный ключ; выбранная учетная запись ключа API имеет приоритет.";
+"Credits per million tokens" = "Кредиты за миллион токенов";
+"Paused during grace period" = "Приостановлено на время льготного периода";

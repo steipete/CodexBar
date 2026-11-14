@@ -2831,3 +2831,5 @@
 "Mistral session expired or invalid." = "La session Mistral a expiré ou n’est pas valide.";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "La commande lit une clé API transmise par un tube et l'enregistre comme clé indépendante. Un compte de jeton API sélectionné est prioritaire sur la clé indépendante.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Utilisez une clé API avec l'autorisation user_read pour consulter l'utilisation de l'abonnement. La commande enregistre une clé indépendante ; le compte de clé API sélectionné est prioritaire.";
+"Credits per million tokens" = "Crédits par million de jetons";
+"Paused during grace period" = "En pause pendant le délai de grâce";

@@ -2834,3 +2834,5 @@
 "Mistral session expired or invalid." = "เซสชัน Mistral หมดอายุหรือไม่ถูกต้อง";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "คำสั่งนี้อ่านคีย์ API ที่ส่งผ่านไปป์และบันทึกเป็นคีย์แยกต่างหาก บัญชีโทเค็น API ที่เลือกจะมีลำดับความสำคัญเหนือคีย์แยกต่างหาก";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "ใช้คีย์ API ที่มีสิทธิ์ user_read เพื่อดูการใช้งานการสมัครสมาชิก คำสั่งจะบันทึกคีย์แยกต่างหาก โดยบัญชีคีย์ API ที่เลือกจะมีลำดับความสำคัญสูงกว่า";
+"Credits per million tokens" = "เครดิตต่อล้านโทเค็น";
+"Paused during grace period" = "หยุดชั่วคราวในช่วงผ่อนผัน";

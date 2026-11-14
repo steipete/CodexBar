@@ -2835,3 +2835,5 @@
 "Mistral session expired or invalid." = "Mistral oturumunun süresi doldu veya oturum geçersiz.";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "Komut, boru üzerinden iletilen bir API anahtarını okur ve bağımsız bir anahtar olarak kaydeder. Seçili bir API belirteci hesabı, bağımsız anahtardan önceliklidir.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Abonelik kullanımını görüntülemek için user_read iznine sahip bir API anahtarı kullanın. Komut bağımsız bir anahtar kaydeder; seçili API anahtarı hesabı önceliklidir.";
+"Credits per million tokens" = "Milyon token başına kredi";
+"Paused during grace period" = "Ek süre boyunca duraklatıldı";

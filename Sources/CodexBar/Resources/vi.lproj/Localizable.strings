@@ -2833,3 +2833,5 @@
 "Mistral session expired or invalid." = "Phiên Mistral đã hết hạn hoặc không hợp lệ.";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "Lệnh đọc khóa API được truyền qua pipe và lưu thành khóa riêng. Tài khoản token API được chọn được ưu tiên hơn khóa riêng.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Sử dụng khóa API có quyền user_read để xem mức sử dụng gói đăng ký. Lệnh lưu một khóa riêng; tài khoản khóa API đang chọn được ưu tiên.";
+"Credits per million tokens" = "Tín dụng trên một triệu mã thông báo";
+"Paused during grace period" = "Tạm dừng trong thời gian gia hạn";
