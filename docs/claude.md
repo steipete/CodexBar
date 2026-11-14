@@ -350,6 +350,8 @@ is stored on the token account in the config file and does not change quota fetc
   including Firefox import, remains unavailable. This enables the same API request path as macOS; it does not
   bypass Cloudflare challenges, refresh Claude Code OAuth credentials, or guarantee that a browser session will
   work outside the browser. Use the OAuth source when the web request is challenged.
+  Successful OAuth quota and a valid manual cookie can still leave subscription dates unavailable:
+  a challenge on the optional web account check stops billing enrichment before subscription details are fetched.
 - Linux CLI Auto mode: an existing valid manual cookie makes Web eligible ahead of CLI after upgrading.
   Web success returns without launching Claude Code; authentication rejection or a Cloudflare challenge falls
   back to an available CLI using the existing Auto policy. Cancellation stops without launching the CLI.

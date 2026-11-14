@@ -778,7 +778,36 @@ struct MenuBarLayoutRendererTests {
         #expect(output.attributedTitle.string.contains("\u{FFFC}"))
     }
 
-    @Test(arguments: ["highContrast", "forceStackedStyle", "colorByProvider", "missingIcon"])
+    @Test
+    func `provider coloring preserves the leading icon across both text rows`() throws {
+        let icon = NSImage(size: NSSize(width: 16, height: 16), flipped: false) { rect in
+            NSColor.black.setFill()
+            rect.fill()
+            return true
+        }
+        icon.isTemplate = true
+        let layout = MenuBarLayout(lines: [
+            [.icon, .progressBar(window: .session), .windowResetCountdown(window: .session)],
+            [.percent(window: .weekly), .windowResetCountdown(window: .weekly)],
+        ])
+        let renderer = MenuBarLayoutRenderer()
+        let options = self.options(colorByProvider: true)
+        let colored = renderer.render(layout: layout, data: self.data(provider: .claude), icon: icon, options: options)
+        let neutral = renderer.render(
+            layout: layout, data: self.data(provider: .claude), icon: icon, options: self.options())
+        let leading = try #require(colored.leadingIcon)
+        #expect(leading.size == neutral.leadingIcon?.size)
+        #expect(!leading.isTemplate)
+        #expect(colored.attributedTitle.string == neutral.attributedTitle.string)
+        #expect(colored.accessibilityLabel == neutral.accessibilityLabel)
+        let pixel = try #require(Self.statusBitmap(image: leading, scale: 1).colorAt(x: 8, y: 8))
+        let tint = try #require(MenuBarLayoutRenderer.effectiveProviderTintColor(for: .claude, options: options))
+        #expect(abs(pixel.redComponent - tint.redComponent) < 0.01)
+        #expect(abs(pixel.greenComponent - tint.greenComponent) < 0.01)
+        #expect(abs(pixel.blueComponent - tint.blueComponent) < 0.01)
+    }
+
+    @Test(arguments: ["highContrast", "forceStackedStyle", "missingIcon"])
     func `two row leading icons retain rendering overrides`(override: String) {
         let icon = NSImage(size: NSSize(width: 16, height: 16))
         icon.isTemplate = true
@@ -787,7 +816,6 @@ struct MenuBarLayoutRendererTests {
             data: self.data(),
             icon: override == "missingIcon" ? nil : icon,
             options: self.options(
-                colorByProvider: override == "colorByProvider",
                 highContrast: override == "highContrast",
                 forceStackedStyle: override == "forceStackedStyle"))
 

@@ -417,7 +417,7 @@ The layout editor includes an optional **Tokens / min** value token (for example
 
 Switching from **Icon & percent** back to **Meters** or **Critters** redraws the selected style immediately, even when usage has not changed.
 
-Custom two-line layouts show a single leading provider icon at full size beside both text rows. Merged-provider rows, multiple icons, icon-only rows, high-contrast mode, and provider-colored layouts retain inline icons.
+Custom two-line layouts show a single leading provider icon at full size beside both text rows, including when colored by provider. Merged-provider rows, multiple icons, icon-only rows, and high-contrast mode retain inline icons.
 
 The layout editor's **Usage** palette includes graphical bars for session, weekly, scoped weekly, and automatic windows. **Progress bars stacked** places session and weekly bars on separate rows with their reset countdowns. Bars follow the used/remaining display preference and keep balance-only automatic values as text. The compact three-character **Usage bar** remains available.
 
