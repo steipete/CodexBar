@@ -2835,3 +2835,16 @@
 /* Google Developer Program provider */
 "Google Developer Program exposes the current monthly Cloud credit, not local token cost history." = "Google Developer Program hiển thị tín dụng Cloud hằng tháng hiện tại, không phải lịch sử chi phí token cục bộ.";
 "Paste a me.developers.google.com Cookie header from a signed-in Google account." = "Dán tiêu đề Cookie của me.developers.google.com từ một tài khoản Google đã đăng nhập.";
+
+"Billing account" = "Tài khoản thanh toán";
+"Granted" = "Đã cấp";
+"Not applied" = "Chưa áp dụng";
+"%@ of %@ left" = "Còn %@ trên %@";
+"No Cloud credit found. Check your Google Developer Program benefits." = "Không tìm thấy tín dụng Cloud. Hãy kiểm tra các quyền lợi Google Developer Program của bạn.";
+"Google Developer Program" = "Google Developer Program";
+"Browser session" = "Phiên trình duyệt";
+"Google Developer Program is rate limiting requests. Try again later." = "Google Developer Program đang giới hạn tần suất yêu cầu. Hãy thử lại sau.";
+"Google Developer Program request failed. Try refreshing later." = "Yêu cầu Google Developer Program không thành công. Hãy thử làm mới sau.";
+"Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program trả về phản hồi không nhận dạng được. Hãy cập nhật CodexBar rồi thử lại.";
+"Google session expired or invalid." = "Phiên Google đã hết hạn hoặc không hợp lệ.";
+"No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Không tìm thấy cookie phiên Google Developer Program. Đăng nhập tại me.developers.google.com/benefits hoặc dán tiêu đề Cookie.";

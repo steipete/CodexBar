@@ -2831,3 +2831,16 @@
 /* Google Developer Program provider */
 "Google Developer Program exposes the current monthly Cloud credit, not local token cost history." = "Google Developer Program toont het huidige maandelijkse Cloud-tegoed, niet de lokale tokenkostengeschiedenis.";
 "Paste a me.developers.google.com Cookie header from a signed-in Google account." = "Plak een Cookie-header van me.developers.google.com van een aangemeld Google-account.";
+
+"Billing account" = "Factureringsaccount";
+"Granted" = "Toegekend";
+"Not applied" = "Niet toegepast";
+"%@ of %@ left" = "%@ van %@ over";
+"No Cloud credit found. Check your Google Developer Program benefits." = "Geen Cloud-tegoed gevonden. Controleer je Google Developer Program-voordelen.";
+"Google Developer Program" = "Google Developer Program";
+"Browser session" = "Browsersessie";
+"Google Developer Program is rate limiting requests. Try again later." = "Google Developer Program beperkt het aantal verzoeken. Probeer het later opnieuw.";
+"Google Developer Program request failed. Try refreshing later." = "Het Google Developer Program-verzoek is mislukt. Probeer later opnieuw te vernieuwen.";
+"Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program heeft een onbekend antwoord teruggegeven. Werk CodexBar bij en probeer het opnieuw.";
+"Google session expired or invalid." = "De Google-sessie is verlopen of ongeldig.";
+"No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Geen Google Developer Program-sessiecookies gevonden. Meld je aan op me.developers.google.com/benefits of plak een Cookie-header.";

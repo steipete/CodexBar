@@ -2833,3 +2833,16 @@
 /* Google Developer Program provider */
 "Google Developer Program exposes the current monthly Cloud credit, not local token cost history." = "Google Developer Program affiche le crédit Cloud mensuel actuel, et non l'historique local des coûts de jetons.";
 "Paste a me.developers.google.com Cookie header from a signed-in Google account." = "Collez un en-tête Cookie de me.developers.google.com provenant d'un compte Google connecté.";
+
+"Billing account" = "Compte de facturation";
+"Granted" = "Accordé";
+"Not applied" = "Non appliqué";
+"%@ of %@ left" = "%@ restants sur %@";
+"No Cloud credit found. Check your Google Developer Program benefits." = "Aucun crédit Cloud trouvé. Vérifiez vos avantages Google Developer Program.";
+"Google Developer Program" = "Google Developer Program";
+"Browser session" = "Session du navigateur";
+"Google Developer Program is rate limiting requests. Try again later." = "Google Developer Program limite la fréquence des requêtes. Réessayez plus tard.";
+"Google Developer Program request failed. Try refreshing later." = "La requête Google Developer Program a échoué. Réessayez d’actualiser plus tard.";
+"Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program a renvoyé une réponse inconnue. Mettez CodexBar à jour et réessayez.";
+"Google session expired or invalid." = "La session Google a expiré ou n’est pas valide.";
+"No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Aucun cookie de session Google Developer Program trouvé. Connectez-vous sur me.developers.google.com/benefits ou collez un en-tête Cookie.";

@@ -1,6 +1,22 @@
 import Foundation
 
 public enum GoogleDeveloperProviderDescriptor {
+    static let messages = [
+        "%@ cookies are disabled.",
+        "%@ of %@ left",
+        "Browser session",
+        "Expires %@",
+        "Google Developer Program is rate limiting requests. Try again later.",
+        "Google Developer Program request failed. Try refreshing later.",
+        "Google Developer Program returned an unrecognized response. Update CodexBar and try again.",
+        "Google session expired or invalid.",
+        "No Cloud credit found. Check your Google Developer Program benefits.",
+        "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits "
+            + "or paste a Cookie header.",
+        "Not applied",
+        "Supported browsers: %@. Use Manual for other browsers.",
+    ]
+
     public static let descriptor: ProviderDescriptor = Self.spec.makeDescriptor()
     public static let spec = PluginProviderSpec(
         id: .googledeveloper,
@@ -32,6 +48,13 @@ public enum GoogleDeveloperProviderDescriptor {
             timeout: .fixed(60),
             browserSupportExemption: { _, _, settings in
                 settings?[GoogleDeveloperProviderSettingsKey.self]?.cookieSource == .manual
+            },
+            resolveValues: { _ in
+                let messages = Dictionary(uniqueKeysWithValues: Self.messages.map {
+                    ($0, UsageFormatter.localized($0))
+                })
+                let data = try? JSONEncoder().encode(messages)
+                return .init(settings: ["MESSAGES": data.flatMap { String(data: $0, encoding: .utf8) } ?? "{}"])
             },
             field: .init(
                 id: "googledeveloper-cookie",

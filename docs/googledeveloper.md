@@ -13,7 +13,7 @@ read_when:
 
 Google AI Pro and Ultra include a Google Developer Program premium benefit: a monthly Gen AI & Cloud credit that can
 be applied to a Google Cloud billing account (Google AI Pro grants $10 a month, Ultra $40 or $100, in your billing
-currency). Each monthly grant stays valid for 12 months. Google offers no public API for the remaining balance, so
+currency). Each monthly grant stays valid for 12 months; see the [official benefits guide](https://developers.google.com/profile/help/benefits). Google offers no public API for the remaining balance, so
 CodexBar reads the same data the benefits page at <https://me.developers.google.com/benefits> shows.
 
 This provider covers only the current monthly grant shown on the benefits page. Older grants that are still valid
@@ -55,17 +55,17 @@ and a profile is never read past eight accounts. A transient page GET failure is
 The menu card shows:
 
 - **Cloud credits**: the remaining part of the current monthly grant as a used-percentage bar with
-  `$87.50 of $100.00 left · Expires Nov 7, 2027`. The grant expires instead of resetting, so its expiry is detail text,
-  shown in the local time zone like the benefits page.
-- **Monthly credit**: the remaining amount, which the menu bar **Balance** element also shows. Amounts keep the
-  currency the response reports.
+  `$87.50 of $100.00 left · Expires 2027-11-07`. The grant expires instead of resetting, so its expiry is detail text,
+  shown as a numeric Gregorian date in the local time zone. Setup, status, and error messages follow the app language.
+- **Monthly credits**: the remaining amount, which the menu bar **Balance** element also shows. Amounts keep the
+  currency the response reports. A grant and remaining balance with different currencies fail parsing rather than mixing amounts.
 - **Billing**: the billing account ID the credit is applied to, and the date the grant was issued.
 
 Other states:
 
 - A credit that is not applied to a billing account yet shows **Status: Not applied** with a pointer to
   me.developers.google.com/benefits, where its **Apply** button links it to a billing account. This is not an error.
-- When no signed-in account has the credit, the error explains that it requires Google AI Pro or Ultra.
+- When no signed-in account has the credit, the error points to the Google Developer Program benefits page to check eligibility.
 - HTTP 429 reports a rate limit and HTTP 5xx reports the service as unavailable, keeping the session.
 
 The signed-in email and the `Browser session` login label are the only identity fields.

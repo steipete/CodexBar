@@ -8,7 +8,7 @@ function _nullishCoalesce(lhs, rhsFn) {
 defineProvider({
   id: "googledeveloper",
   name: "Google Developer Program",
-  settings: [],
+  settings: [{ key: "MESSAGES", title: "Google Developer Program", type: "plain" }],
   endpoints: ["https://me.developers.google.com"],
   capabilities: ["browser-cookies", "http-status"],
   cookieDomains: ["me.developers.google.com", "google.com"],
@@ -16,33 +16,42 @@ defineProvider({
   async fetchUsage(ctx) {
     const domain = "me.developers.google.com";
     const origin = `https://${domain}`;
+    const messages = JSON.parse(ctx.settings.get("MESSAGES") || "{}");
+    const message = (key, ...values) => {
+      let text = messages[key] || key;
+      for (const value of values) text = text.replace("%@", () => value);
+      return text;
+    };
+    const signIn = message(
+      "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header.",
+    );
     if (ctx.browser.availability(domain) === "off")
-      throw ctx.fail.missingCredential("Google Developer Program cookies are disabled.");
-    const invalid = (field) => {
+      throw ctx.fail.missingCredential(message("%@ cookies are disabled.", "Google Developer Program"));
+    const invalid = () => {
       throw ctx.fail.parseFailure(
-        `Could not parse the Google Developer Program ${field}. The benefits page may have changed. Update CodexBar or report this.`,
+        message("Google Developer Program returned an unrecognized response. Update CodexBar and try again."),
       );
     };
-    const json = (text, field) => {
+    const json = (text) => {
       try {
         return JSON.parse(text);
       } catch (error) {
         void error;
-        return invalid(field);
+        return invalid();
       }
     };
-    const array = (value, field) => (Array.isArray(value) ? value : invalid(field));
+    const array = (value) => (Array.isArray(value) ? value : invalid());
     // Google Money arrays omit zero units and nanos.
-    const integer = (value, field) =>
+    const integer = (value) =>
       value === null || value === undefined
         ? 0
         : typeof value === "number" && Number.isSafeInteger(value)
           ? value
-          : invalid(field);
-    const money = (value, field) => {
-      const [currency, units, nanos] = array(value, field);
-      if (typeof currency !== "string" || !/^[A-Z]{3}$/.test(currency)) return invalid(`${field} currency`);
-      return { currency, amount: integer(units, field) + integer(nanos, field) / 1e9 };
+          : invalid();
+    const money = (value) => {
+      const [currency, units, nanos] = array(value);
+      if (typeof currency !== "string" || !/^[A-Z]{3}$/.test(currency)) return invalid();
+      return { currency, amount: integer(units) + integer(nanos) / 1e9 };
     };
     // A malformed timestamp means an unknown date, never a failed refresh.
     const date = (value) => {
@@ -51,26 +60,25 @@ defineProvider({
         ? ctx.date.unixSeconds(seconds)
         : undefined;
     };
-    const day = (value) => `${ctx.format.monthDay(value)}, ${value.getFullYear()}`;
+    const day = (value) =>
+      `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
     // WIZ_global_data values are JSON string literals.
     const pageValue = (html, key) => {
       const literal = ctx.html.matchFirst(html, `"${key}":("(?:[^"\\\\]|\\\\.)*")`);
-      return literal ? json(literal, "benefits page") : undefined;
+      return literal ? json(literal) : undefined;
     };
     // Signed-out requests redirect to accounts.google.com, which the host refuses, or answer 401 or 403.
     const denied = (response) => {
       if ((response.status >= 300 && response.status < 400) || response.status === 401 || response.status === 403)
         return true;
       if (response.status === 429) {
-        throw ctx.fail.rateLimited("Google Developer Program requests are rate limited. Try again in a few minutes.");
+        throw ctx.fail.rateLimited(message("Google Developer Program is rate limiting requests. Try again later."));
       }
       if (response.status >= 500) {
-        throw ctx.fail.providerUnavailable("Google Developer Program is unavailable. Try again later.");
+        throw ctx.fail.providerUnavailable(message("Google Developer Program request failed. Try refreshing later."));
       }
       if (response.status !== 200) {
-        throw ctx.fail.apiFailure(
-          `Google Developer Program returned HTTP ${response.status}. Try again later or report this.`,
-        );
+        throw ctx.fail.apiFailure(message("Google Developer Program request failed. Try refreshing later."));
       }
       return false;
     };
@@ -108,38 +116,37 @@ defineProvider({
         const result = response.bodyText
           .split("\n")
           .filter((line) => line.startsWith("["))
-          .flatMap((line) => array(json(line, "benefits response"), "benefits response"))
+          .flatMap((line) => array(json(line)))
           .find((entry) => Array.isArray(entry) && entry[0] === "wrb.fr" && entry[1] === "Ro0AYc");
-        if (!result) return invalid("benefits response");
+        if (!result) return invalid();
         // A per-account RPC error has no string payload, so try the next account.
         if (typeof result[2] !== "string") continue;
-        const list = array(json(result[2], "benefits"), "benefits")[0];
+        const list = array(json(result[2]))[0];
         // Benefit type 19 is the monthly Gen AI & Cloud credit of Google AI Pro and Ultra.
-        const credit = array(
-          _nullishCoalesce(list, () => []),
-          "benefits",
-        )
-          .map((benefit) => array(benefit, "benefit"))
+        const credit = array(_nullishCoalesce(list, () => []))
+          .map((benefit) => array(benefit))
           .find((benefit) => benefit[0] === 19);
         if (!credit) continue;
-        const offer = array(
-          _nullishCoalesce(credit[9], () => []),
-          "credit offer",
-        );
+        const offer = array(_nullishCoalesce(credit[9], () => []));
         // A credit that is not applied to a billing account yet has no money fields.
         if (offer[6] === null || offer[6] === undefined) {
           unapplied ??= email;
           continue;
         }
-        const billing = array(offer[6], "credit balance");
-        const granted = money(billing[0], "granted credit");
-        const remaining = money(billing[1], "remaining credit");
-        if (granted.amount <= 0) return invalid("credit amounts");
+        const billing = array(offer[6]);
+        const granted = money(billing[0]);
+        const remaining = money(billing[1]);
+        if (granted.amount <= 0) return invalid();
+        if (remaining.currency !== granted.currency) return invalid();
         const currency = granted.currency;
         const left = Math.max(0, remaining.amount);
         const expiresAt = date(offer[1]);
         const grantedAt = date(offer[16]);
-        const amounts = `${ctx.format.currency(left, currency)} of ${ctx.format.currency(granted.amount, currency)} left`;
+        const amounts = message(
+          "%@ of %@ left",
+          ctx.format.currency(left, currency),
+          ctx.format.currency(granted.amount, currency),
+        );
         // The billing account is display-only, so an unexpected format never fails the refresh.
         const rows =
           typeof billing[2] === "string"
@@ -149,11 +156,11 @@ defineProvider({
         return {
           primary: {
             usedPercent: ctx.pct(granted.amount - left, granted.amount),
-            resetDescription: expiresAt ? `${amounts} · Expires ${day(expiresAt)}` : amounts,
+            resetDescription: expiresAt ? `${amounts} · ${message("Expires %@", day(expiresAt))}` : amounts,
           },
-          cost: { used: left, currency, period: "Monthly credit", balance: left },
+          cost: { used: left, currency, period: "Monthly credits", balance: left },
           details: [{ title: "Billing", rows }],
-          identity: { email, loginMethod: "Browser session" },
+          identity: { email, loginMethod: message("Browser session") },
           dataConfidence: "exact",
         };
       }
@@ -170,26 +177,21 @@ defineProvider({
             rows: [
               {
                 label: "Status",
-                value: "Not applied",
-                secondaryValue: "Apply it at me.developers.google.com/benefits",
+                value: message("Not applied"),
+                secondaryValue: "me.developers.google.com/benefits",
               },
             ],
           },
         ],
-        identity: { email: unapplied, loginMethod: "Browser session" },
+        identity: { email: unapplied, loginMethod: message("Browser session") },
         dataConfidence: "exact",
       };
     }
     if (signedIn)
-      throw ctx.fail.permissionDenied(
-        "No signed-in Google account has a Google Developer Program Cloud credit. It requires Google AI Pro or Ultra.",
-      );
-    if (rejected)
-      throw ctx.fail.authenticationExpired(
-        "Google session expired. Sign in at me.developers.google.com or paste a fresh Cookie header.",
-      );
+      throw ctx.fail.permissionDenied(message("No Cloud credit found. Check your Google Developer Program benefits."));
+    if (rejected) throw ctx.fail.authenticationExpired(`${message("Google session expired or invalid.")} ${signIn}`);
     throw ctx.fail.missingCredential(
-      `Sign in at me.developers.google.com. Supported browsers: ${ctx.browser.supportedBrowsers}. Or paste its Cookie header.`,
+      `${signIn} ${message("Supported browsers: %@. Use Manual for other browsers.", ctx.browser.supportedBrowsers)}`,
     );
   },
 });

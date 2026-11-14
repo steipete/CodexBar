@@ -2837,3 +2837,16 @@
 /* Google Developer Program provider */
 "Google Developer Program exposes the current monthly Cloud credit, not local token cost history." = "Google Developer Program pokazuje bieżący miesięczny kredyt Cloud, a nie lokalną historię kosztów tokenów.";
 "Paste a me.developers.google.com Cookie header from a signed-in Google account." = "Wklej nagłówek Cookie z me.developers.google.com z zalogowanego konta Google.";
+
+"Billing account" = "Konto rozliczeniowe";
+"Granted" = "Przyznano";
+"Not applied" = "Nie zastosowano";
+"%@ of %@ left" = "Pozostało %@ z %@";
+"No Cloud credit found. Check your Google Developer Program benefits." = "Nie znaleziono środków Cloud. Sprawdź swoje korzyści Google Developer Program.";
+"Google Developer Program" = "Google Developer Program";
+"Browser session" = "Sesja przeglądarki";
+"Google Developer Program is rate limiting requests. Try again later." = "Google Developer Program ogranicza częstotliwość żądań. Spróbuj ponownie później.";
+"Google Developer Program request failed. Try refreshing later." = "Żądanie Google Developer Program nie powiodło się. Spróbuj odświeżyć później.";
+"Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program zwrócił nierozpoznaną odpowiedź. Zaktualizuj CodexBar i spróbuj ponownie.";
+"Google session expired or invalid." = "Sesja Google wygasła lub jest nieprawidłowa.";
+"No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Nie znaleziono plików cookie sesji Google Developer Program. Zaloguj się na me.developers.google.com/benefits lub wklej nagłówek Cookie.";

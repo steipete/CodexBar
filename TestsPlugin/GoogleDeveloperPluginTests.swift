@@ -50,14 +50,14 @@ struct GoogleDeveloperPluginTests {
         let usage = try await Self.fetch(engine, fixture: fixture)
         let primary = try #require(usage.primary)
         #expect(abs(primary.usedPercent - 12.5) < 0.000_001)
-        #expect(primary.resetDescription == "$87.50 of $100.00 left · Expires Nov 7, 2027")
+        #expect(primary.resetDescription == "$87.50 of $100.00 left · Expires 2027-11-07")
         let cost = try #require(usage.providerCost)
         #expect(cost.used == 87.5)
         #expect(cost.balance == 87.5)
         #expect(cost.currencyCode == "USD")
-        #expect(cost.period == "Monthly credit")
+        #expect(cost.period == "Monthly credits")
         #expect(usage.detailRow(label: "Billing account")?.value == "000000-AAAAAA-BBBBBB")
-        #expect(usage.detailRow(label: "Granted")?.value == "Nov 7, 2026")
+        #expect(usage.detailRow(label: "Granted")?.value == "2026-11-07")
         #expect(usage.identity?.accountEmail == Self.email)
         #expect(usage.identity?.loginMethod == "Browser session")
         #expect(await fixture.requests == ["GET 1/0", "POST 1/0"])
@@ -92,7 +92,7 @@ struct GoogleDeveloperPluginTests {
         #expect(usage.providerCost == nil)
         let status = try #require(usage.detailRow(label: "Status"))
         #expect(status.value == "Not applied")
-        #expect(status.secondaryValue == "Apply it at me.developers.google.com/benefits")
+        #expect(status.secondaryValue == "me.developers.google.com/benefits")
         #expect(usage.identity?.accountEmail == Self.email)
         #expect(await fixture.requests == ["GET 1/0", "POST 1/0", "GET 1/1", "POST 1/1", "GET 1/2"])
     }
@@ -100,7 +100,7 @@ struct GoogleDeveloperPluginTests {
     @Test(
         arguments: [benefits(otherBenefit), "[]"],
         BundledPluginTestSupport.engines)
-    func `accounts without the credit benefit explain the subscription requirement`(
+    func `accounts without the credit benefit explain where to check benefits`(
         benefits: String, engine: ProviderPluginEngineKind) async
     {
         let fixture = Fixture([[Account(benefits: benefits)]])
@@ -108,7 +108,8 @@ struct GoogleDeveloperPluginTests {
             try await Self.fetch(engine, fixture: fixture)
         } throws: { error in
             let failure = error as? ProviderFetchClassifiedError
-            return failure?.kind == .permissionDenied && failure?.message.contains("Google AI Pro or Ultra") == true
+            return failure?.kind == .permissionDenied && failure?.message
+                .contains("Check your Google Developer Program benefits") == true
         }
         #expect(await fixture.rejections == 0)
         #expect(await fixture.sessions == 1)
@@ -198,6 +199,7 @@ struct GoogleDeveloperPluginTests {
             #"[["USD","100"],["USD",87],"billingAccounts/000000-AAAAAA-BBBBBB"]"#,
             #"[["usd",100],["usd",87],"billingAccounts/000000-AAAAAA-BBBBBB"]"#,
             #"[["USD",0],["USD",0],"billingAccounts/000000-AAAAAA-BBBBBB"]"#,
+            #"[["USD",100],["EUR",90],"billingAccounts/000000-AAAAAA-BBBBBB"]"#,
             #"{"granted":100}"#,
         ],
         BundledPluginTestSupport.engines)
@@ -239,9 +241,27 @@ struct GoogleDeveloperPluginTests {
         } throws: { ($0 as? ProviderFetchClassifiedError)?.kind == .missingCredential }
     }
 
-    private static func fetch(_ engine: ProviderPluginEngineKind, fixture: Fixture) async throws -> UsageSnapshot {
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `localized messages reach credit descriptions and identity`(engine: ProviderPluginEngineKind) async throws {
+        let messages = [
+            "%@ of %@ left": "%@ di %@ rimanenti",
+            "Expires %@": "Scade il %@",
+            "Browser session": "Sessione del browser",
+        ]
+        let encoded = try #require(String(data: JSONEncoder().encode(messages), encoding: .utf8))
+        let usage = try await Self.fetch(engine, fixture: Fixture([[Self.applied]]), settings: ["MESSAGES": encoded])
+        #expect(usage.primary?.resetDescription == "$87.50 di $100.00 rimanenti · Scade il 2027-11-07")
+        #expect(usage.identity?.loginMethod == "Sessione del browser")
+    }
+
+    private static func fetch(
+        _ engine: ProviderPluginEngineKind,
+        fixture: Fixture,
+        settings: [String: String] = [:]) async throws -> UsageSnapshot
+    {
         let runtime = try BundledPluginTestSupport.runtime("googledeveloper", engine: engine, transport: fixture)
         return try await runtime.fetchUsage(
+            settings: settings,
             cookieSessionResolver: { _, _ in await fixture.nextSession() },
             cookieSessionInvalidator: { _, _ in fixture.rejected.increment() })
     }

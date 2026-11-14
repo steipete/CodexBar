@@ -2834,3 +2834,16 @@
 /* Google Developer Program provider */
 "Google Developer Program exposes the current monthly Cloud credit, not local token cost history." = "Google Developer Program は今月の Cloud クレジットを表示します。ローカルのトークン費用履歴ではありません。";
 "Paste a me.developers.google.com Cookie header from a signed-in Google account." = "ログイン済みの Google アカウントの me.developers.google.com Cookie ヘッダーを貼り付けてください。";
+
+"Billing account" = "請求先アカウント";
+"Granted" = "付与日";
+"Not applied" = "未適用";
+"%@ of %@ left" = "残り %@ / %@";
+"No Cloud credit found. Check your Google Developer Program benefits." = "Cloud クレジットが見つかりません。Google Developer Program の特典を確認してください。";
+"Google Developer Program" = "Google Developer Program";
+"Browser session" = "ブラウザセッション";
+"Google Developer Program is rate limiting requests. Try again later." = "Google Developer Program がリクエストの頻度を制限しています。後でもう一度お試しください。";
+"Google Developer Program request failed. Try refreshing later." = "Google Developer Program へのリクエストに失敗しました。後でもう一度更新してください。";
+"Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program から認識できない応答が返されました。CodexBar を更新して、もう一度お試しください。";
+"Google session expired or invalid." = "Googleのセッションが期限切れか無効です。";
+"No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Google Developer ProgramのセッションCookieが見つかりません。me.developers.google.com/benefits にサインインするか、Cookieヘッダーを貼り付けてください。";
