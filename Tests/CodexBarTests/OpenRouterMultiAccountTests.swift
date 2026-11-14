@@ -74,7 +74,10 @@ struct OpenRouterMultiAccountTests {
             ]
         }
 
-        let snapshot = ProviderRegistry.makeSettingsSnapshot(settings: settings, tokenOverride: nil)
+        let snapshot = ProviderRegistry.makeSettingsSnapshot(
+            provider: .openrouter,
+            settings: settings,
+            tokenOverride: nil)
         let providerSettings = try #require(snapshot[OpenRouterProviderSettingsKey.self])
 
         #expect(providerSettings.managementAPIKey == "fixture-management-key")

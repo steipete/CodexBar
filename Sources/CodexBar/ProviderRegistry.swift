@@ -46,7 +46,7 @@ struct ProviderRegistry {
                         settings: settings,
                         account: account)
 
-                    let snapshot = Self.makeSettingsSnapshot(settings: settings, tokenOverride: nil)
+                    let snapshot = Self.makeSettingsSnapshot(provider: provider, settings: settings, tokenOverride: nil)
                     let env = Self.makeEnvironment(
                         base: environmentBase,
                         provider: provider,
@@ -131,31 +131,27 @@ struct ProviderRegistry {
 
     @MainActor
     static func makeSettingsSnapshot(
+        provider: UsageProvider,
         settings: SettingsStore,
         tokenOverride: TokenAccountOverride?,
         codexActiveSourceOverride: CodexActiveSource? = nil) -> ProviderSettingsSnapshot
     {
-        var builder = ProviderSettingsSnapshotBuilder(
-            debugMenuEnabled: settings.debugMenuEnabled,
-            debugKeepCLISessionsAlive: settings.debugKeepCLISessionsAlive)
         let context = ProviderSettingsSnapshotContext(
             settings: settings,
             tokenOverride: tokenOverride,
             codexActiveSourceOverride: codexActiveSourceOverride)
-        for implementation in ProviderCatalog.all {
-            let registration = ProviderDescriptorRegistry.descriptor(for: implementation.id)
-                .settingsSection
-            guard let contribution = implementation.settingsSnapshot(context: context) else {
-                preconditionFailure(
-                    "Missing settings snapshot section for provider '\(implementation.id.rawValue)'")
-            }
-            guard registration.accepts(contribution) else {
-                preconditionFailure(
-                    "Mismatched settings snapshot section for provider '\(implementation.id.rawValue)'")
-            }
-            builder.apply(contribution)
+        guard let contribution = ProviderCatalog.implementation(for: provider)?.settingsSnapshot(context: context)
+        else {
+            preconditionFailure("Missing settings snapshot section for provider '\(provider.rawValue)'")
         }
-        return builder.build()
+        let registration = ProviderDescriptorRegistry.descriptor(for: provider).settingsSection
+        guard registration.accepts(contribution) else {
+            preconditionFailure("Mismatched settings snapshot section for provider '\(provider.rawValue)'")
+        }
+        return ProviderSettingsSnapshot(
+            debugMenuEnabled: settings.debugMenuEnabled,
+            debugKeepCLISessionsAlive: settings.debugKeepCLISessionsAlive,
+            contributions: [contribution])
     }
 
     @MainActor
