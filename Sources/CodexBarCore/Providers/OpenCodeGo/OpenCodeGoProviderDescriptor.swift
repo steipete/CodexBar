@@ -144,7 +144,7 @@ public enum OpenCodeGoProviderDescriptor {
         if context.sourceMode == .web {
             return [OpenCodeGoUsageFetchStrategy()]
         }
-        if self.requiresScopedWebStrategy(context: context) {
+        if context.sourceMode == .auto, OpenCodeGoSettingsReader.isExplicitlyScoped(context: context) {
             return [
                 OpenCodeGoUsageFetchStrategy(),
                 OpenCodeGoLocalUsageFetchStrategy(),
@@ -157,17 +157,13 @@ public enum OpenCodeGoProviderDescriptor {
             ? [api, web] : [web, api]
         return [OpenCodeGoLocalUsageFetchStrategy()] + remote
     }
-
-    private static func requiresScopedWebStrategy(context: ProviderFetchContext) -> Bool {
-        context.sourceMode == .auto && OpenCodeGoSettingsReader.isExplicitlyScoped(context: context)
-    }
 }
 
 struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
     let id: String = "opencodego.local"
     let kind: ProviderFetchKind = .localProbe
 
-    typealias LocalSnapshotLoader = @Sendable (ProviderFetchContext) throws -> OpenCodeGoUsageSnapshot
+    typealias LocalSnapshotLoader = @Sendable (ProviderFetchContext) async throws -> OpenCodeGoUsageSnapshot
     typealias WebUsageOverlayFetcher = @Sendable (ProviderFetchContext, String) async throws
         -> OpenCodeGoUsageSnapshot?
     typealias APIUsageOverlayFetcher = @Sendable (ProviderFetchContext, String) async throws
@@ -179,8 +175,6 @@ struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
     private let apiUsageOverlayFetcher: APIUsageOverlayFetcher
     private let cliCredentialLoader: OpenCodeGoSettingsReader.CLICredentialLoader
     private let localHistoryJoinTimeout: Duration
-
-    /// How long Auto waits for local history before deferring to remote quota sources.
     static let localHistoryScanBudget: Duration = .seconds(5)
 
     private struct OverlayCookie {
@@ -191,14 +185,18 @@ struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
     private struct SnapshotResult {
         let snapshot: OpenCodeGoUsageSnapshot
         let sourceLabel: String
-        let quotaIsAuthoritative: Bool
+        var quotaIsAuthoritative: Bool {
+            !self.snapshot.isBalanceOnly
+        }
     }
 
     init(
         cookieHeaderResolver: @escaping @Sendable (ProviderFetchContext, Bool) throws -> String =
             OpenCodeGoUsageFetchStrategy.resolveCookieHeader,
         localSnapshotLoader: @escaping LocalSnapshotLoader = { context in
-            try OpenCodeGoLocalUsageReader().fetch(historyDays: context.costUsageHistoryDays)
+            try await CostUsageScanExecutor.run { _ in
+                try OpenCodeGoLocalUsageReader().fetch(historyDays: context.costUsageHistoryDays)
+            }
         },
         webUsageOverlayFetcher: @escaping WebUsageOverlayFetcher = Self.liveWebUsageOverlay,
         apiUsageOverlayFetcher: @escaping APIUsageOverlayFetcher = { context, apiKey in
@@ -223,105 +221,92 @@ struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        let loader = self.localSnapshotLoader
-        // The scan has no resume point, so neither the budget nor cancellation interrupts it; it fills
-        // the reader's cache for a later refresh.
-        let scan = Task { try loader(context) }
-        let result: SnapshotResult
-        switch await Self.join(scan, timeout: self.localHistoryJoinTimeout) {
-        case let .value(local):
-            result = try await self.snapshot(context: context, local: local)
-        case let .failure(error):
+        try Task.checkCancellation()
+        let scan = Task { try await self.localSnapshotLoader(context) }
+        // Running reads finish warming the cache; obsolete queued reads are discarded.
+        defer { scan.cancel() }
+        var local = try await Self.join(scan, timeout: self.localHistoryJoinTimeout)
+        let remote: SnapshotResult?
+        do {
+            remote = try await self.snapshot(context: context)
+        } catch {
+            try Self.checkCancellation(error)
+            if local == nil { _ = try await Self.join(scan) }
             throw error
-        case .timedOut:
-            // Unfinished local work is never published; an authoritative remote quota answers now.
-            let remote: SnapshotResult
-            do {
-                remote = try await self.snapshot(context: context, local: Self.unscannedHistory())
-            } catch is CancellationError {
-                throw CancellationError()
-            } catch {
-                // Report what a full scan followed by the same remote attempt would report.
-                _ = try await Self.finishedScan(scan)
-                throw error
-            }
-            if remote.quotaIsAuthoritative, remote.sourceLabel.hasPrefix("local+") {
-                return self.makeResult(
-                    usage: remote.snapshot.toUsageSnapshot(),
-                    sourceLabel: String(remote.sourceLabel.dropFirst("local+".count)))
-            }
-            // Without authoritative quota, the finished local estimate is still the answer. A
-            // non-authoritative remote result only contributes the optional Zen balance.
-            let local = try await Self.finishedScan(scan)
-            result = SnapshotResult(
-                snapshot: local.withZenBalanceUSD(remote.snapshot.zenBalanceUSD),
-                sourceLabel: remote.sourceLabel,
-                quotaIsAuthoritative: false)
         }
-        let usage = result.snapshot.toUsageSnapshot()
-        return self.makeResult(
-            usage: result.quotaIsAuthoritative ? usage : usage.withDataConfidence(.estimated),
-            sourceLabel: result.sourceLabel)
+        if local == nil, remote?.quotaIsAuthoritative != true {
+            local = try await Self.join(scan)
+        }
+        if let remote {
+            var snapshot = local.map {
+                remote.sourceLabel == "cli" ? remote.snapshot.withDaily($0.daily) : $0.applyingWebUsage(remote.snapshot)
+            } ?? remote.snapshot
+            snapshot.localHistoryPending = local == nil
+            let source = local == nil ? remote.sourceLabel
+                : (remote.sourceLabel.isEmpty ? "local" : "local+\(remote.sourceLabel)")
+            let usage = snapshot.toUsageSnapshot()
+            return self.makeResult(
+                usage: remote.quotaIsAuthoritative ? usage : usage.withDataConfidence(.estimated), sourceLabel: source)
+        }
+        guard let local else { throw OpenCodeGoLocalUsageError.notDetected }
+        return self.makeResult(usage: local.toUsageSnapshot().withDataConfidence(.estimated), sourceLabel: "local")
     }
 
     func shouldFallback(on error: Error, context _: ProviderFetchContext) -> Bool {
         error is OpenCodeGoLocalUsageError
     }
 
-    private func snapshot(
-        context: ProviderFetchContext,
-        local: OpenCodeGoUsageSnapshot) async throws -> SnapshotResult
+    private static func join(
+        _ scan: Task<OpenCodeGoUsageSnapshot, Error>,
+        timeout: Duration? = nil) async throws -> OpenCodeGoUsageSnapshot?
     {
-        let fallback = try await self.snapshotWithoutCLILogin(context: context, local: local)
+        // Cancel only the waiting proxy: the serialized scan can finish warming the reader cache.
+        switch await BoundedTaskJoin(sourceTask: Task { try await scan.value }).value(joinGrace: timeout) {
+        case let .value(snapshot): return snapshot
+        case let .failure(error): throw error
+        case .timedOut: return nil
+        }
+    }
+
+    private static func checkCancellation(_ error: Error) throws {
+        if error is CancellationError || (error as? URLError)?.code == .cancelled || Task.isCancelled {
+            throw CancellationError()
+        }
+    }
+
+    private func snapshot(context: ProviderFetchContext) async throws -> SnapshotResult? {
+        let fallback = try await self.snapshotWithoutCLILogin(context: context)
         // Configured keys and usable browser sessions retain precedence over the ambient CLI account.
-        guard fallback.sourceLabel == "local", fallback.snapshot.zenBalanceUSD == nil,
-              OpenCodeGoSettingsReader.apiKey(environment: context.env) == nil else { return fallback }
+        guard fallback == nil, OpenCodeGoSettingsReader.apiKey(environment: context.env) == nil else { return fallback }
         do {
             if let credential = try OpenCodeGoSettingsReader.usageCredential(
                 context: context, cliCredentialLoader: self.cliCredentialLoader)
             {
-                let quota = try await self.apiUsageOverlayFetcher(context, credential.token)
-                return SnapshotResult(
-                    snapshot: quota.withDaily(fallback.snapshot.daily),
-                    sourceLabel: "local+cli",
-                    quotaIsAuthoritative: true)
+                return try await SnapshotResult(
+                    snapshot: self.apiUsageOverlayFetcher(context, credential.token), sourceLabel: "cli")
             }
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch let error as URLError where error.code == .cancelled {
-            throw CancellationError()
         } catch {
-            if Task.isCancelled { throw CancellationError() }
+            try Self.checkCancellation(error)
         }
         return fallback
     }
 
-    private func snapshotWithoutCLILogin(
-        context: ProviderFetchContext,
-        local: OpenCodeGoUsageSnapshot) async throws -> SnapshotResult
-    {
-        var snapshot = local
-        var source = "local"
+    private func snapshotWithoutCLILogin(context: ProviderFetchContext) async throws -> SnapshotResult? {
+        var result: SnapshotResult?
         if let apiKey = OpenCodeGoSettingsReader.apiKey(environment: context.env) {
             do {
-                snapshot = try await snapshot.applyingWebUsage(self.apiUsageOverlayFetcher(context, apiKey))
-                source = "local+api"
-            } catch is CancellationError {
-                throw CancellationError()
-            } catch let error as URLError where error.code == .cancelled {
-                throw CancellationError()
+                result = try await SnapshotResult(
+                    snapshot: self.apiUsageOverlayFetcher(context, apiKey),
+                    sourceLabel: "api")
             } catch {
+                try Self.checkCancellation(error)
                 // A session can still provide authoritative quota when the API is unavailable.
             }
         }
-        let fallback = SnapshotResult(
-            snapshot: snapshot,
-            sourceLabel: source,
-            quotaIsAuthoritative: source == "local+api")
-        guard context.settings?.opencodego?.cookieSource != .off else { return fallback }
+        guard context.settings?.opencodego?.cookieSource != .off else { return result }
         var cookie = Self.cachedOrManualCookie(context: context)
         do {
-            if cookie == nil, source == "local", context.sourceMode == .auto,
+            if cookie == nil, result == nil, context.sourceMode == .auto,
                (context.settings?.opencodego?.cookieSource ?? .auto) == .auto
             {
                 let header = try self.cookieHeaderResolver(context, false)
@@ -330,41 +315,30 @@ struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
                     header: header,
                     cachedEntry: cached?.header == header ? cached?.cachedEntry : nil)
             }
-            guard let cookie else { return fallback }
+            guard let cookie else { return result }
             if let web = try await self.webUsageOverlayFetcher(context, cookie.header) {
-                if source == "local+api" {
+                if let result {
                     return SnapshotResult(
-                        snapshot: snapshot.withZenBalanceUSD(web.zenBalanceUSD ?? snapshot.zenBalanceUSD),
-                        sourceLabel: source,
-                        quotaIsAuthoritative: true)
+                        snapshot: result.snapshot.withZenBalanceUSD(web.zenBalanceUSD ?? result.snapshot.zenBalanceUSD),
+                        sourceLabel: result.sourceLabel)
                 }
-                return SnapshotResult(
-                    snapshot: snapshot.applyingWebUsage(web),
-                    sourceLabel: "local+web",
-                    quotaIsAuthoritative: !web.isBalanceOnly)
+                return SnapshotResult(snapshot: web, sourceLabel: "web")
             }
-            guard source == "local", context.includeOptionalUsage else { return fallback }
+            guard result == nil, context.includeOptionalUsage else { return result }
             let workspaceOverride = OpenCodeGoSettingsReader.workspaceID(context: context)
             let zenBalanceStart = ContinuousClock.now
-            let zenBalanceTask = Task<Double?, Error> {
-                do {
-                    return try await OpenCodeGoUsageFetcher.fetchOptionalZenBalance(
-                        cookieHeader: cookie.header,
-                        timeout: context.webTimeout,
-                        workspaceIDOverride: workspaceOverride)
-                } catch is CancellationError {
-                    throw CancellationError()
-                } catch {
-                    return nil
-                }
+            let zenBalanceTask = Task {
+                try await OpenCodeGoUsageFetcher.fetchOptionalZenBalance(
+                    cookieHeader: cookie.header, timeout: context.webTimeout, workspaceIDOverride: workspaceOverride)
             }
             let balance = try await OpenCodeGoUsageFetcher.completedOptionalZenBalance(
                 from: zenBalanceTask,
                 timeout: OpenCodeGoUsageFetcher.optionalZenBalanceJoinTimeout(
                     since: zenBalanceStart,
                     waitForZenBalance: OpenCodeGoUsageFetchStrategy.shouldWaitForZenBalance(context: context)))
-            return SnapshotResult(
-                snapshot: snapshot.withZenBalanceUSD(balance), sourceLabel: source, quotaIsAuthoritative: false)
+            return balance.map { SnapshotResult(
+                snapshot: .zenBalanceOnly(balanceUSD: $0, updatedAt: Date()),
+                sourceLabel: "") }
         } catch OpenCodeGoUsageError.invalidCredentials {
             #if os(macOS)
             if let cached = cookie?.cachedEntry {
@@ -372,53 +346,13 @@ struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
             }
             #endif
             // A manually configured credential is an explicit account selection.
-            if source == "local", context.settings?.opencodego?.cookieSource == .manual {
+            if result == nil, context.settings?.opencodego?.cookieSource == .manual {
                 throw OpenCodeGoUsageError.invalidCredentials
             }
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch let error as URLError where error.code == .cancelled {
-            throw CancellationError()
         } catch {
-            if Task.isCancelled { throw CancellationError() }
+            try Self.checkCancellation(error)
         }
-        return fallback
-    }
-
-    /// Waits for the same scan that outlasted the budget; refresh cancellation stops the wait.
-    private static func finishedScan(
-        _ scan: Task<OpenCodeGoUsageSnapshot, Error>) async throws -> OpenCodeGoUsageSnapshot
-    {
-        switch await self.join(scan, timeout: nil) {
-        case let .value(snapshot):
-            return snapshot
-        case let .failure(error):
-            throw error
-        case .timedOut:
-            throw CancellationError()
-        }
-    }
-
-    /// Joins through a proxy so a timeout or cancelled wait never cancels the scan itself.
-    private static func join(
-        _ scan: Task<OpenCodeGoUsageSnapshot, Error>,
-        timeout: Duration?) async -> BoundedTaskJoinOutcome<OpenCodeGoUsageSnapshot>
-    {
-        await BoundedTaskJoin(sourceTask: Task { try await scan.value }).value(joinGrace: timeout)
-    }
-
-    /// Carries no quota windows or history; remote overlays replace the windows when available.
-    private static func unscannedHistory() -> OpenCodeGoUsageSnapshot {
-        OpenCodeGoUsageSnapshot(
-            hasWeeklyUsage: false,
-            hasMonthlyUsage: false,
-            rollingUsagePercent: 0,
-            weeklyUsagePercent: 0,
-            monthlyUsagePercent: 0,
-            rollingResetInSec: nil,
-            weeklyResetInSec: nil,
-            monthlyResetInSec: nil,
-            updatedAt: Date())
+        return result
     }
 
     static func liveWebUsageOverlay(
@@ -435,14 +369,8 @@ struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
                 waitForZenBalance: OpenCodeGoUsageFetchStrategy.shouldWaitForZenBalance(context: context))
         } catch OpenCodeGoUsageError.invalidCredentials {
             throw OpenCodeGoUsageError.invalidCredentials
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch let error as URLError where error.code == .cancelled {
-            throw CancellationError()
         } catch {
-            if Task.isCancelled {
-                throw CancellationError()
-            }
+            try Self.checkCancellation(error)
             return nil
         }
     }
@@ -501,14 +429,7 @@ struct OpenCodeGoAPIUsageFetchStrategy: ProviderFetchStrategy {
     }
 
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
-        guard context.sourceMode == .auto else { return false }
-        if error is CancellationError {
-            return false
-        }
-        if let urlError = error as? URLError, urlError.code == .cancelled {
-            return false
-        }
-        return true
+        context.sourceMode == .auto && !(error is CancellationError) && (error as? URLError)?.code != .cancelled
     }
 }
 
@@ -525,8 +446,7 @@ struct OpenCodeGoUsageFetchStrategy: ProviderFetchStrategy {
     }
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        guard context.settings?.opencodego?.cookieSource != .off else { return false }
-        return true
+        context.settings?.opencodego?.cookieSource != .off
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {

@@ -7,103 +7,87 @@ import Testing
 
 struct OpenCodeGoAutoScanBudgetTests {
     private struct StubClaudeFetcher: ClaudeUsageFetching {
-        func loadLatestUsage(model _: String) async throws -> ClaudeUsageSnapshot {
-            throw ClaudeUsageError.parseFailed("stub")
+        func loadLatestUsage(model _: String) async throws -> ClaudeUsageSnapshot { throw ClaudeUsageError
+            .parseFailed("stub")
         }
 
-        func debugRawProbe(model _: String) async -> String {
-            "stub"
-        }
-
-        func detectVersion() -> String? {
-            nil
-        }
+        func debugRawProbe(model _: String) async -> String { "stub" }
+        func detectVersion() -> String? { nil }
     }
 
     private final class Counter: @unchecked Sendable {
         private let lock = NSLock()
         private var count = 0
-
         var value: Int {
             self.lock.withLock { self.count }
         }
 
-        func increment() {
-            self.lock.withLock { self.count += 1 }
+        func increment() { self.lock.withLock { self.count += 1 } }
+    }
+
+    private actor Gate {
+        private var opened = false
+        private var waiters: [CheckedContinuation<Void, Never>] = []
+        func wait() async {
+            guard !self.opened else { return }
+            await withCheckedContinuation { self.waiters.append($0) }
+        }
+
+        func release() {
+            self.opened = true
+            let pending = self.waiters
+            self.waiters = []
+            for waiter in pending {
+                waiter.resume()
+            }
         }
     }
 
-    private enum SQLiteTestError: Error {
-        case open
-        case exec
-    }
-
+    private enum SQLiteTestError: Error { case open, exec }
     private static let now = Date(timeIntervalSince1970: 1_772_798_400)
 
     @Test
-    func `exhausted auto scan budget returns remote quota and a later refresh reuses the finished scan`() async throws {
+    func `remote quota returns before history and the later refresh reuses one scan`() async throws {
         let env = try Self.makeDatabase()
         defer { try? FileManager.default.removeItem(at: env.root) }
         let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+        let gate = Gate()
+        let finished = AsyncStream<Void>.makeStream()
+        defer { finished.continuation.finish() }
         let scans = Counter()
-        let completedScans = Counter()
-        let release = DispatchSemaphore(value: 0)
-        let pipeline = Self.pipeline(reader: reader, budget: .milliseconds(100), completedScans: completedScans)
-        let observer: @Sendable () -> Void = {
-            scans.increment()
-            // A cold history scan that outlasts the refresh budget.
-            _ = release.wait(timeout: .now() + 3)
+        let loader: OpenCodeGoLocalUsageFetchStrategy.LocalSnapshotLoader = { context in
+            await gate.wait()
+            let snapshot = try Self.read(reader, context: context, scans: scans)
+            finished.continuation.yield(())
+            return snapshot
         }
-
-        try await OpenCodeGoLocalUsageReader.$scanObserverForTesting.withValue(observer) {
-            let started = ContinuousClock.now
-            let first = await pipeline.fetch(context: Self.makeContext(), provider: .opencodego)
-            let elapsed = started.duration(to: ContinuousClock.now)
-            let quota = try first.result.get()
-
-            #expect(elapsed < .seconds(1))
-            #expect(first.attempts.map(\.strategyID) == ["opencodego.local"])
-            #expect(quota.sourceLabel == "cli")
-            #expect(quota.usage.primary?.usedPercent == 40)
-            #expect(quota.usage.dataConfidence != .estimated)
-            // Unfinished local work is never published as history.
-            #expect(quota.usage.opencodegoUsage?.daily.isEmpty == true)
-            #expect(completedScans.value == 0)
-
-            release.signal()
-            let deadline = ContinuousClock.now.advanced(by: .seconds(10))
-            while completedScans.value == 0, ContinuousClock.now < deadline {
-                try await Task.sleep(for: .milliseconds(10))
-            }
-            try #require(completedScans.value == 1)
-
-            let second = try await pipeline.fetch(context: Self.makeContext(), provider: .opencodego).result.get()
-            #expect(second.sourceLabel == "local+cli")
-            #expect(second.usage.primary?.usedPercent == 40)
-            #expect(second.usage.opencodegoUsage?.daily.map(\.costUSD) == [3])
-        }
+        let first = try await Self.strategy(loader: loader, budget: .zero).fetch(Self.makeContext())
+        #expect(first.sourceLabel == "cli")
+        #expect(first.usage.opencodegoUsage?.localHistoryPending == true)
+        #expect(first.usage.primary?.usedPercent == 40)
+        #expect(first.usage.dataConfidence != .estimated)
+        #expect(first.usage.opencodegoUsage?.daily.isEmpty == true)
+        #expect(scans.value == 0)
+        await gate.release()
+        var iterator = finished.stream.makeAsyncIterator()
+        _ = await iterator.next()
+        let second = try await Self.strategy(loader: loader).fetch(Self.makeContext())
+        #expect(second.sourceLabel == "local+cli")
+        #expect(second.usage.opencodegoUsage?.localHistoryPending == false)
+        #expect(second.usage.primary?.usedPercent == 40)
+        #expect(second.usage.opencodegoUsage?.daily.map(\.costUSD) == [3])
         #expect(scans.value == 1)
     }
 
     @Test
-    func `small history completes within the auto scan budget`() async throws {
+    func `small history finishes within the default budget`() async throws {
         let env = try Self.makeDatabase()
         defer { try? FileManager.default.removeItem(at: env.root) }
         let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
         let scans = Counter()
-        let pipeline = Self.pipeline(
-            reader: reader,
-            budget: OpenCodeGoLocalUsageFetchStrategy.localHistoryScanBudget,
-            completedScans: Counter())
-        let observer: @Sendable () -> Void = { scans.increment() }
-
-        let outcome = await OpenCodeGoLocalUsageReader.$scanObserverForTesting.withValue(observer) {
-            await pipeline.fetch(context: Self.makeContext(), provider: .opencodego)
-        }
-        let result = try outcome.result.get()
-
+        let result = try await Self.strategy(loader: { try Self.read(reader, context: $0, scans: scans) })
+            .fetch(Self.makeContext())
         #expect(OpenCodeGoLocalUsageFetchStrategy.localHistoryScanBudget == .seconds(5))
-        #expect(outcome.attempts.map(\.strategyID) == ["opencodego.local"])
         #expect(result.sourceLabel == "local+cli")
         #expect(result.usage.primary?.usedPercent == 40)
         #expect(result.usage.opencodegoUsage?.daily.map(\.costUSD) == [3])
@@ -111,108 +95,130 @@ struct OpenCodeGoAutoScanBudgetTests {
     }
 
     @Test
-    func `exhausted auto scan budget without remote quota returns the same scan as local usage`() async throws {
+    func `without remote quota the refresh waits for the original scan`() async throws {
         let env = try Self.makeDatabase()
         defer { try? FileManager.default.removeItem(at: env.root) }
         let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+        let gate = Gate()
+        let remoteAttempt = AsyncStream<Void>.makeStream()
+        defer { remoteAttempt.continuation.finish() }
         let scans = Counter()
-        let release = DispatchSemaphore(value: 0)
-        defer { release.signal() }
-        let pipeline = Self.pipeline(
-            reader: reader,
-            budget: .milliseconds(100),
-            completedScans: Counter(),
-            cliCredential: nil)
-        let observer: @Sendable () -> Void = {
-            scans.increment()
-            _ = release.wait(timeout: .now() + 3)
-        }
-        DispatchQueue.global().asyncAfter(deadline: .now() + 0.4) { release.signal() }
-
-        let started = ContinuousClock.now
-        let outcome = await OpenCodeGoLocalUsageReader.$scanObserverForTesting.withValue(observer) {
-            await pipeline.fetch(context: Self.makeContext(), provider: .opencodego)
-        }
-        let elapsed = started.duration(to: ContinuousClock.now)
-        let result = try outcome.result.get()
-
-        #expect(elapsed >= .milliseconds(400))
-        #expect(elapsed < .seconds(3))
-        #expect(scans.value == 1)
-        #expect(outcome.attempts.map(\.strategyID) == ["opencodego.local"])
-
-        // Matches an unbounded wait for the same history.
-        let unbounded = try await Self.pipeline(
-            reader: OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL),
-            budget: .seconds(60),
-            completedScans: Counter(),
-            cliCredential: nil).fetch(context: Self.makeContext(), provider: .opencodego).result.get()
+        let strategy = Self.strategy(
+            loader: { context in
+                await gate.wait()
+                return try Self.read(reader, context: context, scans: scans)
+            },
+            budget: .zero,
+            cliCredentialLoader: { _ in
+                remoteAttempt.continuation.yield(())
+                return nil
+            })
+        let refresh = Task { try await strategy.fetch(Self.makeContext()) }
+        var iterator = remoteAttempt.stream.makeAsyncIterator()
+        _ = await iterator.next()
+        #expect(scans.value == 0)
+        await gate.release()
+        let result = try await refresh.value
         #expect(result.sourceLabel == "local")
-        #expect(result.sourceLabel == unbounded.sourceLabel)
         #expect(result.usage.dataConfidence == .estimated)
-        #expect(result.usage.dataConfidence == unbounded.usage.dataConfidence)
-        #expect(result.usage.primary?.usedPercent == unbounded.usage.primary?.usedPercent)
+        #expect(result.usage.primary?.usedPercent == 25)
         #expect(result.usage.opencodegoUsage?.daily.map(\.costUSD) == [3])
-        #expect(result.usage.opencodegoUsage?.daily.map(\.costUSD) == unbounded.usage.opencodegoUsage?.daily
-            .map(\.costUSD))
-        #expect(result.usage.opencodegoUsage?.zenBalanceUSD == unbounded.usage.opencodegoUsage?.zenBalanceUSD)
-        #expect(result.usage.secondary?.usedPercent == unbounded.usage.secondary?.usedPercent)
-        #expect(result.usage.tertiary?.usedPercent == unbounded.usage.tertiary?.usedPercent)
+        #expect(scans.value == 1)
     }
 
     @Test
-    func `cancelling a refresh that waits on the local scan stops the wait`() async throws {
-        let release = DispatchSemaphore(value: 0)
-        defer { release.signal() }
-        let strategy = OpenCodeGoLocalUsageFetchStrategy(
-            localSnapshotLoader: { _ in
-                _ = release.wait(timeout: .now() + 5)
+    func `cancelling a refresh still lets running history finish`() async throws {
+        let gate = Gate()
+        let remoteAttempt = AsyncStream<Void>.makeStream()
+        let finished = AsyncStream<Void>.makeStream()
+        defer { remoteAttempt.continuation.finish(); finished.continuation.finish() }
+        let strategy = Self.strategy(
+            loader: { _ in
+                await gate.wait()
+                #expect(Task.isCancelled)
+                finished.continuation.yield(())
                 throw OpenCodeGoLocalUsageError.notDetected
             },
-            webUsageOverlayFetcher: { _, _ in nil },
-            apiUsageOverlayFetcher: { _, _ in throw URLError(.notConnectedToInternet) },
-            cliCredentialLoader: { _ in nil },
-            localHistoryJoinTimeout: .milliseconds(50))
-        let context = Self.makeContext()
-        let refresh = Task { try await strategy.fetch(context) }
-        try await Task.sleep(for: .milliseconds(300))
-        let started = ContinuousClock.now
+            budget: .zero,
+            cliCredentialLoader: { _ in
+                remoteAttempt.continuation.yield(())
+                return nil
+            })
+        let refresh = Task { try await strategy.fetch(Self.makeContext()) }
+        var attempts = remoteAttempt.stream.makeAsyncIterator()
+        _ = await attempts.next()
         refresh.cancel()
-
         await #expect(throws: CancellationError.self) { _ = try await refresh.value }
-        #expect(started.duration(to: ContinuousClock.now) < .seconds(1))
+        await gate.release()
+        var completions = finished.stream.makeAsyncIterator()
+        _ = await completions.next()
     }
 
-    private static func pipeline(
-        reader: OpenCodeGoLocalUsageReader,
-        budget: Duration,
-        completedScans: Counter,
-        cliCredential: String? = "cli-access") -> ProviderFetchPipeline
-    {
-        let quota: @Sendable (ProviderFetchContext, String) async throws -> OpenCodeGoUsageSnapshot = { _, token in
-            #expect(token == "cli-access")
-            return try OpenCodeGoUsageFetcher.parseAPIUsage(
-                text: #"{"usage":{"rolling":{"percent":40}}}"#,
-                now: Self.now)
-        }
-        let local = OpenCodeGoLocalUsageFetchStrategy(
-            localSnapshotLoader: { context in
-                defer { completedScans.increment() }
-                return try reader.fetch(now: Self.now, historyDays: context.costUsageHistoryDays)
+    @Test
+    func `completed remote refresh cancels obsolete pending history work`() async throws {
+        let gate = Gate()
+        let started = AsyncStream<Void>.makeStream()
+        let finished = AsyncStream<Void>.makeStream()
+        defer { started.continuation.finish(); finished.continuation.finish() }
+        let cancellations = Counter()
+        let quota = try OpenCodeGoUsageFetcher.parseAPIUsage(
+            text: #"{"usage":{"rolling":{"percent":40}}}"#, now: Self.now)
+        let strategy = OpenCodeGoLocalUsageFetchStrategy(
+            localSnapshotLoader: { _ in
+                await withTaskCancellationHandler {
+                    started.continuation.yield(())
+                    await gate.wait()
+                    finished.continuation.yield(())
+                    return quota
+                } onCancel: {
+                    cancellations.increment()
+                }
             },
+            apiUsageOverlayFetcher: { _, _ in
+                var iterator = started.stream.makeAsyncIterator()
+                _ = await iterator.next()
+                return quota
+            },
+            cliCredentialLoader: { _ in "cli-access" },
+            localHistoryJoinTimeout: .zero)
+        let result = try await strategy.fetch(Self.makeContext())
+        #expect(result.usage.primary?.usedPercent == 40)
+        #expect(cancellations.value == 1)
+        await gate.release()
+        var iterator = finished.stream.makeAsyncIterator()
+        _ = await iterator.next()
+    }
+
+    private static func read(
+        _ reader: OpenCodeGoLocalUsageReader,
+        context: ProviderFetchContext,
+        scans: Counter) throws -> OpenCodeGoUsageSnapshot
+    {
+        let observer: @Sendable () -> Void = { scans.increment() }
+        return try OpenCodeGoLocalUsageReader.$scanObserverForTesting.withValue(observer) {
+            try reader.fetch(now: Self.now, historyDays: context.costUsageHistoryDays)
+        }
+    }
+
+    private static func strategy(
+        loader: @escaping OpenCodeGoLocalUsageFetchStrategy.LocalSnapshotLoader,
+        budget: Duration = OpenCodeGoLocalUsageFetchStrategy.localHistoryScanBudget,
+        cliCredentialLoader: @escaping OpenCodeGoSettingsReader.CLICredentialLoader = { _ in "cli-access" })
+        -> OpenCodeGoLocalUsageFetchStrategy
+    {
+        OpenCodeGoLocalUsageFetchStrategy(
+            localSnapshotLoader: loader,
             webUsageOverlayFetcher: { _, _ in
                 Issue.record("Cookie source Off must not request a browser session")
                 return nil
             },
-            apiUsageOverlayFetcher: quota,
-            cliCredentialLoader: { _ in cliCredential },
+            apiUsageOverlayFetcher: { _, token in
+                #expect(token == "cli-access")
+                return try OpenCodeGoUsageFetcher.parseAPIUsage(
+                    text: #"{"usage":{"rolling":{"percent":40}}}"#, now: Self.now)
+            },
+            cliCredentialLoader: cliCredentialLoader,
             localHistoryJoinTimeout: budget)
-        let strategies: [any ProviderFetchStrategy] = [
-            local,
-            OpenCodeGoUsageFetchStrategy(),
-            OpenCodeGoAPIUsageFetchStrategy(cliCredentialLoader: { _ in cliCredential }, usageFetcher: quota),
-        ]
-        return ProviderFetchPipeline(resolveStrategies: { _ in strategies })
     }
 
     private static func makeContext() -> ProviderFetchContext {
