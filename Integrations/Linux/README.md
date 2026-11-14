@@ -202,7 +202,7 @@ with `--quick-view`, from the tray menu, or by clicking the tray icon after enab
 an Overview and provider tabs with the same provider icons used by the macOS menu, compact quota meters,
 reset times, pace, and optional local cost. Providers without a bundled logo use a contrasting initial instead of an empty icon slot. The footer opens the full Usage & Spend
 window, Settings, About, or Quit. `--spending` opens its Spending tab. The full Usage & Spend window retains
-generic provider details and charts. Unknown values stay unknown. Identity is hidden by default. Display preferences control reset countdowns,
+generic provider details and charts. Plan labels stay on one line and use right elision when space is limited; token counts use single thousands separators, including on Qt 6.4. Unknown values stay unknown. Identity is hidden by default. Display preferences control reset countdowns,
 absolute times, pace visibility, the Omarchy bar's detail, per-model caps and provider
 count, and low-quota colors. The tray can show two quota
 meters for the first displayed provider or a static icon. Unknown meters remain
