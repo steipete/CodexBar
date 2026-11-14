@@ -54,15 +54,13 @@ defineProvider({
       if (!/^(?:https?:)?\/\//i.test(target)) return loginPath.test(target);
       const hostMatch = /^(?:https?:)?\/\/([^/?#]+)/i.exec(target);
       const hostname = hostMatch ? hostMatch[1].toLowerCase().replace(/:\d+$/, "") : "";
-      const knownHost =
-        hostname === "typesafe.ai" || hostname === "console.typesafe.ai" || hostname.endsWith(".typesafe.ai");
+      const knownHost = hostname === "typesafe.ai" || hostname.endsWith(".typesafe.ai");
       return !knownHost || loginPath.test(target);
     };
     // The billing overview API refuses requests that do not look same-origin, even with a valid session.
-    const crossOriginRefused = (response) =>
-      response.status === 403 && /cross-origin request refused/i.test(response.bodyText);
     const validate = (response) => {
-      if (crossOriginRefused(response)) throw ctx.fail.apiFailure(overviewFailure);
+      if (response.status === 403 && /cross-origin request refused/i.test(response.bodyText))
+        throw ctx.fail.apiFailure(overviewFailure);
       if (response.status === 401 || response.status === 403) expired();
       if (response.status >= 300 && response.status < 400) {
         if (loginRedirect(response.headers["location"])) expired();
