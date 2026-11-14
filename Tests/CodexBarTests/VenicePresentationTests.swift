@@ -42,7 +42,7 @@ struct VenicePresentationTests {
             showOptionalCreditsAndExtraUsage: extras,
             hidePersonalInfo: true,
             usesLiveSubtitle: false,
-            now: self.now))
+            now: snapshot?.updatedAt ?? self.now))
     }
 
     @Test(arguments: [false, true])
@@ -73,10 +73,55 @@ struct VenicePresentationTests {
         #expect(output.contains("40,000"))
         #expect(!output.contains("0% left"))
     }
+
+    @Test
+    func `blocked API balance is an amount rather than a reset time`() async throws {
+        let snapshot = try await VenicePluginGoldenTests.fetch("""
+        {"canConsume":false,"consumptionCurrency":"USD","balances":{"diem":null,"usd":0.09549}}
+        """)
+        let metric = try #require(Self.model(snapshot: snapshot, extras: false).metrics.first)
+        #expect(metric.percent == 0)
+        #expect(metric.resetText == "$0.10")
+    }
 }
 
 @MainActor
 final class VeniceNativeProofTests: XCTestCase {
+    func test_renderBlockedAPIBalance() async throws {
+        guard let path = ProcessInfo.processInfo.environment["CODEXBAR_VENICE_BLOCKED_PROOF_DIR"] else {
+            throw XCTSkip("Set CODEXBAR_VENICE_BLOCKED_PROOF_DIR for synthetic balance proof")
+        }
+        let directory = URL(fileURLWithPath: path, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let after = try await VenicePluginGoldenTests.fetch("""
+        {"canConsume":false,"consumptionCurrency":"USD","balances":{"diem":null,"usd":0.09549}}
+        """)
+        let before = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 100,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: "Balance unavailable for API calls"),
+            secondary: nil,
+            updatedAt: after.updatedAt,
+            identity: after.identity)
+        for (stage, snapshot) in [("before", before), ("after", after)] {
+            var model = try VenicePresentationTests.model(snapshot: snapshot, extras: false)
+            if stage == "before", let primary = snapshot.primary {
+                model.metrics[0].resetText = UsageFormatter.resetLine(for: primary, style: .countdown)
+            }
+            let view = AnyView(UsageMenuCardView(model: model, width: 360)
+                .environment(\.locale, Locale(identifier: "en_US_POSIX"))
+                .environment(\.colorScheme, .light)
+                .environment(\.displayScale, 2)
+                .background(Color(nsColor: .windowBackgroundColor)))
+            let hosting = NSHostingView(rootView: view)
+            hosting.appearance = NSAppearance(named: .aqua)
+            try XCTUnwrap(MenuLayoutScreenshotRenderTests.pngDataWithWindow(hosting: hosting))
+                .write(to: directory.appendingPathComponent("venice-blocked-\(stage).png"))
+        }
+    }
+
     func test_renderSubscriptionCredits() throws {
         guard let path = ProcessInfo.processInfo.environment["CODEXBAR_VENICE_WEB_PROOF_DIR"] else {
             throw XCTSkip("Set CODEXBAR_VENICE_WEB_PROOF_DIR for synthetic subscription proof")
