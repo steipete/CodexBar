@@ -400,7 +400,7 @@ struct SpendActivityHeatmapView: View {
                         activity: cumulative ? weekly.cumulative() : weekly,
                         cumulative: cumulative)
                     self.caption(
-                        cumulative ? L("Running total") : L("Each column = 1 week"),
+                        cumulative ? L("Running total") : nil,
                         showsUnavailable: cumulative ? hasUnknownCoverage : weekly.isCovered.contains(false))
                 }
             } else {
@@ -466,10 +466,12 @@ struct SpendActivityHeatmapView: View {
         .foregroundStyle(.primary.opacity(0.75))
     }
 
-    private func caption(_ text: String, showsUnavailable: Bool) -> some View {
+    private func caption(_ text: String?, showsUnavailable: Bool) -> some View {
         let palette = SpendActivityPalette(colorScheme: self.colorScheme, contrast: self.contrast)
         return HStack(spacing: 4) {
-            Text(text)
+            if let text {
+                Text(text)
+            }
             Spacer()
             if showsUnavailable {
                 SpendActivitySwatch(palette: palette, level: nil)

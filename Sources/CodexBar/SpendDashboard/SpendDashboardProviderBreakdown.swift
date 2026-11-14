@@ -26,6 +26,19 @@ struct SpendProviderBreakdown: Identifiable, Equatable {
     var tokensAreLowerBound: Bool {
         self.subscriptions.contains(where: \.tokensAreLowerBound)
     }
+
+    /// A partial or floor total would understate this provider's share, so it cannot set a denominator.
+    var completeCost: Double? {
+        self.hasPartialCost || self.costIsLowerBound ? nil : self.totalCost
+    }
+
+    var completeTokens: Int? {
+        self.hasPartialTokens || self.tokensAreLowerBound ? nil : self.totalTokens
+    }
+}
+
+func spendDashboardProviderShares(_ breakdowns: [SpendProviderBreakdown]) -> [String: Double] {
+    spendDashboardShares(breakdowns, cost: \.completeCost, tokens: \.completeTokens)
 }
 
 private let spendProviderModelDisplayLimit = 6
@@ -103,13 +116,15 @@ struct SpendProviderBreakdownRows: View {
     @State private var expandedProviders: Set<UsageProvider> = []
 
     var body: some View {
+        let breakdowns = self.breakdowns
+        let shares = spendDashboardProviderShares(breakdowns)
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(self.breakdowns.enumerated()), id: \.element.id) { index, breakdown in
+            ForEach(Array(breakdowns.enumerated()), id: \.element.id) { index, breakdown in
                 if index > 0 {
                     Divider()
                         .padding(.vertical, 6)
                 }
-                self.providerGroup(breakdown)
+                self.providerGroup(breakdown, share: breakdowns.count > 1 ? shares[breakdown.id] : nil)
             }
         }
     }
@@ -125,14 +140,23 @@ struct SpendProviderBreakdownRows: View {
             }
     }
 
-    private func providerGroup(_ breakdown: SpendProviderBreakdown) -> some View {
+    private func providerGroup(_ breakdown: SpendProviderBreakdown, share: Double?) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
                 SpendProviderIcon(provider: breakdown.provider)
-                Text(breakdown.displayName)
-                    .font(.headline)
-                    .lineLimit(1)
-                    .help(breakdown.displayName)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(breakdown.displayName)
+                        .font(.headline)
+                        .lineLimit(1)
+                        .help(breakdown.displayName)
+                    if let share {
+                        ProgressView(value: share)
+                            .progressViewStyle(.linear)
+                            .controlSize(.mini)
+                            .frame(maxWidth: 220)
+                            .accessibilityHidden(true)
+                    }
+                }
                 Spacer()
                 Text(spendDashboardBreakdownMetricText(
                     cost: breakdown.totalCost,

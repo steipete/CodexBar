@@ -158,7 +158,6 @@ struct PreferencesView: View {
 
     private var showsToolbarTitle: Bool {
         switch self.selection.pane {
-        case .usageSpend: false
         case let .provider(instanceID): instanceID.firstPartyProvider == nil
         default: true
         }

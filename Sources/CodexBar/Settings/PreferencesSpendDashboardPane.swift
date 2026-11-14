@@ -120,7 +120,8 @@ struct SpendDashboardPane: View {
     @Bindable var store: UsageStore
     @State private var isVisible = false
     @State private var userSelectedBackground = false
-    @State private var isDataControlsExpanded = true
+    @State private var isExportingJSON = false
+    @State private var exportDocument: SpendDashboardJSONDocument?
     @State private var detailSelections: [String: SpendDashboardDetailSection] = [:]
     @State private var sessionNavigation = SessionUsageNavigation.shared
 
@@ -146,7 +147,6 @@ struct SpendDashboardPane: View {
                         .frame(height: 600)
                 } else {
                     self.header
-                    SpendTimeZoneControls(settings: self.settings)
                     self.refreshStatus
                     self.codexCostCatchUpPanel
                     self.content
@@ -156,6 +156,22 @@ struct SpendDashboardPane: View {
             .padding(24)
         }
         .background(FocusResigningBackground())
+        .modifier(SpendDashboardToolbar(
+            isVisible: self.sessionNavigation.request == nil,
+            range: self.rangePicker,
+            refresh: self.refreshButton,
+            actions: self.actionsMenu))
+        .fileExporter(
+            isPresented: self.$isExportingJSON,
+            document: self.exportDocument,
+            contentType: .json,
+            defaultFilename: SpendDashboardJSONExporter.defaultFilename(days: self.controller.model.requestedDays),
+            onCompletion: { result in
+                if SpendDashboardJSONDocument.exportFailed(result) {
+                    NSSound.beep()
+                }
+                self.exportDocument = nil
+            })
         .onAppear {
             self.isVisible = true
             self.controller.update(configuration: self.configuration)
@@ -215,31 +231,31 @@ struct SpendDashboardPane: View {
         Binding(get: { self.detailSelections[currency] ?? .providers }, set: { self.detailSelections[currency] = $0 })
     }
 
+    /// The window title names the pane; on macOS 14/15 the controls live here instead of the toolbar.
+    @ViewBuilder
     var header: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(L("Usage & Spend"))
-                        .font(.title2.weight(.semibold))
-                        .lineLimit(1)
-                    Text(L("Local estimated cost history across supported providers."))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .layoutPriority(1)
-                Spacer(minLength: 0)
-                Button {
-                    self.store.refreshSpendDashboard(accounts: self.codexSpendScanRequests)
-                } label: {
-                    if self.controller.isRefreshing {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Label(L("Refresh"), systemImage: "arrow.clockwise")
-                    }
-                }
-                .disabled(self.controller.isRefreshing || !self.settings.costUsageEnabled)
+        if !self.showsControlsInToolbar {
+            HStack(spacing: 10) {
+                self.rangePicker
+                    .fixedSize()
+                Spacer(minLength: 8)
+                self.refreshButton
+                self.actionsMenu
+                    .fixedSize()
             }
+            .labelStyle(.iconOnly)
+        }
+    }
+
+    /// macOS 26+ uses the system split view toolbar; the hand-built macOS 14/15 window keeps it inline.
+    private var showsControlsInToolbar: Bool {
+        guard #available(macOS 26.0, *) else { return false }
+        return true
+    }
+
+    /// A menu labelled with the current range, so the control resizes to the selection.
+    private var rangePicker: some View {
+        Menu {
             Picker(L("Time range"), selection: self.periodBinding) {
                 Text(spendDashboardDayRangeText(7)).tag(CostReportingPeriod.rolling(days: 7))
                 Text(spendDashboardDayRangeText(30)).tag(CostReportingPeriod.rolling(days: 30))
@@ -250,11 +266,70 @@ struct SpendDashboardPane: View {
                     Text(spendDashboardDayRangeText(days)).tag(self.controller.selectedPeriod)
                 }
             }
+            .pickerStyle(.inline)
             .labelsHidden()
-            .pickerStyle(.segmented)
-            .frame(maxWidth: 480, alignment: .leading)
-            .accessibilityIdentifier("spend-dashboard-range-picker")
+        } label: {
+            Text(self.selectedPeriodTitle)
         }
+        .help(L("Time range"))
+        .accessibilityLabel(L("Time range"))
+        .accessibilityValue(self.selectedPeriodTitle)
+        .accessibilityIdentifier("spend-dashboard-range-picker")
+    }
+
+    private var selectedPeriodTitle: String {
+        switch self.controller.selectedPeriod {
+        case let .rolling(days): spendDashboardDayRangeText(days)
+        case .monthToDate: L("Month to date")
+        case .allTime: L("All")
+        }
+    }
+
+    private var refreshButton: some View {
+        Button {
+            self.store.refreshSpendDashboard(accounts: self.codexSpendScanRequests)
+        } label: {
+            if self.controller.isRefreshing {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Label(L("Refresh"), systemImage: "arrow.clockwise")
+            }
+        }
+        .help(L("Refresh"))
+        .disabled(self.controller.isRefreshing || !self.settings.costUsageEnabled)
+    }
+
+    private var actionsMenu: some View {
+        Menu {
+            Button {
+                self.copyJSON()
+            } label: {
+                Label(L("Copy JSON"), systemImage: "doc.on.doc")
+            }
+            .disabled(self.controller.model.groups.isEmpty)
+            Button {
+                self.exportJSON()
+            } label: {
+                Label(L("Export JSON"), systemImage: "square.and.arrow.down")
+            }
+            .disabled(self.controller.model.groups.isEmpty)
+            Divider()
+            Button {
+                guard let payload = self.sharePayload else { return }
+                ShareStatsPresenter.shared.present(payload: payload)
+            } label: {
+                Label(L("Share Stats…"), systemImage: "square.and.arrow.up")
+            }
+            .disabled(self.sharePayload == nil)
+        } label: {
+            // The share glyph's arrow makes it sit low next to other toolbar symbols; lift it optically.
+            Label(L("More"), systemImage: "square.and.arrow.up")
+                .labelStyle(.iconOnly)
+                .offset(y: -1.5)
+        }
+        .menuIndicator(.hidden)
+        .help(L("More"))
     }
 
     @ViewBuilder
@@ -483,25 +558,18 @@ struct SpendDashboardPane: View {
     }
 
     private var dataControls: some View {
-        SpendDashboardPanel {
-            DisclosureGroup(isExpanded: self.$isDataControlsExpanded) {
-                VStack(alignment: .leading, spacing: 12) {
-                    self.provenance
-                    Divider()
-                    self.shareAction
-                }
-                .padding(.top, 12)
-            } label: {
-                Label {
-                    Text(L("List-price equivalent — not a billing receipt."))
-                        .font(.subheadline.weight(.medium))
-                } icon: {
-                    Image(systemName: "lock.shield.fill")
-                        .foregroundStyle(.secondary)
-                }
+        SpendDashboardPanel(L("Options")) {
+            VStack(alignment: .leading, spacing: 12) {
+                self.provenance
+                Divider()
+                SpendTimeZoneControls(settings: self.settings)
+                Divider()
+                Label(L("List-price equivalent — not a billing receipt."), systemImage: "lock.shield.fill")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            .accessibilityIdentifier("spend-dashboard-data-controls")
         }
+        .accessibilityIdentifier("spend-dashboard-data-controls")
     }
 
     private var provenance: some View {
@@ -527,31 +595,6 @@ struct SpendDashboardPane: View {
         }
     }
 
-    private var shareAction: some View {
-        HStack {
-            Button {
-                self.copyJSON()
-            } label: {
-                Label(L("Copy JSON"), systemImage: "doc.on.doc")
-            }
-            .disabled(self.controller.model.groups.isEmpty)
-            Button {
-                self.exportJSON()
-            } label: {
-                Label(L("Export JSON"), systemImage: "square.and.arrow.down")
-            }
-            .disabled(self.controller.model.groups.isEmpty)
-            Spacer()
-            Button {
-                guard let payload = self.sharePayload else { return }
-                ShareStatsPresenter.shared.present(payload: payload)
-            } label: {
-                Label(L("Share Stats…"), systemImage: "square.and.arrow.up")
-            }
-            .disabled(self.sharePayload == nil)
-        }
-    }
-
     private func copyJSON() {
         _ = SpendDashboardJSONExporter.copyToPasteboard(
             model: self.controller.model,
@@ -559,9 +602,15 @@ struct SpendDashboardPane: View {
     }
 
     private func exportJSON() {
-        _ = SpendDashboardJSONExporter.save(
+        guard let document = try? SpendDashboardJSONDocument(
             model: self.controller.model,
             hiddenSourceIDs: self.settings.spendDashboardHiddenSourceIDs)
+        else {
+            NSSound.beep()
+            return
+        }
+        self.exportDocument = document
+        self.isExportingJSON = true
     }
 
     private var sharePayload: ShareStatsPayload? {
@@ -572,6 +621,67 @@ struct SpendDashboardPane: View {
         Binding(
             get: { self.controller.selectedPeriod },
             set: { self.controller.selectPeriod($0) })
+    }
+}
+
+/// Each control gets its own glass capsule so the refresh spinner never regroups its neighbours.
+private struct SpendDashboardToolbar<Range: View, Refresh: View, Actions: View>: ViewModifier {
+    let isVisible: Bool
+    let range: Range
+    let refresh: Refresh
+    let actions: Actions
+
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content.toolbar {
+                if self.isVisible {
+                    // Spacers stop the refresh spinner's resize from splitting a shared glass capsule.
+                    ToolbarItem(placement: .primaryAction) { self.range }
+                    ToolbarSpacer(.fixed, placement: .primaryAction)
+                    ToolbarItem(placement: .primaryAction) { self.refresh }
+                    ToolbarSpacer(.fixed, placement: .primaryAction)
+                    ToolbarItem(placement: .primaryAction) { self.actions }
+                }
+            }
+        } else {
+            content
+        }
+    }
+}
+
+struct SpendDashboardJSONDocument: FileDocument {
+    static let readableContentTypes: [UTType] = [.json]
+
+    let data: Data
+
+    /// Encodes with the same helper as Copy JSON so both actions produce identical bytes.
+    init(model: SpendDashboardModel, hiddenSourceIDs: [String]) throws {
+        self.data = try SpendDashboardJSONExporter.encodedData(model: model, hiddenSourceIDs: hiddenSourceIDs)
+    }
+
+    init(fileWrapper: FileWrapper) throws {
+        guard fileWrapper.isRegularFile, let data = fileWrapper.regularFileContents else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        self.data = data
+    }
+
+    init(configuration: ReadConfiguration) throws {
+        try self.init(fileWrapper: configuration.file)
+    }
+
+    func fileWrapper() -> FileWrapper {
+        FileWrapper(regularFileWithContents: self.data)
+    }
+
+    func fileWrapper(configuration _: WriteConfiguration) throws -> FileWrapper {
+        self.fileWrapper()
+    }
+
+    /// Cancelling the save panel is a normal outcome, so only real write failures beep.
+    static func exportFailed(_ result: Result<URL, any Error>) -> Bool {
+        guard case let .failure(error) = result else { return false }
+        return (error as? CocoaError)?.code != .userCancelled
     }
 }
 
@@ -725,18 +835,12 @@ struct SpendDashboardCurrencySection: View {
 
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 18) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(self.group.currencyCode)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Text(spendDashboardHistoryCaption(self.group, requestedDays: self.requestedDays))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            SpendDashboardPanel {
+                SpendDashboardSummary(
+                    group: self.group,
+                    caption: spendDashboardHistoryCaption(self.group, requestedDays: self.requestedDays),
+                    onClearSelectedDay: self.onClearSelectedDay)
             }
-
-            SpendDashboardSummary(
-                group: self.group,
-                onClearSelectedDay: self.onClearSelectedDay)
             SpendDashboardDetailPanel(
                 group: self.group,
                 hidePersonalInfo: self.hidePersonalInfo,
@@ -761,7 +865,7 @@ private struct SpendDashboardDetailPanel: View {
     @Binding var selection: SpendDashboardDetailSection
 
     var body: some View {
-        SpendDashboardPanel {
+        SpendDashboardPanel(L("Usage breakdown")) {
             VStack(alignment: .leading, spacing: 10) {
                 if self.availableSections.count > 1 {
                     Picker(L("Usage & Spend"), selection: self.normalizedSelection) {
@@ -842,8 +946,10 @@ private struct SpendProjectRows: View {
     private static let collapsedRowCount = 8
 
     var body: some View {
+        let rows = self.rows
+        let shares = spendDashboardShares(rows, cost: \.totalCost, tokens: \.totalTokens)
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(self.visibleRows) { row in
+            ForEach(rows.prefix(self.showsAllRows ? rows.count : Self.collapsedRowCount)) { row in
                 let identity = row.displayIdentity(hidePersonalInfo: self.hidePersonalInfo)
                 if row.rank > 1 {
                     Divider()
@@ -863,8 +969,15 @@ private struct SpendProjectRows: View {
                         Text(row.providerName)
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        if let share = shares[row.id] {
+                            ProgressView(value: share)
+                                .progressViewStyle(.linear)
+                                .controlSize(.mini)
+                                .frame(maxWidth: 220)
+                                .accessibilityHidden(true)
+                        }
                         if let path = identity.path,
-                           row.needsPathDisambiguation(in: self.rows)
+                           row.needsPathDisambiguation(in: rows)
                         {
                             Text(path)
                                 .font(.caption)
@@ -884,14 +997,10 @@ private struct SpendProjectRows: View {
                 .padding(.vertical, 9)
             }
             SpendPanelExpandButton(
-                rowCount: self.rows.count,
+                rowCount: rows.count,
                 collapsedRowCount: Self.collapsedRowCount,
                 showsAllRows: self.$showsAllRows)
         }
-    }
-
-    private var visibleRows: ArraySlice<SpendDashboardModel.ProjectRow> {
-        self.rows.prefix(self.showsAllRows ? self.rows.count : Self.collapsedRowCount)
     }
 
     private var rows: [SpendDashboardModel.ProjectRow] {
@@ -922,24 +1031,6 @@ struct SpendPanelExpandButton: View {
     }
 }
 
-private enum SpendDailyLedgerLayout {
-    static let dayWidth: CGFloat = 112
-    static let providerMinimumWidth: CGFloat = 96
-    static let trackedTokensWidth: CGFloat = 90
-    static let requestsWidth: CGFloat = 72
-    static let estimatedSpendWidth: CGFloat = 116
-    static let columnSpacing: CGFloat = 12
-    static let horizontalPadding: CGFloat = 8
-    static let minimumTableWidth: CGFloat =
-        dayWidth
-            + providerMinimumWidth
-            + trackedTokensWidth
-            + requestsWidth
-            + estimatedSpendWidth
-            + (columnSpacing * 4)
-            + (horizontalPadding * 2)
-}
-
 /// Bound initial ledger layout on long ranges; expansion still exposes the complete history.
 func spendDailyLedgerVisibleSummaries(
     _ summaries: [SpendDashboardModel.DailySummary],
@@ -963,36 +1054,28 @@ private struct SpendDailyLedger: View {
     }
 
     var body: some View {
-        SpendDashboardPanel {
+        SpendDashboardPanel(L("Daily estimated spend")) {
             VStack(alignment: .leading, spacing: 0) {
-                Text(L("Daily estimated spend"))
-                    .font(.headline)
-                    .padding(.bottom, 10)
-
                 if self.group.dailySummaries.isEmpty {
                     ContentUnavailableView(
                         L("Spend unavailable"),
                         systemImage: "calendar.badge.exclamationmark")
                         .frame(maxWidth: .infinity, minHeight: 120)
                 } else {
-                    ScrollView(.horizontal, showsIndicators: true) {
-                        VStack(alignment: .leading, spacing: 0) {
-                            self.header
-                            Divider()
-                            VStack(spacing: 0) {
-                                ForEach(Array(self.visibleSummaries.enumerated()), id: \.element.id) { index, summary in
-                                    if index > 0 {
-                                        Divider()
-                                    }
-                                    SpendDailyLedgerRow(
-                                        summary: summary,
-                                        currencyCode: self.group.currencyCode,
-                                        timeZone: self.group.timeZone)
-                                }
+                    Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 8) {
+                        self.header
+                        Divider()
+                        ForEach(Array(self.visibleSummaries.enumerated()), id: \.element.id) { index, summary in
+                            if index > 0 {
+                                Divider()
                             }
+                            SpendDailyLedgerRow(
+                                summary: summary,
+                                currencyCode: self.group.currencyCode,
+                                timeZone: self.group.timeZone)
                         }
-                        .frame(minWidth: SpendDailyLedgerLayout.minimumTableWidth, alignment: .leading)
                     }
+                    .monospacedDigit()
                     SpendPanelExpandButton(
                         rowCount: self.group.dailySummaries.count,
                         collapsedRowCount: Self.collapsedRowCount,
@@ -1003,26 +1086,24 @@ private struct SpendDailyLedger: View {
     }
 
     private var header: some View {
-        HStack(spacing: SpendDailyLedgerLayout.columnSpacing) {
-            Text(L("Day")).frame(width: SpendDailyLedgerLayout.dayWidth, alignment: .leading)
-            Text(L("Providers")).frame(
-                minWidth: SpendDailyLedgerLayout.providerMinimumWidth,
-                maxWidth: .infinity,
-                alignment: .leading)
-            Text(L("Tracked tokens")).frame(
-                width: SpendDailyLedgerLayout.trackedTokensWidth,
-                alignment: .trailing)
-            Text(L("Requests")).frame(
-                width: SpendDailyLedgerLayout.requestsWidth,
-                alignment: .trailing)
-            Text(L("Estimated spend")).frame(
-                width: SpendDailyLedgerLayout.estimatedSpendWidth,
-                alignment: .trailing)
+        GridRow {
+            self.headerCell(L("Day"))
+            self.headerCell(L("Providers"))
+                .frame(maxWidth: .infinity, alignment: .leading)
+            self.headerCell(L("Tracked tokens"))
+                .gridColumnAlignment(.trailing)
+            self.headerCell(L("Requests"))
+                .gridColumnAlignment(.trailing)
+            self.headerCell(L("Estimated spend"))
+                .gridColumnAlignment(.trailing)
         }
-        .font(.caption)
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, SpendDailyLedgerLayout.horizontalPadding)
-        .padding(.vertical, 6)
+    }
+
+    private func headerCell(_ title: String) -> some View {
+        Text(title)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
     }
 }
 
@@ -1032,27 +1113,21 @@ private struct SpendDailyLedgerRow: View {
     let timeZone: TimeZone
 
     var body: some View {
-        HStack(spacing: SpendDailyLedgerLayout.columnSpacing) {
+        GridRow {
             Text(spendDashboardLedgerDateText(self.summary.day, timeZone: self.timeZone))
-                .frame(width: SpendDailyLedgerLayout.dayWidth, alignment: .leading)
+                .lineLimit(1)
+                .accessibilityLabel(self.accessibilityLabel)
             self.providerMix
-                .frame(
-                    minWidth: SpendDailyLedgerLayout.providerMinimumWidth,
-                    maxWidth: .infinity,
-                    alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityHidden(true)
             Text(self.tokensText)
-                .frame(width: SpendDailyLedgerLayout.trackedTokensWidth, alignment: .trailing)
+                .accessibilityHidden(true)
             Text(self.requestsText)
-                .frame(width: SpendDailyLedgerLayout.requestsWidth, alignment: .trailing)
+                .accessibilityHidden(true)
             Text(spendDashboardLedgerCostText(self.summary, currencyCode: self.currencyCode))
                 .fontWeight(.medium)
-                .frame(width: SpendDailyLedgerLayout.estimatedSpendWidth, alignment: .trailing)
+                .accessibilityHidden(true)
         }
-        .monospacedDigit()
-        .padding(.horizontal, SpendDailyLedgerLayout.horizontalPadding)
-        .padding(.vertical, 10)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(self.accessibilityLabel)
     }
 
     @ViewBuilder
@@ -1323,10 +1398,6 @@ enum SpendDashboardJSONExporter {
         return "codexbar-spend-last-\(days)-days.json"
     }
 
-    static func write(_ data: Data, to url: URL) throws {
-        try data.write(to: url, options: .atomic)
-    }
-
     @MainActor
     static func copyToPasteboard(
         model: SpendDashboardModel,
@@ -1342,53 +1413,37 @@ enum SpendDashboardJSONExporter {
         pasteboard.clearContents()
         return pasteboard.setString(json, forType: .string)
     }
-
-    @MainActor
-    static func save(
-        model: SpendDashboardModel,
-        hiddenSourceIDs: [String],
-        chooseDestination: ((String) -> URL?)? = nil) -> Bool
-    {
-        guard let data = try? self.encodedData(model: model, hiddenSourceIDs: hiddenSourceIDs) else {
-            NSSound.beep()
-            return false
-        }
-        let filename = self.defaultFilename(days: model.requestedDays)
-        let url: URL?
-        if let chooseDestination {
-            url = chooseDestination(filename)
-        } else {
-            let panel = NSSavePanel()
-            panel.allowedContentTypes = [.json]
-            panel.canCreateDirectories = true
-            panel.nameFieldStringValue = filename
-            guard panel.runModal() == .OK else { return false }
-            url = panel.url
-        }
-        guard let url else { return false }
-        do {
-            try self.write(data, to: url)
-            return true
-        } catch {
-            NSSound.beep()
-            return false
-        }
-    }
 }
 
 struct SpendDashboardPanel<Content: View>: View {
+    let title: String?
     @ViewBuilder let content: Content
 
+    init(_ title: String? = nil, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
     var body: some View {
-        self.content
-            .padding(16)
-            .background(
-                Color(nsColor: .textBackgroundColor).opacity(0.74),
-                in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(Color(nsColor: .separatorColor).opacity(0.42))
+        if let title = self.title {
+            GroupBox {
+                self.paddedContent
+            } label: {
+                Text(title)
+                    .font(.headline)
+                    .padding(.bottom, 4)
             }
+        } else {
+            GroupBox {
+                self.paddedContent
+            }
+        }
+    }
+
+    private var paddedContent: some View {
+        self.content
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(10)
     }
 }
 

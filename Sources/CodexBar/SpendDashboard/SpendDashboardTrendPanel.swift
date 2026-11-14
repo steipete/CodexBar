@@ -400,15 +400,9 @@ struct SpendTrendChart: View {
                 .labelsHidden().pickerStyle(.menu).controlSize(.small)
                 .frame(maxWidth: 240, alignment: .leading)
                 .accessibilityIdentifier("spend-trend-inspection-picker")
-                if let bucket, self.section == .daily,
-                   model.unit != .day || self.group.hourlyPoints.contains(where: {
-                       self.group.calendar.isDate($0.hour, inSameDayAs: bucket.date)
-                   })
-                {
-                    Button(model.unit == .day ? L("Hour") : L("Show details")) {
-                        if model.unit == .day {
-                            self.onSelectDay?(bucket.date)
-                        } else if let interval = model.interval(at: bucket.date) {
+                if let bucket, self.section == .daily, model.unit != .day {
+                    Button(L("Show details")) {
+                        if let interval = model.interval(at: bucket.date) {
                             self.onSelectInterval?(interval)
                         }
                     }
