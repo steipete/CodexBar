@@ -61,6 +61,10 @@ executable, enclosing app bundle metadata, bundle version, or main executable in
 Outside the explicit operation memo, the current Keychain ACL and prompt selector are read on every preflight, and
 background secret reads remain non-interactive.
 
+Muse Code also checks the item's explicit signing-team partition list before reading its login token. A missing
+team uses the same explained manual-refresh allowance; unreadable partition metadata or signing identity stops
+before the secret read. The Muse CLI can reset that list on token refresh; see [Muse authentication](muse.md#authentication).
+
 Provider-owned child processes are a separate boundary. CodexBar may intentionally launch a provider CLI such as
 Claude for usage. That executable owns its credential behavior, which CodexBar cannot constrain or fully inspect.
 
