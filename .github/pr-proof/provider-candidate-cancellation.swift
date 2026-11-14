@@ -35,7 +35,7 @@ enum ProviderCandidateCancellationProof {
         func load(_ candidate: Int) -> Int {
             let url = self.root.appendingPathComponent("profile-\(candidate)")
             guard let data = FileManager.default.contents(atPath: url.path),
-                  String(decoding: data, as: UTF8.self) == "fixture-session-\(candidate)"
+                  data == Data("fixture-session-\(candidate)".utf8)
             else { fatalError("Owned fixture is missing or corrupt") }
             self.loaded.append(candidate)
             self.events.append("read-profile-\(candidate)")
