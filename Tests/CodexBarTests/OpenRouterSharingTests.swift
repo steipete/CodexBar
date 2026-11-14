@@ -16,6 +16,8 @@ struct OpenRouterSharingTests {
         #expect(group.totalTokens == 900)
         #expect(group.tokenMix.reasoningTokens == 140)
         #expect(group.totalCost == 0.9375)
+        #expect(group.providers.first?.tokensAreLowerBound == false)
+        #expect(group.providers.first?.costIsLowerBound == false)
         #expect(Set(group.models.map(\.modelName)) == [
             "openai/gpt-4o", "acme-namespace/gpt-private-fixture",
             "anthropic/claude-sonnet-4", "private-vendor/unknown-fixture",
@@ -30,6 +32,7 @@ struct OpenRouterSharingTests {
         #expect(payload.providers.first?.estimatedCost == 0.9375)
         #expect(payload.currencies.first?.currencyCode == "USD")
         #expect(payload.currencies.first?.estimatedCost == 0.9375)
+        #expect(payload.currencies.first?.isPartial == false)
         #expect(payload.topModels == [
             ShareStatsModelPayload(
                 provider: .openrouter,

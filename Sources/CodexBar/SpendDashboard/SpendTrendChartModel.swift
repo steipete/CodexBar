@@ -6,7 +6,7 @@ import Foundation
 struct SpendTrendChartModel {
     struct Segment: Identifiable, Equatable {
         let sourceID: String
-        let provider: UsageProvider
+        let provider: ProviderInstanceID
         let name: String
         let date: Date
         let cost: Double
@@ -48,7 +48,7 @@ struct SpendTrendChartModel {
     {
         self.section = section
         self.calendar = group.calendar
-        let points: [(source: (id: String, provider: UsageProvider, name: String), date: Date, cost: Double)]
+        let points: [(source: (id: String, provider: ProviderInstanceID, name: String), date: Date, cost: Double)]
         if section == .hourly {
             let day = day ?? Self.focusedDay(nil, group: group) ?? group.chartDomain.lowerBound
             let interval = group.calendar.dateInterval(of: .day, for: day)
@@ -261,10 +261,11 @@ enum SpendChartPalette {
     /// when a day has no entries for one account or the legend isolates a source.
     static func color(
         sourceID: String,
-        provider: UsageProvider,
+        provider: ProviderInstanceID,
         providers: [SpendDashboardModel.ProviderRow]) -> NSColor
     {
-        let base = ProviderAccentPalette.color(for: provider)
+        guard let native = provider.firstPartyProvider else { return .systemTeal }
+        let base = ProviderAccentPalette.color(for: native)
         let color = NSColor(srgbRed: base.red, green: base.green, blue: base.blue, alpha: 1)
         let ids = providers.filter { $0.provider == provider }.map(\.id).sorted()
         guard let index = ids.firstIndex(of: sourceID), index > 0 else { return color }

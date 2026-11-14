@@ -223,17 +223,29 @@ enum SpendDashboardSource {
         providers: [UsageProvider],
         codexSources: [CodexSpendSourceDescriptor]) -> SpendDashboardConfiguration
     {
-        SpendDashboardConfiguration(
+        let plugins = self.statisticsPlugins(store: store)
+        return SpendDashboardConfiguration(
             costUsageEnabled: self.spendCollectionEnabled(settings: settings, providers: providers),
             preferredCurrencyCode: settings.preferredCurrencyCode,
-            providerIDs: providers.map(\.rawValue),
+            providerIDs: providers.map(\.rawValue) + plugins.map { "plugin/\($0.manifest.id.rawValue)" },
             codexAccountIdentities: codexSources.map(\.identity),
             codexAccountDisplayNames: self.codexDisplayNamesByID(codexSources),
             sourceOwnershipFingerprints: self.sourceOwnershipFingerprints(
                 providers: providers,
                 settings: settings,
-                store: store),
-            sourceRevisions: self.sourceRevisions(providers: providers, settings: settings, store: store),
+                store: store) + plugins.map {
+                "plugin/\($0.manifest.id.rawValue):\(store.userPluginStatisticsScope($0)):" +
+                    "\(settings.providerConfigRevision(forInstanceID: $0.manifest.id))"
+            },
+            sourceRevisions: self.sourceRevisions(providers: providers, settings: settings, store: store)
+                + plugins.map { plugin in
+                    let prefix = "plugin/\(plugin.manifest.id.rawValue):"
+                    guard let publication = self.pluginPublication(plugin, store: store) else {
+                        return prefix + "unavailable"
+                    }
+                    guard let snapshot = publication.snapshot else { return prefix + "empty" }
+                    return prefix + self.snapshotRevision(snapshot)
+                },
             sourcePublicationRevisions: providers.filter(UsageStore.tokenCostRequiresProviderSnapshot)
                 .map { store.tokenSnapshotPublicationRevision(for: $0) },
             bucketTimeZoneIdentifier: settings.costUsageBucketTimeZoneIdentifier,
@@ -329,7 +341,7 @@ enum SpendDashboardSource {
             && piBaseline != nil
             && piCurrent.publication?.snapshot != nil
             && !(piBaseline?.shouldRefresh == true && piBaseline?.publicationRevision == piCurrent.revision)
-        var inputs: [SpendDashboardModel.ProviderInput] = []
+        var inputs = self.pluginInputs(store: store)
         var unavailableSourceIDs: Set<String> = []
         var confirmedEmptySourceIDs: Set<String> = []
         // Provider-specific by design: spend dashboard
@@ -380,6 +392,14 @@ enum SpendDashboardSource {
                 snapshot: snapshot,
                 // Provider-specific by design: Pi reports local history rather than a subscription feed.
                 sourceKind: provider == .pi ? .localHistory : .native))
+        }
+        for plugin in self.statisticsPlugins(store: store) {
+            let sourceID = "plugin/\(plugin.manifest.id.rawValue)"
+            if let publication = self.pluginPublication(plugin, store: store) {
+                if publication.snapshot == nil { confirmedEmptySourceIDs.insert(sourceID) }
+            } else {
+                unavailableSourceIDs.insert(sourceID)
+            }
         }
         return SpendDashboardLoadRequest(
             configuration: configuration,
@@ -785,7 +805,7 @@ enum SpendDashboardSource {
                     store: store, provider: provider, publication: current, piOwnsSource: false)
                 else { return "\(provider.rawValue):empty" }
                 let calendar = SpendDashboardModel.bucketCalendar(
-                    for: provider, displayCalendar: settings.costUsageBucketCalendar)
+                    for: provider.instanceID, displayCalendar: settings.costUsageBucketCalendar)
                 return "\(provider.rawValue):snapshot:\(self.snapshotRevision(snapshot, coverageCalendar: calendar))"
             }
             guard let snapshot = current.snapshot else {
@@ -1582,6 +1602,7 @@ final class SpendDashboardController {
         let unsafeSourceIDs = invalidatedSourceIDs
             .union(result.invalidatedSourceIDs)
             .union(confirmedEmptySourceIDs)
+            .union(result.failedSourceIDs.filter { $0.hasPrefix("plugin/") })
         nextInputs = self.retainingCompleteDetails(
             nextInputs, configuration: request.configuration, unsafeSourceIDs: unsafeSourceIDs)
         if !result.failedSourceIDs.isEmpty {
@@ -1619,8 +1640,9 @@ final class SpendDashboardController {
         capture: SpendDashboardLoadRequest) -> ReconciledOutcome
     {
         let forceFailed = outcome.result.failedSourceIDs
-        let invalidated = outcome.result.invalidatedSourceIDs
         let barrierFailed = capture.unavailableSourceIDs
+        let invalidated = outcome.result.invalidatedSourceIDs
+            .union(barrierFailed.filter { $0.hasPrefix("plugin/") })
         let forcedCodexIDs = Set(outcome.request.codexRequests.map { "codex:\($0.id)" })
         let confirmedNonemptyInputs = outcome.confirmedNonemptyInputs
         let confirmedNonemptyIDs = Set(confirmedNonemptyInputs.map(\.id))
@@ -1649,10 +1671,13 @@ final class SpendDashboardController {
         let openCodex = SpendDashboardSource.mergingOpenCodexInputsWithObservation(
             inputs,
             request: outcome.request)
+        // A later plugin publication supersedes the forced request's failure.
+        let recoveredPluginIDs = Set(inputs.map(\.id)).union(outcome.confirmedEmptySourceIDs)
+            .filter { $0.hasPrefix("plugin/") }
         return ReconciledOutcome(
             result: SpendDashboardLoadResult(
                 inputs: openCodex.inputs,
-                failedSourceIDs: forceFailed.union(barrierFailed),
+                failedSourceIDs: forceFailed.subtracting(recoveredPluginIDs).union(barrierFailed),
                 invalidatedSourceIDs: invalidated,
                 openCodexObservation: openCodex.observation),
             confirmedEmptySourceIDs: outcome.confirmedEmptySourceIDs)
@@ -1851,15 +1876,17 @@ final class SpendDashboardController {
         return ids.filter { seen.insert($0).inserted }
     }
 
-    private func provider(for sourceID: String) -> UsageProvider? {
+    private func provider(for sourceID: String) -> ProviderInstanceID? {
         // Provider-specific by design: account source IDs map to Codex.
         if sourceID.hasPrefix("codex:") { return .codex }
-        return UsageProvider(rawValue: sourceID)
+        return ProviderInstanceID(rawValue: sourceID.hasPrefix("plugin/")
+            ? String(sourceID.dropFirst("plugin/".count)) : sourceID)
     }
 
-    private func displayName(for sourceID: String, provider: UsageProvider) -> String {
+    private func displayName(for sourceID: String, provider: ProviderInstanceID) -> String {
         self.configuration?.codexAccountDisplayNames[sourceID]
-            ?? ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
+            ?? provider.firstPartyProvider.map { ProviderDescriptorRegistry.descriptor(for: $0).metadata.displayName }
+            ?? provider.rawValue
     }
 
     private func refreshRetainedCodexDisplayNames(_ displayNamesByID: [String: String]) {
@@ -1926,7 +1953,14 @@ final class SpendDashboardController {
         let changedCodexIDs = codexIDs.filter {
             previousCodexOwnership[$0] != currentCodexOwnership[$0]
         }
-        return Set(changedProviderIDs).union(changedCodexIDs)
+        let unavailablePluginIDs = current.sourceRevisions.compactMap { revision -> String? in
+            guard revision.hasPrefix("plugin/"),
+                  revision.hasSuffix(":unavailable") || revision.hasSuffix(":empty"),
+                  let separator = revision.firstIndex(of: ":")
+            else { return nil }
+            return String(revision[..<separator])
+        }
+        return Set(changedProviderIDs).union(changedCodexIDs).union(unavailablePluginIDs)
     }
 
     private static func sourceOwnershipByID(_ fingerprints: [String]) -> [String: String] {

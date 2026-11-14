@@ -16,7 +16,7 @@ final class SpendDashboardLazyLayoutTests: XCTestCase {
                 .init(
                     id: provider.rawValue,
                     rank: index + 1,
-                    provider: provider,
+                    provider: provider.instanceID,
                     displayName: "Synthetic \(index)",
                     totalTokens: 100,
                     totalCost: 1,
@@ -26,7 +26,7 @@ final class SpendDashboardLazyLayoutTests: XCTestCase {
             dailyPoints: providers.map {
                 .init(
                     sourceID: $0.rawValue,
-                    provider: $0,
+                    provider: $0.instanceID,
                     providerName: "Synthetic",
                     day: day,
                     cost: 1,
