@@ -238,7 +238,6 @@ extension MiniMaxUsageFetcher {
         context: WebFetchContext,
         groupID: String?) async throws -> MiniMaxUsageSnapshot
     {
-        guard !context.usesCurrentChinaEndpoint else { return snapshot }
         let resolvedGroupID = groupID ?? MiniMaxCookieHeader.override(from: context.cookie)?.groupID
         guard resolvedGroupID?.isEmpty == false else { return snapshot }
         do {
@@ -246,7 +245,7 @@ extension MiniMaxUsageFetcher {
                 cookieHeader: context.cookie,
                 groupID: resolvedGroupID,
                 region: context.region,
-                environment: context.subscriptionEnvironment ?? context.environment,
+                environment: context.environment,
                 transport: context.transport)
             return snapshot.withSubscriptionMetadata(metadata)
         } catch is CancellationError {

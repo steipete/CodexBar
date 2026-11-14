@@ -12,13 +12,6 @@ public struct MiniMaxUsageFetcher: Sendable {
         let region: MiniMaxAPIRegion
         @ProcessEnvironment private(set) var environment: [String: String]
         let transport: any ProviderHTTPTransport
-        @ProcessEnvironment private(set) var subscriptionEnvironment: [String: String]?
-        var successfulQuotaURL: URL?
-
-        var usesCurrentChinaEndpoint: Bool {
-            guard let host = self.successfulQuotaURL?.host?.lowercased() else { return false }
-            return host == "minimax.cn" || host.hasSuffix(".minimax.cn")
-        }
     }
 
     public static func fetchUsage(
@@ -31,91 +24,26 @@ public struct MiniMaxUsageFetcher: Sendable {
         session transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         now: Date = Date()) async throws -> MiniMaxUsageSnapshot
     {
-        let context = try self.makeWebFetchContext(
-            cookieHeader: cookieHeader,
-            authorizationToken: authorizationToken,
-            region: region,
-            environment: environment,
-            transport: transport)
-        return try await self.fetchUsage(
-            context: context, groupID: groupID, includeBillingHistory: includeBillingHistory, now: now)
-    }
-
-    static func fetchBrowserUsage(
-        browserSession: MiniMaxWebSession,
-        authorizationToken: String? = nil,
-        groupID: String? = nil,
-        region: MiniMaxAPIRegion = .global,
-        environment: [String: String] = [:],
-        includeBillingHistory: Bool = true,
-        session transport: (any ProviderHTTPTransport)? = nil,
-        now: Date = Date()) async throws -> MiniMaxUsageSnapshot
-    {
-        if let rejectedKey = MiniMaxSettingsReader.rejectedEndpointOverrideKey(environment: environment) {
-            throw ProviderEndpointOverrideError.minimax(rejectedKey)
-        }
-        // Page/quota routing must not replace the subscription endpoint selected by the user or its WWW default.
-        let scopedEnvironment = browserSession.domain.environment(environment)
-        let cookieToken = CookieHeaderNormalizer.pairs(from: browserSession.cookieHeader)
-            .first { $0.name.caseInsensitiveCompare("HERTZ-SESSION") == .orderedSame }?.value
-        let context = try self.makeWebFetchContext(
-            cookieHeader: browserSession.cookieHeader,
-            authorizationToken: authorizationToken,
-            region: region,
-            environment: scopedEnvironment,
-            transport: MiniMaxBrowserSessionTransport(
-                session: browserSession,
-                region: region,
-                environment: scopedEnvironment,
-                cookieBearer: authorizationToken == cookieToken ? authorizationToken : nil,
-                transport: transport),
-            subscriptionEnvironment: environment,
-            allowBearerOnly: true)
-        return try await self.fetchUsage(
-            context: context, groupID: groupID, includeBillingHistory: includeBillingHistory, now: now)
-    }
-
-    private static func makeWebFetchContext(
-        cookieHeader: String,
-        authorizationToken: String?,
-        region: MiniMaxAPIRegion,
-        environment: [String: String],
-        transport: any ProviderHTTPTransport,
-        subscriptionEnvironment: [String: String]? = nil,
-        allowBearerOnly: Bool = false) throws -> WebFetchContext
-    {
-        let cookie = MiniMaxCookieHeader.normalized(from: cookieHeader)
-        let hasBearer = authorizationToken?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-        guard cookie != nil || (allowBearerOnly && hasBearer) else {
+        guard let cookie = MiniMaxCookieHeader.normalized(from: cookieHeader) else {
             throw MiniMaxUsageError.invalidCredentials
         }
         if let rejectedKey = MiniMaxSettingsReader.rejectedEndpointOverrideKey(environment: environment) {
             throw ProviderEndpointOverrideError.minimax(rejectedKey)
         }
 
-        return WebFetchContext(
-            cookie: cookie ?? "",
+        let context = WebFetchContext(
+            cookie: cookie,
             authorizationToken: authorizationToken,
             region: region,
             environment: environment,
-            transport: transport,
-            subscriptionEnvironment: subscriptionEnvironment)
-    }
-
-    private static func fetchUsage(
-        context: WebFetchContext,
-        groupID: String?,
-        includeBillingHistory: Bool,
-        now: Date) async throws -> MiniMaxUsageSnapshot
-    {
-        var context = context
+            transport: transport)
         do {
-            let htmlSnapshot = try await self.fetchCodingPlanHTML(context: &context, now: now)
+            let htmlSnapshot = try await self.fetchCodingPlanHTML(context: context, now: now)
             if htmlSnapshot.services?.isEmpty != false {
                 do {
                     Self.log.debug("MiniMax coding plan HTML lacks service quota data, trying remains API")
                     let remainsSnapshot = try await self.fetchCodingPlanRemains(
-                        context: &context,
+                        context: context,
                         groupID: groupID,
                         now: now)
                         .withPlanNameIfMissing(htmlSnapshot.planName)
@@ -155,12 +83,11 @@ public struct MiniMaxUsageFetcher: Sendable {
                 throw error
             }
             Self.log.debug("MiniMax coding plan page unavailable, trying remains API")
-            let remainsSnapshot = try await self.fetchCodingPlanRemains(
-                context: &context,
-                groupID: groupID,
-                now: now)
             let snapshot = try await self.attachingSubscriptionMetadataIfAvailable(
-                to: remainsSnapshot,
+                to: self.fetchCodingPlanRemains(
+                    context: context,
+                    groupID: groupID,
+                    now: now),
                 context: context,
                 groupID: groupID)
             return try await self.attachingBillingIfAvailable(
@@ -356,7 +283,7 @@ public struct MiniMaxUsageFetcher: Sendable {
     }
 
     private static func fetchCodingPlanHTML(
-        context: inout WebFetchContext,
+        context: WebFetchContext,
         now: Date) async throws -> MiniMaxUsageSnapshot
     {
         let url = self.resolveCodingPlanURL(region: context.region, environment: context.environment)
@@ -369,9 +296,7 @@ public struct MiniMaxUsageFetcher: Sendable {
         if let contentType = response.response.value(forHTTPHeaderField: "Content-Type"),
            contentType.lowercased().contains("application/json")
         {
-            let snapshot = try self.parseRemainsResponse(response.data, now: now)
-            context.successfulQuotaURL = response.response.url ?? url
-            return snapshot
+            return try self.parseRemainsResponse(response.data, now: now)
         }
 
         let html = String(data: response.data, encoding: .utf8) ?? ""
@@ -381,13 +306,11 @@ public struct MiniMaxUsageFetcher: Sendable {
         if self.looksSignedOut(html: html) {
             throw MiniMaxUsageError.invalidCredentials
         }
-        let snapshot = try MiniMaxUsageParser.parse(html: html, now: now)
-        context.successfulQuotaURL = response.response.url ?? url
-        return snapshot
+        return try MiniMaxUsageParser.parse(html: html, now: now)
     }
 
     private static func fetchCodingPlanRemains(
-        context: inout WebFetchContext,
+        context: WebFetchContext,
         groupID: String?,
         now: Date) async throws -> MiniMaxUsageSnapshot
     {
@@ -396,7 +319,7 @@ public struct MiniMaxUsageFetcher: Sendable {
             do {
                 return try await self.fetchCodingPlanRemainsOnce(
                     baseRemainsURL: baseRemainsURL,
-                    context: &context,
+                    context: context,
                     groupID: groupID,
                     now: now)
             } catch {
@@ -411,7 +334,7 @@ public struct MiniMaxUsageFetcher: Sendable {
 
     private static func fetchCodingPlanRemainsOnce(
         baseRemainsURL: URL,
-        context: inout WebFetchContext,
+        context: WebFetchContext,
         groupID: String?,
         now: Date) async throws -> MiniMaxUsageSnapshot
     {
@@ -434,18 +357,14 @@ public struct MiniMaxUsageFetcher: Sendable {
         if let contentType = response.response.value(forHTTPHeaderField: "Content-Type"),
            contentType.lowercased().contains("application/json")
         {
-            let snapshot = try self.parseRemainsResponse(response.data, now: now)
-            context.successfulQuotaURL = response.response.url ?? remainsURL
-            return snapshot
+            return try self.parseRemainsResponse(response.data, now: now)
         }
 
         let html = String(data: response.data, encoding: .utf8) ?? ""
         if self.looksSignedOut(html: html) {
             throw MiniMaxUsageError.invalidCredentials
         }
-        let snapshot = try MiniMaxUsageParser.parse(html: html, now: now)
-        context.successfulQuotaURL = response.response.url ?? remainsURL
-        return snapshot
+        return try MiniMaxUsageParser.parse(html: html, now: now)
     }
 
     private static func normalizedTransportError(_ error: Error) -> Error {
@@ -475,11 +394,7 @@ public struct MiniMaxUsageFetcher: Sendable {
         includeBillingHistory: Bool,
         now: Date) async throws -> MiniMaxUsageSnapshot
     {
-        // The old billing endpoint belongs to minimaxi.com and cannot receive current minimax.cn cookies.
-        guard includeBillingHistory,
-              !context.usesCurrentChinaEndpoint || MiniMaxSettingsReader.billingHistoryURL(
-                  environment: context.environment) != nil
-        else { return snapshot }
+        guard includeBillingHistory else { return snapshot }
         do {
             let billing = try await self.fetchBillingSummary(context: context, now: now)
             return snapshot.withBillingSummary(billing)
@@ -613,13 +528,6 @@ public struct MiniMaxUsageFetcher: Sendable {
         if let host = MiniMaxSettingsReader.hostOverride(environment: environment),
            let hostURL = self.url(from: host, path: MiniMaxAPIRegion.remainsPath)
         {
-            if hostURL == MiniMaxAPIRegion.chinaMainland.remainsURL {
-                return [
-                    hostURL,
-                    URL(string: MiniMaxAPIRegion.chinaMainland.webBaseURLString)!
-                        .appendingPathComponent(MiniMaxAPIRegion.remainsPath),
-                ]
-            }
             return [hostURL]
         }
 

@@ -85,7 +85,7 @@ struct MiniMaxWebResponseTests {
             now: now)
         #expect(snapshot.toUsageSnapshot().primary?.usedPercent == 4)
         #expect(snapshot.updatedAt == now)
-        #expect(await transport.requests().count == (fallback ? 2 : 1))
+        #expect(await transport.requests().count == (fallback ? 3 : 2))
     }
 
     @Test(arguments: [false, true], [401, 403, 500])

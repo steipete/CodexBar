@@ -585,7 +585,7 @@ struct MiniMaxTokenPlanChangeTests {
     }
 
     @Test
-    func `legacy web usage fetch merges combo subscription metadata`() async throws {
+    func `web usage fetch merges combo subscription metadata`() async throws {
         let now = Date(timeIntervalSince1970: 1_780_282_340)
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
@@ -595,10 +595,7 @@ struct MiniMaxTokenPlanChangeTests {
                     body: "<html><main>Coding Plan</main></html>",
                     contentType: "text/html")
             }
-            if url.path.contains("remains_percent") {
-                return Self.httpResponse(url: url, body: "{}", contentType: "application/json")
-            }
-            if url.path.contains("coding_plan/remains") {
+            if url.path.contains("coding_plan/remains") || url.path.contains("remains_percent") {
                 return Self.httpResponse(url: url, body: Self.percentBasedRemainsJSON, contentType: "application/json")
             }
             #expect(url.host == "www.minimaxi.com")
@@ -610,7 +607,7 @@ struct MiniMaxTokenPlanChangeTests {
         }
 
         let snapshot = try await MiniMaxUsageFetcher.fetchUsage(
-            cookieHeader: "HERTZ-SESSION=abc; minimax_group_id_v2=2013894056999916075",
+            cookieHeader: "_token=abc; minimax_group_id_v2=2013894056999916075",
             groupID: "2013894056999916075",
             region: .chinaMainland,
             environment: [:],
@@ -626,50 +623,6 @@ struct MiniMaxTokenPlanChangeTests {
         #expect(snapshot.toUsageSnapshot().subscriptionRenewsAt == Date(timeIntervalSince1970: 1_810_569_600))
         #expect(snapshot.toUsageSnapshot().primary?.usedPercent == 4)
         #expect(requests.contains { $0.url?.path.contains("cycle_audio_resource_package") == true })
-    }
-
-    @Test
-    func `manual token cookie legacy fallback keeps subscription and billing enrichment`() async throws {
-        let now = try #require(ISO8601DateFormatter().date(from: "2026-06-01T12:00:00Z"))
-        let transport = ProviderHTTPTransportStub { request in
-            let url = try #require(request.url)
-            if url.path == "/console/usage" {
-                return Self.httpResponse(url: url, body: "<html>fixture without usage</html>", contentType: "text/html")
-            }
-            if url.host == "www.minimax.cn" {
-                #expect(url.path == "/backend/account/token_plan/remains_percent")
-                return Self.httpResponse(url: url, body: "{}", contentType: "application/json")
-            }
-            if url.path.contains("coding_plan/remains") {
-                #expect(url.host == "platform.minimaxi.com")
-                return Self.httpResponse(url: url, body: Self.percentBasedRemainsJSON, contentType: "application/json")
-            }
-            if url.path.contains("/charge/combo/") {
-                #expect(url.host == "www.minimaxi.com")
-                return Self.httpResponse(url: url, body: Self.comboMetadataJSON, contentType: "application/json")
-            }
-            #expect(url.host == "platform.minimaxi.com")
-            #expect(url.path == "/account/amount")
-            return Self.httpResponse(
-                url: url,
-                body: #"{"total_cnt":1,"charge_records":[{"consume_token":1234,"ymd":"2026-06-01"}]}"#,
-                contentType: "application/json")
-        }
-        let snapshot = try await MiniMaxUsageFetcher.fetchUsage(
-            cookieHeader: "_token=legacy-fixture; minimax_group_id_v2=2013894056999916075",
-            groupID: "2013894056999916075",
-            region: .chinaMainland,
-            environment: [:],
-            session: transport,
-            now: now)
-
-        #expect(snapshot.planName?.hasPrefix("TokenPlanMax-") == true)
-        #expect(snapshot.subscriptionExpiresAt == Date(timeIntervalSince1970: 1_810_656_000))
-        #expect(snapshot.billingSummary?.last30DaysTokens == 1234)
-        let requests = await transport.requests()
-        #expect(requests.contains { $0.url?.host == "www.minimax.cn" })
-        #expect(requests.contains { $0.url?.path.contains("/charge/combo/") == true })
-        #expect(requests.contains { $0.url?.path == "/account/amount" })
     }
 
     @Test
@@ -719,7 +672,7 @@ struct MiniMaxTokenPlanChangeTests {
     }
 
     @Test
-    func `legacy web usage fetch preserves combo metadata cancellation`() async throws {
+    func `web usage fetch preserves combo metadata cancellation`() async throws {
         let now = Date(timeIntervalSince1970: 1_780_282_340)
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
@@ -729,10 +682,7 @@ struct MiniMaxTokenPlanChangeTests {
                     body: "<html><main>Coding Plan</main></html>",
                     contentType: "text/html")
             }
-            if url.path.contains("remains_percent") {
-                return Self.httpResponse(url: url, body: "{}", contentType: "application/json")
-            }
-            if url.path.contains("coding_plan/remains") {
+            if url.path.contains("coding_plan/remains") || url.path.contains("remains_percent") {
                 return Self.httpResponse(url: url, body: Self.percentBasedRemainsJSON, contentType: "application/json")
             }
             throw CancellationError()
@@ -740,7 +690,7 @@ struct MiniMaxTokenPlanChangeTests {
 
         await #expect(throws: CancellationError.self) {
             try await MiniMaxUsageFetcher.fetchUsage(
-                cookieHeader: "HERTZ-SESSION=legacy-fixture",
+                cookieHeader: "_token=abc",
                 groupID: "2013894056999916075",
                 region: .chinaMainland,
                 environment: [:],
@@ -751,7 +701,7 @@ struct MiniMaxTokenPlanChangeTests {
     }
 
     @Test
-    func `legacy combo metadata failure does not block quota rendering`() async throws {
+    func `combo metadata failure does not block quota rendering`() async throws {
         let now = Date(timeIntervalSince1970: 1_780_282_340)
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
@@ -761,10 +711,7 @@ struct MiniMaxTokenPlanChangeTests {
                     body: "<html><main>Coding Plan</main></html>",
                     contentType: "text/html")
             }
-            if url.path.contains("remains_percent") {
-                return Self.httpResponse(url: url, body: "{}", contentType: "application/json")
-            }
-            if url.path.contains("coding_plan/remains") {
+            if url.path.contains("coding_plan/remains") || url.path.contains("remains_percent") {
                 return Self.httpResponse(url: url, body: Self.percentBasedRemainsJSON, contentType: "application/json")
             }
             return Self.httpResponse(
@@ -774,7 +721,7 @@ struct MiniMaxTokenPlanChangeTests {
         }
 
         let snapshot = try await MiniMaxUsageFetcher.fetchUsage(
-            cookieHeader: "HERTZ-SESSION=legacy-fixture",
+            cookieHeader: "_token=abc",
             groupID: "2013894056999916075",
             region: .chinaMainland,
             environment: [:],
@@ -784,7 +731,6 @@ struct MiniMaxTokenPlanChangeTests {
 
         #expect(snapshot.planName == nil)
         #expect(snapshot.toUsageSnapshot().primary?.usedPercent == 4)
-        #expect(await transport.requests().contains { $0.url?.path.contains("/charge/combo/") == true })
     }
 
     private static let comboMetadataJSON = """

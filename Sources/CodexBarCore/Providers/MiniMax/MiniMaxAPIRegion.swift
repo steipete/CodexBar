@@ -75,10 +75,6 @@ public enum MiniMaxAPIRegion: String, CaseIterable, Sendable {
         self.codingPlanURL
     }
 
-    public var cookieCacheScopes: [CookieHeaderCache.Scope] {
-        MiniMaxWebSessionDomain.candidates(for: self).map(\.cacheScope)
-    }
-
     public func billingHistoryURL(page: Int, limit: Int) -> URL {
         var components = URLComponents(string: self.baseURLString)!
         components.path = "/" + Self.billingHistoryPath

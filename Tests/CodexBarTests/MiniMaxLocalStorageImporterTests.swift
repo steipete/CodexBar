@@ -4,34 +4,6 @@ import Testing
 @testable import CodexBarCore
 
 struct MiniMaxLocalStorageImporterTests {
-    @Test
-    func `session storage origins reject lookalike domains`() {
-        let origin = "https://platform.minimax.cn"
-        #expect(MiniMaxLocalStorageImporter.matchesSessionStorageOrigin("namespace-fixture-\(origin)", origin: origin))
-        #expect(MiniMaxLocalStorageImporter.matchesSessionStorageOrigin("namespace-fixture-\(origin)/", origin: origin))
-        #expect(MiniMaxLocalStorageImporter.matchesSessionStorageOrigin(
-            "namespace-fixture-\(origin).example", origin: origin) == false)
-        #expect(MiniMaxLocalStorageImporter.matchesSessionStorageOrigin(
-            "namespace-fixture-\(origin):8443", origin: origin) == false)
-    }
-
-    @Test(arguments: MiniMaxWebSessionDomain.allCases)
-    func `scoped IndexedDB discovery excludes other MiniMax host families`(domain: MiniMaxWebSessionDomain) throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("minimax-scoped-storage-\(UUID())")
-        defer { try? FileManager.default.removeItem(at: root) }
-        for candidate in MiniMaxWebSessionDomain.allCases {
-            let directory = "Default/IndexedDB/https_platform.\(candidate.rootDomain)_0.indexeddb.leveldb"
-            try FileManager.default.createDirectory(
-                at: root.appendingPathComponent(directory),
-                withIntermediateDirectories: true)
-        }
-        let candidates = ChromiumLocalStorageDiscovery.profileCandidates(
-            root: root, labelPrefix: "Fixture", storage: MiniMaxLocalStorageImporter.indexedDBStorage(for: domain))
-        #expect(candidates.map(\.url.lastPathComponent) == [
-            "https_platform.\(domain.rootDomain)_0.indexeddb.leveldb",
-        ])
-    }
-
     @Test(arguments: ChromiumLocalStorageDiscovery.defaultBrowsers)
     func `discovers each storage fallback across the Chromium catalog`(browser: Browser) throws {
         let home = FileManager.default.temporaryDirectory.appendingPathComponent("minimax-storage-\(UUID())")

@@ -22,11 +22,8 @@ public enum MiniMaxCookieHeader {
 
     public static func override(from raw: String?) -> MiniMaxCookieOverride? {
         guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !raw.isEmpty
-        else {
-            return nil
-        }
-        guard let cookie = self.normalized(from: raw) else { return nil }
+              !raw.isEmpty,
+              let cookie = self.normalized(from: raw) else { return nil }
         let authorizationToken = CookieHeaderNormalizer.extractHeader(from: raw, patterns: [self.authorizationPattern])
         let groupID = CookieHeaderNormalizer.extractHeader(from: raw, patterns: self.groupIDPatterns)
         return MiniMaxCookieOverride(
