@@ -12,6 +12,9 @@
 
 ### Fixed
 
+- Droid: correct missing API-key instructions for piped input and modern or custom config locations.
+- Venice: show the fetched USD or DIEM balance when the API reports calls are blocked instead of the generic unavailable message (#5048). Thanks @djbclark!
+- TypeSafe: send the browser same-origin headers the billing overview API expects so valid sessions stop surfacing as expired. Thanks @johan456789!
 - CLI: reject unknown `--provider` values for usage, cost, and cards with an argument error instead of silently falling back to enabled providers (#5017, #5019). Thanks @coygeek and @harjothkhara!
 - Ollama: support legacy API session and weekly balances while preserving monthly credits. (#5005, #5006) Thanks @Colafornia!
 - Mistral: recover from expired sessions that redirect to sign-in instead of returning HTTP 401/403. (#5000, #5002) Thanks @enieuwy!
