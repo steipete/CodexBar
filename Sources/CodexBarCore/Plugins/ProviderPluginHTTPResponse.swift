@@ -267,7 +267,7 @@ enum ProviderPluginHTTPResponse {
         if enforcesUserResponsePolicy {
             request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
         }
-        if method == "POST" {
+        if method == "POST", request.value(forHTTPHeaderField: "Content-Type") == nil {
             request.setValue(
                 options["form"] == nil ? "application/json" : "application/x-www-form-urlencoded",
                 forHTTPHeaderField: "Content-Type")
@@ -315,14 +315,12 @@ enum ProviderPluginHTTPResponse {
 
     private static func timeoutSeconds(_ options: [String: Any]) throws -> TimeInterval {
         guard let value = options["timeoutSeconds"] else { return 15 }
-        guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() else {
+        guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(),
+              number.doubleValue.isFinite, (1...90).contains(number.doubleValue)
+        else {
             throw ProviderPluginError.http("timeoutSeconds must be a number from 1 through 90")
         }
-        let seconds = number.doubleValue
-        guard seconds.isFinite, (1...90).contains(seconds) else {
-            throw ProviderPluginError.http("timeoutSeconds must be a number from 1 through 90")
-        }
-        return seconds
+        return number.doubleValue
     }
 
     static func response(

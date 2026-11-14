@@ -192,7 +192,7 @@ actor ClaudeCLISession {
                 let screen = ClaudeCLIScreen.render(text)
                 let normalized = Self.normalizedNeedle(screen)
                 if commandSent, trimmed == "/usage" {
-                    usagePanelOpen = usagePanelOpen || ClaudeStatusProbe.usageCaptureHasSessionValue(normalized)
+                    usagePanelOpen = usagePanelOpen || ClaudeStatusProbe.usageCaptureHasQuotaValue(normalized)
                 }
                 let trustKeys = Self.workspaceTrustKeys(onScreen: screen, acceptsTrust: self.launchedInProbeDirectory)
                 trustPending = trustKeys != nil || normalized.contains("quicksafetycheck:") ||
