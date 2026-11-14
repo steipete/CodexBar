@@ -51,7 +51,7 @@ final class AppNotifications: NSObject, UNUserNotificationCenterDelegate {
 
     func requestAuthorizationOnStartup() {
         guard !Self.isRunningUnderTests else { return }
-        _ = self.ensureAuthorizationTask()
+        Task { _ = await self.ensureAuthorized() }
     }
 
     func post(
@@ -87,7 +87,11 @@ final class AppNotifications: NSObject, UNUserNotificationCenterDelegate {
                 let delivered = try await Self.deliverIfCurrent(
                     authorize: { await self.ensureAuthorized() },
                     submit: { try await center.add(request) },
-                    remove: { self.remove(identifier: request.identifier) },
+                    remove: {
+                        await withCheckedContinuation { continuation in
+                            self.remove(identifier: request.identifier) { continuation.resume() }
+                        }
+                    },
                     isCurrent: isCurrent)
                 onCompletion?(delivered)
             } catch {
@@ -98,28 +102,31 @@ final class AppNotifications: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    func remove(identifier: String) {
-        guard !Self.isRunningUnderTests else { return }
+    func remove(identifier: String, completion: @escaping @Sendable () -> Void = {}) {
+        guard !Self.isRunningUnderTests else {
+            completion()
+            return
+        }
         let centerProvider = self.centerProvider
         Self.scheduleRemoval(identifiers: [identifier]) { identifiers in
             let center = centerProvider()
             center.removePendingNotificationRequests(withIdentifiers: identifiers)
             center.removeDeliveredNotifications(withIdentifiers: identifiers)
+            completion()
         }
     }
 
     /// `removePendingNotificationRequests` waits on a synchronous XPC reply from usernotificationsd.
-    /// When the daemon never answers, a main-actor caller freezes the menu bar app for good, so
-    /// removals run on a serial background queue that keeps them in order without blocking the UI.
+    /// A stalled reply must not freeze a main-actor caller, so removals use a serial utility queue.
+    /// The queue preserves removal order without blocking menu interaction.
     nonisolated static func scheduleRemoval(
         identifiers: [String],
-        queue: DispatchQueue = AppNotifications.removalQueue,
         perform: @escaping @Sendable ([String]) -> Void)
     {
-        queue.async { perform(identifiers) }
+        self.removalQueue.async { perform(identifiers) }
     }
 
-    nonisolated static let removalQueue = DispatchQueue(
+    private nonisolated static let removalQueue = DispatchQueue(
         label: "com.steipete.codexbar.notifications.removal",
         qos: .utility)
 
@@ -127,18 +134,18 @@ final class AppNotifications: NSObject, UNUserNotificationCenterDelegate {
     static func deliverIfCurrent(
         authorize: () async -> Bool,
         submit: () async throws -> Void,
-        remove: () -> Void,
+        remove: () async -> Void,
         isCurrent: () -> Bool) async throws -> Bool
     {
         guard isCurrent(), await authorize(), isCurrent() else { return false }
         do {
             try await submit()
         } catch {
-            remove()
+            await remove()
             throw error
         }
         guard isCurrent() else {
-            remove()
+            await remove()
             return false
         }
         return true
@@ -146,46 +153,21 @@ final class AppNotifications: NSObject, UNUserNotificationCenterDelegate {
 
     // MARK: - Private
 
-    private func ensureAuthorizationTask() -> Task<Bool, Never> {
-        if let authorizationTask { return authorizationTask }
-        let task = Task { @MainActor in
-            await self.requestAuthorization()
-        }
-        self.authorizationTask = task
-        return task
-    }
-
     private func ensureAuthorized() async -> Bool {
-        let granted = await self.ensureAuthorizationTask().value
+        let task = self.authorizationTask ?? Task { @MainActor in await self.requestAuthorization() }
+        self.authorizationTask = task
+        let granted = await task.value
         // A later System Settings permission change must be observable after a denied attempt.
         if !granted { self.authorizationTask = nil }
         return granted
     }
 
     private func requestAuthorization() async -> Bool {
-        if let existing = await self.notificationAuthorizationStatus() {
-            if existing == .authorized || existing == .provisional {
-                return true
-            }
-            if existing == .denied {
-                return false
-            }
-        }
-
         let center = self.centerProvider()
-        return await withCheckedContinuation { continuation in
-            center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
-                continuation.resume(returning: granted)
-            }
-        }
-    }
-
-    private func notificationAuthorizationStatus() async -> UNAuthorizationStatus? {
-        let center = self.centerProvider()
-        return await withCheckedContinuation { continuation in
-            center.getNotificationSettings { settings in
-                continuation.resume(returning: settings.authorizationStatus)
-            }
+        switch await center.notificationSettings().authorizationStatus {
+        case .authorized, .provisional: return true
+        case .denied: return false
+        default: return await (try? center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
         }
     }
 

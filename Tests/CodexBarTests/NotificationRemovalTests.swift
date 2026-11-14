@@ -16,43 +16,33 @@ struct NotificationRemovalTests {
     }
 
     @Test
-    func `a removal that never returns does not block the caller`() async {
-        let queue = DispatchQueue(label: "codexbar.test.notification-removal")
-        let release = DispatchSemaphore(value: 0)
-        let completed = CompletedRemovals()
-
-        // Stands in for usernotificationsd never replying to the synchronous XPC removal.
-        await withCheckedContinuation { (started: CheckedContinuation<Void, Never>) in
-            AppNotifications.scheduleRemoval(identifiers: ["stuck"], queue: queue) { identifiers in
-                started.resume()
-                _ = release.wait(timeout: .now() + 5)
-                completed.append(identifiers)
-            }
+    func `stale delivery waits for removal before completing`() async throws {
+        let started = AsyncStream<Void>.makeStream()
+        let release = AsyncStream<Void>.makeStream()
+        let delivery = Task { @MainActor in
+            var current = true
+            var removed = false
+            let delivered = try await AppNotifications.deliverIfCurrent(
+                authorize: { true },
+                submit: { current = false },
+                remove: {
+                    started.continuation.yield(())
+                    for await _ in release.stream {
+                        break
+                    }
+                    removed = true
+                },
+                isCurrent: { current })
+            return (delivered, removed)
         }
-
-        // An inline removal would have finished before scheduling returned.
-        #expect(completed.snapshot.isEmpty)
-
-        let order: [String] = await withCheckedContinuation { continuation in
-            AppNotifications.scheduleRemoval(identifiers: ["next"], queue: queue) { identifiers in
-                completed.append(identifiers)
-                continuation.resume(returning: completed.snapshot)
-            }
-            release.signal()
+        for await _ in started.stream {
+            break
         }
-        #expect(order == ["stuck", "next"])
-    }
-}
-
-private final class CompletedRemovals: @unchecked Sendable {
-    private let lock = NSLock()
-    private var identifiers: [String] = []
-
-    var snapshot: [String] {
-        self.lock.withLock { self.identifiers }
-    }
-
-    func append(_ newIdentifiers: [String]) {
-        self.lock.withLock { self.identifiers.append(contentsOf: newIdentifiers) }
+        release.continuation.yield(())
+        let (delivered, removed) = try await delivery.value
+        started.continuation.finish()
+        release.continuation.finish()
+        #expect(!delivered)
+        #expect(removed)
     }
 }
