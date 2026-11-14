@@ -2837,10 +2837,10 @@
 "Mistral session expired or invalid." = "Mistral session expired or invalid.";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority.";
-/* Google Developer Program provider */
+"Credits per million tokens" = "Credits per million tokens";
+"Paused during grace period" = "Paused during grace period";
 "Google Developer Program exposes the current monthly Cloud credit, not local token cost history." = "Google Developer Program exposes the current monthly Cloud credit, not local token cost history.";
 "Paste a me.developers.google.com Cookie header from a signed-in Google account." = "Paste a me.developers.google.com Cookie header from a signed-in Google account.";
-
 "Billing account" = "Billing account";
 "Granted" = "Granted";
 "Not applied" = "Not applied";

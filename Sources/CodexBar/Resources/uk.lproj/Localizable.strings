@@ -2833,10 +2833,10 @@
 "Mistral session expired or invalid." = "Термін дії сеансу Mistral минув або сеанс недійсний.";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "Команда зчитує ключ API, переданий через канал, і зберігає його як окремий ключ. Вибраний обліковий запис із токеном API має пріоритет над окремим ключем.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Для перегляду використання передплати використовуйте ключ API з дозволом user_read. Команда зберігає окремий ключ; вибраний обліковий запис ключа API має пріоритет.";
-/* Google Developer Program provider */
+"Credits per million tokens" = "Кредити за мільйон токенів";
+"Paused during grace period" = "Призупинено на час пільгового періоду";
 "Google Developer Program exposes the current monthly Cloud credit, not local token cost history." = "Google Developer Program показує поточний щомісячний кредит Cloud, а не локальну історію вартості токенів.";
 "Paste a me.developers.google.com Cookie header from a signed-in Google account." = "Вставте заголовок Cookie з me.developers.google.com з облікового запису Google, у який виконано вхід.";
-
 "Billing account" = "Платіжний обліковий запис";
 "Granted" = "Надано";
 "Not applied" = "Не застосовано";

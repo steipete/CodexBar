@@ -2834,10 +2834,10 @@
 "Mistral session expired or invalid." = "Sesi Mistral telah kedaluwarsa atau tidak valid.";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "Perintah ini membaca kunci API yang disalurkan melalui pipe dan menyimpannya sebagai kunci mandiri. Akun token API yang dipilih mengesampingkan kunci mandiri tersebut.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Gunakan kunci API dengan izin user_read untuk melihat penggunaan langganan. Perintah ini menyimpan kunci terpisah; akun kunci API yang dipilih diprioritaskan.";
-/* Google Developer Program provider */
+"Credits per million tokens" = "Kredit per juta token";
+"Paused during grace period" = "Dijeda selama masa tenggang";
 "Google Developer Program exposes the current monthly Cloud credit, not local token cost history." = "Google Developer Program menampilkan kredit Cloud bulanan saat ini, bukan riwayat biaya token lokal.";
 "Paste a me.developers.google.com Cookie header from a signed-in Google account." = "Tempel header Cookie me.developers.google.com dari akun Google yang sudah masuk.";
-
 "Billing account" = "Akun penagihan";
 "Granted" = "Diberikan";
 "Not applied" = "Belum diterapkan";

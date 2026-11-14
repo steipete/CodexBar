@@ -156,7 +156,7 @@ complete when the available scan window covers fewer days.
 | Poe | API key → current point balance and best-effort points history (`api`). |
 | Chutes | API key from config/env → subscription usage and quota API (`api`). |
 | Neuralwatt | API key from config/env → `/v1/quota` subscription kWh usage and prepaid balance (`api`). |
-| Helmcode | Browser or manual dashboard cookies → tenant-scoped model quotas, explicit premium rolling tiers, and Cloud-only prepaid balance (`web`). |
+| Helmcode | Browser or manual dashboard cookies → tenant-scoped credit plans or model quotas, explicit premium rolling tiers, and Cloud-only prepaid balance (`web`). |
 | [ZenMux](zenmux.md) | Management API key from config/env → five-hour and seven-day quota windows plus PAYG balance (`api`). |
 | ai& | API key from config/env → 30-day organization spend summed from the request logs API (`api`). |
 | xAI | Management key + team ID from config/env → prepaid balance and 30-day daily spend from the Management API (`api`). |
@@ -777,7 +777,10 @@ failures. Authentication failures and invalidated account scopes do not restore 
 
 ## Helmcode
 
-[Helmcode](helmcode.md) reads model quotas from a browser dashboard session for Helmcode Cloud or NaN Builders. Cloud is preferred when both tenants are signed in; Manual cookie source uses the selected tenant. Prepaid balance is Cloud-only.
+[Helmcode](helmcode.md) reads model quotas from a browser dashboard session for Helmcode Cloud or NaN Builders. A
+tenant that meters inference in credits reports its plan instead: one **Credits** window for the allowance, with each
+model's weight as detail. Cloud is preferred when both tenants are signed in; Manual cookie source uses the selected
+tenant. Prepaid balance is Cloud-only.
 
 ## GitKraken AI
 

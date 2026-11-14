@@ -2810,10 +2810,10 @@
 "Mistral session expired or invalid." = "Mistral 工作階段已過期或無效。";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "此指令讀取透過管線傳入的 API 金鑰，並將其儲存為獨立金鑰。所選的 API 權杖帳戶優先於獨立金鑰。";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "使用具有 user_read 權限的 API 金鑰查看訂閱用量。此命令會儲存獨立金鑰；所選的 API 金鑰帳號優先。";
-/* Google Developer Program provider */
+"Credits per million tokens" = "每百萬 token 的額度";
+"Paused during grace period" = "寬限期內已暫停";
 "Google Developer Program exposes the current monthly Cloud credit, not local token cost history." = "Google Developer Program 顯示目前每月 Cloud 額度，而非本機 token 費用記錄。";
 "Paste a me.developers.google.com Cookie header from a signed-in Google account." = "貼上已登入 Google 帳號的 me.developers.google.com Cookie 標頭。";
-
 "Billing account" = "帳單帳戶";
 "Granted" = "核發日期";
 "Not applied" = "尚未套用";

@@ -2829,10 +2829,10 @@
 "Mistral session expired or invalid." = "De Mistral-sessie is verlopen of ongeldig.";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "De opdracht leest een via een pipe aangeleverde API-sleutel en slaat deze op als zelfstandige sleutel. Een geselecteerd API-tokenaccount heeft voorrang op de zelfstandige sleutel.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Gebruik een API-sleutel met de machtiging user_read om het abonnementsgebruik te bekijken. De opdracht slaat een afzonderlijke sleutel op; het geselecteerde API-sleutelaccount heeft voorrang.";
-/* Google Developer Program provider */
+"Credits per million tokens" = "Kredieten per miljoen tokens";
+"Paused during grace period" = "Gepauzeerd tijdens de respijtperiode";
 "Google Developer Program exposes the current monthly Cloud credit, not local token cost history." = "Google Developer Program toont het huidige maandelijkse Cloud-tegoed, niet de lokale tokenkostengeschiedenis.";
 "Paste a me.developers.google.com Cookie header from a signed-in Google account." = "Plak een Cookie-header van me.developers.google.com van een aangemeld Google-account.";
-
 "Billing account" = "Factureringsaccount";
 "Granted" = "Toegekend";
 "Not applied" = "Niet toegepast";

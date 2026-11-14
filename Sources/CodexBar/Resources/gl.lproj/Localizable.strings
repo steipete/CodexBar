@@ -2831,10 +2831,10 @@
 "Mistral session expired or invalid." = "A sesión de Mistral caducou ou non é válida.";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "A orde le unha clave de API recibida por unha canle e gárdaa como clave independente. Unha conta de token de API seleccionada ten prioridade sobre a clave independente.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Usa unha clave API co permiso user_read para consultar o uso da subscrición. A orde garda unha clave independente; a conta de clave API seleccionada ten prioridade.";
-/* Google Developer Program provider */
+"Credits per million tokens" = "Créditos por millón de tokens";
+"Paused during grace period" = "En pausa durante o período de graza";
 "Google Developer Program exposes the current monthly Cloud credit, not local token cost history." = "Google Developer Program mostra o crédito mensual actual de Cloud, non o historial local de custos de tokens.";
 "Paste a me.developers.google.com Cookie header from a signed-in Google account." = "Pega unha cabeceira Cookie de me.developers.google.com dunha conta de Google con sesión iniciada.";
-
 "Billing account" = "Conta de facturación";
 "Granted" = "Concedido";
 "Not applied" = "Sen aplicar";
