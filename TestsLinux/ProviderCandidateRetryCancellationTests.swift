@@ -15,16 +15,11 @@ struct ProviderCandidateRetryCancellationTests {
                 loaded.append(candidate)
                 return candidate
             }
-            do {
+            await #expect(throws: CancellationError.self) {
                 _ = try await ProviderCandidateRetryRunner.run(
                     candidates,
                     shouldRetry: { _ in true },
                     attempt: { $0 })
-                Issue.record("Expected cancellation")
-            } catch is CancellationError {
-                // Expected.
-            } catch {
-                Issue.record("Expected cancellation, got \(error)")
             }
             #expect(loaded.isEmpty)
         }.value
@@ -38,7 +33,7 @@ struct ProviderCandidateRetryCancellationTests {
                 withUnsafeCurrentTask { $0?.cancel() }
                 return candidate
             }
-            do {
+            await #expect(throws: CancellationError.self) {
                 _ = try await ProviderCandidateRetryRunner.run(
                     candidates,
                     shouldRetry: { _ in true },
@@ -46,11 +41,6 @@ struct ProviderCandidateRetryCancellationTests {
                         attempted.append(candidate)
                         return candidate
                     })
-                Issue.record("Expected cancellation")
-            } catch is CancellationError {
-                // Expected.
-            } catch {
-                Issue.record("Expected cancellation, got \(error)")
             }
             #expect(attempted.isEmpty)
         }.value
@@ -66,7 +56,7 @@ struct ProviderCandidateRetryCancellationTests {
                 loaded.append(candidate)
                 return candidate
             }
-            do {
+            await #expect(throws: CancellationError.self) {
                 _ = try await ProviderCandidateRetryRunner.run(
                     candidates,
                     shouldRetry: { $0 is TestError },
@@ -76,11 +66,6 @@ struct ProviderCandidateRetryCancellationTests {
                         withUnsafeCurrentTask { $0?.cancel() }
                         throw TestError.authenticationExpired
                     })
-                Issue.record("Expected cancellation")
-            } catch is CancellationError {
-                // Expected.
-            } catch {
-                Issue.record("Expected cancellation, got \(error)")
             }
             #expect(loaded == [1])
             #expect(attempted == [1])

@@ -14,6 +14,53 @@ enum ProviderCandidateCancellationProof {
         case authenticationExpired
     }
 
+    final class Trace {
+        let scenario: Scenario
+        let root: URL
+        var loaded: [Int] = []
+        var attempted: [Int] = []
+        var retried: [Int] = []
+        var events: [String] = []
+
+        init(scenario: Scenario, root: URL) {
+            self.scenario = scenario
+            self.root = root
+        }
+
+        func cancel() {
+            withUnsafeCurrentTask { $0?.cancel() }
+            self.events.append("cancel")
+        }
+
+        func load(_ candidate: Int) -> Int {
+            let url = self.root.appendingPathComponent("profile-\(candidate)")
+            guard let data = FileManager.default.contents(atPath: url.path),
+                  String(decoding: data, as: UTF8.self) == "fixture-session-\(candidate)"
+            else { fatalError("Owned fixture is missing or corrupt") }
+            self.loaded.append(candidate)
+            self.events.append("read-profile-\(candidate)")
+            if self.scenario == .duringLoad { self.cancel() }
+            return candidate
+        }
+
+        func attempt(_ candidate: Int) throws -> Int {
+            self.attempted.append(candidate)
+            self.events.append("attempt-\(candidate)")
+            if candidate == 1, self.scenario == .normalRetry || self.scenario == .duringFailedAttempt {
+                if self.scenario == .duringFailedAttempt { self.cancel() }
+                self.events.append("authentication-expired")
+                throw FixtureError.authenticationExpired
+            }
+            return candidate
+        }
+
+        func summary(outcome: String) -> String {
+            "\(self.scenario.rawValue): outcome=\(outcome) loaded=\(self.loaded) "
+                + "attempted=\(self.attempted) retried=\(self.retried)\n  "
+                + self.events.joined(separator: " -> ")
+        }
+    }
+
     static func main() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("candidate-cancellation-proof-\(UUID().uuidString)")
@@ -25,59 +72,26 @@ enum ProviderCandidateCancellationProof {
         }
 
         for scenario in Scenario.allCases {
-            let trace = await Task.detached {
-                var loaded: [Int] = []
-                var attempted: [Int] = []
-                var retried: [Int] = []
-                var events: [String] = []
-                if scenario == .beforeStart {
-                    withUnsafeCurrentTask { $0?.cancel() }
-                    events.append("cancel")
-                }
-                let candidates = [1, 2].lazy.map { candidate in
-                    let url = root.appendingPathComponent("profile-\(candidate)")
-                    guard let data = FileManager.default.contents(atPath: url.path),
-                          String(decoding: data, as: UTF8.self) == "fixture-session-\(candidate)"
-                    else { fatalError("Owned fixture is missing or corrupt") }
-                    loaded.append(candidate)
-                    events.append("read-profile-\(candidate)")
-                    if scenario == .duringLoad {
-                        withUnsafeCurrentTask { $0?.cancel() }
-                        events.append("cancel")
-                    }
-                    return candidate
-                }
+            let output = await Task.detached {
+                let trace = Trace(scenario: scenario, root: root)
+                if scenario == .beforeStart { trace.cancel() }
+                let candidates = [1, 2].lazy.map { trace.load($0) }
                 let outcome: String
                 do {
                     let value = try await ProviderCandidateRetryRunner.run(
                         candidates,
                         shouldRetry: { $0 is FixtureError },
-                        onRetry: { candidate, _ in retried.append(candidate) },
-                        attempt: { candidate in
-                            attempted.append(candidate)
-                            events.append("attempt-\(candidate)")
-                            if candidate == 1,
-                               scenario == .normalRetry || scenario == .duringFailedAttempt
-                            {
-                                if scenario == .duringFailedAttempt {
-                                    withUnsafeCurrentTask { $0?.cancel() }
-                                    events.append("cancel")
-                                }
-                                events.append("authentication-expired")
-                                throw FixtureError.authenticationExpired
-                            }
-                            return candidate
-                        })
+                        onRetry: { candidate, _ in trace.retried.append(candidate) },
+                        attempt: { try trace.attempt($0) })
                     outcome = "success(\(value))"
                 } catch is CancellationError {
                     outcome = "cancelled"
                 } catch {
                     outcome = "error(\(error))"
                 }
-                return "\(scenario.rawValue): outcome=\(outcome) loaded=\(loaded) "
-                    + "attempted=\(attempted) retried=\(retried)\n  " + events.joined(separator: " -> ")
+                return trace.summary(outcome: outcome)
             }.value
-            print(trace)
+            print(output)
         }
     }
 }
