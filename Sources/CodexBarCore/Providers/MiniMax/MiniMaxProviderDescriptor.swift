@@ -201,6 +201,7 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
         if Self.resolveCookieOverride(context: context) != nil {
             return true
         }
+        guard (context.settings?.minimax?.cookieSource ?? .auto) == .auto else { return false }
         #if os(macOS)
         if let cached = CookieHeaderCache.load(provider: .minimax),
            !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -235,6 +236,9 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
                 sourceLabel: "web")
         }
 
+        guard (context.settings?.minimax?.cookieSource ?? .auto) == .auto else {
+            throw MiniMaxSettingsError.missingCookie
+        }
         #if os(macOS)
         let tokenContext = Self.loadTokenContext(browserDetection: context.browserDetection)
 
@@ -312,7 +316,8 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
     }
 
     static func allowsBrowserCookieImport(context: ProviderFetchContext) -> Bool {
-        context.runtime == .app && ProviderInteractionContext.current == .userInitiated
+        // The shared cookie gate keeps automatic recovery noninteractive.
+        context.runtime == .app && (context.settings?.minimax?.cookieSource ?? .auto) == .auto
     }
 
     private struct TokenContext {
@@ -324,11 +329,6 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
         let region: MiniMaxAPIRegion
         @ProcessEnvironment private(set) var environment: [String: String]
         let includeBillingHistory: Bool
-    }
-
-    private enum FetchAttemptResult {
-        case success(MiniMaxUsageSnapshot)
-        case failure(Error)
     }
 
     private static func resolveCookieOverride(context: ProviderFetchContext) -> MiniMaxCookieOverride? {
@@ -386,7 +386,7 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
         sourceLabel: String,
         tokenContext: TokenContext,
         logLabel: String,
-        fetchContext: FetchContext) async -> FetchAttemptResult
+        fetchContext: FetchContext) async -> Result<MiniMaxUsageSnapshot, Error>
     {
         let normalizedLabel = Self.normalizeStorageLabel(sourceLabel)
         let tokenCandidates = tokenContext.tokensByLabel[normalizedLabel] ?? []
