@@ -12,6 +12,7 @@
 
 ### Fixed
 
+- Codex cost: stop rewriting every archived (`.jsonl.zst`) rollout in the cost cache on each save, which wrote about 100 MB per save on stores with a few thousand archived sessions (#5049). Thanks @oldcai!
 - Droid: correct missing API-key instructions for piped input and modern or custom config locations.
 - Venice: show the fetched USD or DIEM balance when the API reports calls are blocked instead of the generic unavailable message (#5048). Thanks @djbclark!
 - TypeSafe: send the browser same-origin headers the billing overview API expects so valid sessions stop surfacing as expired. Thanks @johan456789!
