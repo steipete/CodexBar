@@ -85,7 +85,27 @@ struct VenicePluginGoldenTests {
         }
         """)
         #expect(snapshot.primary?.usedPercent == 100)
-        #expect(snapshot.primary?.resetDescription == "Balance unavailable for API calls")
+        #expect(snapshot.primary?.resetDescription == "$100.00")
+    }
+
+    @Test(arguments: [
+        ("USD", "0.09549", "3", "$0.10"),
+        ("USD", "-0.25", "3", "-$0.25"),
+        ("DIEM", "0.5", "0", "DIEM 0.00"),
+        ("DIEM", "0.5", "-2", "DIEM -2.00"),
+        ("DIEM", "0.5", "null", "$0.50"),
+        ("USD", "null", "3", "DIEM 3.00"),
+        ("USD", "null", "null", "Balance unavailable for API calls"),
+    ])
+    func `blocked calls retain the known balance without claiming it can be spent`(
+        currency: String, usd: String, diem: String, expected: String) async throws
+    {
+        let snapshot = try await Self.fetch("""
+        {"canConsume":false,"consumptionCurrency":"\(currency)",
+         "balances":{"usd":\(usd),"diem":\(diem)},"diemEpochAllocation":100}
+        """)
+        #expect(snapshot.primary?.usedPercent == 100)
+        #expect(snapshot.primary?.resetDescription == expected)
     }
 
     @Test
@@ -214,7 +234,7 @@ struct VenicePluginGoldenTests {
         #expect(snapshot.primary?.resetDescription == "$1.00 USD remaining")
     }
 
-    private static func fetch(_ body: String) async throws -> UsageSnapshot {
+    static func fetch(_ body: String) async throws -> UsageSnapshot {
         let runtime = try ProviderPluginRuntime(
             bundledPlugin: "venice",
             transport: Self.transport(body: body))

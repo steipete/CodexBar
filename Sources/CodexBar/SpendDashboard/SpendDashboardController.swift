@@ -11,6 +11,7 @@ struct SpendDashboardConfiguration: Equatable, Sendable {
     let codexAccountDisplayNames: [String: String]
     let sourceOwnershipFingerprints: [String]
     let sourceRevisions: [String]
+    let sourcePublicationRevisions: [UInt64]
     let bucketTimeZoneIdentifier: String
     let openCodexUsageLogsEnabled: Bool
     let hideNativeCodexCostWhenOpenCodexPresent: Bool
@@ -25,6 +26,7 @@ struct SpendDashboardConfiguration: Equatable, Sendable {
         codexAccountDisplayNames: [String: String] = [:],
         sourceOwnershipFingerprints: [String] = [],
         sourceRevisions: [String] = [],
+        sourcePublicationRevisions: [UInt64] = [],
         bucketTimeZoneIdentifier: String = "",
         openCodexUsageLogsEnabled: Bool = false,
         hideNativeCodexCostWhenOpenCodexPresent: Bool = false,
@@ -38,11 +40,33 @@ struct SpendDashboardConfiguration: Equatable, Sendable {
         self.codexAccountDisplayNames = codexAccountDisplayNames
         self.sourceOwnershipFingerprints = sourceOwnershipFingerprints
         self.sourceRevisions = sourceRevisions
+        self.sourcePublicationRevisions = sourcePublicationRevisions
         self.bucketTimeZoneIdentifier = bucketTimeZoneIdentifier
         self.openCodexUsageLogsEnabled = openCodexUsageLogsEnabled
         self.hideNativeCodexCostWhenOpenCodexPresent = hideNativeCodexCostWhenOpenCodexPresent
         self.hiddenSourceIDs = hiddenSourceIDs
         self.menuOwnershipFingerprint = menuOwnershipFingerprint
+    }
+
+    /// Publication counters wake failed loads without invalidating healthy content.
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.hasSameSourceOwnership(as: rhs) && lhs.sourceRevisions == rhs.sourceRevisions &&
+            lhs.codexAccountDisplayNames == rhs.codexAccountDisplayNames &&
+            lhs.menuOwnershipFingerprint == rhs.menuOwnershipFingerprint
+    }
+
+    func hasSameSourceInputs(as other: Self) -> Bool {
+        self.costUsageEnabled == other.costUsageEnabled && self.providerIDs == other.providerIDs &&
+            self.codexAccountIdentities == other.codexAccountIdentities &&
+            self.sourceOwnershipFingerprints == other.sourceOwnershipFingerprints &&
+            self.bucketTimeZoneIdentifier == other.bucketTimeZoneIdentifier &&
+            self.openCodexUsageLogsEnabled == other.openCodexUsageLogsEnabled
+    }
+
+    func hasSameSourceOwnership(as other: Self) -> Bool {
+        self.hasSameSourceInputs(as: other) && self.hiddenSourceIDs == other.hiddenSourceIDs &&
+            self.preferredCurrencyCode == other.preferredCurrencyCode &&
+            self.hideNativeCodexCostWhenOpenCodexPresent == other.hideNativeCodexCostWhenOpenCodexPresent
     }
 
     var supportsCodexDetails: Bool {
@@ -210,6 +234,8 @@ enum SpendDashboardSource {
                 settings: settings,
                 store: store),
             sourceRevisions: self.sourceRevisions(providers: providers, settings: settings, store: store),
+            sourcePublicationRevisions: providers.filter(UsageStore.tokenCostRequiresProviderSnapshot)
+                .map { store.tokenSnapshotPublicationRevision(for: $0) },
             bucketTimeZoneIdentifier: settings.costUsageBucketTimeZoneIdentifier,
             openCodexUsageLogsEnabled: settings.openCodexUsageLogsEnabled,
             hideNativeCodexCostWhenOpenCodexPresent: settings.hideNativeCodexCostWhenOpenCodexPresent,
@@ -754,6 +780,14 @@ enum SpendDashboardSource {
                     store.tokenSnapshotPublicationForCurrentProviderConfig(for: provider)
                 }
             guard let current else { return "\(provider.rawValue):unavailable" }
+            if UsageStore.tokenCostRequiresProviderSnapshot(provider) {
+                guard let snapshot = self.dashboardTokenSnapshot(
+                    store: store, provider: provider, publication: current, piOwnsSource: false)
+                else { return "\(provider.rawValue):empty" }
+                let calendar = SpendDashboardModel.bucketCalendar(
+                    for: provider, displayCalendar: settings.costUsageBucketCalendar)
+                return "\(provider.rawValue):snapshot:\(self.snapshotRevision(snapshot, coverageCalendar: calendar))"
+            }
             guard let snapshot = current.snapshot else {
                 return "\(provider.rawValue):empty:\(current.publicationRevision)"
             }
@@ -769,42 +803,35 @@ enum SpendDashboardSource {
         return revisions
     }
 
-    private static func snapshotRevision(_ snapshot: CostUsageTokenSnapshot) -> String {
+    private static func snapshotRevision(
+        _ snapshot: CostUsageTokenSnapshot,
+        coverageCalendar: Calendar? = nil) -> String
+    {
         var encoder = SpendDashboardSnapshotRevisionEncoder()
         encoder.append(snapshot.currencyCode)
         encoder.append(snapshot.historyDays)
         encoder.append(snapshot.historyCoverageIsEstablished)
         encoder.append(snapshot.detailsAreComplete)
-        encoder.append(snapshot.updatedAt.timeIntervalSinceReferenceDate)
+        // Content-backed sources still advance at their coverage-day boundary, not every fetch.
+        let coverageDate = coverageCalendar?.startOfDay(for: snapshot.updatedAt) ?? snapshot.updatedAt
+        encoder.append(coverageDate.timeIntervalSinceReferenceDate)
+        encoder.append(snapshot.historyScanIsPartial)
+        encoder.append(snapshot.meteredCostUSD)
+        encoder.append(snapshot.costProvenance.rawValue)
         encoder.append(snapshot.last30DaysTokens)
         encoder.append(snapshot.last30DaysCostUSD)
         encoder.append(snapshot.last30DaysRequests)
-        encoder.append(snapshot.daily.count)
-        for entry in snapshot.daily {
-            encoder.append(entry.date)
-            encoder.append(entry.inputTokens)
-            encoder.append(entry.cacheReadTokens)
-            encoder.append(entry.cacheCreationTokens)
-            encoder.append(entry.outputTokens)
-            encoder.append(entry.totalTokens)
-            encoder.append(entry.requestCount)
-            encoder.append(entry.costUSD)
-            encoder.append(entry.modelBreakdowns?.count)
-            for breakdown in entry.modelBreakdowns ?? [] {
-                encoder.append(breakdown.modelName)
-                encoder.append(breakdown.incompleteRequestCount)
-                encoder.append(breakdown.totalTokens)
-                encoder.append(breakdown.requestCount)
-                encoder.append(breakdown.costUSD)
-                encoder.append(breakdown.standardCostUSD)
-                encoder.append(breakdown.priorityCostUSD)
-                encoder.append(breakdown.standardTokens)
-                encoder.append(breakdown.priorityTokens)
-            }
-        }
+        // Reuse the daily model's complete encoding rather than a second field list that can drift.
+        let contentEncoder = JSONEncoder()
+        contentEncoder.outputFormatting = [.sortedKeys]
+        contentEncoder.nonConformingFloatEncodingStrategy = .convertToString(
+            positiveInfinity: "Infinity", negativeInfinity: "-Infinity", nan: "NaN")
+        encoder.append((try? contentEncoder.encode(snapshot.daily)) ?? Data())
         encoder.append(snapshot.hourly.count)
         for entry in snapshot.hourly {
             encoder.append(entry.hour.timeIntervalSinceReferenceDate)
+            encoder.append(entry.tokensAreComplete)
+            encoder.append(entry.costIsComplete)
             encoder.append(entry.totalTokens)
             encoder.append(entry.costUSD)
         }
@@ -816,24 +843,8 @@ enum SpendDashboardSource {
             encoder.append(project.path ?? "")
             encoder.append(project.totalTokens)
             encoder.append(project.totalCostUSD)
-            encoder.append(project.daily.count)
-            for entry in project.daily {
-                encoder.append(entry.date)
-                encoder.append(entry.costUSD)
-                encoder.append(entry.totalTokens)
-                encoder.append(entry.inputTokens)
-                encoder.append(entry.outputTokens)
-            }
-            if let breakdowns = project.modelBreakdowns {
-                encoder.append(breakdowns.count)
-                for breakdown in breakdowns {
-                    encoder.append(breakdown.modelName)
-                    encoder.append(breakdown.costUSD)
-                    encoder.append(breakdown.totalTokens)
-                }
-            } else {
-                encoder.append(0)
-            }
+            encoder.append((try? contentEncoder.encode(project.daily)) ?? Data())
+            encoder.append((try? contentEncoder.encode(project.modelBreakdowns ?? [])) ?? Data())
         }
         for session in snapshot.sessions {
             encoder.append(session.sessionID)
@@ -843,12 +854,7 @@ enum SpendDashboardSource {
             encoder.append(session.requestCount)
             encoder.append(session.title ?? "")
             encoder.append(session.projectPath ?? "")
-            encoder.append(session.modelBreakdowns.count)
-            for breakdown in session.modelBreakdowns {
-                encoder.append(breakdown.modelName)
-                encoder.append(breakdown.costUSD)
-                encoder.append(breakdown.totalTokens)
-            }
+            encoder.append((try? contentEncoder.encode(session.modelBreakdowns)) ?? Data())
         }
         return encoder.finalize()
     }
@@ -1029,7 +1035,10 @@ private struct SpendDashboardSnapshotRevisionEncoder {
     private var hasher = SHA256()
 
     mutating func append(_ value: String) {
-        let data = Data(value.utf8)
+        self.append(Data(value.utf8))
+    }
+
+    mutating func append(_ data: Data) {
         self.append(UInt64(data.count))
         self.hasher.update(data: data)
     }
@@ -1261,11 +1270,13 @@ final class SpendDashboardController {
             self.startLoad(configuration: configuration, phase: .forcing)
             return
         }
-        guard configuration != self.configuration else { return }
+        let hasRecoveryPublication = self.failedSourceCount > 0 &&
+            configuration.sourcePublicationRevisions != self.configuration?.sourcePublicationRevisions
+        guard configuration != self.configuration || hasRecoveryPublication else { return }
         let previousConfiguration = self.configuration
         // Fast-path: display-only changes (filter, currency, hide flag) require
         // only a model rebuild — no Codex scan or token capture.
-        if let previousConfiguration,
+        if !hasRecoveryPublication, let previousConfiguration,
            Self.isDisplayOnlyConfigurationChange(from: previousConfiguration, to: configuration)
         {
             self.configuration = configuration
@@ -1709,8 +1720,7 @@ final class SpendDashboardController {
         self.lastRefreshDateWindowDayStart = nextDay
         self.loadedAt = now
         self.invalidateModel()
-        guard let configuration else { return }
-        guard !isSameDay || self.lastSuccessfulConfiguration == nil || self.failedSourceCount > 0
+        guard let configuration, !isSameDay || self.lastSuccessfulConfiguration == nil || self.failedSourceCount > 0
         else { return }
         let nextPhase: LoadPhase = self.phase.manualRefreshOutstanding ? .forcing : .ordinary
         self.startLoad(configuration: configuration, phase: nextPhase)
@@ -1883,15 +1893,7 @@ final class SpendDashboardController {
         _ lhs: SpendDashboardConfiguration,
         _ rhs: SpendDashboardConfiguration) -> Bool
     {
-        lhs.costUsageEnabled == rhs.costUsageEnabled &&
-            lhs.providerIDs == rhs.providerIDs &&
-            lhs.codexAccountIdentities == rhs.codexAccountIdentities &&
-            lhs.sourceOwnershipFingerprints == rhs.sourceOwnershipFingerprints &&
-            lhs.bucketTimeZoneIdentifier == rhs.bucketTimeZoneIdentifier &&
-            lhs.openCodexUsageLogsEnabled == rhs.openCodexUsageLogsEnabled &&
-            lhs.hideNativeCodexCostWhenOpenCodexPresent == rhs.hideNativeCodexCostWhenOpenCodexPresent &&
-            lhs.hiddenSourceIDs == rhs.hiddenSourceIDs &&
-            lhs.preferredCurrencyCode == rhs.preferredCurrencyCode
+        lhs.hasSameSourceOwnership(as: rhs)
     }
 
     private static func isDisplayOnlyConfigurationChange(
@@ -1899,13 +1901,7 @@ final class SpendDashboardController {
         to rhs: SpendDashboardConfiguration) -> Bool
     {
         // Only presentation-layer fields changed; no provider scan or token capture needed.
-        guard lhs.costUsageEnabled == rhs.costUsageEnabled,
-              lhs.providerIDs == rhs.providerIDs,
-              lhs.codexAccountIdentities == rhs.codexAccountIdentities,
-              lhs.sourceOwnershipFingerprints == rhs.sourceOwnershipFingerprints,
-              lhs.sourceRevisions == rhs.sourceRevisions,
-              lhs.bucketTimeZoneIdentifier == rhs.bucketTimeZoneIdentifier,
-              lhs.openCodexUsageLogsEnabled == rhs.openCodexUsageLogsEnabled
+        guard lhs.hasSameSourceInputs(as: rhs), lhs.sourceRevisions == rhs.sourceRevisions
         else { return false }
         return lhs.hiddenSourceIDs != rhs.hiddenSourceIDs ||
             lhs.preferredCurrencyCode != rhs.preferredCurrencyCode ||

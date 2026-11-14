@@ -210,19 +210,28 @@ extension CodexBarCLI {
             : "\(name) Cost (API-rate estimate)"
         let header = Self.costHeaderLine(title, useColor: useColor)
         let historyNotice = snapshot.historyIsFullyScanned ? nil : "Partial local history · recorded token subtotal"
+        let incomplete = CostUsageIncompleteRequests.sum(snapshot.daily.map(\.incompleteRequestCount))
+        let unpriced = snapshot.daily.reduce(0) { $0 + max(0, $1.unpricedRequestCount ?? 0) }
+        var notices: [String] = []
+        if incomplete > 0 {
+            notices
+                .append("Incomplete: \(incomplete) requests lacked final usage and were excluded from tokens and cost.")
+        }
+        if unpriced > 0 {
+            notices.append("Partial estimate: \(unpriced) recorded request\(unpriced == 1 ? "" : "s") had no price.")
+        }
         if groupBy == .project, Self.costGroupingProviders.contains(provider) {
             return Self.renderProjectCostText(
-                header: [header, historyNotice].compactMap(\.self).joined(separator: "\n"),
+                header: ([header, historyNotice].compactMap(\.self) + notices).joined(separator: "\n"),
                 snapshot: snapshot,
                 provider: provider)
         }
         if groupBy == .session, Self.costGroupingProviders.contains(provider) {
-            return Self.renderSessionCostText(header: header, snapshot: snapshot, provider: provider)
+            return Self.renderSessionCostText(
+                header: ([header] + notices).joined(separator: "\n"), snapshot: snapshot, provider: provider)
         }
 
         let todayIncomplete = snapshot.summary(forLastDays: 1, calendar: calendar).incompleteRequestCount
-        let incomplete = CostUsageIncompleteRequests.sum(snapshot.daily.map(\.incompleteRequestCount))
-        let unpriced = snapshot.daily.reduce(0) { $0 + max(0, $1.unpricedRequestCount ?? 0) }
         let todayCost = snapshot.sessionCostUSD
             .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
         let todayTokens = snapshot.sessionTokens.map { UsageFormatter.tokenCountString($0) }
@@ -249,13 +258,7 @@ extension CodexBarCLI {
             monthLine + (incomplete > 0 ? " · Incomplete" : ""),
             meteredLine,
         ]
-        if incomplete > 0 {
-            lines
-                .append("Incomplete: \(incomplete) requests lacked final usage and were excluded from tokens and cost.")
-        }
-        if unpriced > 0 {
-            lines.append("Partial estimate: \(unpriced) recorded request\(unpriced == 1 ? "" : "s") had no price.")
-        }
+        lines.append(contentsOf: notices)
         lines.append(historyNotice)
         // Provider-specific by design: Claude and OpenCode Go local history retain model attribution.
         if includeBreakdown, provider == .claude || provider == .opencodego, !snapshot.daily.isEmpty {
