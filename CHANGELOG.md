@@ -23,6 +23,7 @@
 - Claude: show Enterprise extra-usage limits in the provider switcher while preserving provider identity boundaries. (#4989) Thanks @jey3dayo!
 - Alibaba: read Team CLI seat quotas, retain browser fallback for unavailable credits, and recognize mainland Qwen aliases. (#5008) Thanks @yinjialu!
 - Share Stats: replace faint provider markers with recognizable provider icons in light and dark cards. (#5011) Thanks @Chipagosfinest!
+- Usage & Spend: stop reloading the shared dashboard, and rescanning Codex history, on every refresh tick when Grok, OpenAI API, OpenRouter, Mistral, xAI, or OpenCode Go is enabled; unchanged spend no longer counts as a new source revision, cutting background CPU by about 85% at a 1-minute refresh interval in a local profile (#5071).
 - OpenCode Go: Auto waits at most 5 seconds for a large local history before returning remote quota, without showing partial history; without remote quota it still returns the local estimate, and the scan keeps warming the cache for a later refresh (#5060). Thanks @faresahmedbaianat-hash!
 
 ### Changed
