@@ -1504,10 +1504,7 @@ extension ClaudeStatusProbe {
                 stopWhenNormalized: stopWhenNormalized,
                 settleAfterStop: subcommand == "/usage" ? 2.0 : 0.25,
                 sendEnterEvery: sendEnterEvery)
-        } catch ClaudeCLISession.SessionError.processExited {
-            await ClaudeCLISession.current.reset()
-            throw ClaudeStatusProbeError.timedOut
-        } catch ClaudeCLISession.SessionError.timedOut {
+        } catch ClaudeCLISession.SessionError.processExited, ClaudeCLISession.SessionError.timedOut {
             await ClaudeCLISession.current.reset()
             throw ClaudeStatusProbeError.timedOut
         } catch ClaudeCLISession.SessionError.launchFailed(_) {

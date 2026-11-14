@@ -45,21 +45,9 @@ struct ClaudeCLIScreenProbeTests {
         Loading usage data…
         Esc to cancel
         """.replacingOccurrences(of: "\n", with: "\r\n")
-        let panelFrame = "\u{1b}[H\u{1b}[J" + """
-        Settings  Status   Config   Usage   Stats
-        Current week (all models)
-        ██████████████▌                       55% used
-        Resets Sep 23 at 3pm (Europe/Stockholm)
-        Current week (Example Model)
-        ████                                    14% used
-        Resets Sep 23 at 3pm (Europe/Stockholm)
-        Usage credits
-        Usage credits are off · /usage-credits to turn them on
-        Esc to cancel
-        """.replacingOccurrences(of: "\n", with: "\r\n")
 
         #expect(!ClaudeStatusProbe.usageCaptureIsComplete(Self.normalizedScreen(loadingFrame)))
-        let completed = loadingFrame + panelFrame
+        let completed = try Self.capture("usage-pty-weekly-only")
         #expect(ClaudeStatusProbe.usageCaptureIsComplete(Self.normalizedScreen(completed)))
         let snapshot = try ClaudeStatusProbe.parse(text: completed)
         #expect(snapshot.sessionPercentLeft == nil)
