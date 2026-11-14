@@ -34,29 +34,42 @@ extension UsageStore {
     }
 
     /// Expand only the already-selected providers; account rows do not consume provider slots.
-    func mergedOverviewRows(for providers: [ProviderInstanceID]) -> [MergedOverviewRow] {
+    func mergedOverviewRows(
+        for providers: [ProviderInstanceID],
+        claudeSwapInspectedAccountID: ProviderAccountIdentity? = nil) -> [MergedOverviewRow]
+    {
         providers.flatMap { instanceID -> [MergedOverviewRow] in
             guard let provider = instanceID.firstPartyProvider else {
                 return UserProviderPluginRegistry.plugin(for: instanceID) == nil
                     ? [] : [MergedOverviewRow(provider: instanceID, accountID: nil, model: nil)]
             }
-            if self.settings.mergedOverviewAllAccounts {
-                let accounts = self.mergedOverviewAccountRows(for: provider)
-                if !accounts.isEmpty { return accounts }
-            }
+            let accounts = self.mergedOverviewAccountRows(
+                for: provider, inspectedAccountID: claudeSwapInspectedAccountID)
+            if !accounts.isEmpty { return accounts }
             let model = self.menuCardModel(for: provider)
             return model.isOverviewErrorOnly ? [] : [MergedOverviewRow(
                 provider: instanceID, accountID: nil, model: model)]
         }
     }
 
-    private func mergedOverviewAccountRows(for provider: UsageProvider) -> [MergedOverviewRow] {
+    private func mergedOverviewAccountRows(
+        for provider: UsageProvider,
+        inspectedAccountID: ProviderAccountIdentity?) -> [MergedOverviewRow]
+    {
+        let allAccounts = self.settings.mergedOverviewAllAccounts
         if ClaudeSwapMenuPrecedence.prefersClaudeSwap(
             provider: provider,
             accountCount: self.claudeSwapAccountSnapshots.count,
             showSingleAccount: self.settings.claudeSwapShowSingleAccount)
         {
-            return self.claudeSwapAccountSnapshots.map { account in
+            let display = ClaudeSwapAccountMenuDisplay(
+                accounts: self.claudeSwapAccountSnapshots,
+                layout: self.settings.multiAccountMenuLayout,
+                switchingAccountID: self.claudeSwapTransientState.switchingAccountID,
+                errorAccountID: self.claudeSwapTransientState.lastErrorAccountID,
+                inspectedAccountID: inspectedAccountID)
+            let accounts = allAccounts ? display.accounts : display.displayedAccount.map { [$0] } ?? []
+            return accounts.map { account in
                 // Provider-specific by design: claude-swap and tcr expose the same Claude account projection.
                 let model = self.menuCardModel(for: .claude, context: ClaudeSwapAccountMenuDisplay.cardContext(
                     for: account,
@@ -64,13 +77,15 @@ extension UsageStore {
                     adapterError: self.claudeSwapLastError,
                     switchError: self.claudeSwapTransientState.lastErrorAccountID == account.id
                         ? self.claudeSwapTransientState.lastError : nil,
-                    historySelection: self.claudeSwapPlanUtilizationHistorySelection(for: account)))
+                    historySelection: self.claudeSwapPlanUtilizationHistorySelection(for: account),
+                    includesStoredTokenCosts: !allAccounts))
                 return MergedOverviewRow(
                     provider: provider.instanceID,
-                    accountID: account.id.source + ":" + account.id.opaqueID,
+                    accountID: allAccounts ? account.id.source + ":" + account.id.opaqueID : nil,
                     model: model)
             }
         }
+        guard allAccounts else { return [] }
         // Provider-specific by design: managed Codex accounts use the cached visible-account inventory.
         if provider == .codex,
            let projection = self.settings.codexVisibleAccountProjectionForMenuDisplay,

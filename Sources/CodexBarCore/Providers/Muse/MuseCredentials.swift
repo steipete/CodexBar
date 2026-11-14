@@ -107,7 +107,8 @@ public enum MuseCredentials {
         // Legacy CLI-owned ACLs can prompt despite no-UI query flags. Inspect the ACL before requesting the secret.
         switch KeychainAccessPreflight.checkGenericPassword(
             service: self.keychainService,
-            account: self.keychainAccount)
+            account: self.keychainAccount,
+            requirePartition: true)
         {
         case .notFound:
             return nil

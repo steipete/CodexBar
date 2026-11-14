@@ -138,40 +138,30 @@ extension StatusItemController {
         captureMenu: NSMenu,
         context: MenuCardContext)
     {
-        let cardRows = accounts.compactMap { account ->
-            (account: ProviderAccountUsageSnapshot, model: UsageMenuCardView.Model)? in
-            guard let model = self.claudeSwapCardModel(for: account) else { return nil }
-            return (account, model)
-        }
         self.addStackedMenuCards(
-            cardRows.map(\.model),
+            accounts.map { self.claudeSwapCardModel(for: $0) },
             to: menu,
             context: context,
             planAction: { [weak self] index in
-                guard cardRows.indices.contains(index) else { return nil }
-                return self?.claudeSwapAccountSwitchAction(cardRows[index].account, menu: captureMenu)
+                self?.claudeSwapAccountSwitchAction(accounts[index], menu: captureMenu)
             })
     }
 
-    private func claudeSwapCardModel(for account: ProviderAccountUsageSnapshot) -> UsageMenuCardView.Model? {
-        self.menuCardModel(
+    private func claudeSwapCardModel(for account: ProviderAccountUsageSnapshot) -> UsageMenuCardView.Model {
+        self.store.menuCardModel(
             for: .claude,
             context: ClaudeSwapAccountMenuDisplay.cardContext(
                 for: account,
-                planLabel: self.claudeSwapAccountActionLabel(account),
+                planLabel: ClaudeSwapAccountMenuDisplay.actionLabel(
+                    for: account,
+                    switchingAccountID: self.store.claudeSwapTransientState.switchingAccountID,
+                    switchInFlight: self.store.claudeSwapTransientState.task != nil,
+                    switchPhase: self.store.claudeSwapTransientState.switchPhase),
                 adapterError: self.store.claudeSwapLastError,
                 switchError: self.store.claudeSwapTransientState.lastErrorAccountID == account.id
                     ? self.store.claudeSwapTransientState.lastError
                     : nil,
                 historySelection: self.store.claudeSwapPlanUtilizationHistorySelection(for: account)))
-    }
-
-    private func claudeSwapAccountActionLabel(_ account: ProviderAccountUsageSnapshot) -> String? {
-        ClaudeSwapAccountMenuDisplay.actionLabel(
-            for: account,
-            switchingAccountID: self.store.claudeSwapTransientState.switchingAccountID,
-            switchInFlight: self.store.claudeSwapTransientState.task != nil,
-            switchPhase: self.store.claudeSwapTransientState.switchPhase)
     }
 
     func claudeSwapAccountSwitchAction(
