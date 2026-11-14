@@ -171,7 +171,9 @@ ApplicationWindow {
                             y: parent.height - 10; radius: 2
                             color: selected ? Qt.rgba(1, 1, 1, 0.4) : window.trackColor
                             Rectangle {
-                                width: parent.width * (firstWindow ? 100 - firstWindow.remaining : 0) / 100
+                                objectName: "tabQuotaFill-" + index
+                                width: parent.width * (firstWindow ?
+                                    Usage.quotaValue(firstWindow.remaining, desktop.settings.quotaDisplay) : 0) / 100
                                 height: parent.height; radius: parent.radius
                                 color: selected ? "white" : window.meterColor
                             }

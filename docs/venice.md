@@ -14,6 +14,11 @@ Saved API accounts remain stored but do not own implicit Web requests. Switching
 the selected API account. Explicit CLI account selection (`--account`, `--account-index`, or `--all-accounts`)
 uses that API account even when Web is configured.
 
+If the API blocks consumption, CodexBar keeps the exhausted indicator and still shows a fetched balance as a neutral
+currency amount. It prefers the reported consumption currency, falls back to the other known balance, and preserves
+zero and negative balances. A known balance does not imply that API calls are available; the unavailable-balance
+message is reserved for responses that omit both balances. API balance text appears directly, without a reset-time prefix.
+
 The web source requests `https://outerface.venice.ai/api/user/session` and reads the returned token's
 subscription-credit claims. For Clerk sign-ins, it reads `__session` or `__session_<suffix>` from `venice.ai`
 and sends its value as `Authorization: Bearer`, without a Cookie header. The unsuffixed session takes priority.
