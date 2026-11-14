@@ -839,6 +839,12 @@ struct MenuBarLayoutRendererTests {
             }
             for scale in [1, 2] {
                 let bitmap = try Self.statusBitmap(image: titleImage, scale: scale)
+                if size == .regular, appearance == NSAppearance.Name.darkAqua.rawValue, shift == 0, scale == 2,
+                   let directory = ProcessInfo.processInfo.environment["CODEXBAR_SPANNING_ICON_PROOF_DIR"],
+                   let png = bitmap.representation(using: .png, properties: [:])
+                {
+                    try png.write(to: URL(fileURLWithPath: directory).appendingPathComponent("high-contrast.png"))
+                }
                 var redPixels = 0
                 var redRows = Set<Int>()
                 var redColumns = Set<Int>()
