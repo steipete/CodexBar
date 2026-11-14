@@ -2955,6 +2955,24 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore/UsageStore+TokenCost.swift",
+            occurrence: 1,
+            anchor: "guard provider != .opencodego || " +
+                "snapshot.opencodegoUsage?.localHistoryPending != true else { return }",
+            expectedProviderIDs: ["opencodego"],
+            expectedReferenceCount: 1,
+            expectedReferenceFingerprint: ["opencodego@0"],
+            reason: "An unfinished OpenCode Go scan cannot replace retained spend with confirmed empty history."),
+        AllowedProviderConstruct(
+            path: "Sources/CodexBar/UsageStore/UsageStore+TokenCost.swift",
+            occurrence: 2,
+            anchor: "guard provider != .opencodego || " +
+                "snapshot.opencodegoUsage?.localHistoryPending != true else { return }",
+            expectedProviderIDs: ["opencodego", "xai"],
+            expectedReferenceCount: 2,
+            expectedReferenceFingerprint: ["opencodego@0", "xai@6"],
+            reason: "An unfinished OpenCode Go scan cannot replace retained spend with confirmed empty history."),
+        AllowedProviderConstruct(
+            path: "Sources/CodexBar/UsageStore/UsageStore+TokenCost.swift",
             anchor: "case .openai:",
             expectedProviderIDs: ["grok", "mistral", "openai", "opencodego", "openrouter", "xai"],
             expectedReferenceCount: 6,
