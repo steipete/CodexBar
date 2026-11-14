@@ -93,3 +93,7 @@ Within each transcript scan or cache decode, repeated session IDs and model name
 Claude and Vertex reserve the final transcript row count during cache decoding and parsed-row assembly, reducing retained spare capacity without changing cache bytes or report ordering.
 
 Claude and Vertex cache saves reuse encoded transcript fragments when their metadata bytes and row contents are unchanged. The bounded memo retains byte ranges in the previous artifact instead of encoded values; saves stream those ranges and newly encoded files into a replacement artifact. Reuse requires the same device, inode, size, and nanosecond modification time. Each cache URL has independent fragments; removed files are discarded and the memo can be evicted without changing saved JSON or report results. Transcript-cache loads use mapped input that is released after decoding. Key ordering and escaping still come from the JSON encoder.
+
+The Models lens withholds spend shares when the selected period or day contains unpriced requests, even when known
+model subtotals add up. It keeps the known amounts and marks the breakdown as partial. A fully priced selected day
+retains its shares even when another day in the wider reporting period has unpriced requests.
