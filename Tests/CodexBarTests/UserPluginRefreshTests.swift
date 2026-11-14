@@ -56,6 +56,59 @@ struct UserPluginRefreshTests {
         #expect(fixture.store.weeklyLimitResetDetectorStates.isEmpty)
     }
 
+    @Test(arguments: [false, true])
+    func `rediscovering an unchanged plugin preserves quota and errors`(failure: Bool) async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        fixture.settings.costUsageEnabled = false
+        let refresh = Task { await fixture.store.refreshUserPlugin(fixture.id) }
+        try await fixture.transport.waitForRequests(1)
+        await fixture.transport.finish(1, used: 42)
+        await refresh.value
+        if failure {
+            let failed = Task { await fixture.store.refreshUserPlugin(fixture.id) }
+            try await fixture.transport.waitForRequests(2)
+            await fixture.transport.finish(2, used: 0, failure: true)
+            await failed.value
+            #expect(fixture.store.errors[fixture.id] != nil)
+        }
+        let error = fixture.store.errors[fixture.id]
+        let previous = try #require(UserProviderPluginRegistry.plugin(for: fixture.id))
+
+        fixture.store.refreshUserPluginDiscovery(loader: fixture.loader)
+
+        let current = try #require(UserProviderPluginRegistry.plugin(for: fixture.id))
+        #expect(current.runtime !== previous.runtime)
+        #expect(fixture.store.snapshots[fixture.id]?.primary?.usedPercent == 42)
+        #expect(fixture.store.errors[fixture.id] == error)
+        #expect(fixture.store.lastSourceLabels[fixture.id] == "js")
+        #expect(fixture.store.tokenSnapshotPublications[fixture.id] == nil)
+        #expect(SpendDashboardSource.capturePluginInputs(store: fixture.store).isEmpty)
+        #expect(!fixture.store.refreshingProviders.contains(fixture.id))
+    }
+
+    @Test
+    func `rediscovering changed plugin source clears quota and statistics`() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        fixture.settings.costUsageEnabled = true
+        let refresh = Task { await fixture.store.refreshUserPlugin(fixture.id) }
+        try await fixture.transport.waitForRequests(1)
+        await fixture.transport.finish(1, used: 42)
+        await refresh.value
+        #expect(SpendDashboardSource.capturePluginInputs(store: fixture.store).count == 1)
+        let source = try String(contentsOf: fixture.pluginURL, encoding: .utf8)
+        try Data((source + "\n// Updated fixture revision.\n").utf8).write(to: fixture.pluginURL)
+
+        fixture.store.refreshUserPluginDiscovery(loader: fixture.loader)
+
+        #expect(fixture.store.snapshots[fixture.id] == nil)
+        #expect(fixture.store.errors[fixture.id] == nil)
+        #expect(fixture.store.lastSourceLabels[fixture.id] == nil)
+        #expect(fixture.store.tokenSnapshotPublications[fixture.id] == nil)
+        #expect(SpendDashboardSource.capturePluginInputs(store: fixture.store).isEmpty)
+    }
+
     @Test
     func `approval failures remain visible on the quota card`() async throws {
         let fixture = try Fixture()

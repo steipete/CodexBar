@@ -21,7 +21,13 @@ extension UsageStore {
                 continue
             }
             if current.runtime !== plugin.runtime {
-                self.clearUserPluginState(plugin.manifest.id)
+                if current.sourceHash == plugin.sourceHash,
+                   current.fileURL.standardizedFileURL == plugin.fileURL.standardizedFileURL
+                {
+                    self.invalidateUserPluginRuntimeState(plugin.manifest.id)
+                } else {
+                    self.clearUserPluginState(plugin.manifest.id)
+                }
             }
         }
         self.pruneUserPluginHookState()
@@ -101,12 +107,16 @@ extension UsageStore {
     }
 
     func clearUserPluginState(_ instanceID: ProviderInstanceID) {
-        self.invalidateUserPluginStatistics(instanceID)
-        self.providerRefreshCoordinator.invalidateRequests(for: instanceID)
-        self.refreshingProviders.remove(instanceID)
+        self.invalidateUserPluginRuntimeState(instanceID)
         self.snapshots.removeValue(forKey: instanceID)
         self.errors.removeValue(forKey: instanceID)
         self.lastSourceLabels.removeValue(forKey: instanceID)
+    }
+
+    private func invalidateUserPluginRuntimeState(_ instanceID: ProviderInstanceID) {
+        self.invalidateUserPluginStatistics(instanceID)
+        self.providerRefreshCoordinator.invalidateRequests(for: instanceID)
+        self.refreshingProviders.remove(instanceID)
         self.clearUserPluginHookState(instanceID)
     }
 
