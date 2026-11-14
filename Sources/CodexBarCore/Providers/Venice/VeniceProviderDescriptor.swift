@@ -30,6 +30,7 @@ public enum VeniceProviderDescriptor {
         color: ProviderColor(hex: 0x3C8FDD),
         confetti: [0x0E2942, 0xF7F5ED, 0x3C8FDD],
         noDataMessage: "Venice per-day cost history is not available via API.",
+        presentation: .init(menuCard: .init(usesRawPrimaryResetDescription: true)),
         aliases: ["ven"],
         webSource: .init(
             settingsSection: .init(VeniceProviderSettingsKey.self, cookieSettings: VeniceProviderSettings.self),

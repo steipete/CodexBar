@@ -17,7 +17,14 @@ Frame {
         RowLayout {
             Layout.fillWidth: true
             Label { text: Usage.providerName(root.entry.provider); font.bold: true; font.pixelSize: 18; Layout.fillWidth: true; wrapMode: Text.Wrap }
-            Label { text: root.entry.plan || ""; opacity: 0.65; Layout.maximumWidth: root.width / 2; wrapMode: Text.Wrap; textFormat: Text.PlainText }
+            Label {
+                text: root.entry.plan || ""
+                opacity: 0.65
+                Layout.minimumWidth: Math.min(implicitWidth, content.width / 2)
+                Layout.maximumWidth: content.width / 2
+                elide: Text.ElideRight
+                textFormat: Text.PlainText
+            }
         }
         Label {
             text: root.entry.accountLabel || ""
