@@ -1,0 +1,145 @@
+BASELINE: pristine runner 22f731375854ae739bec1395ff5b3f1d5116a243
+Pristine baseline runner SHA256: a42b4b28e948a50ec39da594ae821eff2d1aa25c385a6b7523b7d81c90b75203
+◇ Test run started.
+↳ Testing Library Version: 6.3.3 (48d727cc1cf4eda)
+↳ Target Platform: x86_64-unknown-linux-gnu
+◇ Suite CommandCodeCancellationTransportProofTests started.
+◇ Test "provider authentication failure stops browser traversal when cancelled" started.
+◇ Test case passing 1 argument cancelOn401 → false to "provider authentication failure stops browser traversal when cancelled" started.
+COMMANDCODE_TRACE read profile-1
+COMMANDCODE_TRACE transport candidate-1 /internal/billing/credits
+COMMANDCODE_TRACE transport candidate-1 /internal/billing/subscriptions
+COMMANDCODE_TRACE wire /candidate-1/internal/billing/subscriptions -> HTTP 401
+COMMANDCODE_TRACE response candidate-1 /internal/billing/subscriptions HTTP 401
+COMMANDCODE_TRACE wire /candidate-1/internal/billing/credits -> HTTP 401
+COMMANDCODE_TRACE response candidate-1 /internal/billing/credits HTTP 401
+COMMANDCODE_TRACE provider classified invalidCredentials
+COMMANDCODE_TRACE read profile-2
+COMMANDCODE_TRACE transport candidate-2 /internal/billing/credits
+COMMANDCODE_TRACE transport candidate-2 /internal/billing/subscriptions
+COMMANDCODE_TRACE wire /candidate-2/internal/billing/subscriptions -> HTTP 401
+COMMANDCODE_TRACE response candidate-2 /internal/billing/subscriptions HTTP 401
+COMMANDCODE_TRACE wire /candidate-2/internal/billing/credits -> HTTP 401
+COMMANDCODE_TRACE response candidate-2 /internal/billing/credits HTTP 401
+COMMANDCODE_TRACE provider classified invalidCredentials
+COMMANDCODE_TRANSPORT_PROOF cancelOn401=false outcome=invalidCredentials
+  read profile-1
+  transport candidate-1 /internal/billing/credits
+  transport candidate-1 /internal/billing/subscriptions
+  wire /candidate-1/internal/billing/subscriptions -> HTTP 401
+  response candidate-1 /internal/billing/subscriptions HTTP 401
+  wire /candidate-1/internal/billing/credits -> HTTP 401
+  response candidate-1 /internal/billing/credits HTTP 401
+  provider classified invalidCredentials
+  read profile-2
+  transport candidate-2 /internal/billing/credits
+  transport candidate-2 /internal/billing/subscriptions
+  wire /candidate-2/internal/billing/subscriptions -> HTTP 401
+  response candidate-2 /internal/billing/subscriptions HTTP 401
+  wire /candidate-2/internal/billing/credits -> HTTP 401
+  response candidate-2 /internal/billing/credits HTTP 401
+  provider classified invalidCredentials
+◇ Test case passing 1 argument cancelOn401 → true to "provider authentication failure stops browser traversal when cancelled" started.
+COMMANDCODE_TRACE read profile-1
+COMMANDCODE_TRACE transport candidate-1 /internal/billing/credits
+COMMANDCODE_TRACE transport candidate-1 /internal/billing/subscriptions
+COMMANDCODE_TRACE wire /candidate-1/internal/billing/subscriptions -> HTTP 401
+COMMANDCODE_TRACE response candidate-1 /internal/billing/subscriptions HTTP 401
+COMMANDCODE_TRACE wire /candidate-1/internal/billing/credits -> HTTP 401
+COMMANDCODE_TRACE response candidate-1 /internal/billing/credits HTTP 401
+COMMANDCODE_TRACE cancel after on-wire HTTP 401
+COMMANDCODE_TRACE provider classified invalidCredentials
+COMMANDCODE_TRACE read profile-2
+COMMANDCODE_TRACE transport candidate-2 /internal/billing/credits
+COMMANDCODE_TRACE transport candidate-2 /internal/billing/subscriptions
+COMMANDCODE_TRANSPORT_PROOF cancelOn401=true outcome=cancelled
+  read profile-1
+  transport candidate-1 /internal/billing/credits
+  transport candidate-1 /internal/billing/subscriptions
+  wire /candidate-1/internal/billing/subscriptions -> HTTP 401
+  response candidate-1 /internal/billing/subscriptions HTTP 401
+  wire /candidate-1/internal/billing/credits -> HTTP 401
+  response candidate-1 /internal/billing/credits HTTP 401
+  cancel after on-wire HTTP 401
+  provider classified invalidCredentials
+  read profile-2
+  transport candidate-2 /internal/billing/credits
+  transport candidate-2 /internal/billing/subscriptions
+✘ Test "provider authentication failure stops browser traversal when cancelled" recorded an issue with 1 argument cancelOn401 → true at CommandCodeCancellationTransportProofTests.swift:89:13: Expectation failed: (reads → ["read profile-1", "read profile-2"]) == ((cancelOn401 ? ["read profile-1"] : ["read profile-1", "read profile-2"]) → ["read profile-1"])
+± inserted ["read profile-2"]
+✘ Test "provider authentication failure stops browser traversal when cancelled" recorded an issue with 1 argument cancelOn401 → true at CommandCodeCancellationTransportProofTests.swift:91:17: Expectation failed: !(events.contains { $0.contains("candidate-2") } → <not evaluated>)
+✘ Test "provider authentication failure stops browser traversal when cancelled" with 2 test cases failed after 0.521 seconds with 2 issues.
+✘ Suite CommandCodeCancellationTransportProofTests failed after 0.524 seconds with 2 issues.
+✘ Test run with 1 test in 1 suite failed after 0.524 seconds with 2 issues.
+
+FIXED: production runner with three cancellation checks
+◇ Test run started.
+↳ Testing Library Version: 6.3.3 (48d727cc1cf4eda)
+↳ Target Platform: x86_64-unknown-linux-gnu
+◇ Suite ProviderCandidateRetryCancellationTests started.
+◇ Suite CommandCodeCancellationTransportProofTests started.
+◇ Test "cancelled refresh does not load its first candidate" started.
+◇ Test "cancellation during a failed attempt stops lazy browser traversal" started.
+◇ Test "cancellation while loading a candidate prevents its attempt" started.
+◇ Test "provider authentication failure stops browser traversal when cancelled" started.
+◇ Test case passing 1 argument cancelOn401 → false to "provider authentication failure stops browser traversal when cancelled" started.
+✔ Test "cancellation during a failed attempt stops lazy browser traversal" passed after 0.001 seconds.
+✔ Test "cancelled refresh does not load its first candidate" passed after 0.001 seconds.
+✔ Test "cancellation while loading a candidate prevents its attempt" passed after 0.001 seconds.
+✔ Suite ProviderCandidateRetryCancellationTests passed after 0.002 seconds.
+COMMANDCODE_TRACE read profile-1
+COMMANDCODE_TRACE transport candidate-1 /internal/billing/credits
+COMMANDCODE_TRACE transport candidate-1 /internal/billing/subscriptions
+COMMANDCODE_TRACE wire /candidate-1/internal/billing/subscriptions -> HTTP 401
+COMMANDCODE_TRACE response candidate-1 /internal/billing/subscriptions HTTP 401
+COMMANDCODE_TRACE wire /candidate-1/internal/billing/credits -> HTTP 401
+COMMANDCODE_TRACE response candidate-1 /internal/billing/credits HTTP 401
+COMMANDCODE_TRACE provider classified invalidCredentials
+COMMANDCODE_TRACE read profile-2
+COMMANDCODE_TRACE transport candidate-2 /internal/billing/credits
+COMMANDCODE_TRACE transport candidate-2 /internal/billing/subscriptions
+COMMANDCODE_TRACE wire /candidate-2/internal/billing/subscriptions -> HTTP 401
+COMMANDCODE_TRACE response candidate-2 /internal/billing/subscriptions HTTP 401
+COMMANDCODE_TRACE wire /candidate-2/internal/billing/credits -> HTTP 401
+COMMANDCODE_TRACE response candidate-2 /internal/billing/credits HTTP 401
+COMMANDCODE_TRACE provider classified invalidCredentials
+COMMANDCODE_TRANSPORT_PROOF cancelOn401=false outcome=invalidCredentials
+  read profile-1
+  transport candidate-1 /internal/billing/credits
+  transport candidate-1 /internal/billing/subscriptions
+  wire /candidate-1/internal/billing/subscriptions -> HTTP 401
+  response candidate-1 /internal/billing/subscriptions HTTP 401
+  wire /candidate-1/internal/billing/credits -> HTTP 401
+  response candidate-1 /internal/billing/credits HTTP 401
+  provider classified invalidCredentials
+  read profile-2
+  transport candidate-2 /internal/billing/credits
+  transport candidate-2 /internal/billing/subscriptions
+  wire /candidate-2/internal/billing/subscriptions -> HTTP 401
+  response candidate-2 /internal/billing/subscriptions HTTP 401
+  wire /candidate-2/internal/billing/credits -> HTTP 401
+  response candidate-2 /internal/billing/credits HTTP 401
+  provider classified invalidCredentials
+◇ Test case passing 1 argument cancelOn401 → true to "provider authentication failure stops browser traversal when cancelled" started.
+COMMANDCODE_TRACE read profile-1
+COMMANDCODE_TRACE transport candidate-1 /internal/billing/credits
+COMMANDCODE_TRACE transport candidate-1 /internal/billing/subscriptions
+COMMANDCODE_TRACE wire /candidate-1/internal/billing/subscriptions -> HTTP 401
+COMMANDCODE_TRACE response candidate-1 /internal/billing/subscriptions HTTP 401
+COMMANDCODE_TRACE wire /candidate-1/internal/billing/credits -> HTTP 401
+COMMANDCODE_TRACE response candidate-1 /internal/billing/credits HTTP 401
+COMMANDCODE_TRACE cancel after on-wire HTTP 401
+COMMANDCODE_TRACE provider classified invalidCredentials
+COMMANDCODE_TRANSPORT_PROOF cancelOn401=true outcome=cancelled
+  read profile-1
+  transport candidate-1 /internal/billing/credits
+  transport candidate-1 /internal/billing/subscriptions
+  wire /candidate-1/internal/billing/subscriptions -> HTTP 401
+  response candidate-1 /internal/billing/subscriptions HTTP 401
+  wire /candidate-1/internal/billing/credits -> HTTP 401
+  response candidate-1 /internal/billing/credits HTTP 401
+  cancel after on-wire HTTP 401
+  provider classified invalidCredentials
+✔ Test "provider authentication failure stops browser traversal when cancelled" with 2 test cases passed after 0.517 seconds.
+✔ Suite CommandCodeCancellationTransportProofTests passed after 0.519 seconds.
+✔ Test run with 4 tests in 2 suites passed after 0.519 seconds.
