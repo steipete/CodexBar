@@ -200,11 +200,11 @@ struct MiniMaxProviderStrategyTests {
     }
 
     @Test
-    func `browser cookie import is user initiated app only`() {
+    func `app can reimport browser cookies in background while CLI remains explicit`() {
         let appContext = self.makeContext(runtime: .app)
         let cliContext = self.makeContext(runtime: .cli)
 
-        #expect(MiniMaxCodingPlanFetchStrategy.allowsBrowserCookieImport(context: appContext) == false)
+        #expect(MiniMaxCodingPlanFetchStrategy.allowsBrowserCookieImport(context: appContext))
         #expect(MiniMaxCodingPlanFetchStrategy.allowsBrowserCookieImport(context: cliContext) == false)
 
         ProviderInteractionContext.$current.withValue(.userInitiated) {
@@ -213,7 +213,19 @@ struct MiniMaxProviderStrategyTests {
         }
     }
 
-    private func makeContext(runtime: ProviderRuntime) -> ProviderFetchContext {
+    @Test(arguments: [ProviderCookieSource.manual, .off])
+    func `manual and disabled cookie sources never import browsers`(source: ProviderCookieSource) {
+        let context = self.makeContext(runtime: .app, cookieSource: source)
+        #expect(MiniMaxCodingPlanFetchStrategy.allowsBrowserCookieImport(context: context) == false)
+        ProviderInteractionContext.$current.withValue(.userInitiated) {
+            #expect(MiniMaxCodingPlanFetchStrategy.allowsBrowserCookieImport(context: context) == false)
+        }
+    }
+
+    private func makeContext(
+        runtime: ProviderRuntime,
+        cookieSource: ProviderCookieSource = .auto) -> ProviderFetchContext
+    {
         let env: [String: String] = [:]
         return ProviderFetchContext(
             runtime: runtime,
@@ -223,7 +235,7 @@ struct MiniMaxProviderStrategyTests {
             webDebugDumpHTML: false,
             verbose: false,
             env: env,
-            settings: nil,
+            settings: .make(minimax: .init(cookieSource: cookieSource, manualCookieHeader: nil)),
             fetcher: UsageFetcher(environment: env),
             claudeFetcher: StubClaudeFetcher(),
             browserDetection: BrowserDetection(cacheTTL: 0))
@@ -231,6 +243,23 @@ struct MiniMaxProviderStrategyTests {
 }
 
 struct MiniMaxCookieHeaderTests {
+    @Test
+    func `raw cookie values containing curl option text survive repeated normalization`() throws {
+        let header = "analytics=abc-Bdef; _token=fixture-token"
+        let normalized = try #require(MiniMaxCookieHeader.normalized(from: header))
+        #expect(normalized == header)
+        #expect(MiniMaxCookieHeader.normalized(from: normalized) == header)
+        #expect(MiniMaxCookieHeader.normalized(from: "curl https://www.minimax.cn/quota -b '\(header)'") == header)
+    }
+
+    @Test
+    func `invalid API key web errors trigger session recovery`() throws {
+        let data = Data(#"{"base_resp":{"status_code":1001,"status_msg":" INVALID API KEY \n"}}"#.utf8)
+        #expect(throws: MiniMaxUsageError.invalidCredentials) {
+            try MiniMaxUsageParser.parseCodingPlanRemains(data: data)
+        }
+    }
+
     @Test
     func `normalizes raw cookie header`() {
         let raw = "foo=bar; session=abc123"

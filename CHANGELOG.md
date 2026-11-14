@@ -4,6 +4,7 @@
 
 ### Added
 
+- CLI: declare DeepInfra setup guidance with API-key alternatives, piped input, and saved-account priority.
 - CLI: declare ElevenLabs setup guidance, including API-key alternatives, subscription-read permission, and saved-account priority (#5020). Thanks @vincent-peng!
 - Usage & Spend: add a Models view grouped by currency, preserve partial-history warnings, and match shared cards to the current appearance (#4889, #4888). Thanks @Chipagosfinest!
 - CLI: expose provider-owned setup routes for Copilot, OpenAI API, and Azure OpenAI, with explicit unknown guidance for other providers (#4705, #4916). Thanks @Yuxin-Qiao!
@@ -12,6 +13,9 @@
 ### Fixed
 
 - Menu bar: preserve the full-size leading provider icon beside both text rows in high-contrast custom layouts.
+- Droid: correct missing API-key instructions for piped input and modern or custom config locations.
+- Venice: show the fetched USD or DIEM balance when the API reports calls are blocked instead of the generic unavailable message (#5048). Thanks @djbclark!
+- TypeSafe: send the browser same-origin headers the billing overview API expects so valid sessions stop surfacing as expired. Thanks @johan456789!
 - CLI: reject unknown `--provider` values for usage, cost, and cards with an argument error instead of silently falling back to enabled providers (#5017, #5019). Thanks @coygeek and @harjothkhara!
 - Ollama: support legacy API session and weekly balances while preserving monthly credits. (#5005, #5006) Thanks @Colafornia!
 - Mistral: recover from expired sessions that redirect to sign-in instead of returning HTTP 401/403. (#5000, #5002) Thanks @enieuwy!
