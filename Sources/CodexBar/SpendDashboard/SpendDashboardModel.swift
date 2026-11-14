@@ -307,7 +307,7 @@ struct SpendDashboardModel: Equatable, Sendable {
         var conversionCache: [String: Double?] = [:]
         let classifiedInputs = detailInputs.compactMap { input -> ClassifiedInput? in
             guard let sourceCurrencyCode = Self.currencyCode(input.snapshot.currencyCode)
-                ?? (input.snapshot.dailyHistory != nil ? "XXX" : nil) else { return nil }
+                ?? (input.snapshot.dailyHistory?.missingDaysAreUnknown == true ? "XXX" : nil) else { return nil }
             let targetCurrencyCode = UsageFormatter.effectiveCurrencyCode(
                 preferred: preferredCurrencyCode,
                 providerCurrency: sourceCurrencyCode)
@@ -658,9 +658,9 @@ struct SpendDashboardModel: Equatable, Sendable {
             }
             entries.append(WindowEntry(day: day, entry: entry))
         }
-        let coveredDayCount = input.snapshot.dailyHistory == nil
-            ? Self.dayCount(in: coveredInterval, calendar: calendar)
-            : Set(entries.map(\.day)).count
+        let coveredDayCount = input.reportsOnlyExplicitDays
+            ? Set(entries.map(\.day)).count
+            : Self.dayCount(in: coveredInterval, calendar: calendar)
         let hasCompleteTokenHistory = Self.hasCompleteTokenHistory(input, displayCalendar: calendar)
         let tokenAggregateIsConsistent = input.snapshot.last30DaysTokens == nil || hasCompleteTokenHistory
         let totalTokens = hasInvalidTokenHistory || !tokenAggregateIsConsistent
@@ -1038,7 +1038,8 @@ struct SpendDashboardModel: Equatable, Sendable {
         }
         // A day with no row is a proven zero only when the scan covered it; a truncated scan
         // leaves it unknown.
-        let emptyCost: Double? = summary.input.snapshot.dailyHistory != nil || summary.historyScanIsPartial
+        let emptyCost: Double? = summary.input.reportsOnlyExplicitDays || summary
+            .historyScanIsPartial
             || (summary.entries.isEmpty && summary.totalCost == nil && summary.totalTokens != 0) ? nil : 0
         let totalCost = summary.hasInvalidCostHistory ? nil : entries.isEmpty ? emptyCost : Self.completeCostSum(costs)
 
@@ -1053,12 +1054,12 @@ struct SpendDashboardModel: Equatable, Sendable {
             totalTokens: Self.dailyIntegerTotal(
                 entries: entries,
                 isComplete: summary.hasCompleteTokenHistory,
-                scanIsPartial: summary.historyScanIsPartial || summary.input.snapshot.dailyHistory != nil,
+                scanIsPartial: summary.historyScanIsPartial || summary.input.reportsOnlyExplicitDays,
                 value: \.totalTokens),
             requestCount: Self.dailyIntegerTotal(
                 entries: entries,
                 isComplete: summary.hasCompleteRequestHistory,
-                scanIsPartial: summary.historyScanIsPartial || summary.input.snapshot.dailyHistory != nil,
+                scanIsPartial: summary.historyScanIsPartial || summary.input.reportsOnlyExplicitDays,
                 value: \.requestCount),
             totalCost: totalCost)
     }
@@ -1205,7 +1206,7 @@ struct SpendDashboardModel: Equatable, Sendable {
 
         let hasCompleteHistory = input.tokenActivityCache != nil
             || Self.hasCompleteTokenHistory(input, displayCalendar: calendar)
-        if input.snapshot.dailyHistory != nil, let coveredInterval {
+        if input.reportsOnlyExplicitDays, let coveredInterval {
             var day = coveredInterval.lowerBound
             while day <= coveredInterval.upperBound {
                 if totalsByDay[day] == nil { invalidDays.insert(day) }
@@ -1353,7 +1354,7 @@ struct SpendDashboardModel: Equatable, Sendable {
 
     private static func commonCoveredDayCount(summaries: [InputSummary], calendar: Calendar) -> Int {
         guard let interval = commonCoverageInterval(summaries: summaries) else { return 0 }
-        let explicit = summaries.filter { $0.input.snapshot.dailyHistory != nil }
+        let explicit = summaries.filter(\.input.reportsOnlyExplicitDays)
         guard let first = explicit.first else { return Self.dayCount(in: interval, calendar: calendar) }
         var days = Set(first.entries.map(\.day).filter(interval.contains))
         for summary in explicit.dropFirst() {

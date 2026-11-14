@@ -45,7 +45,29 @@ struct ProviderPluginCostUsageV2Tests {
         #expect(snapshot.last30DaysTokens == 120)
         #expect(snapshot.last30DaysCostUSD == 0)
         #expect(snapshot.last30DaysRequests == 0)
-        #expect(snapshot.dailyHistory == nil)
+        #expect(snapshot.dailyHistory?.timeZoneIdentifier == nil)
+        #expect(snapshot.dailyHistory?.windowStart == "2026-10-16")
+        #expect(snapshot.dailyHistory?.windowEnd == "2026-11-14")
+        #expect(snapshot.dailyHistory?.missingDaysAreUnknown == false)
+    }
+
+    @Test(arguments: ProviderPluginTransportTests.engines)
+    func `invalid metrics are rejected before JavaScript numeric coercion`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        for key in ["totalTokens", "cost"] {
+            let runtime = try ProviderPluginTransportTests.runtime(engine, body: """
+            if (ctx.cache.get('coerced')) return { empty: true };
+            const invalid = { valueOf() { ctx.cache.set('coerced', true, 60); return 1; } };
+            return { costUsage: {
+              version: 2, timeZone: 'UTC', currency: 'USD',
+              windowStart: '2026-11-14', windowEnd: '2026-11-14',
+              entries: [{ date: '2026-11-14', [\(String(reflecting: key))]: invalid }]
+            } };
+            """)
+            await #expect(throws: ProviderPluginError.self) { try await runtime.fetchUsage() }
+            await #expect(throws: ProviderPluginError.self) { try await runtime.fetchUsage() }
+        }
     }
 
     @Test(arguments: ProviderPluginTransportTests.engines)

@@ -23,10 +23,14 @@ enum ProviderPluginCostUsageV2Mapper {
             throw self.invalid("currency must be a known three-letter uppercase currency literal")
         }
         guard let entries = value.property("entries"), entries.isArray,
-              let countValue = entries.property("length"), (0...366).contains(countValue.doubleValue())
+              let countValue = entries.property("length"), countValue.isNumber
         else { throw self.invalid("entries must be an array with at most 366 daily rows") }
+        let count = countValue.doubleValue()
+        guard count.isFinite, count.rounded(.towardZero) == count, (0...366).contains(count) else {
+            throw self.invalid("entries must contain at most 366 daily rows")
+        }
         var seen: Set<String> = []
-        let daily: [CostUsageDailyReport.Entry] = try (0..<Int(countValue.doubleValue())).map { index in
+        let daily: [CostUsageDailyReport.Entry] = try (0..<Int(count)).map { index in
             guard let entry = entries.element(at: index), entry.isObject, !entry.isArray else {
                 throw self.invalid("entries[\(index)] must be an object")
             }
@@ -119,8 +123,10 @@ enum ProviderPluginCostUsageV2Mapper {
             else { throw self.invalid("\(key) must be an exact nonnegative integer") }
             return result
         }
+        guard field.isNumber
+        else { throw self.invalid("\(key) must be a safe nonnegative integer or a decimal integer string") }
         let number = field.doubleValue()
-        guard field.isNumber, number.isFinite, number >= 0, number.rounded(.towardZero) == number,
+        guard number.isFinite, number >= 0, number.rounded(.towardZero) == number,
               number <= 9_007_199_254_740_991
         else { throw self.invalid("\(key) must be a safe nonnegative integer or a decimal integer string") }
         return Int(number)
@@ -128,8 +134,9 @@ enum ProviderPluginCostUsageV2Mapper {
 
     private static func cost(_ value: any ProviderPluginValue) throws -> Double? {
         guard let field = value.property("cost"), !field.isUndefined, !field.isNull else { return nil }
+        guard field.isNumber else { throw self.invalid("cost must be a finite nonnegative number") }
         let number = field.doubleValue()
-        guard field.isNumber, number.isFinite, number >= 0 else {
+        guard number.isFinite, number >= 0 else {
             throw self.invalid("cost must be a finite nonnegative number")
         }
         return number

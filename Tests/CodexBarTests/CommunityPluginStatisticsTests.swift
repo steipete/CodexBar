@@ -139,9 +139,13 @@ struct CommunityPluginStatisticsTests {
                     modelsUsed: nil,
                     modelBreakdowns: nil)],
                 updatedAt: Self.now))
-        let model = Self.model(inputs: [Self.input(), native], days: 7)
+        let model = Self.model(
+            inputs: [Self.input(), native],
+            days: 7)
         let point = try #require(model.tokenActivity.first {
-            Self.key($0.day, zone: "Asia/Shanghai") == "2026-11-10"
+            Self.key(
+                $0.day,
+                zone: "Asia/Shanghai") == "2026-11-10"
         })
         #expect(point.isScanned)
         #expect(point.totalTokens == nil)
@@ -151,16 +155,66 @@ struct CommunityPluginStatisticsTests {
         #expect(payload.hasPartialTokens)
     }
 
+    @Test(arguments: ["Pacific/Auckland", "Pacific/Kiritimati"])
+    func `legacy plugin windows preserve civil dates in far east display zones`(zone: String) throws {
+        let usage = try ProviderPluginSnapshotMapper.map(
+            JSONProviderPluginValue([
+                "costUsage": [
+                    "currency": "USD", "historyDays": 7, "windowEnd": "2026-11-14",
+                    "entries": [
+                        ["date": "2026-11-08", "inputTokens": 100, "outputTokens": 20, "requests": 1, "cost": 1],
+                        ["date": "2026-11-14", "inputTokens": 0, "outputTokens": 0, "requests": 0, "cost": 0],
+                    ],
+                ],
+            ]),
+            provider: Self.id)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: zone))
+        let now = try #require(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 11,
+            day: 14,
+            hour: 12)))
+        let input = try SpendDashboardModel.ProviderInput(
+            id: "plugin:community-fixture",
+            providerID: Self.id,
+            displayName: "Legacy Fixture",
+            snapshot: #require(usage.costUsage),
+            sourceKind: .communityPlugin)
+        let model = SpendDashboardModel.build(
+            inputs: [input],
+            requestedDays: 7,
+            now: now,
+            calendar: calendar)
+        let group = try #require(model.groups.first)
+        #expect(group.providers.first?.totalTokens == 120)
+        #expect(group.providers.first?.totalCost == 1)
+        #expect(group.providers.first?.coveredDayCount == 2)
+        #expect(group.dailySummaries.count == 7)
+        #expect(group.dailySummaries.first?.totalTokens == 120)
+        #expect(group.dailySummaries[1].totalTokens == nil)
+        #expect(group.hasPartialTokens)
+    }
+
     @MainActor
     private static func dashboardImage(model: SpendDashboardModel) throws -> Data {
         let group = try #require(model.groups.first)
         let view = VStack(spacing: 20) {
-            SpendActivityHeatmapView(points: model.tokenActivity, now: Self.now, calendar: group.calendar)
+            SpendActivityHeatmapView(
+                points: model.tokenActivity,
+                now: Self.now,
+                calendar: group.calendar)
                 .frame(height: 230)
-            SpendDashboardCurrencySection(group: group, requestedDays: 30, hidePersonalInfo: true)
+            SpendDashboardCurrencySection(
+                group: group,
+                requestedDays: 30,
+                hidePersonalInfo: true)
         }
         .padding(24)
-        .frame(width: 820, height: 1100, alignment: .top)
+        .frame(
+            width: 820,
+            height: 1100,
+            alignment: .top)
         .environment(\.colorScheme, .light)
         .environment(\.locale, Locale(identifier: "en_US_POSIX"))
         .defaultAppStorage(InMemoryUserDefaults())
@@ -168,9 +222,13 @@ struct CommunityPluginStatisticsTests {
         let hosting = NSHostingView(rootView: view)
         hosting.appearance = NSAppearance(named: .aqua)
         let size = hosting.fittingSize
-        hosting.frame = CGRect(origin: .zero, size: size)
+        hosting.frame = CGRect(
+            origin: .zero,
+            size: size)
         let window = NSWindow(
-            contentRect: CGRect(origin: .zero, size: size),
+            contentRect: CGRect(
+                origin: .zero,
+                size: size),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false)
@@ -180,8 +238,12 @@ struct CommunityPluginStatisticsTests {
         window.layoutIfNeeded()
         hosting.layoutSubtreeIfNeeded()
         let bitmap = try #require(hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds))
-        hosting.cacheDisplay(in: hosting.bounds, to: bitmap)
-        return try #require(bitmap.representation(using: .png, properties: [:]))
+        hosting.cacheDisplay(
+            in: hosting.bounds,
+            to: bitmap)
+        return try #require(bitmap.representation(
+            using: .png,
+            properties: [:]))
     }
 
     private static func model(

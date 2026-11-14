@@ -663,6 +663,79 @@ struct SpendDashboardForceStateMachineTests {
         #expect(controller.model.groups.flatMap(\.providers).map(\.id) == ["claude"])
     }
 
+    @Test(arguments: [false, true])
+    func `failed plugin barriers discard forced results and earlier observations`(
+        intermediateCapture: Bool) async throws
+    {
+        let id = "plugin:community-fixture"
+        func config(_ revision: String) -> SpendDashboardConfiguration {
+            SpendDashboardConfiguration(
+                costUsageEnabled: true,
+                providerIDs: [id],
+                codexAccountIdentities: [],
+                sourceOwnershipFingerprints: ["\(id):owner"],
+                sourceRevisions: ["\(id):\(revision)"])
+        }
+        let initial = config("initial")
+        let healthy = config("healthy")
+        let failed = config("failed")
+        let input = try SpendDashboardModel.ProviderInput(
+            id: id,
+            providerID: #require(ProviderInstanceID(rawValue: "community-fixture")),
+            displayName: "Community Fixture",
+            snapshot: Self.input(
+                id: id,
+                provider: .claude,
+                cost: 3).snapshot,
+            sourceKind: .communityPlugin)
+        let captureGate = SpendDashboardStateBuildGate()
+        var steps = [SpendDashboardBuildScript.Step(
+            mode: .forceRefresh,
+            request: Self.request(
+                initial,
+                mode: .forceRefresh))]
+        if intermediateCapture {
+            steps.append(.init(
+                mode: .captureOnly,
+                request: Self.request(
+                    healthy,
+                    mode: .captureOnly,
+                    inputs: [input]),
+                gate: captureGate))
+        }
+        steps.append(.init(
+            mode: .captureOnly,
+            request: Self.request(
+                failed,
+                mode: .captureOnly,
+                unavailableSourceIDs: [id])))
+        let builder = SpendDashboardBuildScript(steps)
+        let loader = SpendDashboardStateLoaderGate()
+        let controller = SpendDashboardController(
+            userDefaults: InMemoryUserDefaults(),
+            requestBuilder: { await builder.next($0) },
+            loader: { await loader.load($0) })
+        controller.update(
+            configuration: initial,
+            force: true)
+        await Self.waitForLoader(loader)
+        controller.update(configuration: intermediateCapture ? healthy : failed)
+        await loader.resume(SpendDashboardLoadResult(
+            inputs: [input],
+            failedSourceIDs: []))
+        if intermediateCapture {
+            await Self.waitForBuildGate(captureGate)
+            controller.update(configuration: failed)
+            await captureGate.resume()
+        }
+        await Self.waitUntil { !controller.isRefreshing }
+        #expect(controller.failedSourceCount == 1)
+        #expect(controller.model.groups.isEmpty)
+        #expect(controller.publication.inputs.isEmpty)
+        #expect(ShareStatsBuilder.make(model: controller.model) == nil)
+        controller.stop()
+    }
+
     private static func configuration(owner: String, revision: String) -> SpendDashboardConfiguration {
         SpendDashboardConfiguration(
             costUsageEnabled: true,

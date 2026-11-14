@@ -529,12 +529,15 @@ displayable usage or identity remains invalid unless `empty: true` is explicitly
 
 An enabled, approved community plugin can contribute `costUsage` to **Usage & Spend**, token activity, and sharing.
 The plugin instance ID remains the accounting identity; `iconProvider` never changes ownership or merges sources.
-Statistics use the manifest's public name and icon. Account identity, settings, secrets, and source paths are excluded
+Statistics source IDs use a `plugin:` namespace while retaining the real provider instance ID, so a plugin named
+`opencodex` cannot replace the internal log source. Statistics use the manifest's public name and icon. Account identity, settings, secrets, and source paths are excluded
 from sharing, and plugin subscription names are not inferred from identity fields.
 
 The existing unversioned `costUsage` contract remains supported: `currency`, `historyDays`, `windowEnd`, and `entries`,
 with required `inputTokens`, `outputTokens`, `requests`, and `cost` per row. Its total is input plus output.
-Use version 2 when fees, requests, or token components are unknown, or the service reports an authoritative total.
+Legacy civil window bounds remain unchanged in every dashboard time zone. Community statistics count only explicit
+reported dates, including for legacy snapshots; an absent row does not establish an idle day. Use version 2 when fees,
+requests, or token components are unknown, or the service reports an authoritative total.
 
 Always gate version 2 on the host capability. Older hosts reject unsupported snapshot fields; keep their original
 quota/details result without the new history object:

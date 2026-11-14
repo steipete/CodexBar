@@ -57,6 +57,11 @@ extension SpendDashboardModel {
         }
 
         let sourceKind: SpendDashboardModel.SourceKind
+
+        var reportsOnlyExplicitDays: Bool {
+            // Community feeds must report idle days explicitly; retain native legacy dense-window semantics.
+            self.sourceKind == .communityPlugin || self.snapshot.dailyHistory?.missingDaysAreUnknown == true
+        }
     }
 
     struct SourceFilterItem: Identifiable, Equatable, Sendable {

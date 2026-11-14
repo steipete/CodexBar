@@ -57,6 +57,68 @@ struct UserPluginRefreshTests {
     }
 
     @Test
+    func `approval failures remain visible on the quota card`() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let refresh = Task { await fixture.store.refreshUserPlugin(fixture.id) }
+        try await fixture.transport.waitForRequests(1)
+        await fixture.transport.finish(
+            1,
+            used: 42)
+        await refresh.value
+        try fixture.store.pluginApprovalStore.remove(instanceID: fixture.id)
+        await fixture.store.refreshUserPlugin(fixture.id)
+        #expect(fixture.store.snapshots[fixture.id]?.primary?.usedPercent == 42)
+        let error = try #require(fixture.store.errors[fixture.id])
+        #expect(!error.isEmpty)
+        #expect(SpendDashboardSource.capturePluginInputs(store: fixture.store).isEmpty)
+        let fingerprint = UserPluginMenuCardView.fingerprint(
+            snapshot: fixture.store.snapshots[fixture.id],
+            error: error,
+            resetStyle: .countdown,
+            now: Date())
+        #expect(fingerprint.contains(error))
+    }
+
+    @Test
+    func `plugin source IDs cannot collide with OpenCodex enrichment`() async throws {
+        let fixture = try Fixture(idString: "opencodex")
+        defer { fixture.remove() }
+        fixture.settings.costUsageEnabled = true
+        let refresh = Task { await fixture.store.refreshUserPlugin(fixture.id) }
+        try await fixture.transport.waitForRequests(1)
+        await fixture.transport.finish(
+            1,
+            used: 42)
+        await refresh.value
+        let inputs = SpendDashboardSource.capturePluginInputs(store: fixture.store)
+        #expect(inputs.first?.id == "plugin:opencodex")
+        #expect(inputs.first?.provider == fixture.id)
+        let request = SpendDashboardLoadRequest(
+            configuration: SpendDashboardConfiguration(
+                costUsageEnabled: true,
+                providerIDs: ["plugin:opencodex"],
+                codexAccountIdentities: []),
+            capturedInputs: inputs,
+            unavailableSourceIDs: [],
+            codexRequests: [],
+            now: Date(),
+            force: false)
+        let result = await SpendDashboardSource.load(
+            request,
+            codexSnapshotLoader: { _ in
+                throw CancellationError()
+            })
+        let cached = await SpendDashboardSource.loadCached(
+            request,
+            cachedCodexSnapshotLoader: { _ in nil })
+        #expect(result.inputs.first?.id == "plugin:opencodex")
+        #expect(cached.inputs.first?.id == "plugin:opencodex")
+        #expect(result.inputs.first?.snapshot.last30DaysTokens == 42)
+        #expect(cached.inputs.first?.snapshot.last30DaysTokens == 42)
+    }
+
+    @Test
     func `unchanged plugin history preserves the dashboard content revision`() async throws {
         let fixture = try Fixture()
         defer { fixture.remove() }
@@ -367,14 +429,14 @@ struct UserPluginRefreshTests {
         let store: UsageStore
         let id: ProviderInstanceID
 
-        init() throws {
+        init(idString: String = "refresh-fixture") throws {
             self.root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             let providers = self.root.appendingPathComponent("providers")
             try FileManager.default.createDirectory(at: providers, withIntermediateDirectories: true)
             self.pluginURL = providers.appendingPathComponent("refresh.js")
             try Data("""
             defineProvider({
-              id: "refresh-fixture", name: "Refresh Fixture",
+              id: "\(idString)", name: "Refresh Fixture",
               endpoints: ["https://usage.example"],
               settings: [{key:"ACCOUNT",title:"Account",type:"plain"},{key:"TOKEN",title:"Token",type:"secure"}],
               async fetchUsage(ctx) {

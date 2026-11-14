@@ -161,17 +161,24 @@ public struct CostUsageTimedEntry: Sendable, Equatable {
     }
 }
 
-/// Calendar and declared window for a feed that reports only explicit daily observations.
-/// Missing rows are unknown, including inside the declared window.
+/// Explicit civil bounds and optional source calendar for a daily feed.
 public struct CostUsageDailyHistory: Sendable, Equatable {
-    public let timeZoneIdentifier: String
+    /// Nil preserves legacy civil labels in the display calendar without inventing a source zone.
+    public let timeZoneIdentifier: String?
     public let windowStart: String
     public let windowEnd: String
+    public let missingDaysAreUnknown: Bool
 
-    public init(timeZoneIdentifier: String, windowStart: String, windowEnd: String) {
+    public init(
+        timeZoneIdentifier: String?,
+        windowStart: String,
+        windowEnd: String,
+        missingDaysAreUnknown: Bool = true)
+    {
         self.timeZoneIdentifier = timeZoneIdentifier
         self.windowStart = windowStart
         self.windowEnd = windowEnd
+        self.missingDaysAreUnknown = missingDaysAreUnknown
     }
 }
 

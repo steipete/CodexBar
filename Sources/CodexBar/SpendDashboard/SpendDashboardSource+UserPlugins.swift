@@ -3,6 +3,10 @@ import Foundation
 
 @MainActor
 extension SpendDashboardSource {
+    static func pluginSourceID(_ id: ProviderInstanceID) -> String {
+        "plugin:\(id.rawValue)"
+    }
+
     static func approvedStatisticsPlugins(store: UsageStore) -> [UserProviderPlugin] {
         guard store.settings.costUsageEnabled else { return [] }
         return UserProviderPluginRegistry.all.filter { plugin in
@@ -26,14 +30,14 @@ extension SpendDashboardSource {
     static func pluginOwnership(store: UsageStore) -> [String] {
         self.statisticsPlugins(store: store).map { plugin in
             let id = plugin.manifest.id
-            return "\(id.rawValue):\(store.userPluginStatisticsScope(plugin)):" +
+            return "\(self.pluginSourceID(id)):\(store.userPluginStatisticsScope(plugin)):" +
                 "\(store.settings.providerConfigRevision(forInstanceID: id))"
         }
     }
 
     static func pluginRevisions(store: UsageStore) -> [String] {
         self.statisticsPlugins(store: store).map { plugin in
-            let id = plugin.manifest.id.rawValue
+            let id = self.pluginSourceID(plugin.manifest.id)
             guard let publication = store.userPluginTokenPublication(plugin) else { return "\(id):unavailable" }
             guard let snapshot = publication.snapshot else { return "\(id):empty" }
             return "\(id):snapshot:\(self.snapshotRevision(snapshot))"
@@ -46,6 +50,7 @@ extension SpendDashboardSource {
             // Manifest labels are public plugin metadata. Account identity and config never enter this model.
             let name = ShareStatsSanitizer.providerName(plugin.manifest.name) ?? "Community plugin"
             return SpendDashboardModel.ProviderInput(
+                id: self.pluginSourceID(plugin.manifest.id),
                 providerID: plugin.manifest.id,
                 displayName: name,
                 snapshot: snapshot,

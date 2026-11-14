@@ -67,11 +67,7 @@ extension UsageStore {
         let enablementRevision = self.settings.providerEnablementRevision(forInstanceID: instanceID)
         let configRevision = self.settings.providerConfigRevision(forInstanceID: instanceID)
         func canPublish() -> Bool {
-            guard let binding = try? plugin.approvalBinding(
-                settings: self.settings.pluginConfig(instanceID)?.pluginSettings ?? [:]),
-                self.pluginApprovalStore.isApproved(binding)
-            else { return false }
-            return !Task.isCancelled &&
+            !Task.isCancelled &&
                 self.providerRefreshCoordinator.isCurrent(generation, for: instanceID) &&
                 self.settings.isPluginEnabled(instanceID) &&
                 self.settings.providerEnablementRevision(forInstanceID: instanceID) == enablementRevision &&
@@ -88,6 +84,10 @@ extension UsageStore {
                 approvalStore: self.pluginApprovalStore,
                 browserDetection: self.browserDetection)
             guard canPublish() else { return }
+            let binding = try plugin.approvalBinding(settings: config?.pluginSettings ?? [:])
+            guard self.pluginApprovalStore.isApproved(binding) else {
+                throw UserProviderPluginError.approvalRequired(binding)
+            }
             self.publishUserPluginStatistics(snapshot.costUsage, plugin: plugin)
             self.snapshots[instanceID] = snapshot
             self.errors[instanceID] = nil

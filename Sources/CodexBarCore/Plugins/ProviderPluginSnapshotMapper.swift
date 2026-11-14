@@ -438,6 +438,11 @@ enum ProviderPluginSnapshotMapper {
             meteredCostUSD: aggregation.totalEstimatedCost > 0 && meteredCost > 0 ? meteredCost : nil,
             costProvenance: provenance,
             daily: aggregation.daily,
+            dailyHistory: CostUsageDailyHistory(
+                timeZoneIdentifier: nil,
+                windowStart: CostUsageLocalDay.key(from: windowStartDate, calendar: utcCalendar),
+                windowEnd: windowEnd,
+                missingDaysAreUnknown: false),
             updatedAt: windowEndDate)
     }
 

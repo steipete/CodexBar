@@ -226,7 +226,8 @@ enum SpendDashboardSource {
         SpendDashboardConfiguration(
             costUsageEnabled: self.spendCollectionEnabled(settings: settings, providers: providers),
             preferredCurrencyCode: settings.preferredCurrencyCode,
-            providerIDs: providers.map(\.rawValue) + self.statisticsPlugins(store: store).map(\.manifest.id.rawValue),
+            providerIDs: providers.map(\.rawValue) + self.statisticsPlugins(store: store)
+                .map { self.pluginSourceID($0.manifest.id) },
             codexAccountIdentities: codexSources.map(\.identity),
             codexAccountDisplayNames: self.codexDisplayNamesByID(codexSources),
             sourceOwnershipFingerprints: self.sourceOwnershipFingerprints(
@@ -339,7 +340,7 @@ enum SpendDashboardSource {
             && !(piBaseline?.shouldRefresh == true && piBaseline?.publicationRevision == piCurrent.revision)
         var inputs = self.capturePluginInputs(store: store)
         let pluginInputIDs = Set(inputs.map(\.id))
-        var unavailableSourceIDs = Set(self.statisticsPlugins(store: store).map(\.manifest.id.rawValue))
+        var unavailableSourceIDs = Set(self.statisticsPlugins(store: store).map { self.pluginSourceID($0.manifest.id) })
             .subtracting(pluginInputIDs)
         var confirmedEmptySourceIDs: Set<String> = []
         // Provider-specific by design: spend dashboard
@@ -824,6 +825,7 @@ enum SpendDashboardSource {
         encoder.append(snapshot.dailyHistory?.timeZoneIdentifier ?? "")
         encoder.append(snapshot.dailyHistory?.windowStart ?? "")
         encoder.append(snapshot.dailyHistory?.windowEnd ?? "")
+        encoder.append(snapshot.dailyHistory?.missingDaysAreUnknown ?? false)
         encoder.append(snapshot.historyCoverageIsEstablished)
         encoder.append(snapshot.detailsAreComplete)
         // Content-backed sources still advance at their coverage-day boundary, not every fetch.
@@ -1637,10 +1639,13 @@ final class SpendDashboardController {
         let invalidated = outcome.result.invalidatedSourceIDs
         let barrierFailed = capture.unavailableSourceIDs
         let forcedCodexIDs = Set(outcome.request.codexRequests.map { "codex:\($0.id)" })
-        let confirmedNonemptyInputs = outcome.confirmedNonemptyInputs
+        let confirmedNonemptyInputs = outcome.confirmedNonemptyInputs.filter {
+            $0.sourceKind != .communityPlugin || !barrierFailed.contains($0.id)
+        }
         let confirmedNonemptyIDs = Set(confirmedNonemptyInputs.map(\.id))
         var inputs = capture.capturedInputs.filter {
-            (!forceFailed.contains($0.id) || confirmedNonemptyIDs.contains($0.id)) &&
+            ($0.sourceKind != .communityPlugin || !barrierFailed.contains($0.id)) &&
+                (!forceFailed.contains($0.id) || confirmedNonemptyIDs.contains($0.id)) &&
                 !invalidated.contains($0.id) &&
                 !outcome.confirmedEmptySourceIDs.contains($0.id)
         }
@@ -1652,7 +1657,8 @@ final class SpendDashboardController {
             capturedIDs.insert(input.id)
         }
         for input in outcome.result.inputs
-            where !capturedIDs.contains(input.id) &&
+            where input.sourceKind != .communityPlugin &&
+            !capturedIDs.contains(input.id) &&
             !forceFailed.contains(input.id) &&
             !invalidated.contains(input.id) &&
             !outcome.confirmedEmptySourceIDs.contains(input.id) &&
@@ -1869,6 +1875,9 @@ final class SpendDashboardController {
     private func provider(for sourceID: String) -> ProviderInstanceID? {
         // Provider-specific by design: account source IDs map to Codex.
         if sourceID.hasPrefix("codex:") { return .codex }
+        if sourceID.hasPrefix("plugin:") {
+            return ProviderInstanceID(rawValue: String(sourceID.dropFirst("plugin:".count)))
+        }
         return ProviderInstanceID(rawValue: sourceID)
     }
 
@@ -1949,7 +1958,8 @@ final class SpendDashboardController {
 
     private static func sourceOwnershipByID(_ fingerprints: [String]) -> [String: String] {
         Dictionary(uniqueKeysWithValues: fingerprints.compactMap { fingerprint in
-            guard let separator = fingerprint.firstIndex(of: ":") else { return nil }
+            let search = fingerprint.hasPrefix("plugin:") ? fingerprint.dropFirst("plugin:".count) : fingerprint[...]
+            guard let separator = search.firstIndex(of: ":") else { return nil }
             let sourceID = String(fingerprint[..<separator])
             guard !sourceID.isEmpty else { return nil }
             return (sourceID, fingerprint)
