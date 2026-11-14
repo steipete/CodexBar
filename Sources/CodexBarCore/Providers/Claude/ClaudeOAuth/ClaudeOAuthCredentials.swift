@@ -8,6 +8,7 @@ import FoundationNetworking
 #if os(macOS)
 import LocalAuthentication
 import Security
+import SweetCookieKit
 #endif
 
 // swiftlint:disable type_body_length file_length
@@ -546,7 +547,10 @@ public enum ClaudeOAuthCredentialsStore {
             environment: [String: String],
             lastError: inout Error?) -> ClaudeOAuthCredentialRecord?
         {
-            guard allowKeychainPrompt else { return nil }
+            guard allowKeychainPrompt, ProviderInteractionContext.current == .userInitiated else { return nil }
+            #if os(macOS)
+            guard !BrowserCookieKeychainAccessGate.isUserInteractionDisallowed else { return nil }
+            #endif
             let profileIdentifier = ClaudeOAuthCredentialsStore.credentialsProfileIdentifier(
                 environment: environment)
             let promptGeneration = ClaudeOAuthKeychainAccessGate.promptAttemptGeneration()
@@ -2408,12 +2412,30 @@ public enum ClaudeOAuthCredentialsStore {
     {
         guard self.shouldAllowClaudeCodeKeychainAccess(mode: promptMode)
         else { return nil }
+        // Every payload path, including delegated-refresh verification, must check both ACLs.
+        guard candidate == nil || candidate?.account != nil else { return nil }
+        let requiresPrompt: Bool
+        switch KeychainAccessPreflight.checkGenericPassword(
+            service: self.claudeKeychainService,
+            account: candidate?.account,
+            requirePartition: true)
+        {
+        case .allowed: requiresPrompt = false
+        case .interactionRequired: requiresPrompt = true
+        case .notFound, .temporarilyUnavailable, .failure: return nil
+        }
+        if requiresPrompt {
+            guard allowKeychainPrompt,
+                  ClaudeOAuthKeychainAccessGate.shouldAllowPrompt(),
+                  BrowserCookieAccessGate.claimCredentialRead(service: self.claudeKeychainService)
+            else { return nil }
+        }
         let label = candidate == nil ? "Claude keychain legacy data read" : "Claude keychain data read"
         self.log.debug(
             "\(label) start",
             metadata: [
                 "service": self.claudeKeychainService,
-                "interactive": "\(allowKeychainPrompt)",
+                "interactive": "\(requiresPrompt)",
                 "process": ProcessInfo.processInfo.processName,
             ])
 
@@ -2428,16 +2450,21 @@ public enum ClaudeOAuthCredentialsStore {
         } else {
             query[kSecAttrService as String] = self.claudeKeychainService
         }
-        if !allowKeychainPrompt {
+        if !requiresPrompt {
             KeychainNoUIQuery.apply(to: &query)
         }
 
         let (status, result, durationMs) = ClaudeOAuthKeychainQueryTiming.copyMatching(query)
+        if requiresPrompt, [errSecUserCanceled, errSecAuthFailed, errSecNoAccessForItem, errSecInteractionNotAllowed]
+            .contains(status)
+        {
+            BrowserCookieAccessGate.recordCredentialDenial(service: self.claudeKeychainService)
+        }
         self.log.debug(
             "\(label) result",
             metadata: [
                 "service": self.claudeKeychainService,
-                "interactive": "\(allowKeychainPrompt)",
+                "interactive": "\(requiresPrompt)",
                 "status": "\(status)",
                 "duration_ms": String(format: "%.2f", durationMs),
                 "process": ProcessInfo.processInfo.processName,
@@ -2445,7 +2472,7 @@ public enum ClaudeOAuthCredentialsStore {
         return try self.claudeKeychainDataResult(
             status: status,
             result: result,
-            allowKeychainPrompt: allowKeychainPrompt)
+            allowKeychainPrompt: requiresPrompt)
     }
 
     static func claudeKeychainDataResult(
@@ -2921,9 +2948,8 @@ public enum ClaudeOAuthCredentialsStore {
             return true
         }
         #endif
-        // Claude Code owns `Claude Code-credentials` and rewrites the item during token refreshes. That rewrite
-        // replaces its ACL, so any permission granted to CodexBar is inherently temporary and can cause recurring
-        // macOS password dialogs. Production CodexBar therefore reads the foreign item only after the user
+        // Claude Code owns `Claude Code-credentials`; updates can reset its partition grants while retaining
+        // the visible decrypt ACL. Production CodexBar therefore reads the foreign item only after the user
         // explicitly opted in (#2634); without consent every direct-read path stays closed, including the
         // freshness sync and delegated-refresh verification that route through this same gate.
         guard !KeychainAccessGate.isDisabled else { return false }

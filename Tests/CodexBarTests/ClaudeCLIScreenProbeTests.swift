@@ -26,18 +26,38 @@ struct ClaudeCLIScreenProbeTests {
         Scanning local sessions…
         Esc to cancel
         """.replacingOccurrences(of: "\n", with: "\r\n") + "\u{1b}[J"
-        func normalizedScreen(_ capture: String) -> String {
-            String(ClaudeCLIScreen.render(capture).lowercased().filter { !$0.isWhitespace })
-        }
 
-        #expect(!ClaudeStatusProbe.usageCaptureIsComplete(normalizedScreen(firstFrame)))
-        #expect(!ClaudeStatusProbe.usageCaptureIsComplete(normalizedScreen(
+        #expect(!ClaudeStatusProbe.usageCaptureIsComplete(Self.normalizedScreen(firstFrame)))
+        #expect(!ClaudeStatusProbe.usageCaptureIsComplete(Self.normalizedScreen(
             firstFrame.replacingOccurrences(of: "Refreshing…", with: "Refreshing..."))))
         let completed = firstFrame + finalFrame
-        #expect(ClaudeStatusProbe.usageCaptureIsComplete(normalizedScreen(completed)))
+        #expect(ClaudeStatusProbe.usageCaptureIsComplete(Self.normalizedScreen(completed)))
         let snapshot = try ClaudeStatusProbe.parse(text: completed)
         #expect(snapshot.extraRateWindows.first?.window.usedPercent == 42)
         #expect(ClaudeStatusProbe.usageCaptureIsComplete("currentsession9%used"))
+    }
+
+    @Test
+    func `usage capture completes on a plan without a session row`() throws {
+        let loadingFrame = "\u{1b}[H" + """
+        Settings  Status   Config   Usage   Stats
+        Current week (all models)
+        Loading usage data…
+        Esc to cancel
+        """.replacingOccurrences(of: "\n", with: "\r\n")
+
+        #expect(!ClaudeStatusProbe.usageCaptureIsComplete(Self.normalizedScreen(loadingFrame)))
+        let completed = try Self.capture("usage-pty-weekly-only")
+        #expect(ClaudeStatusProbe.usageCaptureIsComplete(Self.normalizedScreen(completed)))
+        let snapshot = try ClaudeStatusProbe.parse(text: completed)
+        #expect(snapshot.sessionPercentLeft == nil)
+        #expect(snapshot.weeklyPercentLeft == 45)
+        #expect(snapshot.secondaryResetDescription == "Resets Sep 23 at 3pm (Europe/Stockholm)")
+        #expect(snapshot.extraRateWindows.first?.window.usedPercent == 14)
+    }
+
+    static func normalizedScreen(_ capture: String) -> String {
+        String(ClaudeCLIScreen.render(capture).lowercased().filter { !$0.isWhitespace })
     }
 
     static func capture(_ name: String) throws -> String {

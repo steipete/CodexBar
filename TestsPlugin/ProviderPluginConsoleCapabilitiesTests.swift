@@ -26,11 +26,7 @@ struct ProviderPluginConsoleCapabilitiesTests {
         """, transport: ProviderHTTPTransportHandler { request in
             #expect(request.httpMethod == "POST")
             #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/x-www-form-urlencoded")
-            let body = try #require(String(data: request.httpBody ?? Data(), encoding: .utf8))
-            let fields = Dictionary(uniqueKeysWithValues: body.split(separator: "&").map { pair in
-                let parts = pair.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
-                return (String(parts[0]).removingPercentEncoding!, String(parts[1]).removingPercentEncoding!)
-            })
+            let fields = try BundledPluginTestSupport.formFields(request.httpBody)
             #expect(fields == ["sec_token": "fixture +&=%雪", "params": "{\"value\":\"a+b&c=d\"}"])
             return Self.response(request, body: "ok")
         })

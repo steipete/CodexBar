@@ -9,11 +9,15 @@ struct ClaudeSubscriptionCLITests {
 
     actor Server {
         let scenario: Scenario
+        let challengesAccount: Bool
         var billed = false
         var requests: [String] = []
         static let org = "11111111-1111-4111-8111-111111111111"
         static let otherOrg = "22222222-2222-4222-8222-222222222222"
-        init(_ scenario: Scenario) { self.scenario = scenario }
+        init(_ scenario: Scenario, challengesAccount: Bool = false) {
+            self.scenario = scenario
+            self.challengesAccount = challengesAccount
+        }
 
         func respond(_ request: URLRequest) async throws -> (Data, URLResponse) {
             let url = try #require(request.url)
@@ -38,6 +42,13 @@ struct ClaudeSubscriptionCLITests {
                 body = "{}"
                 code = 404
             case "/api/account":
+                if self.challengesAccount {
+                    return try (Data("<html>Just a moment...</html>".utf8), #require(HTTPURLResponse(
+                        url: url,
+                        statusCode: 403,
+                        httpVersion: nil,
+                        headerFields: ["cf-mitigated": "challenge", "Content-Type": "text/html"])))
+                }
                 let email = self.billed && self.scenario == .changedAccount
                     ? "other@example.com" : "fixture@example.com"
                 let account = self.billed && self.scenario == .changedAccount ? "other-account" : "fixture-account"
@@ -147,6 +158,16 @@ struct ClaudeSubscriptionCLITests {
         #expect(result.usage.primary?.usedPercent == 11)
         #expect(result.usage.subscriptionRenewsAt == nil)
         #expect(await server.requests.isEmpty)
+    }
+
+    @Test func `challenged web account stops optional OAuth billing without losing quota`() async throws {
+        let server = Server(.renewal, challengesAccount: true)
+        let result = try await self.fetch(server, source: .oauth)
+        #expect(result.usage.primary?.usedPercent == 11)
+        #expect(result.usage.subscriptionRenewsAt == nil)
+        #expect(result.usage.subscriptionExpiresAt == nil)
+        #expect(await server.requests == ["/api/oauth/profile", "/api/account"])
+        #expect(await !server.billed)
     }
 
     @Test func `optional deadline cannot discard successful quota`() async throws {
