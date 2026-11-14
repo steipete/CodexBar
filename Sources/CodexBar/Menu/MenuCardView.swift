@@ -355,9 +355,7 @@ private struct UsageMenuCardHeaderView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: UsageMenuCardLayout.headerLineSpacing) {
             HStack(alignment: .firstTextBaseline, spacing: UsageMenuCardLayout.headerColumnSpacing) {
-                Text(self.model.providerName).font(.headline)
-                    .fontWeight(.semibold)
-                    .lineLimit(1).truncationMode(.tail).layoutPriority(1)
+                UsageMenuCardTitleView(title: self.model.providerName)
                 Spacer()
                 Text(self.model.email).font(.subheadline)
                     .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
