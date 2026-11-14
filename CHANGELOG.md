@@ -4,6 +4,7 @@
 
 ### Added
 
+- Usage & Spend: include community plugins' existing cost usage in statistics and sharing without extra dashboard fetches or mixed provider identities (#5084). Thanks @tangwz!
 - Google Developer Program: show the current monthly Gen AI & Cloud credit of Google AI Pro and Ultra from the benefits page, using the signed-in browser session and finding the Google account that holds the credit (#5033, #5035). Thanks @fcakyon!
 - Pi: group local cost by session and project in the cost-history menu, Usage & Spend, and `codexbar cost --group-by session|project`, with JSON project totals and a one-time history rebuild (#4930, #5025). Thanks @oryband!
 - Claude: group local cost by session and project in the cost-history menu, Usage & Spend, and `codexbar cost --group-by session|project`, counting copied responses once and rebuilding history once after upgrading (#4930, #5026). Thanks @oryband!
