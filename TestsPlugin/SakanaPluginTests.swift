@@ -1,9 +1,9 @@
 import Foundation
+import Testing
+@testable import CodexBarCore
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import Testing
-@testable import CodexBarCore
 
 struct SakanaPluginTests {
     @Test(arguments: BundledPluginTestSupport.engines)
@@ -292,11 +292,9 @@ struct SakanaPluginTests {
         engine: ProviderPluginEngineKind,
         optional: Bool = true,
         now: Date = Date(),
-        contextOptions: ProviderPluginContextOptions = .init(
-            optionalRequestTimeoutSeconds: nil,
-            optionalCollectionBudget: .seconds(3))) async throws -> UsageSnapshot
+        contextOptions: ProviderPluginContextOptions = BundledPluginTestSupport.contextOptions) async throws
+        -> UsageSnapshot
     {
-        // Parser fixtures must not race loaded CI runners against the production 200 ms budget.
         let runtime = try BundledPluginTestSupport.runtime(
             "sakana",
             engine: engine,

@@ -1,9 +1,9 @@
 import Foundation
+import Testing
+@testable import CodexBarCore
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import Testing
-@testable import CodexBarCore
 
 struct ProviderPluginTransportTests {
     #if canImport(JavaScriptCore)
@@ -159,7 +159,10 @@ struct ProviderPluginTransportTests {
             body: "await ctx.http.get('https://example.com');",
             transport: ProviderHTTPTransportHandler { _ in
                 continuation.yield("started")
-                do { try await Task.sleep(for: .seconds(30)) } catch { continuation.yield("cancelled"); throw error }
+                do { try await BundledPluginTestSupport.suspendUntilCancelled() } catch {
+                    continuation.yield("cancelled")
+                    throw error
+                }
                 throw URLError(.timedOut)
             })
         var iterator = events.makeAsyncIterator()
@@ -173,23 +176,27 @@ struct ProviderPluginTransportTests {
 
     @Test(arguments: Self.engines)
     func `fetch deadline bounds attempts waiting to start`(engine: ProviderPluginEngineKind) async throws {
+        let (starts, started) = AsyncStream<Void>.makeStream()
+        defer { started.finish() }
         let runtime = try Self.runtime(
             engine,
             body: "await ctx.http.get('https://example.com', { timeoutSeconds: 1 });",
-            timeout: 0.2,
             contextOptions: ProviderPluginContextOptions(
                 optionalRequestTimeoutSeconds: nil,
-                beforeHTTPAttempt: { _ in try await Task.sleep(for: .seconds(30)) }),
+                waitForFetchDeadline: { budget in
+                    #expect(budget == BundledPluginTestSupport.timeout)
+                    var iterator = starts.makeAsyncIterator()
+                    #expect(await iterator.next() != nil)
+                },
+                beforeHTTPAttempt: { _ in
+                    started.yield()
+                    try await BundledPluginTestSupport.suspendUntilCancelled()
+                }),
             transport: ProviderHTTPTransportHandler { _ in
                 Issue.record("Transport must not run after the fetch deadline")
                 throw URLError(.badURL)
             })
-        await #expect {
-            try await runtime.fetchUsage()
-        } throws: { error in
-            // The QuickJS fetch deadline and the runtime watchdog can win the same race.
-            (error as? ProviderPluginError) == .timedOut || (error as? URLError)?.code == .timedOut
-        }
+        await #expect(throws: ProviderPluginError.timedOut) { try await runtime.fetchUsage() }
     }
 
     @Test(arguments: Self.engines)
@@ -203,7 +210,7 @@ struct ProviderPluginTransportTests {
                 optionalRequestTimeoutSeconds: nil,
                 beforeHTTPAttempt: { _ in
                     continuation.yield("waiting")
-                    do { try await Task.sleep(for: .seconds(30)) } catch {
+                    do { try await BundledPluginTestSupport.suspendUntilCancelled() } catch {
                         continuation.yield("cancelled")
                         throw error
                     }
@@ -248,38 +255,61 @@ struct ProviderPluginTransportTests {
     @Test(arguments: Self.engines)
     func `native Retry After is capped at ten seconds`(engine: ProviderPluginEngineKind) async throws {
         let transport = PluginStatusTransport(status: 429, retryAfter: "3600", recovers: true)
+        let (delays, recorded) = AsyncStream<TimeInterval>.makeStream()
+        defer { recorded.finish() }
+        var options = BundledPluginTestSupport.contextOptions
+        options.sleepBeforeRetry = { recorded.yield($0) }
         let runtime = try Self.runtime(
             engine,
             body: """
             await ctx.http.get('https://example.com', { retryPolicy: 'transientIdempotent' });
             return { identity: { loginMethod: 'ok' } };
             """,
+            contextOptions: options,
             transport: transport)
-        let start = ContinuousClock.now
         #expect(try await runtime.fetchUsage().identity?.loginMethod == "ok")
-        #expect(start.duration(to: .now) >= .seconds(10))
+        recorded.finish()
+        var values: [TimeInterval] = []
+        for await delay in delays {
+            values.append(delay)
+        }
+        #expect(values == [10])
         #expect(await transport.count == 2)
     }
 
     @Test(.timeLimit(.minutes(1)), arguments: Self.engines)
     func `request deadline applies to each retry attempt`(engine: ProviderPluginEngineKind) async throws {
         let counter = PluginStatusTransport(status: 200)
+        let (starts, started) = AsyncStream<Void>.makeStream()
+        let (cancellations, cancelled) = AsyncStream<Void>.makeStream()
+        defer { started.finish(); cancelled.finish() }
+        var options = BundledPluginTestSupport.contextOptions
+        options.waitForHTTPDeadline = { _, budget in
+            #expect(budget == .seconds(1))
+            var iterator = starts.makeAsyncIterator()
+            #expect(await iterator.next() != nil)
+        }
         let runtime = try Self.runtime(
             engine,
             body: """
             await ctx.http.get('https://example.com', { timeoutSeconds: 1, retryPolicy: 'transientIdempotent' });
             return { identity: { loginMethod: 'ok' } };
             """,
+            contextOptions: options,
             transport: ProviderHTTPTransportHandler { request in
                 let response = try await counter.data(for: request)
-                let (pending, release) = AsyncStream<Void>.makeStream()
-                defer { release.finish() }
-                for await _ in pending {}
-                try Task.checkCancellation()
+                started.yield()
+                do { try await BundledPluginTestSupport.suspendUntilCancelled() } catch {
+                    cancelled.yield()
+                    throw error
+                }
                 return response
             })
         await #expect(throws: URLError(.timedOut)) { try await runtime.fetchUsage() }
         #expect(await counter.count == 2)
+        var iterator = cancellations.makeAsyncIterator()
+        #expect(await iterator.next() != nil)
+        #expect(await iterator.next() != nil)
     }
 
     @Test(arguments: Self.engines)
@@ -301,33 +331,40 @@ struct ProviderPluginTransportTests {
 
     @Test(arguments: Self.engines)
     func `cancellation stops a pending retry delay`(engine: ProviderPluginEngineKind) async throws {
-        let (events, continuation) = AsyncStream.makeStream(of: Void.self)
+        let (events, continuation) = AsyncStream.makeStream(of: String.self)
+        defer { continuation.finish() }
         let transport = PluginStatusTransport(status: 429, retryAfter: "10")
+        var options = BundledPluginTestSupport.contextOptions
+        options.sleepBeforeRetry = { delay in
+            #expect(delay == 10)
+            continuation.yield("waiting")
+            do { try await BundledPluginTestSupport.suspendUntilCancelled() } catch {
+                continuation.yield(Task.isCancelled ? "cancelled" : "failed")
+                throw error
+            }
+        }
         let runtime = try Self.runtime(
             engine,
             body: """
             await ctx.http.get('https://example.com', { retryPolicy: 'transientIdempotent' });
             """,
-            transport: ProviderHTTPTransportHandler { request in
-                let response = try await transport.data(for: request)
-                continuation.yield()
-                return response
-            })
+            contextOptions: options,
+            transport: transport)
         var iterator = events.makeAsyncIterator()
         let task = Task { try await runtime.fetchUsage() }
-        _ = await iterator.next()
+        #expect(await iterator.next() == "waiting")
         task.cancel()
         await #expect(throws: CancellationError.self) { try await task.value }
+        #expect(await iterator.next() == "cancelled")
         #expect(await transport.count == 1)
-        continuation.finish()
     }
 
     static func runtime(
         _ engine: ProviderPluginEngineKind,
         body: String,
         enforcesUserResponsePolicy: Bool = false,
-        timeout: TimeInterval = ProviderPluginRuntime.defaultTimeout,
-        contextOptions: ProviderPluginContextOptions = .production,
+        timeout: TimeInterval = BundledPluginTestSupport.timeout,
+        contextOptions: ProviderPluginContextOptions = BundledPluginTestSupport.contextOptions,
         transport: any ProviderHTTPTransport = ProviderHTTPTransportHandler { _ in throw URLError(.badURL) }) throws
         -> ProviderPluginRuntime
     {

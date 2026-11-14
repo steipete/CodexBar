@@ -1745,7 +1745,7 @@
 "Automatic imports longcat.chat cookies from your browser." = "Importaciones automáticas longcat.chat cookies desde su navegador.";
 "Automatically imports browser cookies for budget extras." = "Importa automáticamente el navegador cookies para obtener extras económicos.";
 "Automatically imports browser cookies for github.com budget extras." = "Importa automáticamente el navegador cookies para extras de presupuesto github.com.";
-"Automatically imports the app.devin.ai session from Chromium browsers." = "Importa automáticamente la sesión app.devin.ai desde los navegadores Chromium.";
+"Automatically imports the app.devin.ai session from the Devin app or Chromium browsers." = "Importa automáticamente la sesión app.devin.ai desde la app Devin o los navegadores Chromium.";
 "Automatically imports the browser session cookie." = "Importa automáticamente la sesión del navegador cookie.";
 "Automatically signs in using your ZoomMate session cookies from Chrome." = "Inicia sesión automáticamente usando tu sesión ZoomMate cookies desde Chrome.";
 "BY USAGE" = "Clasificado por uso";
@@ -2817,3 +2817,15 @@
 "Tripo is rate limiting requests. Try again later." = "Tripo está limitando las solicitudes. Inténtalo más tarde.";
 "Tripo request failed. Try refreshing later." = "La solicitud a Tripo ha fallado. Intenta actualizar más tarde.";
 "Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo ha devuelto una respuesta desconocida. Actualiza CodexBar e inténtalo de nuevo.";
+
+/* Provider setup guidance. */
+"Authorize GitHub's device code to save a Copilot token account." = "Autoriza el código de dispositivo de GitHub para guardar una cuenta con token de Copilot.";
+"Supply a GitHub token accepted by the Copilot usage API." = "Introduce un token de GitHub aceptado por la API de uso de Copilot.";
+"Optional, best-effort budgets for public github.com only. Enable Budget extras in the macOS app; the browser session must match the token account. Quota usage does not need cookies." = "Presupuestos opcionales, sin garantía, solo para github.com público. Activa los extras de presupuesto en la app de macOS; la sesión del navegador debe coincidir con la cuenta del token. Las cuotas no necesitan cookies.";
+"In the macOS app, select manual cookie source and supply the matching GitHub Cookie header." = "En la app de macOS, selecciona la fuente manual de cookies e introduce la cabecera Cookie de GitHub correspondiente.";
+"Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app." = "Inicia sesión en GitHub en un navegador compatible y selecciona la importación automática de cookies en la app de macOS.";
+"Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints." = "Usa una clave API Admin de la organización para sus costes y uso. Las claves de proyecto o cuenta de servicio no pueden leer esos endpoints.";
+"A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "Una clave API normal solo permite consultar el saldo antiguo como alternativa sin garantía, no el uso de la organización. Las claves configuradas con ámbito de proyecto no usan esta alternativa.";
+"Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Introduce una clave, un endpoint de recurso HTTPS y un nombre de despliegue. La versión de API es opcional. Actualizar envía una solicitud de validación potencialmente facturable, no una consulta del historial de uso.";
+"Mistral session expired or invalid." = "La sesión de Mistral ha caducado o no es válida.";
+"Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Usa una clave API con el permiso user_read para consultar el uso de la suscripción. El comando guarda una clave independiente; la cuenta de clave API seleccionada tiene prioridad.";

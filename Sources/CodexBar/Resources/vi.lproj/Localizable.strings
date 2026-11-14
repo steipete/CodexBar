@@ -1748,7 +1748,7 @@
 "Automatic imports longcat.chat cookies from your browser." = "Tự động nhập longcat.chat cookies từ trình duyệt của bạn.";
 "Automatically imports browser cookies for budget extras." = "Tự động nhập trình duyệt cookies để bổ sung ngân sách.";
 "Automatically imports browser cookies for github.com budget extras." = "Tự động nhập trình duyệt cookies để bổ sung ngân sách github.com.";
-"Automatically imports the app.devin.ai session from Chromium browsers." = "Tự động nhập phiên app.devin.ai từ trình duyệt Chromium.";
+"Automatically imports the app.devin.ai session from the Devin app or Chromium browsers." = "Tự động nhập phiên app.devin.ai từ ứng dụng Devin hoặc trình duyệt Chromium.";
 "Automatically imports the browser session cookie." = "Tự động nhập phiên trình duyệt cookie.";
 "Automatically signs in using your ZoomMate session cookies from Chrome." = "Tự động đăng nhập bằng phiên ZoomMate cookies của bạn từ Chrome.";
 "BY USAGE" = "Xếp hạng theo cách sử dụng";
@@ -2820,3 +2820,15 @@
 "Tripo is rate limiting requests. Try again later." = "Tripo đang giới hạn tần suất yêu cầu. Hãy thử lại sau.";
 "Tripo request failed. Try refreshing later." = "Yêu cầu Tripo không thành công. Hãy thử làm mới sau.";
 "Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo trả về phản hồi không nhận dạng được. Hãy cập nhật CodexBar rồi thử lại.";
+
+/* Provider setup guidance. */
+"Authorize GitHub's device code to save a Copilot token account." = "Ủy quyền mã thiết bị GitHub để lưu tài khoản mã thông báo Copilot.";
+"Supply a GitHub token accepted by the Copilot usage API." = "Cung cấp mã thông báo GitHub được API mức sử dụng Copilot chấp nhận.";
+"Optional, best-effort budgets for public github.com only. Enable Budget extras in the macOS app; the browser session must match the token account. Quota usage does not need cookies." = "Ngân sách tùy chọn, không bảo đảm thành công, chỉ cho github.com công khai. Bật phần bổ sung ngân sách trong ứng dụng macOS; phiên trình duyệt phải khớp với tài khoản của mã thông báo. Hạn mức không cần cookie.";
+"In the macOS app, select manual cookie source and supply the matching GitHub Cookie header." = "Trong ứng dụng macOS, chọn nguồn cookie thủ công và cung cấp tiêu đề Cookie GitHub tương ứng.";
+"Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app." = "Đăng nhập GitHub trong trình duyệt được hỗ trợ và chọn nhập cookie tự động trong ứng dụng macOS.";
+"Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints." = "Dùng khóa API Admin của tổ chức để xem chi phí và mức sử dụng của tổ chức. Khóa dự án hoặc tài khoản dịch vụ không thể đọc các điểm cuối này.";
+"A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "Khóa API thông thường chỉ hỗ trợ truy vấn số dư cũ dự phòng, không bảo đảm thành công, không hỗ trợ mức sử dụng của tổ chức. Khóa đã cấu hình phạm vi dự án không dùng cách dự phòng này.";
+"Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Cung cấp khóa, điểm cuối tài nguyên HTTPS và tên triển khai. Phiên bản API là tùy chọn. Làm mới gửi yêu cầu xác thực có thể tính phí, không phải truy vấn lịch sử sử dụng.";
+"Mistral session expired or invalid." = "Phiên Mistral đã hết hạn hoặc không hợp lệ.";
+"Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Sử dụng khóa API có quyền user_read để xem mức sử dụng gói đăng ký. Lệnh lưu một khóa riêng; tài khoản khóa API đang chọn được ưu tiên.";

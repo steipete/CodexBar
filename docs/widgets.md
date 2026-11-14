@@ -9,6 +9,7 @@ read_when:
 # Widgets
 
 ## Snapshot pipeline
+- Provider headers use bundled vector logos with a monogram fallback. Low-quota bars use red in full-color widgets and strong neutral ink in tinted or clear appearances, where a red luminance mask would weaken the warning.
 - Quota headlines follow the menu layout: `Weekly 93% left` and `Resets in 1 minute` above the bar. Reset text moves below the headline when the tile is too narrow.
 - On macOS 15+, snapshot ages and reset references use live SwiftUI date text with minute precision; WidgetKit advances the text without requesting extra timeline reloads. Reset references use the native calendar wording for distant dates, reach `now` at expiration, and identify elapsed resets afterward. macOS 14 retains native relative-date text for compatibility.
 - `WidgetSnapshotStore` writes compact JSON snapshots to the app-group container.
@@ -18,7 +19,7 @@ read_when:
 - Measured Antigravity quota rows retain their own duration and reset time, including five-hour lanes. Unknown-capacity rows stay unavailable rather than displaying an invented percentage.
 - Usage and Switcher tiles emphasize the most constrained general quota, preserve other allowances as detail rows, and show full provider names. Code-review and model-specific allowances do not replace a provider's general quota headline. Providers without quota bars keep credits or local-cost information useful.
 - WidgetKit owns the outer margins. All sizes share rendering and quota-selection rules, with overflow labels for omitted rows. Native relative-date text keeps snapshot ages and resets current between timeline reloads. Token-cost rows show their own saved age when more than ten minutes behind quota data. New usage still requires an app refresh and an accepted WidgetKit timeline.
-- The app writes snapshots after the main refresh pipeline and token-usage refreshes; narrow single-provider refresh paths may wait for the next snapshot write.
+- The app publishes snapshots after the main refresh pipeline and token-usage refreshes. Repeated publications skip the file write and reload request only when the complete serialized snapshot is unchanged apart from its generation time and the saved file still matches the last successful write. Fresh measurement timestamps, token rows, account records, and display-setting changes still publish; narrow single-provider refresh paths may wait for the next publication.
 - Claude-swap refreshes and cleared adapter state publish snapshots even when account widgets are off. When Claude-swap owns account presentation, provider widgets follow its active slot and measurement time. Missing quota can retain only that slot owner's saved reading, never ambient or another slot's quota. Local cost remains provider-wide.
 - When a failed refresh has no usage for a provider, the writer can retain that provider's last queued entry while it remains enabled and preservation has not been invalidated. Another provider's missing, disabled, or invalidated entry does not discard eligible readings. Measurement timestamps stay unchanged, so widgets show the data's original age. Account invalidation retires only that provider's queued entry until valid replacement usage is published. This fallback is limited to the current app session; it does not restore generic provider entries from disk across account changes or restarts. Claude keeps its existing ownership-checked preservation path.
 - Scheduled provider refreshes trigger token/cost refreshes when their TTL permits, with a 15-minute local-history minimum (30 minutes in low-power mode). Manual disables the recurring timer; startup and pending Codex catch-up may still scan. These limits bound history work and WidgetKit reload requests without changing provider usage/status cadence.
@@ -28,7 +29,7 @@ read_when:
 - If no snapshot is available, widgets fall back to preview/empty data.
 - Provider-pinned widgets (Usage, History, Metric) retain their configured provider. If it is absent from a nonempty snapshot's `enabledProviders`, the empty state names it as unavailable and points at Edit Widget. That list records enabled, available, widget-capable providers; missing credentials can therefore produce this state too. With no available providers or no saved snapshot, widgets point at provider setup in Settings. Enabled providers awaiting a measurement show **No data**. The Switcher has no provider editor, so its recovery always points at app settings. Burn Down uses the same **No data** label in its own empty-state layout; account widgets keep their own setup guidance.
 
-Persistence must finish before requesting a timeline reload. Tests opt in with an in-memory save override or test-owned snapshot URL; neither reloads WidgetKit. Use the helper's explicit test-mode decision and per-store reload callback to verify ordering without changing process-wide isolation or calling WidgetKit.
+Persistence must finish before requesting a timeline reload. Failed attempts retain the reload request but clear suppression state so the next publication retries. The first publication in each app process is never suppressed, including after an upgrade. Only successful writes establish a baseline; removed files or changed file contents force another attempt. Duplicate checks retain only two hashes and use bounded file reads. Tests opt in with an in-memory save override or test-owned snapshot URL; neither reloads WidgetKit. Use the helper's explicit test-mode decision and per-store reload callback to verify ordering without changing process-wide isolation or calling WidgetKit.
 
 ## Extension
 - `Sources/CodexBarWidget` contains timeline + views.
@@ -71,7 +72,10 @@ Medium shows up to four account rows; large supports up to eight. Published acco
 most constrained general quota's remaining percentage, lowest first, using the same quota selection as
 Account Usage. Ties keep snapshot order, and unavailable accounts follow measured accounts. The
 used/remaining display preference does not change the ordering. The header's age reflects the oldest
-displayed account measurement, including retained last-good readings.
+displayed account measurement, including retained last-good readings. With no measured rows, the header
+uses the original publication date of the unchanged empty/unavailable snapshot; duplicate cost reports
+do not make it look newer. Native age text continues advancing, and the existing timeline schedule
+continues evaluating the 24-hour stale color and reset state.
 
 The existing snapshot writer still publishes at most six accounts per provider. It adds only an anonymous
 count for accounts beyond that cap, without fetching them or publishing their identities. A single
@@ -147,8 +151,9 @@ installation, other users' processes, and processes with a different or unreadab
 designated requirement are left alone. There is no polling or recovery scan on subsequent
 launches of the same build.
 
-The normal startup refresh also publishes a snapshot, waits for the save attempt, and
-requests a timeline reload. Later refreshes repeat that request. The widget kinds are
+The normal startup refresh also attempts to publish a snapshot and requests a timeline reload after
+the save attempt finishes. Later refreshes repeat that request when serialized content changes beyond
+generation time, or the saved file no longer matches the last successful publication. The widget kinds are
 declared in `CodexBarWidgetBundle`; macOS discovers the embedded extension. Packaging
 assigns the same version and build number to the app and extension. Recovery uses process
 age because the plist at a replaced pathname does not identify the running executable's

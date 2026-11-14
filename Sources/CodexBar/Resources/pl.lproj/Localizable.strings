@@ -1750,7 +1750,7 @@
 "Automatic imports longcat.chat cookies from your browser." = "Automatyczny import longcat.chat cookies z Twojej przeglądarki.";
 "Automatically imports browser cookies for budget extras." = "Automatycznie importuje przeglądarkę cookies w celu uzyskania dodatków budżetowych.";
 "Automatically imports browser cookies for github.com budget extras." = "Automatycznie importuje przeglądarkę cookies dla dodatków budżetowych github.com.";
-"Automatically imports the app.devin.ai session from Chromium browsers." = "Automatycznie importuje sesję app.devin.ai z przeglądarek Chromium.";
+"Automatically imports the app.devin.ai session from the Devin app or Chromium browsers." = "Automatycznie importuje sesję app.devin.ai z aplikacji Devin lub przeglądarek Chromium.";
 "Automatically imports the browser session cookie." = "Automatycznie importuje sesję przeglądarki cookie.";
 "Automatically signs in using your ZoomMate session cookies from Chrome." = "Automatycznie loguje się przy użyciu sesji ZoomMate cookies z Chrome.";
 "BY USAGE" = "Ranking według użycia";
@@ -2822,3 +2822,15 @@
 "Tripo is rate limiting requests. Try again later." = "Tripo ogranicza częstotliwość żądań. Spróbuj ponownie później.";
 "Tripo request failed. Try refreshing later." = "Żądanie Tripo nie powiodło się. Spróbuj odświeżyć później.";
 "Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo zwrócił nierozpoznaną odpowiedź. Zaktualizuj CodexBar i spróbuj ponownie.";
+
+/* Provider setup guidance. */
+"Authorize GitHub's device code to save a Copilot token account." = "Zatwierdź kod urządzenia GitHub, aby zapisać konto z tokenem Copilot.";
+"Supply a GitHub token accepted by the Copilot usage API." = "Podaj token GitHub akceptowany przez API użycia Copilot.";
+"Optional, best-effort budgets for public github.com only. Enable Budget extras in the macOS app; the browser session must match the token account. Quota usage does not need cookies." = "Opcjonalne budżety bez gwarancji, tylko dla publicznego github.com. Włącz dodatki budżetowe w aplikacji macOS; sesja przeglądarki musi odpowiadać kontu tokenu. Limity nie wymagają plików cookie.";
+"In the macOS app, select manual cookie source and supply the matching GitHub Cookie header." = "W aplikacji macOS wybierz ręczne źródło plików cookie i podaj odpowiedni nagłówek Cookie GitHub.";
+"Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app." = "Zaloguj się do GitHub w obsługiwanej przeglądarce i wybierz automatyczny import plików cookie w aplikacji macOS.";
+"Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints." = "Użyj klucza API Admin organizacji do odczytu jej kosztów i użycia. Klucze projektu i konta usługi nie mogą odczytywać tych punktów końcowych.";
+"A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "Zwykły klucz API obsługuje jedynie awaryjny odczyt dawnego salda bez gwarancji, a nie użycie organizacji. Skonfigurowane klucze ograniczone do projektu nie korzystają z tej metody.";
+"Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "Podaj klucz, punkt końcowy zasobu HTTPS i nazwę wdrożenia. Wersja API jest opcjonalna. Odświeżenie wysyła potencjalnie płatne żądanie weryfikacji, a nie zapytanie o historię użycia.";
+"Mistral session expired or invalid." = "Sesja Mistral wygasła lub jest nieprawidłowa.";
+"Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Użyj klucza API z uprawnieniem user_read, aby odczytać zużycie subskrypcji. Polecenie zapisuje osobny klucz; wybrane konto klucza API ma pierwszeństwo.";

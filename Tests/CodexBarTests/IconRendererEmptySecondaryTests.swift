@@ -16,6 +16,12 @@ struct IconRendererEmptySecondaryTests {
         let bitmap = try #require(image.representations.compactMap { $0 as? NSBitmapImageRep }.first {
             $0.pixelsWide == 36 && $0.pixelsHigh == 36
         })
+        if let directory = ProcessInfo.processInfo.environment["CODEXBAR_EMPTY_SECONDARY_PROOF_DIR"],
+           style == .codex, credits == nil,
+           let png = bitmap.representation(using: .png, properties: [:])
+        {
+            try png.write(to: URL(fileURLWithPath: directory).appendingPathComponent("weekly-\(Int(weekly)).png"))
+        }
         // The taller credits meter reaches row 22; only inspect the secondary lane below it.
         return (23..<36).filter { y in
             (0..<36).contains { x in

@@ -2,6 +2,16 @@
 
 Usage & Spend creates chart, ledger, and activity views as they approach the visible part of the scrolling pane. This reduces opening work without changing reporting windows, retained source data, or exported records.
 
+The **Models** view ranks models across providers within each displayed currency. Percentages use
+estimated spend when every named model is priced, or tracked tokens within a single provider when
+pricing is unavailable. Partial model history keeps the recorded values visible without percentages;
+unpriced models from different providers are not compared by token share.
+
+Share-card previews and exported images follow the app's current light or dark appearance. Their
+subscription amounts, coverage, separate currencies, and aggregate-only content are unchanged.
+Subscription and model rows identify each provider by its bundled mark, which stays legible on
+both the light and dark card.
+
 ## Conversation usage details
 
 In a cost submenu with session records, click a conversation to open the shared Sessions inspector in

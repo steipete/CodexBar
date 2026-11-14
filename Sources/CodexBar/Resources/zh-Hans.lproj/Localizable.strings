@@ -1755,7 +1755,7 @@
 "Automatic imports longcat.chat cookies from your browser." = "自动从浏览器导入 longcat.chat cookies。";
 "Automatically imports browser cookies for budget extras." = "自动导入浏览器 Cookie，以读取预算附加信息。";
 "Automatically imports browser cookies for github.com budget extras." = "自动导入 github.com 的浏览器 Cookie，以读取预算附加信息。";
-"Automatically imports the app.devin.ai session from Chromium browsers." = "自动从 Chromium 浏览器导入 app.devin.ai 会话。";
+"Automatically imports the app.devin.ai session from the Devin app or Chromium browsers." = "自动从 Devin 应用或 Chromium 浏览器导入 app.devin.ai 会话。";
 "Automatically imports the browser session cookie." = "自动导入浏览器会话 cookie。";
 "Automatically signs in using your ZoomMate session cookies from Chrome." = "使用 Chrome 中的 ZoomMate 会话 cookies 自动登录。";
 "BY USAGE" = "按用量排序";
@@ -2811,3 +2811,15 @@
 "Tripo is rate limiting requests. Try again later." = "Tripo 正在限制请求频率。请稍后重试。";
 "Tripo request failed. Try refreshing later." = "Tripo 请求失败。请稍后尝试刷新。";
 "Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo 返回了无法识别的响应。请更新 CodexBar 后重试。";
+
+/* Provider setup guidance. */
+"Authorize GitHub's device code to save a Copilot token account." = "授权 GitHub 设备代码以保存 Copilot 令牌账户。";
+"Supply a GitHub token accepted by the Copilot usage API." = "提供 Copilot 用量 API 接受的 GitHub 令牌。";
+"Optional, best-effort budgets for public github.com only. Enable Budget extras in the macOS app; the browser session must match the token account. Quota usage does not need cookies." = "仅为公共 github.com 提供可选的预算查询，不保证成功。在 macOS 应用中启用预算附加功能；浏览器会话必须与令牌账户匹配。配额查询不需要 Cookie。";
+"In the macOS app, select manual cookie source and supply the matching GitHub Cookie header." = "在 macOS 应用中选择手动 Cookie 来源，并提供匹配的 GitHub Cookie 请求头。";
+"Sign in to GitHub in a supported browser and select automatic cookie import in the macOS app." = "在受支持的浏览器中登录 GitHub，并在 macOS 应用中选择自动导入 Cookie。";
+"Use an organization Admin API key for organization costs and usage. Project/service-account keys cannot read those endpoints." = "使用组织的 Admin API 密钥查询组织费用和用量。项目或服务账户密钥无法读取这些端点。";
+"A normal API key supports only best-effort legacy balance fallback, not organization usage. Configured keys with project scoping do not use that fallback." = "普通 API 密钥仅支持尽力查询旧版余额，不支持组织用量。配置了项目范围的密钥不会使用此回退方式。";
+"Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. A usage refresh sends a potentially billable validation request, not a usage-history query." = "提供密钥、HTTPS 资源端点和部署名称。API 版本为可选项。刷新会发送可能计费的验证请求，而不是用量历史查询。";
+"Mistral session expired or invalid." = "Mistral 会话已过期或无效。";
+"Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "使用具有 user_read 权限的 API 密钥查看订阅用量。此命令保存独立密钥；所选 API 密钥账户优先。";

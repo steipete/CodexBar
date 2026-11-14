@@ -176,7 +176,7 @@ public struct WidgetSnapshot: Codable, Sendable {
     public let accountOverflowCounts: [String: Int]
     public let enabledProviders: [ProviderInstanceID]
     public let usageBarsShowUsed: Bool
-    public let generatedAt: Date
+    public var generatedAt: Date
 
     public init(
         entries: [ProviderEntry],
@@ -275,12 +275,23 @@ public enum WidgetSnapshotStore {
         timeout: TimeInterval = WidgetSnapshotStore.defaultLoadTimeout,
         provider: UsageProvider? = nil) -> WidgetSnapshot?
     {
-        guard let data: Data = self.performBounded(label: "load", timeout: timeout, operation: {
-            try? Data(contentsOf: url)
-        }) else { return nil }
+        guard let data = self.loadData(from: url, timeout: timeout) else { return nil }
         let decoder = self.decoder
         decoder.userInfo[WidgetSnapshot.selectedProviderKey] = provider?.instanceID
         return try? decoder.decode(WidgetSnapshot.self, from: data)
+    }
+
+    package static func loadData(
+        from url: URL?,
+        timeout: TimeInterval = WidgetSnapshotStore.defaultLoadTimeout) -> Data?
+    {
+        guard !self.isBoundedIOCircuitBreakerTripped(), url != nil || !TestProcessSafety.isRunning else { return nil }
+        let url = url ?? AppGroupSupport.snapshotURL()
+        return self.performBounded(label: "load", timeout: timeout) { try? Data(contentsOf: url) }
+    }
+
+    package static func encodedData(_ snapshot: WidgetSnapshot) throws -> Data {
+        try self.encoder.encode(snapshot)
     }
 
     public static func save(_ snapshot: WidgetSnapshot, bundleID: String? = Bundle.main.bundleIdentifier) {
@@ -294,17 +305,27 @@ public enum WidgetSnapshotStore {
         timeout: TimeInterval = WidgetSnapshotStore.defaultSaveTimeout)
     {
         guard !self.isBoundedIOCircuitBreakerTripped(),
-              let data = try? self.encoder.encode(snapshot)
+              let data = try? self.encodedData(snapshot)
         else { return }
+        self.save(data: data, to: url, timeout: timeout)
+    }
 
-        _ = self.performBounded(label: "save", timeout: timeout) {
+    @discardableResult
+    package static func save(
+        data: Data,
+        to url: URL?,
+        timeout: TimeInterval = WidgetSnapshotStore.defaultSaveTimeout) -> Bool
+    {
+        guard !self.isBoundedIOCircuitBreakerTripped(), url != nil || !TestProcessSafety.isRunning else { return false }
+        let url = url ?? AppGroupSupport.snapshotURL()
+        return self.performBounded(label: "save", timeout: timeout) {
             do {
                 try data.write(to: url, options: [.atomic])
                 return true
             } catch {
                 return nil
             }
-        }
+        } ?? false
     }
 
     static func _test_performBounded<T: Sendable>(
@@ -368,6 +389,7 @@ public enum WidgetSnapshotStore {
     private static var encoder: JSONEncoder {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.sortedKeys]
         return encoder
     }
 

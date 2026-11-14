@@ -24,7 +24,7 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
     private let source: String
     private let preludeSource: String
     private let transport: any ProviderHTTPTransport
-    private let timeout: TimeInterval
+    let timeout: TimeInterval
     private let responseSizeLimit: Int
     private let enforcesUserResponsePolicy: Bool
     private let allowsDynamicID: Bool
@@ -265,8 +265,8 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
                     cookieResolver: cookieResolver,
                     instanceCookieResolver: instanceCookieResolver,
                     completion: finish)
-                Task.detached { [timeout = self.timeout] in
-                    try? await Task.sleep(for: .seconds(timeout))
+                Task.detached { [timeout = self.timeout, wait = contextOptions.waitForFetchDeadline] in
+                    do { try await wait(timeout) } catch { return }
                     finish(.failure(ProviderPluginError.timedOut))
                 }
             }

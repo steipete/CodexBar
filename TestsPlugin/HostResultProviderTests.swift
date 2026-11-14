@@ -175,11 +175,7 @@ struct HostResultProviderTests {
     static func runtime(_ provider: String, transport: any ProviderHTTPTransport, engine: ProviderPluginEngineKind)
         throws -> ProviderPluginRuntime
     {
-        let url = try #require(CodexBarCoreResources.bundle?.url(forResource: provider, withExtension: "js"))
-        return try ProviderPluginRuntime(
-            source: String(contentsOf: url, encoding: .utf8),
-            transport: transport,
-            engine: engine)
+        try BundledPluginTestSupport.runtime(provider, engine: engine, transport: transport)
     }
 
     static func context(

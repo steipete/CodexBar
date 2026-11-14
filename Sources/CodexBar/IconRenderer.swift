@@ -858,9 +858,7 @@ enum IconRenderer {
                             addGrokTwist: twistGrok,
                             blink: blink)
                     }
-                    drawBar(
-                        rectPx: creditsRatio == nil ? bottomRectPx : creditsBottomRectPx,
-                        remaining: bottomValue)
+                    drawBar(rectPx: creditsRatio == nil ? bottomRectPx : creditsBottomRectPx, remaining: bottomValue)
                 }
 
                 Self.drawStatusOverlay(

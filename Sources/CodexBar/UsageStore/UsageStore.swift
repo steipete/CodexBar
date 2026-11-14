@@ -328,6 +328,7 @@ final class UsageStore {
         TimeInterval) async throws -> Void)?
     @ObservationIgnored var widgetSnapshotPersistTask: Task<Void, Never>?
     @ObservationIgnored var lastQueuedWidgetSnapshot: WidgetSnapshot?
+    @ObservationIgnored var lastPublishedWidgetSnapshot: WidgetSnapshotPublication?
     @ObservationIgnored var invalidatedQueuedWidgetProviders: Set<ProviderInstanceID> = []
     @ObservationIgnored var lastWidgetSourceSnapshots: [ProviderInstanceID: UsageSnapshot] = [:]
     @ObservationIgnored let widgetSnapshotURL: URL?
@@ -764,8 +765,8 @@ final class UsageStore {
                 coalesceProviderRefreshesOverride: coalesceProviderRefreshesOverride)
         }
 
-        guard !self.isRefreshing else { return false }
-        guard enrichmentMode != .automatic || !self.hasForcedRefreshEnrichmentInFlight else { return false }
+        guard !self.isRefreshing,
+              enrichmentMode != .automatic || !self.hasForcedRefreshEnrichmentInFlight else { return false }
         let forcedBackgroundGeneration: UInt64?
         if enrichmentMode == .forcedBackground {
             self.forcedRefreshEnrichmentGeneration &+= 1
@@ -1278,11 +1279,8 @@ extension UsageStore {
 
             do {
                 let probe = CursorStatusProbe(browserDetection: browserDetection)
-                let snapshot: CursorStatusSnapshot = if cursorCookieSource == .manual,
-                                                        let normalizedHeader = CookieHeaderNormalizer
-                                                            .normalize(cursorCookieHeader)
-                {
-                    try await probe.fetchWithManualCookies(normalizedHeader)
+                let snapshot: CursorStatusSnapshot = if cursorCookieSource == .manual {
+                    try await probe.fetch(cookieHeaderOverride: cursorCookieHeader)
                 } else {
                     try await probe.fetch { msg in lines.append("[cursor-cookie] \(msg)") }
                 }
@@ -1459,9 +1457,8 @@ extension UsageStore {
             return
         }
 
-        guard await self.refreshPiHistoryScope(for: provider) else { return }
-
-        guard !self.tokenRefreshInFlight.contains(provider.instanceID) else { return }
+        guard await self.refreshPiHistoryScope(for: provider),
+              !self.tokenRefreshInFlight.contains(provider.instanceID) else { return }
 
         let now = Date()
         let historyDays = self.settings.costReportingPeriod.days(

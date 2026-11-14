@@ -60,7 +60,27 @@ public enum AzureOpenAIProviderDescriptor {
             cli: ProviderCLIConfig(
                 name: "azure-openai",
                 aliases: ["azureopenai", "aoai"],
-                versionDetector: nil))
+                versionDetector: nil),
+            setup: ProviderSetup(routes: [.init(
+                id: "deployment-api-key",
+                method: .apiKey,
+                platforms: [.macOS, .linux],
+                requiredInputs: [
+                    .init(
+                        id: "api-key",
+                        configFields: ["apiKey"],
+                        environmentVariables: [AzureOpenAISettingsReader.apiKeyEnvironmentKey]),
+                    .init(
+                        id: "endpoint",
+                        configFields: ["enterpriseHost"],
+                        environmentVariables: [AzureOpenAISettingsReader.endpointEnvironmentKey]),
+                    .init(
+                        id: "deployment",
+                        configFields: ["workspaceID"],
+                        environmentVariables: [AzureOpenAISettingsReader.deploymentNameEnvironmentKey]),
+                ],
+                hint: "Supply a key, HTTPS resource endpoint, and deployment name. API version is optional. " +
+                    "A usage refresh sends a potentially billable validation request, not a usage-history query.")]))
     }
 }
 
