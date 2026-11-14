@@ -207,7 +207,7 @@ absolute times, pace visibility, the Omarchy bar's detail, per-model caps and pr
 count, and low-quota colors. The tray can show two quota
 meters for the first displayed provider or a static icon. Unknown meters remain
 empty tracks. The tooltip identifies the displayed providers and stale data.
-Omarchy's popup shares the quota/reset preferences.
+Omarchy's popup shares the quota/reset preferences. Quick View tab meters and detailed quota bars both follow the selected used/remaining preference.
 
 Start-at-login changes apply immediately from Settings. Other preferences use Save.
 Omarchy installation enables theme following by default: colors are read from
