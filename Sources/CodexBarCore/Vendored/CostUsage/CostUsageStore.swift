@@ -122,6 +122,7 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "51f8655d53d65b3d", // Current main before Terra and Luna Fast repricing.
         "ad011f05e9ab733a", // 0.84.0 rows and checkpoints survive Terra and Luna Fast repricing.
         "2dc85fe95af0aa95", // Preserve project-accumulation caches when combined with linked-root discovery.
         "5454415c8ea2ce7b", // Linked-root discovery preserves native rows, checkpoints, and report totals.
@@ -202,7 +203,6 @@ actor CostUsageStore {
     ]
     /// Keep corrected report totals; earlier predecessors still need Fast repricing.
     static let incompatibleRetainedReportPredecessorParserHashes = CostUsageStore.compatiblePredecessorParserHashes
-        .subtracting(["f98b2d0afc00443c", "6b42e42bafad1922", "2dc85fe95af0aa95", "5454415c8ea2ce7b"])
 
     /// Connections to one canonical database share a serial queue, preserving the single-writer
     /// contract without letting a busy database stall independent account stores.

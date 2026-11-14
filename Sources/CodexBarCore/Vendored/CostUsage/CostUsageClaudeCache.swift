@@ -128,7 +128,7 @@ final class CostUsageClaudeReportMemo: @unchecked Sendable {
     #endif
     static let persistedVersion = 1
     /// Bump when bundled pricing, model aliases, or daily-report aggregation changes without new artifact stamps.
-    static let reportSemanticsVersion = 9
+    static let reportSemanticsVersion = 10
 
     private struct PersistedEnvelope: Codable {
         var version: Int

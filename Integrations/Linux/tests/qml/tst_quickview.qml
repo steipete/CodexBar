@@ -73,4 +73,13 @@ TestCase {
         tryVerify(function() { return shown("Cost across accounts"); });
         grabImage(view.contentItem).save("quick-view-synthetic.png");
     }
+    function test_tabQuotaFillMatchesDisplayPreference() {
+        var fill = findChild(view.contentItem, "tabQuotaFill-0");
+        verify(fill);
+        tryCompare(fill, "width", fill.parent.width * 0.6);
+
+        desktop.settings = {showCosts: true, quotaDisplay: "used", resetDisplay: "countdown",
+            showPace: true, warningColors: true, notifyThreshold: 10};
+        tryCompare(fill, "width", fill.parent.width * 0.4);
+    }
 }
