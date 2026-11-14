@@ -263,6 +263,7 @@ struct BrowserCookiePromptContractTests {
                             ("replicate.com", "sessionid"),
                             ("github.com", "user_session"),
                             ("admin.mistral.ai", "ory_session_fixture"),
+                            ("minimax.io", "HERTZ-SESSION"),
                         ].map { domain, name in
                             let encrypted = try Self.encrypt(browser.rawValue, domain: domain, key: key)
                             return "INSERT INTO cookies VALUES ('\(domain)', '\(name)', '/', 0, 1, 1, " +
@@ -347,6 +348,28 @@ struct BrowserCookiePromptContractTests {
     @Test(arguments: [UsageProvider.venice, .grok, .replicate, .copilot, .mistral])
     func `native loaders leave Brave cold after a valid Chrome session`(provider: UsageProvider) async throws {
         try await self.auditNativeLoader(provider, rejectingChrome: false)
+    }
+
+    @Test(arguments: [KeychainAccessPreflight.Outcome.allowed, .interactionRequired])
+    func `MiniMax automatic reimport stays prompt free and stops at the validated session`(
+        preflight: KeychainAccessPreflight.Outcome) throws
+    {
+        try self.withFakeKeychain {
+            let fixture = try NativeBrowserFixture()
+            KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in preflight } operation: {
+                ProviderInteractionContext.$current.withValue(.background) {
+                    let header = try? MiniMaxCookieImporter.sessionCandidates(
+                        browserDetection: fixture.detection,
+                        loadRecords: { browser, query, logger in
+                            guard BrowserCookieAccessGate.shouldAttempt(browser) else { return [] }
+                            return try fixture.records(browser, query, logger)
+                        }).first(where: { fixture.accepts($0.cookieHeader, rejectingChrome: false) })?.cookieHeader
+                    #expect(header == (preflight == .allowed ? "HERTZ-SESSION=chrome" : nil))
+                }
+            }
+            #expect(fixture.reads.value == (preflight == .allowed ? [.chrome] : []))
+            #expect(fixture.keychain.interactiveQueries == 0)
+        }
     }
 
     @Test(arguments: [UsageProvider.venice, .grok, .replicate, .copilot, .mistral])
