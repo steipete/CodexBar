@@ -223,17 +223,22 @@ enum SpendDashboardSource {
         providers: [UsageProvider],
         codexSources: [CodexSpendSourceDescriptor]) -> SpendDashboardConfiguration
     {
-        SpendDashboardConfiguration(
+        let plugins = self.pluginInputs(store: store)
+        return SpendDashboardConfiguration(
             costUsageEnabled: self.spendCollectionEnabled(settings: settings, providers: providers),
             preferredCurrencyCode: settings.preferredCurrencyCode,
-            providerIDs: providers.map(\.rawValue),
+            providerIDs: providers.map(\.rawValue) + plugins.map(\.id),
             codexAccountIdentities: codexSources.map(\.identity),
             codexAccountDisplayNames: self.codexDisplayNamesByID(codexSources),
             sourceOwnershipFingerprints: self.sourceOwnershipFingerprints(
                 providers: providers,
                 settings: settings,
-                store: store),
-            sourceRevisions: self.sourceRevisions(providers: providers, settings: settings, store: store),
+                store: store) + plugins.map {
+                "\($0.id):\(store.tokenSnapshotPublications[$0.provider]?.scopeSignature ?? ""):" +
+                    "\(settings.providerConfigRevision(forInstanceID: $0.provider))"
+            },
+            sourceRevisions: self.sourceRevisions(providers: providers, settings: settings, store: store)
+                + plugins.map { "\($0.id):\(self.snapshotRevision($0.snapshot))" },
             sourcePublicationRevisions: providers.filter(UsageStore.tokenCostRequiresProviderSnapshot)
                 .map { store.tokenSnapshotPublicationRevision(for: $0) },
             bucketTimeZoneIdentifier: settings.costUsageBucketTimeZoneIdentifier,
@@ -329,7 +334,7 @@ enum SpendDashboardSource {
             && piBaseline != nil
             && piCurrent.publication?.snapshot != nil
             && !(piBaseline?.shouldRefresh == true && piBaseline?.publicationRevision == piCurrent.revision)
-        var inputs: [SpendDashboardModel.ProviderInput] = []
+        var inputs = self.pluginInputs(store: store)
         var unavailableSourceIDs: Set<String> = []
         var confirmedEmptySourceIDs: Set<String> = []
         // Provider-specific by design: spend dashboard
@@ -785,7 +790,7 @@ enum SpendDashboardSource {
                     store: store, provider: provider, publication: current, piOwnsSource: false)
                 else { return "\(provider.rawValue):empty" }
                 let calendar = SpendDashboardModel.bucketCalendar(
-                    for: provider, displayCalendar: settings.costUsageBucketCalendar)
+                    for: provider.instanceID, displayCalendar: settings.costUsageBucketCalendar)
                 return "\(provider.rawValue):snapshot:\(self.snapshotRevision(snapshot, coverageCalendar: calendar))"
             }
             guard let snapshot = current.snapshot else {
@@ -1851,15 +1856,17 @@ final class SpendDashboardController {
         return ids.filter { seen.insert($0).inserted }
     }
 
-    private func provider(for sourceID: String) -> UsageProvider? {
+    private func provider(for sourceID: String) -> ProviderInstanceID? {
         // Provider-specific by design: account source IDs map to Codex.
         if sourceID.hasPrefix("codex:") { return .codex }
-        return UsageProvider(rawValue: sourceID)
+        return ProviderInstanceID(rawValue: sourceID.hasPrefix("plugin/")
+            ? String(sourceID.dropFirst("plugin/".count)) : sourceID)
     }
 
-    private func displayName(for sourceID: String, provider: UsageProvider) -> String {
+    private func displayName(for sourceID: String, provider: ProviderInstanceID) -> String {
         self.configuration?.codexAccountDisplayNames[sourceID]
-            ?? ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
+            ?? provider.firstPartyProvider.map { ProviderDescriptorRegistry.descriptor(for: $0).metadata.displayName }
+            ?? provider.rawValue
     }
 
     private func refreshRetainedCodexDisplayNames(_ displayNamesByID: [String: String]) {

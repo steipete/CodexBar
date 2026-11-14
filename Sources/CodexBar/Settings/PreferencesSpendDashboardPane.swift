@@ -1135,7 +1135,9 @@ struct SpendSessionRows: View {
 
     private func sourceName(_ id: String) -> String {
         guard let row = self.group.sessions.first(where: { $0.sourceID == id }) else { return "" }
-        let provider = ProviderDescriptorRegistry.descriptor(for: row.provider).metadata.displayName
+        let provider = row.provider.firstPartyProvider.map {
+            ProviderDescriptorRegistry.descriptor(for: $0).metadata.displayName
+        } ?? row.provider.rawValue
         if self.hidePersonalInfo {
             let index = (self.sourceIDs.firstIndex(of: id) ?? 0) + 1
             return self.sourceIDs.count > 1 ? "\(provider) · \(codexBarLocalizedInteger(index))" : provider

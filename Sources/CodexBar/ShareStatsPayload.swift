@@ -2,7 +2,7 @@ import CodexBarCore
 import Foundation
 
 struct ShareStatsProviderPayload: Sendable, Equatable {
-    let provider: UsageProvider
+    let provider: ProviderInstanceID
     let providerName: String
     let subscriptionName: String?
     let currencyCode: String
@@ -12,7 +12,7 @@ struct ShareStatsProviderPayload: Sendable, Equatable {
 }
 
 struct ShareStatsModelPayload: Sendable, Equatable {
-    let provider: UsageProvider
+    let provider: ProviderInstanceID
     let providerName: String
     let modelName: String
     let currencyCode: String
@@ -21,7 +21,7 @@ struct ShareStatsModelPayload: Sendable, Equatable {
 }
 
 private struct ShareStatsModelFamilyKey: Hashable {
-    let provider: UsageProvider
+    let provider: ProviderInstanceID
     let providerName: String
     let modelName: String
     let currencyCode: String
@@ -127,6 +127,11 @@ struct ShareStatsSubscriptionName: Sendable, Equatable {
 }
 
 enum ShareStatsSanitizer {
+    static func providerName(_ rawValue: String) -> String? {
+        guard !rawValue.contains("/"), !rawValue.contains("\\"), !rawValue.contains(":") else { return nil }
+        return self.safeLabel(rawValue, maximumLength: 72, maximumWords: 8, requireModelShape: false)
+    }
+
     static func modelName(_ rawValue: String) -> String? {
         guard let value = self.safeLabel(
             rawValue,
@@ -221,7 +226,8 @@ enum ShareStatsBuilder {
             group.providers.map { row in
                 ShareStatsProviderPayload(
                     provider: row.provider,
-                    providerName: row.displayName,
+                    providerName: row.provider.firstPartyProvider == nil
+                        ? ShareStatsSanitizer.providerName(row.displayName) ?? row.provider.rawValue : row.displayName,
                     subscriptionName: subscriptionNames[row.id]?.displayName,
                     currencyCode: group.currencyCode,
                     totalTokens: row.totalTokens,
@@ -253,7 +259,9 @@ enum ShareStatsBuilder {
                 }
                 return ShareStatsModelPayload(
                     provider: row.provider,
-                    providerName: row.providerName,
+                    providerName: row.provider.firstPartyProvider == nil
+                        ? ShareStatsSanitizer.providerName(row.providerName) ?? row.provider.rawValue : row
+                        .providerName,
                     modelName: modelName,
                     currencyCode: group.currencyCode,
                     totalTokens: row.totalTokens,
@@ -351,6 +359,7 @@ enum ShareStatsPayloadFactory {
         var names: [String: ShareStatsSubscriptionName] = [:]
         for group in model.groups {
             for row in group.providers {
+                guard let nativeProvider = row.provider.firstPartyProvider else { continue }
                 let snapshots: [UsageSnapshot?] = if row.provider == .codex,
                                                      row.id.hasPrefix("codex:")
                 {
@@ -360,9 +369,9 @@ enum ShareStatsPayloadFactory {
                         }?.snapshot,
                     ]
                 } else {
-                    [store.snapshot(for: row.provider.instanceID)]
+                    [store.snapshot(for: row.provider)]
                 }
-                if let name = ShareStatsSubscriptionName.first(from: snapshots, provider: row.provider) {
+                if let name = ShareStatsSubscriptionName.first(from: snapshots, provider: nativeProvider) {
                     names[row.id] = name
                 }
             }
