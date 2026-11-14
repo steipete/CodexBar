@@ -27,8 +27,8 @@ public enum FactoryStatusProbeError: LocalizedError, Sendable, Equatable {
             "No usable Droid session found. Log in to app.factory.ai, then refresh Droid."
             #endif
         case .missingAPIKey:
-            "Droid API key missing. Set FACTORY_API_KEY, add providers[].apiKey for factory in " +
-                "~/.codexbar/config.json, or run `codexbar config set-api-key --provider factory`."
+            UsageFormatter.localized("Check your API key in Settings.") +
+                " `codexbar config set-api-key --provider factory --stdin`."
         case .unauthorizedAPIKey:
             "Droid API authentication failed (401/403). Refresh FACTORY_API_KEY or regenerate a key at " +
                 "app.factory.ai/settings/api-keys."

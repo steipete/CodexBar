@@ -11,10 +11,6 @@ public enum ClaudeProviderDescriptor {
         #endif
     }
 
-    private static let ttyLaunch = ProviderTTYLaunchConfig(
-        executableOverrideEnvironmentKey: "CLAUDE_CLI_PATH",
-        bundledWatchdogHelperName: "CodexBarClaudeWatchdog",
-        probeWorkingDirectory: { ClaudeStatusProbe.preparedProbeWorkingDirectoryURL() })
     private static let cli = ProviderCLIConfig(
         name: "claude",
         binaryLocator: { BinaryLocator.resolveClaudeBinary(env: $0) },
@@ -23,7 +19,10 @@ public enum ClaudeProviderDescriptor {
         },
         supportsCostCommand: true,
         prefersBinaryLocatorForWhich: true,
-        ttyLaunch: Self.ttyLaunch,
+        ttyLaunch: ProviderTTYLaunchConfig(
+            executableOverrideEnvironmentKey: "CLAUDE_CLI_PATH",
+            bundledWatchdogHelperName: "CodexBarClaudeWatchdog",
+            probeWorkingDirectory: { ClaudeStatusProbe.preparedProbeWorkingDirectoryURL() }),
         browserSupportExemption: { sourceMode, _, settings in
             if sourceMode == .auto { return true }
             // Linux has no browser cookie import, but an explicitly configured
@@ -236,7 +235,9 @@ public enum ClaudeProviderDescriptor {
                     costSummaryTitles: ["Usage summary", "Cost items"])),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api, .web, .cli, .oauth],
-                pipeline: self.pipeline),
+                pipeline: ProviderFetchPipeline(
+                    resolveStrategies: self.resolveStrategies,
+                    resolveFallbackError: self.resolveFallbackError)),
             cli: self.cli,
             nativeAppBundleIdentifiers: ["com.anthropic.claudefordesktop"])
     }
@@ -257,12 +258,11 @@ public enum ClaudeProviderDescriptor {
             prioritizesExhaustedQuotas: false,
             now: context.now))
         if case let .resolved(window) = resolution { return .init(primary: window, secondary: nil) }
-        return .init(primary: context.snapshot.primary?.measured, secondary: context.snapshot.secondary)
+        let secondary = context.snapshot.secondary
+        return .init(
+            primary: context.snapshot.primary?.measured ?? secondary?.measured,
+            secondary: secondary?.measured == nil || context.snapshot.primary?.measured != nil ? secondary : nil)
     }
-
-    private static let pipeline = ProviderFetchPipeline(
-        resolveStrategies: ClaudeProviderDescriptor.resolveStrategies,
-        resolveFallbackError: ClaudeProviderDescriptor.resolveFallbackError)
 
     private static func resolveFallbackError(_ previous: Error?, _ current: Error) -> Error {
         if ClaudeOAuthFetchError.isCancellation(current) { return current }
