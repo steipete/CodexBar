@@ -2796,6 +2796,9 @@
 "SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow 正在限制请求频率。请稍后重试。";
 "SiliconFlow request failed. Try refreshing later." = "SiliconFlow 请求失败。请稍后尝试刷新。";
 "SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow 返回了无法识别的响应。请更新 CodexBar 后重试。";
+"Sign in to cloud.siliconflow.cn in your browser, then refresh CodexBar." = "在浏览器中登录 cloud.siliconflow.cn，然后刷新 CodexBar。";
+"The SiliconFlow China balance API was retired. Switch SiliconFlow to Web and sign in to cloud.siliconflow.cn." = "SiliconFlow 中国站余额 API 已停用。请将 SiliconFlow 来源切换为 网页，并登录 cloud.siliconflow.cn。";
+"SiliconFlow denied access to the console balance (HTTP 403). Open cloud.siliconflow.cn, check that this account can view billing, then refresh." = "SiliconFlow 拒绝访问控制台余额（HTTP 403）。请打开 cloud.siliconflow.cn，确认此账户可以查看账单，然后刷新。";
 "Claude Platform session validated and saved." = "已验证并保存 Claude Platform 会话。";
 "Use %@ or %@." = "请使用 %@ 或 %@。";
 "Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "请登录 %@。将包含 sessionKey 的 Cookie 请求头私密地传给 %@，然后运行 %@。";
@@ -2824,6 +2827,7 @@
 "Mistral session expired or invalid." = "Mistral 会话已过期或无效。";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "此命令读取通过管道传入的 API 密钥，并将其保存为独立密钥。选中的 API 令牌账户优先于独立密钥。";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "使用具有 user_read 权限的 API 密钥查看订阅用量。此命令保存独立密钥；所选 API 密钥账户优先。";
+"Web" = "网页";
 "Credits per million tokens" = "每百万 token 的额度";
 "Paused during grace period" = "宽限期内已暂停";
 "Google Developer Program exposes the current monthly Cloud credit, not local token cost history." = "Google Developer Program 显示当前每月 Cloud 额度，而非本地 token 费用历史。";

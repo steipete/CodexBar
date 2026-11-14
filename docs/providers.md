@@ -191,7 +191,7 @@ complete when the available scan window covers fewer days.
 | [Chatbox AI](chatbox.md) | API token |
 | [abliteration.ai](abliteration.md) | API key for prepaid USD credits and cumulative usage. |
 | [OpenDesign](opendesign.md) | Browser or manual session cookies for the active workspace's five-hour and weekly subscription allowance. |
-| [SiliconFlow](siliconflow.md) | API key for the prepaid account balance on the China (CNY) or international (USD) API. |
+| [SiliconFlow](siliconflow.md) | API key in Auto/API; explicit Web for the China (CNY) console balance. International API balances use USD. |
 | [Tripo](tripo.md) | API key for available and reserved account credits from the official account balance endpoint. |
 | [Google Developer Program](googledeveloper.md) | Browser or manual me.developers.google.com session cookies for the current monthly Gen AI & Cloud credit of Google AI Pro and Ultra. |
 
