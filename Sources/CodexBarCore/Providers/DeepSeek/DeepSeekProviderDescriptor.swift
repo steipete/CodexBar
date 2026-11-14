@@ -103,11 +103,7 @@ public enum DeepSeekProviderDescriptor {
                 ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
-                noDataMessage: {
-                    "DeepSeek today's spend needs detailed Platform usage. Sign in to DeepSeek Platform in a " +
-                        "Chromium-based browser."
-                },
-                menuHintLines: [.literal("Reported by DeepSeek Platform usage.")],
+                noDataMessage: { "Detailed usage unavailable." },
                 showsCostMenuSection: false,
                 primaryValue: .latestDaily,
                 showsRequestHistory: false),

@@ -2471,8 +2471,10 @@ struct ProviderArchitectureGatekeeperTests {
             path: "Sources/CodexBar/UsageStore/UsageStore+Accessors.swift",
             anchor: "snapshot.accountEmail(for: .codex) ?? self.accountInfo(for: .codex).email),",
             expectedProviderIDs: ["codex", "deepseek"],
-            expectedReferenceCount: 5,
-            expectedReferenceFingerprint: ["codex@0", "codex@0", "deepseek@10", "deepseek@16", "deepseek@16"],
+            expectedReferenceCount: 6,
+            expectedReferenceFingerprint: [
+                "codex@0", "codex@0", "deepseek@10", "deepseek@15", "deepseek@17", "deepseek@17",
+            ],
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore/UsageStore+Accessors.swift",
@@ -2956,12 +2958,13 @@ struct ProviderArchitectureGatekeeperTests {
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore/UsageStore+TokenCost.swift",
             anchor: "case .openai:",
-            expectedProviderIDs: ["grok", "mistral", "openai", "opencodego", "openrouter", "xai"],
-            expectedReferenceCount: 6,
+            expectedProviderIDs: ["deepseek", "grok", "mistral", "openai", "opencodego", "openrouter", "xai"],
+            expectedReferenceCount: 7,
             expectedReferenceFingerprint: [
                 "openai@0",
                 "mistral@2",
                 "opencodego@4",
+                "deepseek@12",
                 "openrouter@12",
                 "xai@14",
                 "grok@16",

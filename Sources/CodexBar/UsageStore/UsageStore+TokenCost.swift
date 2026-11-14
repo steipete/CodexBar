@@ -358,10 +358,10 @@ extension UsageStore {
         guard Self.tokenCostRequiresProviderSnapshot(provider) else { return }
         if let tokenSnapshot = self.tokenSnapshot(fromProviderSnapshot: snapshot, provider: provider) {
             self.publishTokenSnapshot(tokenSnapshot, for: provider)
-            // Provider-specific by design: a prepaid-balance snapshot without a usage chart means
-            // analytics failed. Leave the source unpublished so Overview counts it unavailable
-            // instead of known-zero spend.
-        } else if provider == .xai, XAICostUsageMapping.isAnalyticsUnavailable(snapshot) {
+            // Provider-specific by design: a successful balance does not establish zero DeepSeek or xAI spend.
+        } else if provider == .deepseek ||
+            (provider == .xai && XAICostUsageMapping.isAnalyticsUnavailable(snapshot))
+        {
             self.clearTokenSnapshot(for: provider)
         } else {
             self.publishConfirmedEmptyTokenSnapshot(for: provider)
@@ -747,7 +747,6 @@ extension UsageStore {
                     .toCostUsageTokenSnapshot(historyDays: windowDays)
             }
         case .openrouter, .deepseek:
-            // DeepSeek Platform reports per-day vendor spend; the fetcher projects it onto `costUsage`.
             snapshot?.costUsage
         case .xai:
             snapshot.flatMap { XAICostUsageMapping.tokenSnapshot(from: $0, historyDays: windowDays) }

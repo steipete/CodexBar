@@ -25,10 +25,10 @@ struct DeepSeekMenuBarCostTests {
             currentMonthCost: 30.1475,
             requestCount: 120,
             currentMonthRequestCount: 2493,
-            topModel: "deepseek-flash",
+            topModel: "example-model",
             categoryBreakdown: [],
             daily: [
-                DeepSeekDailyUsage(date: "2026-11-10", totalTokens: 1_000, cost: 0.5, requestCount: 10),
+                DeepSeekDailyUsage(date: "2026-11-10", totalTokens: 1000, cost: 0.5, requestCount: 10),
                 DeepSeekDailyUsage(date: "2026-11-11", totalTokens: 4_203_896, cost: 0.797, requestCount: 120),
             ],
             currency: "CNY",
@@ -62,6 +62,17 @@ struct DeepSeekMenuBarCostTests {
         #expect(snapshot.historyLabel == "This month")
         #expect(snapshot.historyDays == 11)
         #expect(MenuBarLayoutCostResolver.todayCostUSD(snapshot: snapshot, now: now, calendar: self.calendar) == 0.797)
+    }
+
+    @Test
+    func `monthly fallback preserves Gregorian source days with another user calendar`() {
+        var calendar = Calendar(identifier: .islamicCivil)
+        calendar.timeZone = TimeZone(secondsFromGMT: -12 * 3600) ?? .gmt
+        let snapshot = self.summary(period: .currentMonth, updatedAt: Date(timeIntervalSince1970: 1_794_398_400))
+            .toCostUsageTokenSnapshot(calendar: calendar)
+        #expect(snapshot.historyDays == 11)
+        #expect(snapshot.sessionCostUSD == 0.797)
+        #expect(snapshot.daily.map(\.date) == ["2026-11-10", "2026-11-11"])
     }
 
     @Test
