@@ -623,10 +623,10 @@ struct SpendDashboardModel: Equatable, Sendable {
         }
         // Aggregate retained named models; source completeness still controls the warnings.
         let modelSummary = Self.modelSummary(summaries: modelSummaries)
-        let modelHistoryCompleteness = modelSummaries.count == scopedSummaries.count &&
-            modelSummary.completeness == .complete && !scopedSummaries.contains(where: \.historyScanIsPartial)
-            ? ModelHistoryCompleteness.complete
-            : ModelHistoryCompleteness.incomplete
+        let modelHistoryIsPartial = scopedSummaries.contains { $0.hasUnpricedRequests || $0.historyScanIsPartial }
+        let modelHistoryCompleteness: ModelHistoryCompleteness = !modelHistoryIsPartial &&
+            modelSummaries.count == scopedSummaries.count && modelSummary.completeness == .complete
+            ? .complete : .incomplete
         let tokenCompleteness = modelSummary.tokenCompleteness(retained: modelSummaries.count, scoped: scopedSummaries)
         let dailyPoints = Self.dailyPoints(summaries: summaries)
         var tokenMix = CostUsageTokenMix()
