@@ -11,10 +11,6 @@ public enum ClaudeProviderDescriptor {
         #endif
     }
 
-    private static let ttyLaunch = ProviderTTYLaunchConfig(
-        executableOverrideEnvironmentKey: "CLAUDE_CLI_PATH",
-        bundledWatchdogHelperName: "CodexBarClaudeWatchdog",
-        probeWorkingDirectory: { ClaudeStatusProbe.preparedProbeWorkingDirectoryURL() })
     private static let cli = ProviderCLIConfig(
         name: "claude",
         binaryLocator: { BinaryLocator.resolveClaudeBinary(env: $0) },
@@ -23,7 +19,10 @@ public enum ClaudeProviderDescriptor {
         },
         supportsCostCommand: true,
         prefersBinaryLocatorForWhich: true,
-        ttyLaunch: Self.ttyLaunch,
+        ttyLaunch: ProviderTTYLaunchConfig(
+            executableOverrideEnvironmentKey: "CLAUDE_CLI_PATH",
+            bundledWatchdogHelperName: "CodexBarClaudeWatchdog",
+            probeWorkingDirectory: { ClaudeStatusProbe.preparedProbeWorkingDirectoryURL() }),
         browserSupportExemption: { sourceMode, _, settings in
             if sourceMode == .auto { return true }
             // Linux has no browser cookie import, but an explicitly configured
@@ -236,7 +235,9 @@ public enum ClaudeProviderDescriptor {
                     costSummaryTitles: ["Usage summary", "Cost items"])),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api, .web, .cli, .oauth],
-                pipeline: self.pipeline),
+                pipeline: ProviderFetchPipeline(
+                    resolveStrategies: self.resolveStrategies,
+                    resolveFallbackError: self.resolveFallbackError)),
             cli: self.cli,
             nativeAppBundleIdentifiers: ["com.anthropic.claudefordesktop"])
     }
@@ -250,11 +251,6 @@ public enum ClaudeProviderDescriptor {
         sessionPaceWindowRule: .custom { _, _ in true })
 
     private static func iconWindows(context: ProviderIconWindowContext) -> ProviderUsageWindowPair {
-        // Weekly-only plans (OAuth `five_hour: null`, e.g. Ultra) have no session window. Promote the
-        // weekly window into the primary lane so the icon draws one meter instead of a blank top lane.
-        if context.snapshot.primary?.measured == nil, let weekly = context.snapshot.secondary?.measured {
-            return .init(primary: weekly, secondary: nil)
-        }
         let resolution = self.menuBarWindow(context: .init(
             metric: .automatic,
             snapshot: context.snapshot,
@@ -262,12 +258,11 @@ public enum ClaudeProviderDescriptor {
             prioritizesExhaustedQuotas: false,
             now: context.now))
         if case let .resolved(window) = resolution { return .init(primary: window, secondary: nil) }
-        return .init(primary: context.snapshot.primary?.measured, secondary: context.snapshot.secondary)
+        let secondary = context.snapshot.secondary
+        return .init(
+            primary: context.snapshot.primary?.measured ?? secondary?.measured,
+            secondary: secondary?.measured == nil || context.snapshot.primary?.measured != nil ? secondary : nil)
     }
-
-    private static let pipeline = ProviderFetchPipeline(
-        resolveStrategies: ClaudeProviderDescriptor.resolveStrategies,
-        resolveFallbackError: ClaudeProviderDescriptor.resolveFallbackError)
 
     private static func resolveFallbackError(_ previous: Error?, _ current: Error) -> Error {
         if ClaudeOAuthFetchError.isCancellation(current) { return current }

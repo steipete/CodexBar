@@ -142,4 +142,19 @@ struct ClaudeWeeklyOnlyPlanTests {
         #expect(windows.secondary?.usedPercent == 12)
         #expect(IconRenderer.QuotaLayoutPolicy.provider(.claude, snapshot: snapshot).reservesMissingSecondaryLane)
     }
+
+    @Test
+    func `unavailable weekly placeholder is not promoted to a measured icon quota`() {
+        let now = Date(timeIntervalSince1970: 1_793_000_000)
+        let weekly = RateWindow(
+            usedPercent: 0,
+            windowMinutes: nil,
+            resetsAt: nil,
+            resetDescription: nil,
+            isSyntheticPlaceholder: true)
+        let snapshot = UsageSnapshot(primary: nil, secondary: weekly, updatedAt: now)
+        let windows = IconRemainingResolver.resolvedWindows(snapshot: snapshot, style: .claude, now: now)
+        #expect(windows.primary == nil)
+        #expect(windows.secondary == weekly)
+    }
 }
