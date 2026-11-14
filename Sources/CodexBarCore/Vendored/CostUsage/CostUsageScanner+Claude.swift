@@ -41,9 +41,29 @@ extension CostUsageScanner {
             checkCancellation: checkCancellation)
     }
 
+    /// Native Claude daily report plus per-project and per-session projections of the same reconciled rows.
+    static func loadClaudeReportProjectionsCancellable(
+        since: Date,
+        until: Date,
+        now: Date = Date(),
+        options: Options = Options(),
+        reportContext: CostUsageReportContext?,
+        checkCancellation: CancellationCheck?) throws -> ClaudeReportProjections
+    {
+        try checkCancellation?()
+        return try self.loadClaudeReport(
+            provider: .claude,
+            range: CostUsageDayRange(since: since, until: until, calendar: options.calendar),
+            now: now,
+            options: options,
+            reportContext: reportContext,
+            includeBreakdowns: true,
+            checkCancellation: checkCancellation)
+    }
+
     // MARK: - Claude
 
-    private struct ClaudeDayModelKey: Hashable {
+    struct ClaudeDayModelKey: Hashable {
         let day: String
         let model: String
     }
@@ -116,6 +136,7 @@ extension CostUsageScanner {
         startOffset: Int64 = 0,
         pricingResolver: CostUsagePricing.ClaudeResolver,
         recordDay: ((String) -> Void)? = nil,
+        projectPaths: ClaudeSessionProjectPaths? = nil,
         checkCancellation: CancellationCheck? = nil) throws -> ClaudeParseResult
     {
         func toInt(_ v: Any?) -> Int {
@@ -130,6 +151,7 @@ extension CostUsageScanner {
         let pathRole = Self.claudePathRole(fileURL: fileURL)
         var keyedRows: [ClaudeRowKey: ClaudeUsageRow] = [:]
         var unkeyedRows: [ClaudeUsageRow] = []
+        let fallbackSessionKey = Self.claudeFallbackSessionKey(filePath: fileURL.path)
 
         let maxLineBytes = 512 * 1024
         // Keep the full line so usage at the tail isn't dropped on large tool outputs.
@@ -168,6 +190,18 @@ extension CostUsageScanner {
                             let isVertex = Self.isVertexAIUsageEntry(
                                 obj: obj, message: message, scanMetadata: couldContainMetadata)
                             if isVertex != (providerFilter == .vertexAIOnly) { return }
+                        }
+                        let sessionId = obj["sessionId"] as? String
+                            ?? obj["session_id"] as? String
+                            ?? obj.dictionary("metadata")?["sessionId"] as? String
+                            ?? message?.dictionary("metadata")?["sessionId"] as? String
+                        // Known sessions keep their first cwd, so their later lines skip the cwd lookup.
+                        if let projectPaths,
+                           case let sessionKey = Self.claudeSessionKey(sessionId) ?? fallbackSessionKey,
+                           projectPaths.bySession[sessionKey] == nil,
+                           let cwd = Self.claudeTrimmedNonEmpty(obj["cwd"] as? String)
+                        {
+                            projectPaths.bySession[sessionKey] = cwd
                         }
 
                         guard let tsText = obj["timestamp"] as? String,
@@ -217,10 +251,6 @@ extension CostUsageScanner {
 
                         let messageId = message["id"] as? String
                         let requestId = obj["requestId"] as? String ?? obj["request_id"] as? String
-                        let sessionId = obj["sessionId"] as? String
-                            ?? obj["session_id"] as? String
-                            ?? obj.dictionary("metadata")?["sessionId"] as? String
-                            ?? message.dictionary("metadata")?["sessionId"] as? String
                         let normalizedModel = pricingResolver.normalize(model)
                         let row = ClaudeUsageRow(
                             dayKey: dayKey,
@@ -349,10 +379,25 @@ extension CostUsageScanner {
     #endif
 
     static func reconciledClaudeRows(cache: CostUsageCache) -> [ClaudeUsageRow] {
+        self.reconcileClaudeRows(cache: cache, collectFileIndexes: false).rows
+    }
+
+    /// Same winners and order as `reconciledClaudeRows`, plus each row's source file for session attribution.
+    static func reconciledClaudeRowsWithFiles(cache: CostUsageCache)
+        -> (rows: [ClaudeUsageRow], fileIndexes: [Int32], filePaths: [String])
+    {
+        self.reconcileClaudeRows(cache: cache, collectFileIndexes: true)
+    }
+
+    private static func reconcileClaudeRows(
+        cache: CostUsageCache,
+        collectFileIndexes: Bool) -> (rows: [ClaudeUsageRow], fileIndexes: [Int32], filePaths: [String])
+    {
         #if DEBUG
         recordClaudeScanWork(.reconcile)
         #endif
         var rows: [ClaudeUsageRow] = []
+        var fileIndexes: [Int32] = []
         var winners: [ClaudeRowKey: ClaudeRowReference] = [:]
         // These immutable array references keep winner indexes stable without copying their row buffers.
         let files: [(path: String, rows: [ClaudeUsageRow])] = cache.files.keys.sorted().compactMap { path in
@@ -364,6 +409,7 @@ extension CostUsageScanner {
             for (rowIndex, row) in file.rows.enumerated() {
                 guard let canonicalKey = Self.claudeCanonicalRowKey(row) else {
                     rows.append(row)
+                    if collectFileIndexes { fileIndexes.append(Int32(fileIndex)) }
                     continue
                 }
                 if let existing = winners[canonicalKey],
@@ -378,11 +424,13 @@ extension CostUsageScanner {
         }
 
         rows.reserveCapacity(rows.count + winners.count)
+        if collectFileIndexes { fileIndexes.reserveCapacity(rows.count + winners.count) }
         for key in winners.keys.sorted() {
             guard let winner = winners[key] else { continue }
             rows.append(files[winner.file].rows[winner.row])
+            if collectFileIndexes { fileIndexes.append(Int32(winner.file)) }
         }
-        return rows
+        return (rows, fileIndexes, collectFileIndexes ? files.map(\.path) : [])
     }
 
     static func rebuildClaudeDays(cache: inout CostUsageCache, rows: [ClaudeUsageRow]) {
@@ -587,6 +635,7 @@ extension CostUsageScanner {
         var cache: CostUsageCache
         var sourceFileIDs: [String: String]
         var sourceDayBounds: [String: CostUsageClaudeDayBounds]
+        var sourceProjectPaths: [String: [String: String]]
         let previousWindow: (since: String, until: String)?
         let range: CostUsageDayRange
         let providerFilter: ClaudeLogProviderFilter
@@ -640,6 +689,8 @@ extension CostUsageScanner {
         Self.recordClaudeScanWork(.transcriptParse(startOffset: startOffset))
         #endif
         var dayBounds = startOffset > 0 ? state.sourceDayBounds[path] : CostUsageClaudeDayBounds()
+        // An append keeps each session's first cwd; a full parse recomputes them.
+        let projectPaths = ClaudeSessionProjectPaths(startOffset > 0 ? state.sourceProjectPaths[path] ?? [:] : [:])
         let parsed = try Self.parseClaudeFileCancellable(
             fileURL: URL(fileURLWithPath: path),
             range: state.range,
@@ -647,6 +698,7 @@ extension CostUsageScanner {
             startOffset: startOffset,
             pricingResolver: state.pricingResolver,
             recordDay: { dayBounds?.include($0) },
+            projectPaths: projectPaths,
             checkCancellation: state.checkCancellation)
         let rows = startOffset > 0 ? Self.mergeClaudeRows(existing: cached?.claudeRows ?? [], delta: parsed.rows)
             : parsed.rows
@@ -662,6 +714,7 @@ extension CostUsageScanner {
         // Only a complete source scan can certify that no filtered timestamp lies beyond these bounds.
         let sourceKey = state.sourceFileIDs.index(forKey: path).map { state.sourceFileIDs[$0].key } ?? path
         state.sourceDayBounds[sourceKey] = parsed.parsedBytes == stamp.size ? dayBounds : nil
+        state.sourceProjectPaths[sourceKey] = projectPaths.bySession.isEmpty ? nil : projectPaths.bySession
     }
 
     private static func inventoryClaudeRoots(
@@ -714,7 +767,6 @@ extension CostUsageScanner {
         return inventory
     }
 
-    // swiftlint:disable:next function_body_length
     static func loadClaudeDaily(
         provider: UsageProvider,
         range: CostUsageDayRange,
@@ -723,6 +775,28 @@ extension CostUsageScanner {
         reportContext: CostUsageReportContext? = nil,
         checkCancellation: CancellationCheck?) throws -> CostUsageDailyReport
     {
+        try self.loadClaudeReport(
+            provider: provider,
+            range: range,
+            now: now,
+            options: options,
+            reportContext: reportContext,
+            includeBreakdowns: false,
+            checkCancellation: checkCancellation).daily
+    }
+
+    // swiftlint:disable:next function_body_length
+    static func loadClaudeReport(
+        provider: UsageProvider,
+        range: CostUsageDayRange,
+        now: Date,
+        options: Options,
+        reportContext: CostUsageReportContext? = nil,
+        includeBreakdowns: Bool = false,
+        checkCancellation: CancellationCheck?) throws -> ClaudeReportProjections
+    {
+        // Provider-specific by design: only native Claude transcripts carry project and session attribution.
+        let buildsBreakdowns = includeBreakdowns && provider == .claude
         let roots = self.defaultClaudeProjectsRoots(options: options)
         let sourceInventory = try Self.inventoryClaudeRoots(roots, checkCancellation: checkCancellation)
         try checkCancellation?()
@@ -749,10 +823,13 @@ extension CostUsageScanner {
            let priorMemo,
            reportContext == nil || priorMemo.hasWindowScopedRows,
            priorMemo.sourceInventory == sourceInventory,
-           priorMemo.reportKey == reportKey
+           priorMemo.reportKey == reportKey,
+           !buildsBreakdowns || priorMemo.breakdowns != nil
         {
             try checkCancellation?()
-            return priorMemo.report
+            return ClaudeReportProjections(
+                daily: priorMemo.report,
+                breakdowns: buildsBreakdowns ? priorMemo.breakdowns : nil)
         }
 
         var artifact = CostUsageClaudeCacheIO.load(
@@ -798,6 +875,7 @@ extension CostUsageScanner {
                     timeZoneIdentifier: cache.timeZoneIdentifier)
                 artifact.sourceFileIDs = [:]
                 artifact.sourceDayBounds = [:]
+                artifact.sourceProjectPaths = [:]
             }
             let changedPaths: Set<String> = if let priorMemo {
                 Set(sourceInventory.keys.filter { path in
@@ -820,6 +898,7 @@ extension CostUsageScanner {
                 cache: cache,
                 sourceFileIDs: artifact.sourceFileIDs,
                 sourceDayBounds: artifact.sourceDayBounds,
+                sourceProjectPaths: artifact.sourceProjectPaths,
                 previousWindow: previousWindow,
                 range: range,
                 providerFilter: providerFilter,
@@ -837,6 +916,7 @@ extension CostUsageScanner {
             cache = scanState.cache
             artifact.sourceFileIDs = scanState.sourceFileIDs.filter { sourceInventory[$0.key] != nil }
             artifact.sourceDayBounds = scanState.sourceDayBounds.filter { sourceInventory[$0.key] != nil }
+            artifact.sourceProjectPaths = scanState.sourceProjectPaths.filter { sourceInventory[$0.key] != nil }
             cache.roots = nil
 
             for key in cache.files.keys where sourceInventory[key] == nil {
@@ -845,7 +925,10 @@ extension CostUsageScanner {
         }
 
         // Keep the same winner and summation order for both projections of this cache snapshot.
-        let rows = Self.reconciledClaudeRows(cache: cache)
+        let reconciled = buildsBreakdowns
+            ? Self.reconciledClaudeRowsWithFiles(cache: cache)
+            : (rows: Self.reconciledClaudeRows(cache: cache), fileIndexes: [], filePaths: [])
+        let rows = reconciled.rows
         if shouldMutateCache {
             Self.rebuildClaudeDays(cache: &cache, rows: rows)
             Self.pruneDays(cache: &cache, sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey)
@@ -863,8 +946,15 @@ extension CostUsageScanner {
             range: range,
             pricingResolver: pricingResolver)
         try checkCancellation?()
-
         artifact.usage = cache
+        let breakdowns = buildsBreakdowns ? Self.buildClaudeReportBreakdowns(
+            artifact: artifact,
+            reconciled: reconciled,
+            daily: report,
+            range: range,
+            pricingResolver: pricingResolver) : nil
+        try checkCancellation?()
+
         let committedCacheStamp: CostUsageClaudeFileStamp? = if shouldMutateCache {
             try CostUsageClaudeCacheIO.save(
                 provider: provider,
@@ -887,15 +977,17 @@ extension CostUsageScanner {
             // Keep the window certificate even if pricing was replaced during this pass.
             // The earlier pricing stamp makes report reuse miss and reprice cached rows.
             reportKey.cacheArtifactStamp = finalCacheArtifactStamp
-            return memo.store(
+            let stored = memo.store(
                 provider: provider,
                 canonicalCachePath: canonicalCachePath,
                 sourceInventory: sourceInventory,
                 reportKey: reportKey,
                 report: report,
+                breakdowns: breakdowns,
                 hasWindowScopedRows: hasWindowScopedBaseline || (shouldMutateCache && forceFullScan))
+            return ClaudeReportProjections(daily: stored.report, breakdowns: breakdowns)
         }
-        return report
+        return ClaudeReportProjections(daily: report, breakdowns: breakdowns)
     }
 
     private static func claudeReportMemoKey(
@@ -928,7 +1020,10 @@ extension CostUsageScanner {
         cache: CostUsageCache,
         rows: [ClaudeUsageRow],
         range: CostUsageDayRange,
-        pricingResolver: CostUsagePricing.ClaudeResolver) -> CostUsageDailyReport
+        pricingResolver: CostUsagePricing.ClaudeResolver,
+        hasCompleteRows knownHasCompleteRows: Bool? = nil,
+        includesTemporal: Bool = true,
+        unresolvedDayModels: Set<ClaudeDayModelKey> = []) -> CostUsageDailyReport
     {
         var entries: [CostUsageDailyReport.Entry] = []
         var temporalBuckets = TemporalBuckets()
@@ -944,9 +1039,11 @@ extension CostUsageScanner {
             rows: rows,
             range: range,
             pricingResolver: pricingResolver,
+            includesTemporal: includesTemporal,
             temporalBuckets: &temporalBuckets)
 
-        let hasCompleteRows = !cache.files.isEmpty && cache.files.values.allSatisfy { $0.claudeRows != nil }
+        let hasCompleteRows = knownHasCompleteRows
+            ?? (!cache.files.isEmpty && cache.files.values.allSatisfy { $0.claudeRows != nil })
         let modelsByDay = hasCompleteRows
             ? Dictionary(grouping: repricedCosts.keys, by: \.day).mapValues { $0.map(\.model).sorted() }
             : cache.days.mapValues { $0.keys.sorted() }
@@ -971,7 +1068,8 @@ extension CostUsageScanner {
             var dayCostSeen = false
 
             for model in modelNames {
-                let repricedCost = repricedCosts[ClaudeDayModelKey(day: day, model: model)]
+                let key = ClaudeDayModelKey(day: day, model: model)
+                let repricedCost = repricedCosts[key]
                 let counts = hasCompleteRows
                     ? repricedCost ?? ClaudeReportAggregate()
                     : ClaudeReportAggregate(packed: cache.days[day]?[model] ?? [])
@@ -991,6 +1089,7 @@ extension CostUsageScanner {
                                        sampleCount > 0,
                                        repricedCost.sampleCount == sampleCount,
                                        !repricedCost.unresolved,
+                                       !unresolvedDayModels.contains(key),
                                        repricedCost.total.isFinite
                 {
                     repricedCost.total
@@ -1068,6 +1167,7 @@ extension CostUsageScanner {
         rows: [ClaudeUsageRow],
         range: CostUsageDayRange,
         pricingResolver: CostUsagePricing.ClaudeResolver,
+        includesTemporal: Bool,
         temporalBuckets: inout TemporalBuckets) -> [ClaudeDayModelKey: ClaudeReportAggregate]
     {
         let costScale = 1_000_000_000.0
@@ -1119,7 +1219,9 @@ extension CostUsageScanner {
             }
             repricedCosts[key] = aggregate
 
-            self.addClaudeTemporal(row: row, costUSD: cost, range: range, into: &temporalBuckets)
+            if includesTemporal {
+                self.addClaudeTemporal(row: row, costUSD: cost, range: range, into: &temporalBuckets)
+            }
         }
 
         return repricedCosts

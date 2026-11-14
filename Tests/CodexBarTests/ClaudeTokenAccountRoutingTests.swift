@@ -73,6 +73,7 @@ struct ClaudeTokenAccountRoutingTests {
             settings: settings,
             tokenOverride: accountOverride)
         let snapshot = ProviderRegistry.makeSettingsSnapshot(
+            provider: .claude,
             settings: settings,
             tokenOverride: accountOverride)
 
@@ -104,7 +105,7 @@ struct ClaudeTokenAccountRoutingTests {
             provider: .claude,
             settings: settings,
             tokenOverride: nil)
-        let snapshot = ProviderRegistry.makeSettingsSnapshot(settings: settings, tokenOverride: nil)
+        let snapshot = ProviderRegistry.makeSettingsSnapshot(provider: .claude, settings: settings, tokenOverride: nil)
         let browserDetection = BrowserDetection(cacheTTL: 0)
         let context = ProviderFetchContext(
             runtime: .app,
@@ -149,7 +150,7 @@ struct ClaudeTokenAccountRoutingTests {
             provider: .claude,
             settings: settings,
             tokenOverride: nil)
-        let snapshot = ProviderRegistry.makeSettingsSnapshot(settings: settings, tokenOverride: nil)
+        let snapshot = ProviderRegistry.makeSettingsSnapshot(provider: .claude, settings: settings, tokenOverride: nil)
         let browserDetection = BrowserDetection(cacheTTL: 0)
         let context = ProviderFetchContext(
             runtime: .app,

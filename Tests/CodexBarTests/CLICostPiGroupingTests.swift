@@ -100,16 +100,28 @@ struct CLICostPiGroupingTests {
     }
 
     @Test
-    func `codex session grouping omission warning is skipped when pi is selected`() {
+    func `native session grouping omission warning is skipped when pi is selected`() {
+        for provider in [UsageProvider.codex, .claude] {
+            #expect(CodexBarCLI.sessionGroupingPiOmissionWarning(
+                provider: provider,
+                selectedProviders: [provider],
+                groupBy: .session,
+                format: .text,
+                includePiSessions: true) != nil)
+            #expect(CodexBarCLI.sessionGroupingPiOmissionWarning(
+                provider: provider,
+                selectedProviders: [provider, .pi],
+                groupBy: .session,
+                format: .text,
+                includePiSessions: true) == nil)
+        }
+    }
+
+    @Test
+    func `standalone pi session grouping never warns about omitted pi usage`() {
         #expect(CodexBarCLI.sessionGroupingPiOmissionWarning(
-            provider: .codex,
-            selectedProviders: [.codex],
-            groupBy: .session,
-            format: .text,
-            includePiSessions: true) != nil)
-        #expect(CodexBarCLI.sessionGroupingPiOmissionWarning(
-            provider: .codex,
-            selectedProviders: [.codex, .pi],
+            provider: .pi,
+            selectedProviders: [.pi],
             groupBy: .session,
             format: .text,
             includePiSessions: true) == nil)

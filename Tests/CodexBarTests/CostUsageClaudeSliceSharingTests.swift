@@ -11,9 +11,8 @@ struct CostUsageClaudeSliceSharingTests {
         var options = CostUsageScanner.Options(
             claudeProjectsRoots: [fixture.env.claudeProjectsRoot], cacheRoot: fixture.env.cacheRoot)
         options.refreshMinIntervalSeconds = 0
-        func load(_ context: CostUsageReportContext) throws -> CostUsageDailyReport {
-            try CostUsageScanner.loadDailyReportCancellable(
-                provider: .claude,
+        func load(_ context: CostUsageReportContext) throws -> ClaudeReportProjections {
+            try CostUsageScanner.loadClaudeReportProjectionsCancellable(
                 since: fixture.day.addingTimeInterval(context == .regular ? -364 * 86400 : -730 * 86400),
                 until: fixture.day,
                 now: fixture.day,
@@ -21,8 +20,14 @@ struct CostUsageClaudeSliceSharingTests {
                 reportContext: context,
                 checkCancellation: nil)
         }
-        let regular = try load(.regular)
-        let history = try load(.spendDashboard)
+        let regularProjections = try load(.regular)
+        let historyProjections = try load(.spendDashboard)
+        let regular = regularProjections.daily
+        let history = historyProjections.daily
+        #expect(regularProjections.sessions.map(\.sessionID) == ["session"])
+        #expect(historyProjections.sessions.map(\.sessionID) == ["session"])
+        #expect(regularProjections.projects.map(\.totalTokens) == [4096 * 15])
+        #expect(historyProjections.projects.map(\.totalTokens) == [4096 * 15])
         #expect(regular.quotaSlices.count == 4096)
         #expect(history.quotaSlices == regular.quotaSlices)
         let sharesPublishedBuffer = Self.sharesBuffer(regular.quotaSlices, history.quotaSlices)
@@ -31,8 +36,8 @@ struct CostUsageClaudeSliceSharingTests {
         #expect(buffers * regular.quotaSlices.count == 4096)
         #expect(history.data == regular.data)
         #expect(history.hourly == regular.hourly)
-        #expect(try load(.regular).quotaSlices == regular.quotaSlices)
-        #expect(try load(.spendDashboard).quotaSlices == history.quotaSlices)
+        #expect(try load(.regular).daily.quotaSlices == regular.quotaSlices)
+        #expect(try load(.spendDashboard).daily.quotaSlices == history.quotaSlices)
     }
 
     @Test

@@ -466,6 +466,9 @@ final class MenuBarLayoutRenderer {
         let providerTintColor = Self.effectiveProviderTintColor(for: data.provider.firstPartyProvider, options: options)
         let foregroundColor = providerTintColor ?? Self.neutralForegroundColor(options)
         let isTintActive = providerTintColor != nil
+        let renderedIcon = icon.map { image in
+            providerTintColor.map { Self.attachmentImage(image, tint: $0, isMonochrome: false) } ?? image
+        }
         let paragraphStyle = NSMutableParagraphStyle()
         if isStacked {
             let lineHeight: CGFloat = options.size == .large ? 11 : 9.5
@@ -493,12 +496,14 @@ final class MenuBarLayoutRenderer {
         let spanningIcon = options.highContrast && canSurfaceStackedIcon && renderedLines.first?.first == .icon
             ? icon : nil
         // High-contrast layouts keep icon + text together for consistent rendering.
-        // Provider-colored layouts keep the icon in attributed title to preserve the custom tint.
+        // Colored spanning icons carry their tint in the image; inline icons reuse it.
         // With a missing icon the token still renders its placeholder inside the title.
-        let leadingIcon: NSImage? = if options.highContrast || (isStacked && !canSurfaceStackedIcon) || isTintActive {
+        let leadingIcon: NSImage? = if options.highContrast || (isStacked && !canSurfaceStackedIcon)
+            || (isTintActive && !canSurfaceStackedIcon)
+        {
             nil
         } else if renderedLines.first?.first == .icon, icon != nil {
-            icon.map { Self.offsetLeadingIcon($0, adjustment: options.verticalAdjustment) }
+            renderedIcon.map { Self.offsetLeadingIcon($0, adjustment: options.verticalAdjustment) }
         } else {
             nil
         }
@@ -531,14 +536,13 @@ final class MenuBarLayoutRenderer {
                 var renderedItem = Self.renderItem(
                     token,
                     data: data,
-                    icon: icon,
+                    icon: renderedIcon,
                     style: TokenStyle(
                         font: font,
                         foregroundColor: foregroundColor,
                         iconHeight: Self.iconHeight(size: options.size, isStacked: isStacked),
                         attributes: attributes),
-                    options: options,
-                    providerTintColor: providerTintColor)
+                    options: options)
                 switch token {
                 case .percent(window: .automatic), .pace(window: .automatic), .resetCountdown, .resetAbsolute,
                      .windowResetCountdown(window: .automatic), .windowResetAbsolute(window: .automatic):
@@ -760,8 +764,7 @@ final class MenuBarLayoutRenderer {
         data: MenuBarLayoutRenderData,
         icon: NSImage?,
         style: TokenStyle,
-        options: MenuBarLayoutRenderOptions,
-        providerTintColor: NSColor? = nil)
+        options: MenuBarLayoutRenderOptions)
         -> (value: NSAttributedString, accessibilityText: String?)
     {
         if let rendered = self.renderProviderTextItem(
@@ -789,12 +792,8 @@ final class MenuBarLayoutRenderer {
                     accessibilityText: L("Icon unavailable"),
                     attributes: style.attributes)
             }
-            let tintColor = providerTintColor ?? style.foregroundColor
             let attachment = NSTextAttachment()
-            attachment.image = Self.attachmentImage(
-                icon,
-                tint: tintColor,
-                isMonochrome: providerTintColor == nil)
+            attachment.image = Self.attachmentImage(icon, tint: style.foregroundColor)
             let height = style.iconHeight
             let width = icon.size.height > 0 ? icon.size.width * height / icon.size.height : height
             attachment.bounds = NSRect(

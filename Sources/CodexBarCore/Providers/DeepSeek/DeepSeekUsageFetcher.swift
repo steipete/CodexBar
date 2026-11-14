@@ -204,6 +204,7 @@ public struct DeepSeekUsageSnapshot: Sendable {
             secondary: nil,
             tertiary: nil,
             providerCost: nil,
+            costUsage: self.usageSummary?.toCostUsageTokenSnapshot(),
             details: details,
             deepseekDetailedUsageState: self.detailedUsageState,
             deepseekPlatformProfiles: self.platformProfiles,

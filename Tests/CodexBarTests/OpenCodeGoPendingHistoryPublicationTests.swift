@@ -6,7 +6,7 @@ import Testing
 @MainActor
 struct OpenCodeGoPendingHistoryPublicationTests {
     @Test
-    func `pending local history does not publish a confirmed empty cost snapshot`() throws {
+    func `pending local history does not publish a confirmed empty cost snapshot`() async throws {
         let settings = testSettingsStore(
             suiteName: "OpenCodeGoPendingHistoryPublicationTests", userDefaults: InMemoryUserDefaults())
         settings.costUsageEnabled = true
@@ -45,6 +45,19 @@ struct OpenCodeGoPendingHistoryPublicationTests {
                 "after=\(after.snapshot?.last30DaysCostUSD as Any)")
         #expect(after.publicationRevision == before.publicationRevision)
         #expect(after.snapshot == before.snapshot)
+        let pending = remote.toUsageSnapshot()
+        store._test_providerFetchOutcomeOverride = { _ in
+            ProviderFetchOutcome(result: .success(ProviderFetchResult(
+                usage: pending,
+                credits: nil,
+                dashboard: nil,
+                sourceLabel: "fixture",
+                strategyID: "fixture",
+                strategyKind: .apiToken)), attempts: [])
+        }
+        await store.refreshProvider(.opencodego, allowDisabled: true)
+        #expect(store.snapshots[.opencodego]?.opencodegoUsage?.localHistoryPending == true)
+        #expect(store.tokenSnapshotPublicationForCurrentProviderConfig(for: .opencodego)?.snapshot == before.snapshot)
         remote.localHistoryPending = false
         store.publishProviderDerivedTokenSnapshot(from: remote.toUsageSnapshot(), for: .opencodego)
         #expect(store.tokenSnapshotPublicationForCurrentProviderConfig(for: .opencodego)?.snapshot == nil)

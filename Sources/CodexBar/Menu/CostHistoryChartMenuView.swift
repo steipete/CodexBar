@@ -1208,8 +1208,8 @@ extension CostHistoryChartMenuView {
 
     /// Providers whose local session ledgers publish project and conversation rows.
     nonisolated static func showsLocalBreakdowns(provider: UsageProvider) -> Bool {
-        // Provider-specific by design: only Codex and Pi session ledgers carry project/session rows.
-        provider == .codex || provider == .pi
+        // Provider-specific by design: only Codex, Claude, and Pi session ledgers carry project/session rows.
+        provider == .codex || provider == .claude || provider == .pi
     }
 
     static func renderFingerprint(

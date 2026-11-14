@@ -417,6 +417,7 @@ The layout editor includes an optional **Tokens / min** value token (for example
 
 Switching from **Icon & percent** back to **Meters** or **Critters** redraws the selected style immediately, even when usage has not changed.
 
+Custom two-line layouts show a single leading provider icon at full size beside both text rows, including when colored by provider. Merged-provider rows, multiple icons, icon-only rows, and high-contrast mode retain inline icons.
 An empty secondary meter keeps the same height and position as a populated meter. The compact lower lane is reserved for layouts showing a taller credits meter.
 
 Custom two-line layouts show a single leading provider icon at full size beside both text rows, including in high-contrast mode. High contrast keeps the icon and text together in the existing contrast rendering path. Merged-provider rows, multiple icons, icon-only rows, and provider-colored layouts retain inline icons.

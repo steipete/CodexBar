@@ -98,8 +98,9 @@ or 200,000 tokens when no provider-specific contract is known. Other providers n
 
 OpenAI's [pricing table](https://developers.openai.com/api/docs/pricing) defines short context as **at most 272,000
 input tokens**, and long context as **more than 272,000**, including cached input. This applies to GPT-6 Astra,
-GPT-6.1 Sol, GPT-6 Sol, GPT-6 Luna, GPT-5.6 Sol/Terra/Luna, GPT-5.4/5.5, and their Pro variants where listed.
+GPT-6.1 Sol/Terra, GPT-6 Sol, GPT-6 Luna, GPT-5.6 Sol/Terra/Luna, GPT-5.4/5.5, and their Pro variants where listed.
 The bundled table preserves that boundary for old catalogs, including the GPT-5.6 and Daybreak Blue aliases.
+GPT-6.1 Terra and GPT-6 Luna also use their published Fast rates on both sides of that boundary.
 For example, GPT-6.1 Sol with 210,000 input tokens (200,000 cached) and 1,000 output tokens costs **$0.050** at
 Standard rates. At 272,001 input tokens the full request uses long-context rates, not just the excess tokens.
 Catalog thresholds and bundled rates participate in the native Codex pricing fingerprint, so affected cached

@@ -80,24 +80,24 @@ struct CLICostTests {
     }
 
     @Test
-    func `session and project grouping keep pi in text mode`() {
+    func `session and project grouping keep all local session providers in text mode`() {
         for groupBy in [CodexBarCLI.CostGroupBy.session, .project] {
             let textProviders = CodexBarCLI.costProviders(
-                [.claude, .codex, .pi],
+                [.claude, .codex, .pi, .vertexai],
                 groupBy: groupBy,
                 format: .text)
-            #expect(textProviders.map(\.rawValue) == ["codex", "pi"])
+            #expect(textProviders.map(\.rawValue) == ["claude", "codex", "pi"])
 
             let jsonProviders = CodexBarCLI.costProviders(
-                [.claude, .codex, .pi],
+                [.claude, .codex, .pi, .vertexai],
                 groupBy: groupBy,
                 format: .json)
-            #expect(jsonProviders.map(\.rawValue) == ["claude", "codex", "pi"])
+            #expect(jsonProviders.map(\.rawValue) == ["claude", "codex", "pi", "vertexai"])
         }
     }
 
     @Test
-    func `session text grouping disables pi merge only for codex`() {
+    func `session text grouping disables pi merge for local session providers`() {
         #expect(CodexBarCLI.costIncludePiSessions(
             provider: .codex,
             groupBy: .session,
@@ -125,9 +125,14 @@ struct CLICostTests {
             groupBy: .none,
             format: .json,
             includePiSessions: true))
-        #expect(CodexBarCLI.costIncludePiSessions(
+        #expect(!CodexBarCLI.costIncludePiSessions(
             provider: .claude,
             groupBy: .session,
+            format: .text,
+            includePiSessions: true))
+        #expect(CodexBarCLI.costIncludePiSessions(
+            provider: .claude,
+            groupBy: .project,
             format: .text,
             includePiSessions: true))
         #expect(!CodexBarCLI.costIncludePiSessions(
@@ -165,9 +170,17 @@ struct CLICostTests {
             provider: .claude,
             groupBy: .session,
             format: .text,
+            includePiSessions: true) == "Session grouping shows native Claude conversations only; "
+            + "Pi/OMP usage is omitted from this view. Use the default cost view for merged totals.")
+        #expect(CodexBarCLI.sessionGroupingPiOmissionWarning(
+            provider: .vertexai,
+            groupBy: .session,
+            format: .text,
             includePiSessions: true) == nil)
     }
+}
 
+extension CLICostTests {
     @Test
     func `session grouping falls back for unsupported providers`() {
         let snap = CostUsageTokenSnapshot(
@@ -178,9 +191,10 @@ struct CLICostTests {
             historyDays: 30,
             daily: [],
             updatedAt: Date(timeIntervalSince1970: 0))
-        let output = CodexBarCLI.renderCostText(provider: .claude, snapshot: snap, groupBy: .session, useColor: false)
+        let output = CodexBarCLI.renderCostText(
+            provider: .vertexai, snapshot: snap, groupBy: .session, useColor: false)
 
-        #expect(output.contains("Claude Cost (API-rate estimate)"))
+        #expect(output.contains("Vertex AI Cost (API-rate estimate)"))
         #expect(!output.contains("Conversations ("))
     }
 
@@ -855,6 +869,85 @@ struct CLICostTests {
         #expect(payload.daily.first?.reasoningTokens == 3)
         #expect(payload.provenance == CostProvenance.listPriceEstimate.rawValue)
         #expect(payload.coverage?.estimated == 1)
+    }
+
+    @Test
+    func `renders claude session grouped cost text`() {
+        let sessionDate = Date(timeIntervalSince1970: 1_750_000_000)
+        let snap = CostUsageTokenSnapshot(
+            sessionTokens: 1200,
+            sessionCostUSD: 1.25,
+            last30DaysTokens: 9000,
+            last30DaysCostUSD: 9.99,
+            historyDays: 30,
+            daily: [],
+            sessions: [
+                CostUsageSessionBreakdown(
+                    sessionID: "0f1e2d3c-4b5a-4968-8776-a5b4c3d2e1f0",
+                    lastActivity: sessionDate,
+                    inputTokens: 1_500_000,
+                    cachedInputTokens: 1_200_000,
+                    outputTokens: 30000,
+                    totalTokens: 1_530_000,
+                    requestCount: 12,
+                    costUSD: 2.5,
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "claude-sonnet-4-5",
+                            costUSD: 2.5,
+                            totalTokens: 1_530_000),
+                    ],
+                    projectPath: "/Users/test/projects/alpha",
+                    projectName: "alpha"),
+            ],
+            updatedAt: Date(timeIntervalSince1970: 0))
+        let output = CodexBarCLI.renderCostText(provider: .claude, snapshot: snap, groupBy: .session, useColor: false)
+            .replacingOccurrences(of: "\u{00A0}", with: " ")
+            .replacingOccurrences(of: "$ ", with: "$")
+
+        #expect(output == """
+        Claude Cost (API-rate estimate)
+        Conversations (Last 30 days):
+        Session 0f1e...c3d2e1f0: $2.50 · 1.5M tokens · 12 requests
+        \(UsageFormatter.modelDisplayName("claude-sonnet-4-5")) · \(sessionTimestamp(sessionDate))
+        \(UsageFormatter.costEstimateHint(provider: .claude))
+        """)
+    }
+
+    @Test
+    func `claude cost payload includes projects`() throws {
+        let project = CostUsageProjectBreakdown(
+            name: "alpha",
+            path: "/Users/test/projects/alpha",
+            totalTokens: 110,
+            totalCostUSD: 0.5,
+            daily: [],
+            modelBreakdowns: nil,
+            sources: [CostUsageProjectSourceBreakdown(
+                name: "alpha",
+                path: "/Users/test/projects/alpha",
+                totalTokens: 110,
+                totalCostUSD: 0.5,
+                daily: [],
+                modelBreakdowns: nil)])
+        let snap = CostUsageTokenSnapshot(
+            sessionTokens: 110,
+            sessionCostUSD: 0.5,
+            last30DaysTokens: 110,
+            last30DaysCostUSD: 0.5,
+            historyDays: 30,
+            daily: [],
+            projects: [project],
+            updatedAt: Date(timeIntervalSince1970: 0))
+
+        let claude = CodexBarCLI.makeCostPayload(provider: .claude, snapshot: snap, error: nil)
+        let payloadProject = try #require(claude.projects.first)
+        #expect(claude.projects.count == 1)
+        #expect(payloadProject.name == "alpha")
+        #expect(payloadProject.path == "/Users/test/projects/alpha")
+        #expect(payloadProject.totalTokens == 110)
+        #expect(payloadProject.sources.map(\.path) == ["/Users/test/projects/alpha"])
+        #expect(CodexBarCLI.makeCostPayload(provider: .vertexai, snapshot: snap, error: nil).projects.isEmpty)
     }
 }
 

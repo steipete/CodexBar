@@ -12,7 +12,8 @@ struct CostUsageClaudeRefreshBenchmarkTests {
         }
         defer { fixture.env.cleanup() }
         let context = CostUsageReportContext.spendDashboard
-        let initial = try autoreleasepool { try fixture.load(context: context) }
+        // Production Claude refreshes also project sessions and projects.
+        let initial = try autoreleasepool { try fixture.load(context: context, includeBreakdowns: true) }
         let url = fixture.cacheURL(context: context)
         try print("[refresh-benchmark] rows=24000 artifactBytes=\(Data(contentsOf: url).count)")
 
@@ -60,11 +61,11 @@ struct CostUsageClaudeRefreshBenchmarkTests {
         try handle.seekToEnd()
         try measure("append", count: 12) { cycle in
             try handle.write(contentsOf: Data(fixture.event(index: 24000 + cycle).utf8))
-            let report = try fixture.load(context: context, cycle: cycle + 1)
+            let report = try fixture.load(context: context, cycle: cycle + 1, includeBreakdowns: true)
             #expect(report.summary?.totalInputTokens == (initial.summary?.totalInputTokens ?? 0) + (cycle + 1) * 10)
         }
         try measure("idle", count: 1000) { cycle in
-            let report = try fixture.load(context: context, cycle: cycle + 20)
+            let report = try fixture.load(context: context, cycle: cycle + 20, includeBreakdowns: true)
             #expect(report.summary?.totalInputTokens == (initial.summary?.totalInputTokens ?? 0) + 120)
         }
     }

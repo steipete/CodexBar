@@ -30,6 +30,8 @@ public enum ProviderTokenHistoryPresentation: Sendable, Equatable {
 public struct ProviderTokenCostConfig: Sendable {
     public let supportsTokenCost: Bool
     public let noDataMessage: @Sendable () -> String
+    /// Evaluated when the usage snapshot has no cost projection; balance alone need not prove zero spend.
+    public let isUsageUnavailable: @Sendable (UsageSnapshot) -> Bool
     public let menuHintLines: [ProviderTokenCostHint]
     public let supportsTokenSnapshot: Bool
     public let settingsStatusOrder: Int?
@@ -47,6 +49,7 @@ public struct ProviderTokenCostConfig: Sendable {
     public init(
         supportsTokenCost: Bool,
         noDataMessage: @escaping @Sendable () -> String,
+        isUsageUnavailable: @escaping @Sendable (UsageSnapshot) -> Bool = { _ in false },
         menuHintLines: [ProviderTokenCostHint] = [],
         supportsTokenSnapshot: Bool = false,
         settingsStatusOrder: Int? = nil,
@@ -63,6 +66,7 @@ public struct ProviderTokenCostConfig: Sendable {
     {
         self.supportsTokenCost = supportsTokenCost
         self.noDataMessage = noDataMessage
+        self.isUsageUnavailable = isUsageUnavailable
         self.menuHintLines = menuHintLines
         self.supportsTokenSnapshot = supportsTokenSnapshot
         self.settingsStatusOrder = settingsStatusOrder

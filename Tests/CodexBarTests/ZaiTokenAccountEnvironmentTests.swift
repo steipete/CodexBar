@@ -90,7 +90,7 @@ struct ZaiTokenAccountEnvironmentTests {
             organizationID: " org-account ",
             workspaceID: " proj-account ")
 
-        let snapshot = ProviderRegistry.makeSettingsSnapshot(settings: settings, tokenOverride: nil).zai
+        let snapshot = ProviderRegistry.makeSettingsSnapshot(provider: .zai, settings: settings, tokenOverride: nil).zai
 
         #expect(snapshot?.usageScope == .team)
         #expect(snapshot?.teamContext?.organizationID == "org-account")
@@ -106,7 +106,7 @@ struct ZaiTokenAccountEnvironmentTests {
             token: "account-token",
             usageScope: "team")
 
-        let snapshot = ProviderRegistry.makeSettingsSnapshot(settings: settings, tokenOverride: nil).zai
+        let snapshot = ProviderRegistry.makeSettingsSnapshot(provider: .zai, settings: settings, tokenOverride: nil).zai
 
         #expect(snapshot?.usageScope == .team)
         #expect(snapshot?.teamContext == nil)

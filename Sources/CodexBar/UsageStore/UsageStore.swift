@@ -1167,11 +1167,15 @@ extension UsageStore {
         fallbackCookieHeader: String) async -> ClaudeDebugLogConfiguration
     {
         await MainActor.run {
-            let sourceMode = self.sourceMode(for: .claude)
-            let snapshot = ProviderRegistry.makeSettingsSnapshot(settings: self.settings, tokenOverride: nil)
+            let provider: UsageProvider = .claude
+            let sourceMode = self.sourceMode(for: provider)
+            let snapshot = ProviderRegistry.makeSettingsSnapshot(
+                provider: provider,
+                settings: self.settings,
+                tokenOverride: nil)
             let environment = ProviderRegistry.makeEnvironment(
                 base: self.environmentBase,
-                provider: .claude,
+                provider: provider,
                 settings: self.settings,
                 tokenOverride: nil)
             let claudeSettings = snapshot.claude ?? ProviderSettingsSnapshot.ClaudeProviderSettings(

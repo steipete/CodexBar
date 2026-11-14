@@ -95,6 +95,7 @@ struct CodexManagedRoutingTests {
         }
 
         let snapshot = ProviderRegistry.makeSettingsSnapshot(
+            provider: .codex,
             settings: settings,
             tokenOverride: nil,
             codexActiveSourceOverride: .managedAccount(id: UUID()))

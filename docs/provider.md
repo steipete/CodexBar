@@ -66,8 +66,10 @@ retain thread-safe `register(_:)` methods for future dynamic providers.
 Runtime settings follow the same boundary. A provider owns its `ProviderSettingsSectionKey` and section payload in its
 core folder, registers that key on its descriptor, and contributes the payload from its app implementation. The generic
 `ProviderSettingsSnapshot` container performs the sole type-erased cast behind its constrained subscript; provider-local
-accessors keep fetch strategies fully typed. Providers that share a payload type still declare a distinct key for each
-`ProviderInstanceID`, while providers with no runtime settings receive an empty section from the descriptor default.
+accessors keep fetch strategies fully typed. App fetch contexts construct only the requested provider's section plus
+the shared debug flags, reading current settings for each fetch. Providers that share a payload type still declare a
+distinct key for each `ProviderInstanceID`, while providers with no runtime settings receive an empty section from the
+descriptor default.
 
 Credential and config behavior follows the descriptor boundary too. Providers with credentials register a Sendable
 `ProviderCredentialAdapter` that owns config-to-environment projection, token resolution, token-account support,
@@ -121,6 +123,11 @@ Introduce a single descriptor per provider:
 - CLI metadata (cliName, aliases, version provider)
 - account behavior (e.g., `usesAccountFallback` for Codex auth.json)
 - `nativeAppBundleIdentifiers`: exact provider-owned desktop app bundle IDs for the opt-in frontmost merged icon. The shared monitor matches only enabled providers and rejects ambiguous matches; general-purpose browsers and terminals must not claim a provider.
+
+For snapshot-backed spend, `tokenCost.isUsageUnavailable` distinguishes missing analytics from confirmed empty history
+when no cost projection exists. Balance providers such as DeepSeek and xAI declare this on their descriptors so a
+successful balance fetch alone cannot establish zero spend. Both normal refreshes and direct publication use the same
+shared publisher; pending local history retains the last published spend.
 
 UI and settings should become descriptor-driven:
 - no provider-specific branching for labels/links/toggle titles

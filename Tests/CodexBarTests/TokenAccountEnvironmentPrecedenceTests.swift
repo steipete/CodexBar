@@ -296,6 +296,7 @@ struct TokenAccountEnvironmentPrecedenceTests {
             lastUsed: nil)
 
         let snapshot = ProviderRegistry.makeSettingsSnapshot(
+            provider: .cursor,
             settings: settings,
             tokenOverride: TokenAccountOverride(provider: .cursor, account: account))
         let cursorSettings = try #require(snapshot.cursor)
@@ -396,7 +397,7 @@ struct TokenAccountEnvironmentPrecedenceTests {
             token: "sk-ant-session-token",
             organizationID: " org-team ")
 
-        let snapshot = ProviderRegistry.makeSettingsSnapshot(settings: settings, tokenOverride: nil)
+        let snapshot = ProviderRegistry.makeSettingsSnapshot(provider: .claude, settings: settings, tokenOverride: nil)
         let claudeSettings = try #require(snapshot.claude)
 
         #expect(claudeSettings.manualCookieHeader == "sessionKey=sk-ant-session-token")
