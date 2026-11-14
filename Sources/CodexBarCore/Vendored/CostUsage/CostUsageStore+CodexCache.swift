@@ -927,8 +927,7 @@ extension CostUsageStore {
         let tokenSnapshotsLoaded = baseline.tokenSnapshotsLoaded || parserStateChanged
         let sourceSnapshots = usage.codexTokenSnapshots ?? []
         let sourceRows = usage.codexRows ?? []
-        // `codexArchived` is derived from the filesystem on load and never persisted, so the
-        // unreconciled baseline cannot carry it. It must not make an archived rollout look changed.
+        // Archive state is filesystem-derived, not persisted; compare it at the same baseline.
         var persistedUsage = usage
         persistedUsage.codexArchived = baseline.usage?.codexArchived
         // The caller revalidates this baseline under the transaction's writer lock.
@@ -1042,9 +1041,9 @@ extension CostUsageStore {
             path: path,
             eventCount: tokenSnapshotsLoaded ? sourceSnapshots.count : baseline.snapshotCount,
             nextUsageRowIndex: usage.codexNextUsageRowIndex ?? CostUsageScanner.nextCodexUsageRowIndex(usage.codexRows),
-            countedTotals: Self.totals(usage.lastCountedTotals),
-            rawTotalsBaseline: Self.totals(usage.lastRawTotalsBaseline),
-            rawTotalsWatermark: Self.totals(usage.lastRawTotalsWatermark),
+            countedTotals: usage.lastCountedTotals.map(Self.totals),
+            rawTotalsBaseline: usage.lastRawTotalsBaseline.map(Self.totals),
+            rawTotalsWatermark: usage.lastRawTotalsWatermark.map(Self.totals),
             sawDivergentTotals: usage.hasDivergentTotals ?? false,
             sawInterleavedTotals: usage.hasInterleavedTotals ?? false,
             seenRawTotals: (usage.seenRawTotals ?? []).map(Self.totals),
@@ -1346,8 +1345,8 @@ extension CostUsageStore {
             timestamp: snapshot.timestamp,
             timestampUnixMs: date.map { Int64($0.timeIntervalSince1970 * 1000) },
             day: date.map { CostUsageScanner.CostUsageDayRange.dayKey(from: $0, calendar: calendar) },
-            last: Self.totals(snapshot.last),
-            total: Self.totals(snapshot.total),
+            last: snapshot.last.map(Self.totals),
+            total: snapshot.total.map(Self.totals),
             endOffset: snapshot.endOffset)
     }
 
@@ -1415,10 +1414,6 @@ extension CostUsageStore {
 
     private static func device(from identity: String?) -> String? {
         identity?.split(separator: ":", maxSplits: 1).first.map(String.init)
-    }
-
-    private static func totals(_ value: CostUsageCodexTotals?) -> CostUsageStoreTotals? {
-        value.map(self.totals)
     }
 
     private static func totals(_ value: CostUsageCodexTotals) -> CostUsageStoreTotals {
