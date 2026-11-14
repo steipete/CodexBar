@@ -122,6 +122,7 @@ struct SpendDashboardPane: View {
     @State private var userSelectedBackground = false
     @State private var isExportingJSON = false
     @State private var exportDocument: SpendDashboardJSONDocument?
+    @State private var exportFilename = ""
     @State private var detailSelections: [String: SpendDashboardDetailSection] = [:]
     @State private var sessionNavigation = SessionUsageNavigation.shared
 
@@ -157,7 +158,7 @@ struct SpendDashboardPane: View {
         }
         .background(FocusResigningBackground())
         .modifier(SpendDashboardToolbar(
-            isVisible: self.sessionNavigation.request == nil,
+            isVisible: self.isVisible && self.sessionNavigation.request == nil,
             range: self.rangePicker,
             refresh: self.refreshButton,
             actions: self.actionsMenu))
@@ -165,7 +166,7 @@ struct SpendDashboardPane: View {
             isPresented: self.$isExportingJSON,
             document: self.exportDocument,
             contentType: .json,
-            defaultFilename: SpendDashboardJSONExporter.defaultFilename(days: self.controller.model.requestedDays),
+            defaultFilename: self.exportFilename,
             onCompletion: { result in
                 if SpendDashboardJSONDocument.exportFailed(result) {
                     NSSound.beep()
@@ -307,21 +308,21 @@ struct SpendDashboardPane: View {
             } label: {
                 Label(L("Copy JSON"), systemImage: "doc.on.doc")
             }
-            .disabled(self.controller.model.groups.isEmpty)
             Button {
                 self.exportJSON()
             } label: {
                 Label(L("Export JSON"), systemImage: "square.and.arrow.down")
             }
-            .disabled(self.controller.model.groups.isEmpty)
             Divider()
             Button {
-                guard let payload = self.sharePayload else { return }
+                guard let payload = self.sharePayload else {
+                    NSSound.beep()
+                    return
+                }
                 ShareStatsPresenter.shared.present(payload: payload)
             } label: {
                 Label(L("Share Stats…"), systemImage: "square.and.arrow.up")
             }
-            .disabled(self.sharePayload == nil)
         } label: {
             // The share glyph's arrow makes it sit low next to other toolbar symbols; lift it optically.
             Label(L("More"), systemImage: "square.and.arrow.up")
@@ -329,6 +330,8 @@ struct SpendDashboardPane: View {
                 .offset(y: -1.5)
         }
         .menuIndicator(.hidden)
+        // Enablement stays off the model so toolbar updates never build it; each action checks it when chosen.
+        .disabled(self.controller.publication.inputs.isEmpty)
         .help(L("More"))
     }
 
@@ -596,19 +599,25 @@ struct SpendDashboardPane: View {
     }
 
     private func copyJSON() {
+        guard !self.controller.model.groups.isEmpty else {
+            NSSound.beep()
+            return
+        }
         _ = SpendDashboardJSONExporter.copyToPasteboard(
             model: self.controller.model,
             hiddenSourceIDs: self.settings.spendDashboardHiddenSourceIDs)
     }
 
     private func exportJSON() {
-        guard let document = try? SpendDashboardJSONDocument(
-            model: self.controller.model,
-            hiddenSourceIDs: self.settings.spendDashboardHiddenSourceIDs)
+        guard !self.controller.model.groups.isEmpty,
+              let document = try? SpendDashboardJSONDocument(
+                  model: self.controller.model,
+                  hiddenSourceIDs: self.settings.spendDashboardHiddenSourceIDs)
         else {
             NSSound.beep()
             return
         }
+        self.exportFilename = SpendDashboardJSONExporter.defaultFilename(days: self.controller.model.requestedDays)
         self.exportDocument = document
         self.isExportingJSON = true
     }
@@ -833,8 +842,10 @@ struct SpendDashboardCurrencySection: View {
                 ?? (group.selectedDay != nil && !group.hourlyPoints.isEmpty ? .hourly : .daily))
     }
 
+    /// Panels are direct children of the enclosing lazy stack: a nested lazy stack misestimates
+    /// its height after a jump to the end and leaves the visible area blank.
     var body: some View {
-        LazyVStack(alignment: .leading, spacing: 18) {
+        Group {
             SpendDashboardPanel {
                 SpendDashboardSummary(
                     group: self.group,
@@ -946,10 +957,9 @@ private struct SpendProjectRows: View {
     private static let collapsedRowCount = 8
 
     var body: some View {
-        let rows = self.rows
-        let shares = spendDashboardShares(rows, cost: \.totalCost, tokens: \.totalTokens)
+        let shares = spendDashboardShares(self.rows, cost: \.totalCost, tokens: \.totalTokens)
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(rows.prefix(self.showsAllRows ? rows.count : Self.collapsedRowCount)) { row in
+            ForEach(self.visibleRows) { row in
                 let identity = row.displayIdentity(hidePersonalInfo: self.hidePersonalInfo)
                 if row.rank > 1 {
                     Divider()
@@ -977,7 +987,7 @@ private struct SpendProjectRows: View {
                                 .accessibilityHidden(true)
                         }
                         if let path = identity.path,
-                           row.needsPathDisambiguation(in: rows)
+                           row.needsPathDisambiguation(in: self.rows)
                         {
                             Text(path)
                                 .font(.caption)
@@ -997,10 +1007,14 @@ private struct SpendProjectRows: View {
                 .padding(.vertical, 9)
             }
             SpendPanelExpandButton(
-                rowCount: rows.count,
+                rowCount: self.rows.count,
                 collapsedRowCount: Self.collapsedRowCount,
                 showsAllRows: self.$showsAllRows)
         }
+    }
+
+    private var visibleRows: ArraySlice<SpendDashboardModel.ProjectRow> {
+        self.rows.prefix(self.showsAllRows ? self.rows.count : Self.collapsedRowCount)
     }
 
     private var rows: [SpendDashboardModel.ProjectRow] {
@@ -1029,6 +1043,24 @@ struct SpendPanelExpandButton: View {
             .padding(.top, 6)
         }
     }
+}
+
+private enum SpendDailyLedgerLayout {
+    static let dayWidth: CGFloat = 112
+    static let providerMinimumWidth: CGFloat = 96
+    static let trackedTokensWidth: CGFloat = 90
+    static let requestsWidth: CGFloat = 72
+    static let estimatedSpendWidth: CGFloat = 116
+    static let columnSpacing: CGFloat = 12
+    static let horizontalPadding: CGFloat = 8
+    static let minimumTableWidth: CGFloat =
+        dayWidth
+            + providerMinimumWidth
+            + trackedTokensWidth
+            + requestsWidth
+            + estimatedSpendWidth
+            + (columnSpacing * 4)
+            + (horizontalPadding * 2)
 }
 
 /// Bound initial ledger layout on long ranges; expansion still exposes the complete history.
@@ -1062,20 +1094,24 @@ private struct SpendDailyLedger: View {
                         systemImage: "calendar.badge.exclamationmark")
                         .frame(maxWidth: .infinity, minHeight: 120)
                 } else {
-                    Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 8) {
-                        self.header
-                        Divider()
-                        ForEach(Array(self.visibleSummaries.enumerated()), id: \.element.id) { index, summary in
-                            if index > 0 {
-                                Divider()
+                    ScrollView(.horizontal, showsIndicators: true) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            self.header
+                            Divider()
+                            VStack(spacing: 0) {
+                                ForEach(Array(self.visibleSummaries.enumerated()), id: \.element.id) { index, summary in
+                                    if index > 0 {
+                                        Divider()
+                                    }
+                                    SpendDailyLedgerRow(
+                                        summary: summary,
+                                        currencyCode: self.group.currencyCode,
+                                        timeZone: self.group.timeZone)
+                                }
                             }
-                            SpendDailyLedgerRow(
-                                summary: summary,
-                                currencyCode: self.group.currencyCode,
-                                timeZone: self.group.timeZone)
                         }
+                        .frame(minWidth: SpendDailyLedgerLayout.minimumTableWidth, alignment: .leading)
                     }
-                    .monospacedDigit()
                     SpendPanelExpandButton(
                         rowCount: self.group.dailySummaries.count,
                         collapsedRowCount: Self.collapsedRowCount,
@@ -1086,24 +1122,26 @@ private struct SpendDailyLedger: View {
     }
 
     private var header: some View {
-        GridRow {
-            self.headerCell(L("Day"))
-            self.headerCell(L("Providers"))
-                .frame(maxWidth: .infinity, alignment: .leading)
-            self.headerCell(L("Tracked tokens"))
-                .gridColumnAlignment(.trailing)
-            self.headerCell(L("Requests"))
-                .gridColumnAlignment(.trailing)
-            self.headerCell(L("Estimated spend"))
-                .gridColumnAlignment(.trailing)
+        HStack(spacing: SpendDailyLedgerLayout.columnSpacing) {
+            Text(L("Day")).frame(width: SpendDailyLedgerLayout.dayWidth, alignment: .leading)
+            Text(L("Providers")).frame(
+                minWidth: SpendDailyLedgerLayout.providerMinimumWidth,
+                maxWidth: .infinity,
+                alignment: .leading)
+            Text(L("Tracked tokens")).frame(
+                width: SpendDailyLedgerLayout.trackedTokensWidth,
+                alignment: .trailing)
+            Text(L("Requests")).frame(
+                width: SpendDailyLedgerLayout.requestsWidth,
+                alignment: .trailing)
+            Text(L("Estimated spend")).frame(
+                width: SpendDailyLedgerLayout.estimatedSpendWidth,
+                alignment: .trailing)
         }
-    }
-
-    private func headerCell(_ title: String) -> some View {
-        Text(title)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, SpendDailyLedgerLayout.horizontalPadding)
+        .padding(.vertical, 6)
     }
 }
 
@@ -1113,21 +1151,27 @@ private struct SpendDailyLedgerRow: View {
     let timeZone: TimeZone
 
     var body: some View {
-        GridRow {
+        HStack(spacing: SpendDailyLedgerLayout.columnSpacing) {
             Text(spendDashboardLedgerDateText(self.summary.day, timeZone: self.timeZone))
-                .lineLimit(1)
-                .accessibilityLabel(self.accessibilityLabel)
+                .frame(width: SpendDailyLedgerLayout.dayWidth, alignment: .leading)
             self.providerMix
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityHidden(true)
+                .frame(
+                    minWidth: SpendDailyLedgerLayout.providerMinimumWidth,
+                    maxWidth: .infinity,
+                    alignment: .leading)
             Text(self.tokensText)
-                .accessibilityHidden(true)
+                .frame(width: SpendDailyLedgerLayout.trackedTokensWidth, alignment: .trailing)
             Text(self.requestsText)
-                .accessibilityHidden(true)
+                .frame(width: SpendDailyLedgerLayout.requestsWidth, alignment: .trailing)
             Text(spendDashboardLedgerCostText(self.summary, currencyCode: self.currencyCode))
                 .fontWeight(.medium)
-                .accessibilityHidden(true)
+                .frame(width: SpendDailyLedgerLayout.estimatedSpendWidth, alignment: .trailing)
         }
+        .monospacedDigit()
+        .padding(.horizontal, SpendDailyLedgerLayout.horizontalPadding)
+        .padding(.vertical, 10)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(self.accessibilityLabel)
     }
 
     @ViewBuilder

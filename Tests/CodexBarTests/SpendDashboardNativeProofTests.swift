@@ -116,7 +116,7 @@ final class SpendDashboardNativeProofTests: XCTestCase {
         XCTFail("Native proof did not finish before its deadline")
     }
 
-    private static func syntheticInputs(
+    static func syntheticInputs(
         now: Date,
         calendar: Calendar) -> [SpendDashboardModel.ProviderInput]
     {
