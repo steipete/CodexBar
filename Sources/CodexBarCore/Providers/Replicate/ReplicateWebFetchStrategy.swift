@@ -83,7 +83,6 @@ struct ReplicateWebFetchStrategy: ProviderFetchStrategy {
             sessions,
             shouldRetry: Self.isAuthenticationFailure,
             attempt: { session in
-                try Task.checkCancellation()
                 let usage = try await self.usageLoader(session.cookieHeader)
                 try Task.checkCancellation()
                 self.cacheWriter(observation, session)
