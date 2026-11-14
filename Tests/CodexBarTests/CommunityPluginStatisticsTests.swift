@@ -119,6 +119,46 @@ struct CommunityPluginStatisticsTests {
         #expect(!ShareStatsFormatting.text(payload).contains("person@"))
     }
 
+    @Test(arguments: ["2026-11-01", "2026-11-11"])
+    func `nullable plugin history preserves independently known daily counts`(unknownDay: String) throws {
+        let usage = try ProviderPluginSnapshotMapper.map(
+            JSONProviderPluginValue([
+                "costUsage": [
+                    "version": 2, "timeZone": "Asia/Shanghai",
+                    "windowStart": "2026-11-01", "windowEnd": "2026-11-14",
+                    "entries": [
+                        ["date": unknownDay, "totalTokens": NSNull(), "requests": NSNull()],
+                        ["date": "2026-11-13", "totalTokens": 123, "requests": 2],
+                        ["date": "2026-11-14", "totalTokens": 0, "requests": 0],
+                    ],
+                ],
+            ]),
+            provider: Self.id)
+        let input = try SpendDashboardModel.ProviderInput(
+            providerID: Self.id,
+            displayName: "Nullable Fixture",
+            snapshot: #require(usage.costUsage),
+            sourceKind: .communityPlugin)
+        let model = Self.model(inputs: [input], days: 7)
+        let group = try #require(model.groups.first)
+        #expect(group.totalTokens == (unknownDay == "2026-11-01" ? 123 : nil))
+        let days = Dictionary(uniqueKeysWithValues: group.dailySummaries.map {
+            (Self.key($0.day, zone: "Asia/Shanghai"), $0)
+        })
+        #expect(days["2026-11-13"]?.totalTokens == 123)
+        #expect(days["2026-11-13"]?.requestCount == 2)
+        #expect(days["2026-11-13"]?.providers.first?.totalTokens == 123)
+        #expect(days["2026-11-13"]?.providers.first?.requestCount == 2)
+        #expect(days["2026-11-14"]?.totalTokens == 0)
+        #expect(days["2026-11-14"]?.requestCount == 0)
+        #expect(days["2026-11-12"]?.totalTokens == nil)
+        #expect(days["2026-11-12"]?.requestCount == nil)
+        if unknownDay == "2026-11-11" {
+            #expect(days[unknownDay]?.totalTokens == nil)
+            #expect(days[unknownDay]?.requestCount == nil)
+        }
+    }
+
     @Test
     func `legacy native windows keep known activity from other native sources`() throws {
         func legacyInput(

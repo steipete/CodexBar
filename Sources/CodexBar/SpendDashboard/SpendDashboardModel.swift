@@ -1033,6 +1033,8 @@ struct SpendDashboardModel: Equatable, Sendable {
     }
 
     private static func dailyProviderRow(summary: InputSummary, entries: [WindowEntry]) -> DailyProviderRow {
+        // An unknown date elsewhere in an explicit feed does not invalidate this day's observations.
+        let explicitDays = summary.input.reportsOnlyExplicitDays
         let costs = entries.map {
             Self.validCost($0.entry.costUSD).map { $0 * summary.costMultiplier }
         }
@@ -1053,12 +1055,12 @@ struct SpendDashboardModel: Equatable, Sendable {
             displayName: summary.input.displayName,
             totalTokens: Self.dailyIntegerTotal(
                 entries: entries,
-                isComplete: summary.hasCompleteTokenHistory,
+                isComplete: explicitDays || summary.hasCompleteTokenHistory,
                 scanIsPartial: summary.historyScanIsPartial || summary.input.reportsOnlyExplicitDays,
                 value: \.totalTokens),
             requestCount: Self.dailyIntegerTotal(
                 entries: entries,
-                isComplete: summary.hasCompleteRequestHistory,
+                isComplete: explicitDays || summary.hasCompleteRequestHistory,
                 scanIsPartial: summary.historyScanIsPartial || summary.input.reportsOnlyExplicitDays,
                 value: \.requestCount),
             totalCost: totalCost)
