@@ -46,38 +46,24 @@ defineProvider({
     const usd = optionalNumber(payload.balances.usd, "balances.usd");
     const allocation = optionalNumber(payload.diemEpochAllocation, "diemEpochAllocation");
 
-    let usedPercent;
+    let usedPercent = 0;
     let resetDescription;
     if (!payload.canConsume) {
       usedPercent = 100;
-      const usdText = (value) =>
-        value < 0 ? `USD balance -$${Math.abs(value).toFixed(2)}` : `$${value.toFixed(2)} USD remaining`;
-      const diemText = (value) =>
-        value < 0 ? `DIEM balance -${Math.abs(value).toFixed(2)}` : `DIEM ${value.toFixed(2)} remaining`;
-      const primaryIsUsd = currency === "USD";
-      const primaryValue = primaryIsUsd ? usd : diem;
-      const otherValue = primaryIsUsd ? diem : usd;
-      let known = null;
-      if (primaryValue !== null) {
-        known = primaryIsUsd ? usdText(primaryValue) : diemText(primaryValue);
-      } else if (otherValue !== null) {
-        known = primaryIsUsd ? diemText(otherValue) : usdText(otherValue);
-      }
-      resetDescription = known ? `${known}, API calls blocked` : "Balance unavailable for API calls";
+      const knownUSD = usd !== null && (currency === "USD" || diem === null);
+      resetDescription = knownUSD
+        ? ctx.format.usd(usd)
+        : diem !== null
+          ? `DIEM ${diem.toFixed(2)}`
+          : "Balance unavailable for API calls";
     } else if (currency === "USD" && usd !== null && usd > 0) {
-      usedPercent = 0;
       resetDescription = `$${usd.toFixed(2)} USD remaining`;
     } else if (currency !== "USD" && diem !== null && allocation !== null && allocation > 0) {
       usedPercent = ctx.pct(allocation - diem, allocation);
       resetDescription = `DIEM ${diem.toFixed(2)} / ${allocation.toFixed(2)} epoch allocation`;
-    } else if (currency === "DIEM" && diem !== null && diem > 0) {
-      usedPercent = 0;
-      resetDescription = `DIEM ${diem.toFixed(2)} remaining`;
     } else if (diem !== null && diem > 0) {
-      usedPercent = 0;
       resetDescription = `DIEM ${diem.toFixed(2)} remaining`;
     } else if (usd !== null && usd > 0) {
-      usedPercent = 0;
       resetDescription = `$${usd.toFixed(2)} USD remaining`;
     } else {
       usedPercent = 100;
