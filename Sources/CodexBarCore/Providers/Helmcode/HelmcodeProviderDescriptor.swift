@@ -13,6 +13,13 @@ public enum HelmcodeProviderDescriptor {
         confetti: [0x4934E1, 0x8B7CF6],
         noDataMessage: "Helmcode per-request cost history is not available in CodexBar.",
         presentation: ProviderUsagePresentation(
+            rateWindowLabeler: { metadata, snapshot, _ in
+                ProviderRateWindowLabels(
+                    primary: snapshot.primary?.quotaUnit == "credits" ? "Credits" : metadata.sessionLabel,
+                    secondary: metadata.weeklyLabel,
+                    tertiary: metadata.opusLabel ?? "Sonnet",
+                    showsTertiary: metadata.supportsOpus)
+            },
             costPresenter: { _ in ProviderCostPresentation(menuCardStyle: .prepaidCredits) },
             extraRateWindowSelector: { $0.extraRateWindows ?? [] },
             menuCard: ProviderMenuCardPresentation(showsPrimaryBalanceDescription: true),

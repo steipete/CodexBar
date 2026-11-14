@@ -86,6 +86,26 @@ struct SiliconFlowWebPluginTests {
     }
 
     @Test(arguments: BundledPluginTestSupport.engines)
+    func `host only parent cookies do not block a later console session`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let cookie = try #require(HTTPCookie(properties: [
+            .name: "parent-only", .value: "synthetic", .domain: "siliconflow.cn", .path: "/", .secure: "TRUE",
+        ]))
+        let record = ProviderPluginCookieRecord(cookie: cookie)
+        #expect(record.hostOnly)
+        let session = ProviderPluginCookieSession(
+            header: "", source: "Synthetic", origin: "https://cloud.siliconflow.cn", records: [record])
+        let fixture = Fixture(wallet: Self.wallet(), firstSession: session)
+        let result = try await Self.fetch(engine, fixture)
+        #expect(result.usage.detailRow(label: "Balance")?.value == "CN¥12.50")
+        #expect(await fixture.requests.map(\.cookie) == ["sf-session-2", "sf-session-2"])
+        #expect(await fixture.sessions == 2)
+        #expect(result.rejected == [session.id])
+        #expect(result.validated.isEmpty)
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
     func `expired sessions ask for a browser sign in without exposing the redirect`(
         engine: ProviderPluginEngineKind) async
     {
@@ -260,6 +280,7 @@ struct SiliconFlowWebPluginTests {
         let pageStatus: Int
         let location: String?
         let loginRedirectSessions: Set<Int>
+        let firstSession: ProviderPluginCookieSession?
         var sessions = 0
         var requests: [Request] = []
 
@@ -269,7 +290,8 @@ struct SiliconFlowWebPluginTests {
             subject: String? = "subject-fixture",
             pageStatus: Int = 200,
             location: String? = nil,
-            loginRedirectSessions: Set<Int> = [])
+            loginRedirectSessions: Set<Int> = [],
+            firstSession: ProviderPluginCookieSession? = nil)
         {
             self.wallet = wallet
             self.walletStatus = walletStatus
@@ -277,11 +299,13 @@ struct SiliconFlowWebPluginTests {
             self.pageStatus = pageStatus
             self.location = location
             self.loginRedirectSessions = loginRedirectSessions
+            self.firstSession = firstSession
         }
 
         func nextSession() -> ProviderPluginCookieSession? {
             self.sessions += 1
             guard self.sessions <= 2 else { return nil }
+            if self.sessions == 1, let firstSession { return firstSession }
             return .init(
                 header: "__SF_auth.session-token=sf-session-\(self.sessions)",
                 source: "Synthetic", origin: "https://cloud.siliconflow.cn")

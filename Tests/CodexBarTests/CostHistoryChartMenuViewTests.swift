@@ -116,6 +116,31 @@ struct CostHistoryChartMenuViewTests {
     }
 
     @Test
+    func `pi render fingerprint tracks projects and sessions`() {
+        let session = CostUsageSessionBreakdown(
+            sessionID: "pi-session",
+            lastActivity: Date(timeIntervalSince1970: 1_750_000_000),
+            inputTokens: 10,
+            cachedInputTokens: nil,
+            outputTokens: 5,
+            totalTokens: 15,
+            requestCount: 1,
+            costUSD: 0.01,
+            modelBreakdowns: [],
+            title: "Refactor parser")
+        let project = Self.project(path: "/Users/test/projects/alpha", sourcePath: "/Users/test/projects/alpha")
+        let pi = Self.fingerprint(projects: [project], sessions: [session], provider: .pi)
+        #expect(CostHistoryChartMenuView.showsLocalBreakdowns(provider: .pi))
+        #expect(!CostHistoryChartMenuView.showsLocalBreakdowns(provider: .claude))
+        #expect(pi.projects.count == 1)
+        #expect(pi.sessions.map(\.sessionID) == ["pi-session"])
+        #expect(pi != Self.fingerprint(projects: [project], sessions: [], provider: .pi))
+        let claude = Self.fingerprint(projects: [project], sessions: [session], provider: .claude)
+        #expect(claude.projects.isEmpty)
+        #expect(claude.sessions.isEmpty)
+    }
+
+    @Test
     func `partial Codex token history is marked refreshing until coverage completes`() {
         #expect(CostHistoryChartMenuView._showsHistoryRefreshingForTesting(
             provider: .codex,

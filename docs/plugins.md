@@ -122,6 +122,10 @@ nonpersistent cookie sessions use the shared access gate; the existing Gemini CL
 never sees cookie values. It lists organizations, then reads required `prepaid/credits` (a 403 tries the next API
 organization) and optional `current_spend`, whose failures keep the balance. Both plugin engines run it.
 
+[Google Developer Program](googledeveloper.md) uses the same opaque request-scoped Google cookies as the Gemini app
+source. Per signed-in account it reads the benefits page token, then sends one `batchexecute` form POST with
+`ctx.http.post`. It shows only the current monthly Gen AI & Cloud credit grant. Both plugin engines run it.
+
 [OpenDesign](opendesign.md) uses opaque, request-scoped cookies for two read-only GETs: current workspace and
 subscription windows. Its script validates workspace ownership and selects five-hour/weekly quotas by duration.
 
@@ -280,7 +284,8 @@ so portable third-party plugins must use the host helpers below instead of ECMA-
   authentication, deadline, response-size, and retry rules as JSON POST. Form values, their percent-encoded values,
   and their JSON-escaped values join the fetch's log/error redaction set before transport starts. Do not log
   credentials before submitting the request; values discovered by the script are not known to the host yet.
-- `opts.headers` accepts string values. Plugins cannot replace their declared auth header. `opts.timeoutSeconds` sets a
+- `opts.headers` accepts string values. An explicit `Content-Type` is preserved without changing JSON or form body
+  encoding. Plugins cannot replace their declared auth header. `opts.timeoutSeconds` sets a
   hard request deadline from 1 through 90 seconds; the default is 15 seconds. Each attempt’s deadline starts when
   its transport task begins, so scheduler delays do not consume the request budget. Queued work remains bounded
   by the overall fetch deadline and cancellation. An override does not extend that overall deadline; bundled
@@ -740,7 +745,7 @@ Bundled scripts own requests, error classification, and snapshot mapping; Swift 
 | [Aixy](aixy.md) | TypeScript maps key-scoped usage and budgets; the host validates the configured gateway origin and supplies the API key. |
 | [Qwen Cloud](qwen-cloud.md) | `qwencloud-team.ts` discovers the billing selector and fetches Team credits through form POSTs. Native Qwen cookie selection supplies one opaque dashboard session; Individual remains native as the fallback. |
 | [Raycast](raycast.md) | `ctx.browser.sessions` retries candidates for declared `raycast.com` / `www.raycast.com` domains. The broker prefers exact-host cookies over same-name parent cookies and excludes sibling/lookalike hosts. |
-| [Muse (muse.ai)](museai.md) | `ctx.browser.sessions` for `muse.ai`, with `persistent-storage` holding the deploy-specific server-action ID. A stale ID (`404 Server action not found.`) triggers rediscovery from the signed-in page's chunks. |
+| [Muse (muse.ai)](museai.md) | `ctx.browser.sessions` for `muse.ai`, with `persistent-storage` holding the deploy-specific server-action ID. HTTP 400/404 triggers one rediscovery from the signed-in page's chunks; transient failures retain the cached ID. |
 
 ## Native adapters with declarative registration
 

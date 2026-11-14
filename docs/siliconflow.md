@@ -35,7 +35,8 @@ Each refresh walks the browser sessions offered by the shared cookie importer an
    `x-subject-id`.
 
 Traversal stops at the first session whose wallet response parses. Cookies and the subject stay within that
-refresh; this provider never reads or writes a persistent cookie cache. HTTP 401, or a redirect to
+refresh; this provider never reads or writes a persistent cookie cache. Candidates with no cookies matching the
+request URL are skipped before any network request. HTTP 401, or a redirect to
 `https://account.siliconflow.cn/login`, rejects that session and tries the next.
 When all fail, CodexBar asks you to sign in again in the browser. HTTP 403 reports that console balance access was
 denied and asks you to check billing access in the console; 429 is rate limiting, and 408/5xx are temporary failures.

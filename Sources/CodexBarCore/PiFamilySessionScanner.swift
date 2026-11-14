@@ -139,7 +139,7 @@ enum PiFamilySessionFileParser {
         return dictionary
     }
 
-    private static func sanitizedTitle(_ value: String) -> String? {
+    static func sanitizedTitle(_ value: String) -> String? {
         var result = ""
         for scalar in value.unicodeScalars {
             guard !CharacterSet.controlCharacters.contains(scalar),
