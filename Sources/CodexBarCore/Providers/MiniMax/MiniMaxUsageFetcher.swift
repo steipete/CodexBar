@@ -792,8 +792,10 @@ enum MiniMaxUsageParser {
         let baseResponse = payload.data.baseResp ?? payload.baseResp
         if let status = baseResponse?.statusCode, status != 0 {
             let message = baseResponse?.statusMessage ?? "status_code \(status)"
-            let lower = message.lowercased()
-            if status == 1004 || lower.contains("cookie") || lower.contains("log in") || lower.contains("login") {
+            let lower = message.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if status == 1004 || lower == "invalid api key" || lower.contains("cookie") ||
+                lower.contains("log in") || lower.contains("login")
+            {
                 throw MiniMaxUsageError.invalidCredentials
             }
             throw MiniMaxUsageError.apiError(message)
