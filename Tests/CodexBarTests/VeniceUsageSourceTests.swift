@@ -47,7 +47,7 @@ extension VeniceUsageSourceTests {
         #expect(!store.shouldFetchAllTokenAccounts(provider: .venice, accounts: [account, Self.account()]))
         settings.veniceCookieSource = .manual
         settings.veniceCookieHeader = "__venice-auth.session-token=synthetic"
-        let snapshot = ProviderRegistry.makeSettingsSnapshot(settings: settings, tokenOverride: nil)
+        let snapshot = ProviderRegistry.makeSettingsSnapshot(provider: .venice, settings: settings, tokenOverride: nil)
         #expect(snapshot.venice?.cookieSource == .manual)
         #expect(snapshot.venice?.manualCookieHeader == settings.veniceCookieHeader)
         settings.veniceUsageDataSource = .api
