@@ -73,22 +73,43 @@ struct MuseAIPluginTests {
         storedID: String?,
         engine: ProviderPluginEngineKind) async throws
     {
-        let result = try await Self.fetch(
-            engine: engine,
-            storedID: storedID,
-            action: Self.free,
-            observeHTTP: { traces in
-                let posts = traces.filter { $0.method == "POST" }
-                #expect(posts.map(\.status) == (storedID == nil ? [200] : [404, 200]))
-                #expect(posts.allSatisfy { $0.contentType == "text/plain;charset=UTF-8" })
-                #expect(posts.last?.actionID == Self.actionID)
-                if let storedID { #expect(posts.first?.actionID == storedID) }
-            })
+        let result = try await Self.fetch(engine: engine, storedID: storedID, action: Self.free)
         #expect(result.snapshot.primary?.usedPercent == 28)
         #expect(result.requests.contains("GET /_next/static/chunks/settings.js"))
         #expect(!result.requests.contains("GET /_next/static/chunks/other.js"))
         #expect(result.requests.last == "POST / \(Self.actionID)")
         #expect(result.storedID == Self.actionID)
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `a stale action with an unstructured bad request response is rediscovered`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let result = try await Self.fetch(
+            engine: engine, storedID: "40aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", action: Self.free,
+            staleStatus: 400)
+        #expect(result.snapshot.primary?.usedPercent == 28)
+        #expect(result.requests.filter { $0.hasPrefix("POST") }.count == 2)
+        #expect(result.storedID == Self.actionID)
+    }
+
+    @Test(arguments: [408, 429, 500], BundledPluginTestSupport.engines)
+    func `transient action failures do not rediscover or discard the cached action`(
+        status: Int,
+        engine: ProviderPluginEngineKind) async
+    {
+        do {
+            _ = try await Self.fetch(engine: engine, storedID: Self.actionID, action: "", actionStatus: status) {
+                requests, stored in
+                #expect(requests == ["POST / \(Self.actionID)"])
+                #expect(stored == Self.actionID)
+            }
+            Issue.record("Expected an API failure")
+        } catch let error as ProviderFetchClassifiedError {
+            #expect(error.kind == .apiFailure)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
     }
 
     @Test(arguments: [(307, 200), (200, 403)], BundledPluginTestSupport.engines)
@@ -213,9 +234,9 @@ struct MuseAIPluginTests {
     private final class Log: @unchecked Sendable {
         let lock = NSLock()
         var entries: [String] = []
-        var httpTraces: [HTTPTrace] = []
+        var postContentTypes: [String?] = []
         func append(_ entry: String) { self.lock.withLock { self.entries.append(entry) } }
-        func append(_ trace: HTTPTrace) { self.lock.withLock { self.httpTraces.append(trace) } }
+        func appendContentType(_ value: String?) { self.lock.withLock { self.postContentTypes.append(value) } }
     }
 
     private static func fetch(
@@ -224,11 +245,11 @@ struct MuseAIPluginTests {
         action: String,
         pageStatus: Int = 200,
         actionStatus: Int = 200,
+        staleStatus: Int = 404,
         cookies: [String] = ["hatch_sess=fixture"],
         cookieSource: ProviderCookieSource = .auto,
         chunks: [String: String] = Self.chunks,
-        observe: @Sendable ([String], String?) -> Void = { _, _ in },
-        observeHTTP: @Sendable ([HTTPTrace]) -> Void = { _ in }) async throws
+        observe: @Sendable ([String], String?) -> Void = { _, _ in }) async throws
         -> (snapshot: UsageSnapshot, requests: [String], storedID: String?, rejected: [String])
     {
         let storage = FileManager.default.temporaryDirectory.appendingPathComponent("MuseAIPluginTests-\(UUID())")
@@ -239,11 +260,11 @@ struct MuseAIPluginTests {
         }
         let log = Log()
         defer {
+            #expect(log.postContentTypes.allSatisfy { $0 == "text/plain;charset=UTF-8" })
             let saved = (try? Data(contentsOf: file)).flatMap {
                 try? JSONSerialization.jsonObject(with: $0) as? [String: Any]
             }
             observe(log.entries, (saved?["values"] as? [String: String])?["actionID"])
-            observeHTTP(log.httpTraces)
             try? FileManager.default.removeItem(at: storage)
         }
         let runtime = try BundledPluginTestSupport.runtime(
@@ -259,8 +280,9 @@ struct MuseAIPluginTests {
                 let expired = request.value(forHTTPHeaderField: "Cookie") == "hatch_sess=fixture-rejected-session-value"
                 if request.httpMethod == "POST" {
                     #expect(request.value(forHTTPHeaderField: "Sec-Fetch-Site") == "same-origin")
+                    log.appendContentType(request.value(forHTTPHeaderField: "Content-Type"))
                     (status, body) = expired ? (403, #"{"error":"Forbidden"}"#)
-                        : actionHeader == Self.actionID ? (actionStatus, action) : (404, "Server action not found.")
+                        : actionHeader == Self.actionID ? (actionStatus, action) : (staleStatus, "Action unavailable.")
                 } else if path == "/" {
                     status = pageStatus
                     if pageStatus == 307 {
@@ -269,12 +291,6 @@ struct MuseAIPluginTests {
                 } else {
                     #expect(request.value(forHTTPHeaderField: "Cookie") == nil)
                 }
-                log.append(HTTPTrace(
-                    method: request.httpMethod ?? "GET",
-                    path: path,
-                    actionID: actionHeader,
-                    contentType: request.value(forHTTPHeaderField: "Content-Type"),
-                    status: status))
                 let response = HTTPURLResponse(
                     url: request.url!, statusCode: status, httpVersion: nil, headerFields: headers)!
                 return (Data(body.utf8), response)
@@ -299,12 +315,4 @@ struct MuseAIPluginTests {
         let saved = try (JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any])?["values"]
         return (snapshot, log.entries, (saved as? [String: String])?["actionID"], rejected.entries)
     }
-}
-
-private struct HTTPTrace: Sendable {
-    let method: String
-    let path: String
-    let actionID: String?
-    let contentType: String?
-    let status: Int
 }

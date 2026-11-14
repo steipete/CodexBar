@@ -13,8 +13,7 @@ defineProvider({
     if (policy === "off") throw ctx.fail.missingCredential("muse.ai cookies are disabled.");
     const signedOut = (r) =>
       r.status === 401 || r.status === 403 || (r.headers["location"] ?? "").startsWith("https://auth.muse.ai/");
-    const actionNeedsRediscovery = (r) =>
-      !signedOut(r) && r.status >= 400 && r.status < 500 && r.status !== 429;
+    const actionNeedsRediscovery = (r) => !signedOut(r) && (r.status === 400 || r.status === 404);
     const discoveryFailure = () =>
       ctx.fail.parseFailure(
         "Could not find a working muse.ai subscription action. muse.ai may have changed. Refresh to retry.",
