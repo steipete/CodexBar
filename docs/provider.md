@@ -84,7 +84,8 @@ Automatic cookie traversal reads one browser at a time in the provider's existin
 its candidate sessions before requesting another browser; missing or rejected sessions retain fallback.
 The plugin broker applies the same rule to both header and cookie-jar imports, while explicit browser/profile
 selections remain isolated. Public exhaustive import APIs retain their array return types; live fetches consume
-lazy candidates instead.
+lazy candidates instead. The shared candidate retry runner checks cancellation before reading candidates and
+before attempts, so a cancelled refresh stops traversal even after a retryable authentication failure.
 
 ### Provider architecture gatekeeper threat model
 
