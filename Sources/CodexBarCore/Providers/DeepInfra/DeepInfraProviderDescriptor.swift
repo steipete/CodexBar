@@ -43,6 +43,17 @@ public enum DeepInfraProviderDescriptor {
                 movePrimaryDetailToStatus: { _ in true }),
             menu: ProviderMenuDescriptorPresentation(primaryDescriptionIsDetail: { _ in true })),
         aliases: ["deep-infra", "di"],
+        setup: ProviderSetup(routes: [.init(
+            id: "api-key",
+            method: .apiKey,
+            platforms: [.macOS, .linux],
+            requiredInputs: [.init(
+                id: "api-key",
+                configFields: ["apiKey", "tokenAccounts.accounts[].token"],
+                environmentVariables: ["DEEPINFRA_API_KEY", "DEEPINFRA_TOKEN"])],
+            command: "codexbar config set-api-key --provider deepinfra --stdin",
+            hint: "The command reads a piped API key and saves it as a standalone key. " +
+                "A selected API token account overrides the standalone key.")]),
         // Two required 30-second GETs, each with one retry and up to ten seconds of backoff.
         timeout: 145)
 }
