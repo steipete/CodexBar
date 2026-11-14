@@ -12,6 +12,7 @@
 
 ### Fixed
 
+- Claude: draw weekly-only plans (no five-hour window, e.g. Ultra) as a single menu bar meter instead of an empty session lane above the weekly bar; follow-up to #4914. Thanks @wizaj!
 - Codex cost: stop rewriting every archived (`.jsonl.zst`) rollout in the cost cache on each save, which wrote about 100 MB per save on stores with a few thousand archived sessions (#5049). Thanks @oldcai!
 - Droid: correct missing API-key instructions for piped input and modern or custom config locations.
 - Venice: show the fetched USD or DIEM balance when the API reports calls are blocked instead of the generic unavailable message (#5048). Thanks @djbclark!
