@@ -684,8 +684,8 @@ struct SpendDashboardSourceConcurrencyTests {
         gate.resume()
 
         let request = await requestTask.value
-        let firstInput = try #require(request.capturedInputs.first { $0.provider == firstProvider })
-        let laterInput = try #require(request.capturedInputs.first { $0.provider == laterProvider })
+        let firstInput = try #require(request.capturedInputs.first { $0.provider == firstProvider.instanceID })
+        let laterInput = try #require(request.capturedInputs.first { $0.provider == laterProvider.instanceID })
         #expect(firstInput.snapshot.last30DaysCostUSD == 11)
         #expect(laterInput.snapshot.last30DaysCostUSD == 20)
         #expect(request.unavailableSourceIDs.isEmpty)

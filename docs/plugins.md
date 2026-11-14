@@ -527,6 +527,15 @@ may return `{empty: true}` with optional identity. This creates no artificial ra
 validated. An empty object, an empty `identity` object, or metadata such as confidence and subscription dates without
 displayable usage or identity remains invalid unless `empty: true` is explicitly declared.
 
+## Statistics and sharing
+
+Enabled, approved community plugins that already return `costUsage` also contribute to Usage & Spend,
+token activity, and shared statistics. The existing unversioned contract and daily-window rules apply.
+Each plugin is counted once under its own instance ID, independently of its `iconProvider` branding.
+Plugins without `costUsage` contribute nothing. Sharing uses public manifest metadata, never plugin
+account identity, settings, secrets, or paths. Failed refreshes and changed configuration invalidate
+statistics until a successful refresh; the quota card keeps its existing last-known behavior.
+
 ## External hooks
 
 Installed user plugins appear in the existing Hooks provider picker. Rules can select the manifest ID or match any
