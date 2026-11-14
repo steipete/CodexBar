@@ -12,6 +12,7 @@
 
 ### Fixed
 
+- Menu bar: preserve the full-size leading provider icon beside both text rows in high-contrast custom layouts.
 - Claude: draw weekly-only plans (no five-hour window, e.g. Ultra) as a single menu bar meter instead of an empty session lane above the weekly bar; follow-up to #4914. Thanks @wizaj!
 - Codex cost: stop rewriting every archived (`.jsonl.zst`) rollout in the cost cache on each save, which wrote about 100 MB per save on stores with a few thousand archived sessions (#5049). Thanks @oldcai!
 - Droid: correct missing API-key instructions for piped input and modern or custom config locations.
