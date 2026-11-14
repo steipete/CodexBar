@@ -16,6 +16,8 @@
 
 ### Fixed
 
+- Providers: stop cancelled refreshes before loading or attempting another browser-session candidate (#5085). Thanks @Lucenx9!
+- Plugins: align community-provider card headers with built-in cards and give refresh an explicit accessibility label (#5086). Thanks @tangwz!
 - Menu bar: preserve the full-size leading provider icon beside both text rows in high-contrast custom layouts (#5041). Thanks @deinspanjer and @nunoh!
 - Claude: draw weekly-only plans as a single menu bar meter instead of an empty session lane above the weekly bar (#4914, #5040). Thanks @wizaj!
 - Codex cost: stop rewriting every archived (`.jsonl.zst`) rollout in the cost cache on each save, which wrote about 100 MB per save on stores with a few thousand archived sessions (#5049). Thanks @oldcai!
