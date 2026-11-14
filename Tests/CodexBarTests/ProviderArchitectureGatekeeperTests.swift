@@ -1318,6 +1318,11 @@ struct ProviderArchitectureGatekeeperTests {
             expectedProviderIDs: ["codex"],
             reason: "This provider-owned integration passes its fixed identity to a shared helper."),
         SuppressedProviderReference(
+            path: "Sources/CodexBarCore/Vendored/CostUsage/CostUsageScanner+Claude.swift",
+            anchor: "provider: .claude,",
+            expectedProviderIDs: ["claude"],
+            reason: "The Claude projection entry point selects its own provider in the shared transcript scanner."),
+        SuppressedProviderReference(
             path: "Sources/CodexBarCore/CostUsageFetcher.swift",
             occurrence: 1,
             anchor: "provider: .codex,",
@@ -3122,11 +3127,11 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact CLI construct preserves the provider-specific command and output contract."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCLI/CLICostCommand.swift",
-            anchor: "static let costGroupingProviders: Set<UsageProvider> = [.codex, .pi]",
-            expectedProviderIDs: ["codex", "pi"],
-            expectedReferenceCount: 2,
-            expectedReferenceFingerprint: ["codex@0", "pi@0"],
-            reason: "Only the Codex and Pi local ledgers currently publish project and session attribution."),
+            anchor: "static let costGroupingProviders: Set<UsageProvider> = [.codex, .claude, .pi]",
+            expectedProviderIDs: ["claude", "codex", "pi"],
+            expectedReferenceCount: 3,
+            expectedReferenceFingerprint: ["claude@0", "codex@0", "pi@0"],
+            reason: "Only the Codex, Claude, and Pi local ledgers currently publish project and session attribution."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCLI/CLICostCommand.swift",
             anchor: "guard provider == .cursor else { return nil }",
@@ -3215,12 +3220,19 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact cost scanner dispatch selects a provider-owned transcript, cache, or pricing format."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/CostUsageFetcher.swift",
-            occurrence: 3,
-            anchor: "if provider == .codex {",
-            expectedProviderIDs: ["codex"],
+            occurrence: 2,
+            anchor: "if provider == .codex || provider == .claude {",
+            expectedProviderIDs: ["claude", "codex"],
+            expectedReferenceCount: 2,
+            expectedReferenceFingerprint: ["claude@0", "codex@0"],
+            reason: "Codex and Claude project totals merge native-ledger and Pi contributions before publication."),
+        AllowedProviderConstruct(
+            path: "Sources/CodexBarCore/CostUsageFetcher.swift",
+            anchor: "if provider == .vertexai,",
+            expectedProviderIDs: ["vertexai"],
             expectedReferenceCount: 1,
-            expectedReferenceFingerprint: ["codex@0"],
-            reason: "Codex project totals must merge native-ledger and Pi contributions before publishing the report."),
+            expectedReferenceFingerprint: ["vertexai@0"],
+            reason: "The legacy Vertex fallback retries shared Claude transcripts only when explicitly enabled."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/CostUsageFetcher.swift",
             anchor: "options.provider == .codex || options.provider == .claude || options.provider == .antigravity",

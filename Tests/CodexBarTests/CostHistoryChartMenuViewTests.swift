@@ -131,13 +131,13 @@ struct CostHistoryChartMenuViewTests {
         let project = Self.project(path: "/Users/test/projects/alpha", sourcePath: "/Users/test/projects/alpha")
         let pi = Self.fingerprint(projects: [project], sessions: [session], provider: .pi)
         #expect(CostHistoryChartMenuView.showsLocalBreakdowns(provider: .pi))
-        #expect(!CostHistoryChartMenuView.showsLocalBreakdowns(provider: .claude))
+        #expect(!CostHistoryChartMenuView.showsLocalBreakdowns(provider: .vertexai))
         #expect(pi.projects.count == 1)
         #expect(pi.sessions.map(\.sessionID) == ["pi-session"])
         #expect(pi != Self.fingerprint(projects: [project], sessions: [], provider: .pi))
-        let claude = Self.fingerprint(projects: [project], sessions: [session], provider: .claude)
-        #expect(claude.projects.isEmpty)
-        #expect(claude.sessions.isEmpty)
+        let vertex = Self.fingerprint(projects: [project], sessions: [session], provider: .vertexai)
+        #expect(vertex.projects.isEmpty)
+        #expect(vertex.sessions.isEmpty)
     }
 
     @Test
@@ -978,16 +978,50 @@ struct CostHistoryChartMenuViewTests {
 
     @Test
     @MainActor
-    func `render fingerprint excludes projects hidden for non-codex providers`() {
+    func `render fingerprint excludes projects for providers without breakdowns`() {
         let first = Self.fingerprint(
             projects: [Self.makeProject(index: 0, sourceCount: 2)],
-            provider: .claude)
+            provider: .vertexai)
         let changed = Self.fingerprint(
             projects: [Self.makeProject(index: 0, sourceCount: 2, totalCostUSD: 99)],
-            provider: .claude)
+            provider: .vertexai)
 
         #expect(first.projects.isEmpty)
         #expect(first == changed)
+    }
+
+    @Test
+    @MainActor
+    func `claude render fingerprint includes projects and sessions`() {
+        func session(costUSD: Double) -> CostUsageSessionBreakdown {
+            CostUsageSessionBreakdown(
+                sessionID: "session-alpha-1",
+                lastActivity: Date(timeIntervalSince1970: 100),
+                inputTokens: 100,
+                cachedInputTokens: 0,
+                outputTokens: 10,
+                totalTokens: 110,
+                requestCount: 1,
+                costUSD: costUSD,
+                modelBreakdowns: [])
+        }
+        let base = Self.fingerprint(
+            projects: [Self.makeProject(index: 0, sourceCount: 1)],
+            sessions: [session(costUSD: 0.01)],
+            provider: .claude)
+
+        #expect(base.projects.count == 1)
+        #expect(base.sessions.count == 1)
+        #expect(base != Self.fingerprint(
+            projects: [Self.makeProject(index: 0, sourceCount: 1, totalCostUSD: 99)],
+            sessions: [session(costUSD: 0.01)],
+            provider: .claude))
+        #expect(base != Self.fingerprint(
+            projects: [Self.makeProject(index: 0, sourceCount: 1)],
+            sessions: [session(costUSD: 0.02)],
+            provider: .claude))
+        #expect(CostHistoryChartMenuView.showsLocalBreakdowns(provider: .claude))
+        #expect(!CostHistoryChartMenuView.showsLocalBreakdowns(provider: .vertexai))
     }
 
     @Test

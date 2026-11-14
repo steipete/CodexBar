@@ -451,6 +451,12 @@ semantics remain unchanged. Published `494eee446bb2e5f9` is a tested compatible 
 predecessors and store receipt logic remain intact. Pi/OMP pricing keys include this hash and therefore
 reparse once under the existing invalidation contract, also tested with and without a catalog.
 
+Claude project and session attribution lives only in `*Claude*` scanner files: the parser records each
+session's first `cwd` per transcript in `CostUsageClaudeCache.sourceProjectPaths`, and
+`CostUsageScanner+ClaudeProjects.swift` projects the reconciled rows by session and project. Those files are
+excluded from the Codex parser hash, so `Scripts/regenerate-codex-parser-hash.sh --check` stays green and Pi/OMP
+caches do not reparse. The Claude cache schema bump to 6 rebuilds Claude/Vertex caches once.
+
 A second optimized synthetic check against main `354191af9` used three fresh-cache scans per provider
 with 32–128 KiB text bodies. Median CPU decreased by 3–18% across Claude/Vertex cases (the 3% case is
 small); a separate long-provider-string stress case decreased by 73–75%. The isolated decoded metadata
