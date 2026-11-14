@@ -47,8 +47,8 @@ struct ElevenLabsSetupTests {
 
     @Test
     func `bundled specs and unavailable plugins retain unknown setup by default`() throws {
-        #expect(DeepInfraProviderDescriptor.spec.setup == .unknown)
-        #expect(DeepInfraProviderDescriptor.descriptor.setup == .unknown)
+        #expect(DeepgramProviderDescriptor.spec.setup == .unknown)
+        #expect(DeepgramProviderDescriptor.descriptor.setup == .unknown)
         let config = try CodexBarConfig.decode(from: Data(#"""
         {"version":1,"providers":[{"id":"elevenlabs-setup-unavailable",
         "pluginSecrets":{"TOKEN":"setup-secret-canary-plugin"}}]}

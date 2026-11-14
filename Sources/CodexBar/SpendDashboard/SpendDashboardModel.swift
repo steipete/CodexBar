@@ -1424,7 +1424,7 @@ struct SpendDashboardModel: Equatable, Sendable {
         return displayCalendar.startOfDay(for: date)
     }
 
-    private static func bucketCalendar(for provider: UsageProvider, displayCalendar: Calendar) -> Calendar {
+    static func bucketCalendar(for provider: UsageProvider, displayCalendar: Calendar) -> Calendar {
         // Provider-specific by design: mistral openrouter xai display calendar
         guard provider == .mistral || provider == .openrouter || provider == .xai else { return displayCalendar }
         // Mistral, OpenRouter, and xAI label daily buckets and snapshot coverage by UTC day. Map each UTC boundary into

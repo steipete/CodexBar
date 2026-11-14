@@ -97,3 +97,6 @@ Claude and Vertex cache saves reuse encoded transcript fragments when their meta
 The Models lens withholds spend shares when the selected period or day contains unpriced requests, even when known
 model subtotals add up. It keeps the known amounts and marks the breakdown as partial. A fully priced selected day
 retains its shares even when another day in the wider reporting period has unpriced requests.
+Snapshot-backed sources reuse Usage & Spend data when same-day refreshes publish identical history. Changes to
+amounts, pricing, completeness, model details, source ownership, or the source coverage day still reload it.
+A successful refresh can also recover a prior load failure. Snapshot timestamps remain the actual fetch times.
