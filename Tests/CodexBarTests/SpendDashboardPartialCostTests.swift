@@ -72,6 +72,94 @@ struct SpendDashboardPartialCostTests {
         #expect(group.dailyPoints.map(\.cost) == [1])
     }
 
+    @Test(arguments: [0, 1])
+    func `models lens withholds Cursor spend shares when costs are lower bounds`(
+        unpricedRequestCount: Int) throws
+    {
+        // A known subtotal can still equal all named model subtotals when one model has
+        // additional requests without prices. That agreement does not prove complete costs.
+        let entry = CostUsageDailyReport.Entry(
+            date: "2026-07-15",
+            inputTokens: nil,
+            outputTokens: nil,
+            totalTokens: 100,
+            costUSD: 2,
+            modelsUsed: nil,
+            modelBreakdowns: [
+                .init(modelName: "fixture-alpha", costUSD: 1, totalTokens: 50),
+                .init(modelName: "fixture-beta", costUSD: 1, totalTokens: 50),
+            ],
+            unpricedRequestCount: unpricedRequestCount)
+        let group = try Self.group(inputs: [
+            .init(
+                provider: .cursor,
+                displayName: "Cursor",
+                snapshot: Self.snapshot(entries: [entry], last30DaysTokens: 100, last30DaysCostUSD: 2)),
+        ])
+        let ranking = try #require(SpendModelRanking.make(group))
+
+        #expect(group.hasPartialCost == (unpricedRequestCount > 0))
+        #expect(group.totalCost == 2)
+        #expect(ranking.basis == .cost)
+        #expect(ranking.rows.map(\.model.modelName) == ["fixture-alpha", "fixture-beta"])
+        #expect(ranking.rows.map(\.value) == [1, 1])
+        #expect(ranking.isPartial == (unpricedRequestCount > 0))
+        if unpricedRequestCount > 0 {
+            #expect(ranking.rows.allSatisfy { $0.share == nil })
+        } else {
+            #expect(ranking.rows.map(\.share) == [0.5, 0.5])
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func `models lens scopes lower bound spend shares to the selected day`(selectsPartialDay: Bool) throws {
+        let partialDay = CostUsageDailyReport.Entry(
+            date: "2026-07-15",
+            inputTokens: nil,
+            outputTokens: nil,
+            totalTokens: 100,
+            costUSD: 2,
+            modelsUsed: nil,
+            modelBreakdowns: [
+                .init(modelName: "fixture-alpha", costUSD: 1, totalTokens: 50),
+                .init(modelName: "fixture-beta", costUSD: 1, totalTokens: 50),
+            ],
+            unpricedRequestCount: 1)
+        let completeDay = CostUsageDailyReport.Entry(
+            date: "2026-07-16",
+            inputTokens: nil,
+            outputTokens: nil,
+            totalTokens: 100,
+            costUSD: 6,
+            modelsUsed: nil,
+            modelBreakdowns: [
+                .init(modelName: "fixture-alpha", costUSD: 3, totalTokens: 50),
+                .init(modelName: "fixture-beta", costUSD: 3, totalTokens: 50),
+            ])
+        let selectedDay = try #require(Self.calendar.date(
+            from: DateComponents(year: 2026, month: 7, day: selectsPartialDay ? 15 : 16)))
+        let group = try Self.group(
+            inputs: [.init(
+                provider: .cursor,
+                displayName: "Cursor",
+                snapshot: Self.snapshot(
+                    entries: [partialDay, completeDay], last30DaysTokens: 200, last30DaysCostUSD: 8))],
+            selectedDay: selectedDay)
+        let ranking = try #require(SpendModelRanking.make(group))
+
+        // Group-wide summaries still cover both days. Model shares concern only the selected day.
+        #expect(group.hasPartialCost)
+        #expect(ranking.basis == .cost)
+        #expect(ranking.rows.map(\.model.modelName) == ["fixture-alpha", "fixture-beta"])
+        #expect(ranking.rows.map(\.value) == (selectsPartialDay ? [1, 1] : [3, 3]))
+        #expect(ranking.isPartial == selectsPartialDay)
+        if selectsPartialDay {
+            #expect(ranking.rows.allSatisfy { $0.share == nil })
+        } else {
+            #expect(ranking.rows.map(\.share) == [0.5, 0.5])
+        }
+    }
+
     @Test
     func `Antigravity day with unpriced requests keeps its spend but marks it partial`() throws {
         // The reader sums the priced models into the day's cost, so the total stays available;
@@ -588,13 +676,15 @@ struct SpendDashboardPartialCostTests {
     }
 
     private static func group(
-        inputs: [SpendDashboardModel.ProviderInput]) throws -> SpendDashboardModel.CurrencyGroup
+        inputs: [SpendDashboardModel.ProviderInput],
+        selectedDay: Date? = nil) throws -> SpendDashboardModel.CurrencyGroup
     {
         try #require(SpendDashboardModel.build(
             inputs: inputs,
             requestedDays: 30,
             now: self.now,
-            calendar: self.calendar).groups.first)
+            calendar: self.calendar,
+            selectedDay: selectedDay).groups.first)
     }
 
     private static func snapshot(

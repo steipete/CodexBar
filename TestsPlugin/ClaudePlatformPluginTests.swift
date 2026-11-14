@@ -332,16 +332,6 @@ struct ClaudePlatformPluginTests {
             cookieSessionInvalidator: { _, _ in fixture.rejected.increment() })
     }
 
-    private final class Counter: @unchecked Sendable {
-        private let lock = NSLock()
-        private var count = 0
-        var value: Int {
-            self.lock.withLock { self.count }
-        }
-
-        func increment() { self.lock.withLock { self.count += 1 } }
-    }
-
     private actor Fixture: ProviderHTTPTransport {
         let organizations: String
         let organizationsStatus: Int

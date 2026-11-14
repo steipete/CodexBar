@@ -56,6 +56,25 @@ struct UserPluginRefreshTests {
         #expect(fixture.store.weeklyLimitResetDetectorStates.isEmpty)
     }
 
+    @Test
+    func `unchanged plugin history preserves the dashboard content revision`() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        fixture.settings.costUsageEnabled = true
+        var revisions: [[String]] = []
+        var counters: [UInt64] = []
+        for index in 1...2 {
+            let refresh = Task { await fixture.store.refreshUserPlugin(fixture.id) }
+            try await fixture.transport.waitForRequests(index)
+            await fixture.transport.finish(index, used: 42)
+            await refresh.value
+            revisions.append(SpendDashboardSource.pluginRevisions(store: fixture.store))
+            counters.append(fixture.store.tokenSnapshotPublicationRevisions[fixture.id] ?? 0)
+        }
+        #expect(revisions[0] == revisions[1])
+        #expect(counters[0] != counters[1])
+    }
+
     @Test(arguments: [false, true])
     func `published statistics cannot survive disabling or reenabling`(reenable: Bool) async throws {
         let fixture = try Fixture()

@@ -33,9 +33,10 @@ extension SpendDashboardSource {
 
     static func pluginRevisions(store: UsageStore) -> [String] {
         self.statisticsPlugins(store: store).map { plugin in
-            let id = plugin.manifest.id
-            return "\(id.rawValue):\(store.tokenSnapshotPublicationRevisions[id] ?? 0):" +
-                "\(store.userPluginTokenPublication(plugin) == nil ? "unavailable" : "published")"
+            let id = plugin.manifest.id.rawValue
+            guard let publication = store.userPluginTokenPublication(plugin) else { return "\(id):unavailable" }
+            guard let snapshot = publication.snapshot else { return "\(id):empty" }
+            return "\(id):snapshot:\(self.snapshotRevision(snapshot))"
         }
     }
 

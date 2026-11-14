@@ -98,7 +98,10 @@ struct CopilotEnvironmentPrecedenceTests {
             provider: .copilot,
             settings: settings,
             tokenOverride: override)
-        let snapshot = ProviderRegistry.makeSettingsSnapshot(settings: settings, tokenOverride: override)
+        let snapshot = ProviderRegistry.makeSettingsSnapshot(
+            provider: .copilot,
+            settings: settings,
+            tokenOverride: override)
 
         #expect(env["COPILOT_API_TOKEN"] == "new_account_token")
         #expect(snapshot.copilot?.apiToken == "new_account_token")
@@ -110,7 +113,7 @@ struct CopilotEnvironmentPrecedenceTests {
         settings.copilotAPIToken = "old_config_token"
         settings.addTokenAccount(provider: .copilot, label: "new", token: "new_account_token")
 
-        let snapshot = ProviderRegistry.makeSettingsSnapshot(settings: settings, tokenOverride: nil)
+        let snapshot = ProviderRegistry.makeSettingsSnapshot(provider: .copilot, settings: settings, tokenOverride: nil)
 
         #expect(snapshot.copilot?.apiToken == "new_account_token")
     }
@@ -125,7 +128,7 @@ struct CopilotEnvironmentPrecedenceTests {
             provider: .copilot,
             settings: settings,
             tokenOverride: nil)
-        let snapshot = ProviderRegistry.makeSettingsSnapshot(settings: settings, tokenOverride: nil)
+        let snapshot = ProviderRegistry.makeSettingsSnapshot(provider: .copilot, settings: settings, tokenOverride: nil)
 
         #expect(env["COPILOT_API_TOKEN"] == "config_token")
         #expect(snapshot.copilot?.apiToken == "config_token")

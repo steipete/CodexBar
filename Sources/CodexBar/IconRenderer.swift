@@ -169,28 +169,25 @@ enum IconRenderer {
                     rectPx: RectPx,
                     remaining: Double?,
                     alpha: CGFloat = 1.0,
-                    addNotches: Bool = false,
-                    addFace: Bool = false,
-                    addGeminiTwist: Bool = false,
-                    addAntigravityTwist: Bool = false,
-                    addFactoryTwist: Bool = false,
-                    addWarpTwist: Bool = false,
-                    addGrokTwist: Bool = false,
-                    blink: CGFloat = 0,
-                    drawTrackFill: Bool = true,
-                    warpEyesFilled: Bool = false)
+                    decorations: ProviderIconDecorations = [],
+                    blink: CGFloat = 0)
                 {
                     let rect = rectPx.rect()
+                    let addNotches = decorations.contains(.notches)
+                    let addFace = decorations.contains(.face)
+                    let addGeminiTwist = decorations.contains(.gemini)
+                    let addAntigravityTwist = decorations.contains(.antigravity)
+                    let addFactoryTwist = decorations.contains(.factory)
+                    let addWarpTwist = decorations.contains(.warp)
+                    let addGrokTwist = decorations.contains(.grok)
                     // Claude reads better as a blockier critter; Codex stays as a capsule.
                     // Warp uses small corner radius for rounded rectangle (matching logo style)
                     let cornerRadiusPx = addNotches ? 0 : (addWarpTwist ? 3 : rectPx.h / 2)
                     let radius = Self.grid.pt(cornerRadiusPx)
 
                     let trackPath = NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
-                    if drawTrackFill {
-                        baseFill.withAlphaComponent(trackFillAlpha * alpha).setFill()
-                        trackPath.fill()
-                    }
+                    baseFill.withAlphaComponent(trackFillAlpha * alpha).setFill()
+                    trackPath.fill()
 
                     // Crisp outline: stroke an inset path so the stroke stays within pixel bounds.
                     let strokeWidthPx = 2 // 1 pt == 2 px at 2×
@@ -652,17 +649,11 @@ enum IconRenderer {
                             ctx.restoreGState()
                         }
 
-                        if warpEyesFilled {
-                            fillColor.withAlphaComponent(alpha).setFill()
-                            drawTiltedEyeCutout(cx: leftEyeCx, cy: eyeCy, tiltAngle: eyeTiltAngle)
-                            drawTiltedEyeCutout(cx: rightEyeCx, cy: eyeCy, tiltAngle: -eyeTiltAngle)
-                        } else {
-                            // Clear eyes using blend mode
-                            ctx?.setBlendMode(.clear)
-                            drawTiltedEyeCutout(cx: leftEyeCx, cy: eyeCy, tiltAngle: eyeTiltAngle)
-                            drawTiltedEyeCutout(cx: rightEyeCx, cy: eyeCy, tiltAngle: -eyeTiltAngle)
-                            ctx?.setBlendMode(.normal)
-                        }
+                        // Clear eyes using blend mode
+                        ctx?.setBlendMode(.clear)
+                        drawTiltedEyeCutout(cx: leftEyeCx, cy: eyeCy, tiltAngle: eyeTiltAngle)
+                        drawTiltedEyeCutout(cx: rightEyeCx, cy: eyeCy, tiltAngle: -eyeTiltAngle)
+                        ctx?.setBlendMode(.normal)
                         ctx?.restoreGState() // Restore graphics state
                     }
 
@@ -721,7 +712,6 @@ enum IconRenderer {
 
                 let hasWeekly = (bottomValue != nil)
                 let weeklyAvailable = hasWeekly && (bottomValue ?? 0) > 0
-                let creditsAlpha: CGFloat = 1.0
                 let topRectPx = RectPx(x: barXPx, y: 19, w: barWidthPx, h: 12)
                 let bottomRectPx = RectPx(x: barXPx, y: 5, w: barWidthPx, h: 8)
                 let creditsRectPx = RectPx(x: barXPx, y: 14, w: barWidthPx, h: 16)
@@ -732,13 +722,6 @@ enum IconRenderer {
 
                 // "Hide critters" renders plain meter bars: suppress all face/decoration twists.
                 let decorations = hideCritters ? ProviderIconDecorations() : providerPresentation?.iconDecorations ?? []
-                let twistFace = decorations.contains(.face)
-                let twistNotches = decorations.contains(.notches)
-                let twistGemini = decorations.contains(.gemini)
-                let twistAntigravity = decorations.contains(.antigravity)
-                let twistFactory = decorations.contains(.factory)
-                let twistWarp = decorations.contains(.warp)
-                let twistGrok = decorations.contains(.grok)
                 var statusOverlayAttachesToProminentMeter = false
 
                 if let bottomValue, bottomValue > 0, topValue == nil,
@@ -747,118 +730,46 @@ enum IconRenderer {
                 {
                     // Some providers surface their only meaningful quota in the secondary slot.
                     statusOverlayAttachesToProminentMeter = true
-                    drawBar(
-                        rectPx: creditsRectPx,
-                        remaining: bottomValue,
-                        addNotches: twistNotches,
-                        addFace: twistFace,
-                        addGeminiTwist: twistGemini,
-                        addAntigravityTwist: twistAntigravity,
-                        addFactoryTwist: twistFactory,
-                        addWarpTwist: twistWarp,
-                        addGrokTwist: twistGrok,
-                        blink: blink)
+                    drawBar(rectPx: creditsRectPx, remaining: bottomValue, decorations: decorations, blink: blink)
                 } else if weeklyAvailable {
                     // Normal: top=primary, bottom=secondary (bonus/weekly).
-                    drawBar(
-                        rectPx: topRectPx,
-                        remaining: topValue,
-                        addNotches: twistNotches,
-                        addFace: twistFace,
-                        addGeminiTwist: twistGemini,
-                        addAntigravityTwist: twistAntigravity,
-                        addFactoryTwist: twistFactory,
-                        addWarpTwist: twistWarp,
-                        addGrokTwist: twistGrok,
-                        blink: blink)
+                    drawBar(rectPx: topRectPx, remaining: topValue, decorations: decorations, blink: blink)
                     drawBar(rectPx: bottomRectPx, remaining: bottomValue)
                 } else if !hasWeekly || missingSecondary {
                     if usesMissingSecondaryLayout {
-                        // Warp: no bonus or bonus exhausted -> top=monthly credits, bottom=dimmed track
+                        // Provider-specific by design: Warp retains its logo shape when the secondary quota is missing.
                         drawBar(
                             rectPx: topRectPx,
                             remaining: topValue,
-                            addWarpTwist: twistWarp,
+                            decorations: decorations.intersection(.warp),
                             blink: blink)
                         drawBar(rectPx: bottomRectPx, remaining: nil, alpha: 0.45)
                     } else {
                         if topValue == nil, let ratio = creditsRatio {
                             // Credits-only: show credits prominently (e.g. credits loaded before usage).
-                            drawBar(
-                                rectPx: creditsRectPx,
-                                remaining: ratio,
-                                alpha: creditsAlpha,
-                                addNotches: twistNotches,
-                                addFace: twistFace,
-                                addGeminiTwist: twistGemini,
-                                addAntigravityTwist: twistAntigravity,
-                                addFactoryTwist: twistFactory,
-                                addWarpTwist: twistWarp,
-                                addGrokTwist: twistGrok,
-                                blink: blink)
+                            drawBar(rectPx: creditsRectPx, remaining: ratio, decorations: decorations, blink: blink)
                             drawBar(rectPx: creditsBottomRectPx, remaining: nil, alpha: 0.45)
                         } else if !quotaLayoutPolicy.reservesMissingSecondaryLane, let topValue {
                             // One meaningful quota should read as one meter. Reserving an unavailable second
                             // lane makes (for example) 46% remaining look like roughly 23% of the icon.
                             statusOverlayAttachesToProminentMeter = true
-                            drawBar(
-                                rectPx: creditsRectPx,
-                                remaining: topValue,
-                                addNotches: twistNotches,
-                                addFace: twistFace,
-                                addGeminiTwist: twistGemini,
-                                addAntigravityTwist: twistAntigravity,
-                                addFactoryTwist: twistFactory,
-                                addWarpTwist: twistWarp,
-                                addGrokTwist: twistGrok,
-                                blink: blink)
+                            drawBar(rectPx: creditsRectPx, remaining: topValue, decorations: decorations, blink: blink)
                         } else {
                             // Missing secondary (for example Claude Enterprise): preserve the normal two-lane
                             // layout and dim the unavailable lane.
-                            drawBar(
-                                rectPx: topRectPx,
-                                remaining: topValue,
-                                addNotches: twistNotches,
-                                addFace: twistFace,
-                                addGeminiTwist: twistGemini,
-                                addAntigravityTwist: twistAntigravity,
-                                addFactoryTwist: twistFactory,
-                                addWarpTwist: twistWarp,
-                                addGrokTwist: twistGrok,
-                                blink: blink)
+                            drawBar(rectPx: topRectPx, remaining: topValue, decorations: decorations, blink: blink)
                             drawBar(rectPx: bottomRectPx, remaining: nil, alpha: 0.45)
                         }
                     }
                 } else {
-                    // Weekly exhausted/missing: show credits on top (thicker), weekly (likely 0) on bottom.
+                    // Zero secondary: use compact lanes only when showing the taller credits meter.
                     if let ratio = creditsRatio {
-                        drawBar(
-                            rectPx: creditsRectPx,
-                            remaining: ratio,
-                            alpha: creditsAlpha,
-                            addNotches: twistNotches,
-                            addFace: twistFace,
-                            addGeminiTwist: twistGemini,
-                            addAntigravityTwist: twistAntigravity,
-                            addFactoryTwist: twistFactory,
-                            addWarpTwist: twistWarp,
-                            addGrokTwist: twistGrok,
-                            blink: blink)
+                        drawBar(rectPx: creditsRectPx, remaining: ratio, decorations: decorations, blink: blink)
                     } else {
                         // No credits available; fall back to 5h if present.
-                        drawBar(
-                            rectPx: topRectPx,
-                            remaining: topValue,
-                            addNotches: twistNotches,
-                            addFace: twistFace,
-                            addGeminiTwist: twistGemini,
-                            addAntigravityTwist: twistAntigravity,
-                            addFactoryTwist: twistFactory,
-                            addWarpTwist: twistWarp,
-                            addGrokTwist: twistGrok,
-                            blink: blink)
+                        drawBar(rectPx: topRectPx, remaining: topValue, decorations: decorations, blink: blink)
                     }
-                    drawBar(rectPx: creditsBottomRectPx, remaining: bottomValue)
+                    drawBar(rectPx: creditsRatio == nil ? bottomRectPx : creditsBottomRectPx, remaining: bottomValue)
                 }
 
                 Self.drawStatusOverlay(
