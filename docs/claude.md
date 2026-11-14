@@ -522,6 +522,10 @@ The accepted multi-account design in
   `~/.config/codexbar/config.json`; legacy installs may use `~/.codexbar/config.json`). The option defaults off,
   zero accounts still use the ambient presentation, and account identity is `claude-swap:<slot>`, never the display
   email.
+- With **Show all accounts in Overview** off, the single Claude Overview card follows the presented adapter slot:
+  a pending switch, an inspected account, a failed switch, or the active account, in that order. It retains the
+  provider's combined local costs and uses the ambient card when no adapter account is presented. Expanded
+  **Show all accounts** rows keep their account-specific usage without borrowing those combined costs.
 - Session forecasts use each account's own recorded usage. History keys hash the normalized email and organization
   UUID from the existing list response, so moving slots preserves history and the same email in different workspaces
   stays separate. Empty organization UUIDs identify personal accounts; an email change starts a new history.

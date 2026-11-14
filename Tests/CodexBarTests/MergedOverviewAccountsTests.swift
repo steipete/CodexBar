@@ -78,10 +78,11 @@ struct MergedOverviewAccountsTests {
                 store.settings.multiAccountMenuLayout = layout
                 let rows = store.mergedOverviewRows(for: [.claude])
                 #expect(rows.count == 1)
+                let row = try #require(rows.first)
                 // A provider row, so Overview keeps its submenu, storage line, and row identity.
-                #expect(rows[0].accountID == nil)
-                #expect(rows[0].model?.subtitleText.localizedCaseInsensitiveContains("probe timed out") != true)
-                #expect(rows[0].model?.metrics.first?.percent == 26)
+                #expect(row.accountID == nil)
+                #expect(row.model?.subtitleText.localizedCaseInsensitiveContains("probe timed out") != true)
+                #expect(row.model?.metrics.first?.percent == 26)
             }
 
             // Below the presentation threshold the ambient card stays.
@@ -120,6 +121,33 @@ struct MergedOverviewAccountsTests {
             store.claudeSwapAccountSnapshots = fixture.accounts.filter { $0.id != inspected.id }
             let fallback = store.mergedOverviewRows(for: [.claude], claudeSwapInspectedAccountID: inspected.id)
             #expect(fallback.first?.model?.metrics.first?.percent == 26)
+        }
+    }
+
+    @Test
+    func `single Claude overview card keeps swap identity private and separate from Codex`() async throws {
+        try await ClaudeSwapRichUsageFixture.withFixture { fixture in
+            let store = fixture.store
+            store.snapshots[.codex] = UsageSnapshot(
+                primary: RateWindow(usedPercent: 91, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                secondary: nil,
+                updatedAt: Date(),
+                identity: ProviderIdentitySnapshot(
+                    providerID: .codex,
+                    accountEmail: "codex@example.invalid",
+                    accountOrganization: nil,
+                    loginMethod: "Codex fixture plan"))
+            let rows = store.mergedOverviewRows(for: [.codex, .claude])
+            let claude = try #require(rows.first { $0.provider == .claude }?.model)
+            #expect(claude.email == "Primary")
+            #expect(claude.metrics.first?.percent == 26)
+            #expect(claude.planText?.contains("Codex fixture plan") != true)
+            #expect(rows.first { $0.provider == .codex }?.model?.metrics.first?.percent == 91)
+
+            store.settings.hidePersonalInfo = true
+            let hidden = try #require(store.mergedOverviewRows(for: [.claude]).first?.model)
+            #expect(hidden.email == "Account 1")
+            #expect(hidden.metrics.first?.percent == 26)
         }
     }
 

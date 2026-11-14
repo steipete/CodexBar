@@ -28,9 +28,11 @@ session.
 
 The bundled `typesafe.ts` plugin owns the billing request and parsing. It sends one read-only `GET` to
 `https://console.typesafe.ai/api/billing/overview` with the selected `Cookie:` header and reads `json.billing`.
-The request sends a browser-style User-Agent and `Accept: application/json` so Cloudflare does not reject Linux
-URLSession requests that otherwise identify as curl. A 200 HTML login page is treated as an expired session; JSON parse
-failures and a missing `billing` object are parsing failures.
+The request sends a browser-style User-Agent and the same-origin headers a browser would (`Origin`, `Referer`, and
+`Sec-Fetch-Site`/`Mode`/`Dest`) so Cloudflare and TypeSafe's backend do not reject Linux URLSession requests that
+otherwise identify as curl or as cross-origin. A 200 HTML login page is treated as an expired session; a 403
+cross-origin refusal is an integration failure; JSON parse failures and a missing `billing` object are parsing
+failures.
 Large credit lists show a bounded set of rows plus an additional-credit count; the reported balance and spending totals
 stay unchanged.
 
