@@ -2682,10 +2682,10 @@ struct ProviderArchitectureGatekeeperTests {
             path: "Sources/CodexBar/UsageStore/UsageStore+Refresh.swift",
             occurrence: 1,
             anchor: "if provider == .deepseek {",
-            expectedProviderIDs: ["deepseek", "xai"],
-            expectedReferenceCount: 2,
-            expectedReferenceFingerprint: ["deepseek@0", "xai@7"],
-            reason: "DeepSeek profile recovery and xAI unavailable analytics retain their provider-specific publication policies."),
+            expectedProviderIDs: ["deepseek"],
+            expectedReferenceCount: 1,
+            expectedReferenceFingerprint: ["deepseek@0"],
+            reason: "DeepSeek clears its profile transition after publishing the refreshed profile's usage."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore/UsageStore+Refresh.swift",
             anchor: "if provider == .gemini {",
@@ -2955,6 +2955,24 @@ struct ProviderArchitectureGatekeeperTests {
             expectedReferenceCount: 1,
             expectedReferenceFingerprint: ["cursor@0"],
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
+        AllowedProviderConstruct(
+            path: "Sources/CodexBar/UsageStore/UsageStore+TokenCost.swift",
+            occurrence: 1,
+            anchor: "guard provider != .opencodego || " +
+                "snapshot.opencodegoUsage?.localHistoryPending != true else { return }",
+            expectedProviderIDs: ["opencodego"],
+            expectedReferenceCount: 1,
+            expectedReferenceFingerprint: ["opencodego@0"],
+            reason: "An unfinished OpenCode Go scan cannot replace retained spend with confirmed empty history."),
+        AllowedProviderConstruct(
+            path: "Sources/CodexBar/UsageStore/UsageStore+TokenCost.swift",
+            occurrence: 2,
+            anchor: "guard provider != .opencodego || " +
+                "snapshot.opencodegoUsage?.localHistoryPending != true else { return }",
+            expectedProviderIDs: ["opencodego"],
+            expectedReferenceCount: 1,
+            expectedReferenceFingerprint: ["opencodego@0"],
+            reason: "An unfinished OpenCode Go scan cannot replace retained spend with confirmed empty history."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore/UsageStore+TokenCost.swift",
             anchor: "case .openai:",

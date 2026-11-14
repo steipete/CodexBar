@@ -122,6 +122,11 @@ Introduce a single descriptor per provider:
 - account behavior (e.g., `usesAccountFallback` for Codex auth.json)
 - `nativeAppBundleIdentifiers`: exact provider-owned desktop app bundle IDs for the opt-in frontmost merged icon. The shared monitor matches only enabled providers and rejects ambiguous matches; general-purpose browsers and terminals must not claim a provider.
 
+For snapshot-backed spend, `tokenCost.isUsageUnavailable` distinguishes missing analytics from confirmed empty history
+when no cost projection exists. Balance providers such as DeepSeek and xAI declare this on their descriptors so a
+successful balance fetch alone cannot establish zero spend. Both normal refreshes and direct publication use the same
+shared publisher; pending local history retains the last published spend.
+
 UI and settings should become descriptor-driven:
 - no provider-specific branching for labels/links/toggle titles
 - minimal provider-specific UI (only when a provider truly needs bespoke UX)

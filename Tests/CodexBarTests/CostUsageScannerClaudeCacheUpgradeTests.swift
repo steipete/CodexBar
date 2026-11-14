@@ -306,15 +306,18 @@ struct CostUsageScannerClaudeCacheUpgradeTests {
         #expect(restartWork == CostUsageScanner.ClaudeScanWorkMetrics())
     }
 
-    @Test
-    func `version seven reports price Mythos usage without rereading unchanged transcripts`() throws {
+    @Test(arguments: [("claude-mythos-5-1", 7, 0.001255), ("claude-mythos-5-2", 9, 0.001004)])
+    func `stale reports price Mythos usage without rereading unchanged transcripts`(
+        model: String,
+        staleSemanticsVersion: Int,
+        expectedCostUSD: Double) throws
+    {
         let env = try CostUsageTestEnvironment()
         defer {
             CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
             env.cleanup()
         }
         let day = try env.makeLocalNoon(year: 2026, month: 10, day: 16)
-        let model = "claude-mythos-5-1"
         let source = try env.writeClaudeProjectFile(
             relativePath: "project/mythos-session.jsonl",
             contents: env.jsonl([[
@@ -334,8 +337,8 @@ struct CostUsageScannerClaudeCacheUpgradeTests {
             cacheRoot: env.cacheRoot)
         options.refreshMinIntervalSeconds = 60
         let (fresh, _) = self.recordedLoad(provider: .claude, day: day, options: options)
-        // $10 input, $0.25 cache read, and $50 output per million tokens.
-        #expect(try abs(#require(fresh.summary?.totalCostUSD) - 0.001255) < 1e-12)
+        // Bundled per-million rates for the model under test price 100 input, 20 cache read, and 5 output tokens.
+        #expect(try abs(#require(fresh.summary?.totalCostUSD) - expectedCostUSD) < 1e-12)
         let dayKey = try #require(fresh.data.first?.date)
         let cacheURL = CostUsageClaudeCacheIO.cacheFileURL(provider: .claude, cacheRoot: env.cacheRoot)
         let memoURL = CostUsageClaudeReportMemo.reportMemoFileURL(cacheFileURL: cacheURL)
@@ -394,7 +397,7 @@ struct CostUsageScannerClaudeCacheUpgradeTests {
         #expect(control.summary?.totalCostUSD == nil)
         #expect(controlWork == CostUsageScanner.ClaudeScanWorkMetrics())
 
-        memo.reportSemanticsVersion = 7
+        memo.reportSemanticsVersion = staleSemanticsVersion
         try JSONEncoder().encode(memo).write(to: memoURL)
         CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
         let (upgraded, work) = self.recordedLoad(provider: .claude, day: day, options: options)

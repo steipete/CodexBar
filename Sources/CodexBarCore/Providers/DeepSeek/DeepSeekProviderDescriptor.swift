@@ -104,6 +104,7 @@ public enum DeepSeekProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
                 noDataMessage: { "Detailed usage unavailable." },
+                isUsageUnavailable: { $0.costUsage == nil },
                 showsCostMenuSection: false,
                 primaryValue: .latestDaily,
                 showsRequestHistory: false),

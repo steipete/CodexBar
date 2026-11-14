@@ -34,11 +34,13 @@ defineProvider({
       if (!/^(?:https?:)?\/\//i.test(target)) return loginPath.test(target);
       const hostMatch = /^(?:https?:)?\/\/([^/?#]+)/i.exec(target);
       const hostname = hostMatch ? hostMatch[1].toLowerCase().replace(/:\d+$/, "") : "";
-      const knownHost =
-        hostname === "typesafe.ai" || hostname === "console.typesafe.ai" || hostname.endsWith(".typesafe.ai");
+      const knownHost = hostname === "typesafe.ai" || hostname.endsWith(".typesafe.ai");
       return !knownHost || loginPath.test(target);
     };
+    // The billing overview API refuses requests that do not look same-origin, even with a valid session.
     const validate = (response: CodexBarHTTPTextResponse): void => {
+      if (response.status === 403 && /cross-origin request refused/i.test(response.bodyText))
+        throw ctx.fail.apiFailure(overviewFailure);
       if (response.status === 401 || response.status === 403) expired();
       if (response.status >= 300 && response.status < 400) {
         if (loginRedirect(response.headers["location"])) expired();
@@ -55,7 +57,16 @@ defineProvider({
     };
     const cookie = await ctx.browser.cookieHeader("typesafe.ai");
     const response = await ctx.http.get(billingOverviewURL, {
-      headers: { Cookie: cookie, Accept: "application/json", "User-Agent": userAgent },
+      headers: {
+        Cookie: cookie,
+        Accept: "application/json",
+        Origin: "https://console.typesafe.ai",
+        Referer: "https://console.typesafe.ai/billing",
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Dest": "empty",
+        "User-Agent": userAgent,
+      },
       timeoutSeconds: 10,
     });
     validate(response);

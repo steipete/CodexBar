@@ -63,7 +63,7 @@ struct DeepSeekCostProjectionTests {
 
     @MainActor
     @Test
-    func `missing Platform usage is unavailable rather than confirmed zero`() {
+    func `missing Platform usage is unavailable rather than confirmed zero`() async {
         let store = self.makeStore()
         defer { store.stopSharedSpendDashboardPublication() }
         let now = Date(timeIntervalSince1970: 1_794_398_400)
@@ -82,6 +82,19 @@ struct DeepSeekCostProjectionTests {
         store.publishProviderDerivedTokenSnapshot(
             from: UsageSnapshot(primary: nil, secondary: nil, updatedAt: now),
             for: .deepseek)
+        #expect(store.tokenSnapshotPublicationForCurrentProviderConfig(for: .deepseek) == nil)
+
+        store._test_providerFetchOutcomeOverride = { _ in
+            ProviderFetchOutcome(result: .success(ProviderFetchResult(
+                usage: UsageSnapshot(primary: nil, secondary: nil, updatedAt: now),
+                credits: nil,
+                dashboard: nil,
+                sourceLabel: "fixture",
+                strategyID: "fixture",
+                strategyKind: .apiToken)), attempts: [])
+        }
+        await store.refreshProvider(.deepseek, allowDisabled: true)
+        #expect(store.snapshots[.deepseek]?.updatedAt == now)
         #expect(store.tokenSnapshotPublicationForCurrentProviderConfig(for: .deepseek) == nil)
     }
 

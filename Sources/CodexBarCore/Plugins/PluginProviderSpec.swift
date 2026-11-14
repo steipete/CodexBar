@@ -46,6 +46,7 @@ public struct PluginProviderSpec: Sendable {
     public var progressColorStyle: ProviderBranding.ProgressColorStyle = .brand
     public let noDataMessage: String
     public var supportsTokenCost = false
+    public var isCostUsageUnavailable: @Sendable (UsageSnapshot) -> Bool = { _ in false }
     public var settingsSection: ProviderSettingsSectionRegistration?
     public var pluginResultPolicy = ProviderPluginResultPolicy()
     public var history: ProviderHistoryCapability = .optIn
@@ -153,7 +154,9 @@ public struct PluginProviderSpec: Sendable {
                 widgetColor: self.widgetColor,
                 progressColorStyle: self.progressColorStyle),
             tokenCost: ProviderTokenCostConfig(
-                supportsTokenCost: self.supportsTokenCost, noDataMessage: { self.noDataMessage }),
+                supportsTokenCost: self.supportsTokenCost,
+                noDataMessage: { self.noDataMessage },
+                isUsageUnavailable: self.isCostUsageUnavailable),
             history: self.history,
             presentation: self.presentation,
             fetchPlan: fetchPlan,
