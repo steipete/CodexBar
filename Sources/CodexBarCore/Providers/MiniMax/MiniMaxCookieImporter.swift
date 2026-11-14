@@ -51,22 +51,34 @@ public enum MiniMaxCookieImporter {
 
     static func sessionCandidates(
         browserDetection: BrowserDetection,
-        logger: ((String) -> Void)? = nil) throws -> AnySequence<SessionInfo>
+        logger: ((String) -> Void)? = nil,
+        loadRecords: ((Browser, BrowserCookieQuery, ((String) -> Void)?) throws -> [BrowserCookieStoreRecords])? = nil)
+        throws -> AnySequence<SessionInfo>
     {
         try BrowserCookieImportSupport.collectSessions(
             from: minimaxCookieImportOrder.lazyCookieImportCandidates(using: browserDetection),
             missingError: MiniMaxCookieImportError.noCookies,
             logger: { self.emit($0, logger: logger) },
-            load: { try self.importSessions(from: $0, logger: logger) })
+            load: { try self.sessions(from: $0, logger: logger, loadRecords: loadRecords) })
     }
 
     public static func importSessions(
         from browserSource: Browser,
         logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
     {
+        try self.sessions(from: browserSource, logger: logger, loadRecords: nil)
+    }
+
+    private static func sessions(
+        from browserSource: Browser,
+        logger: ((String) -> Void)?,
+        loadRecords: ((Browser, BrowserCookieQuery, ((String) -> Void)?) throws -> [BrowserCookieStoreRecords])?)
+        throws -> [SessionInfo]
+    {
         let log: (String) -> Void = { message in self.emit(message, logger: logger) }
         let query = self.cookieQuery
-        let records = try self.cookieClient.codexBarRecords(matching: query, in: browserSource, logger: log)
+        let records = try loadRecords?(browserSource, query, log)
+            ?? self.cookieClient.codexBarRecords(matching: query, in: browserSource, logger: log)
         let profiles = BrowserCookieImportSupport.httpCookieProfiles(from: records, origin: query.origin)
         var sessions: [SessionInfo] = []
         for (label, httpCookies) in profiles {
@@ -93,12 +105,8 @@ public enum MiniMaxCookieImporter {
     }
 
     public static func hasSession(browserDetection: BrowserDetection, logger: ((String) -> Void)? = nil) -> Bool {
-        do {
-            return try self.sessionCandidates(browserDetection: browserDetection, logger: logger)
-                .contains(where: { _ in true })
-        } catch {
-            return false
-        }
+        (try? self.sessionCandidates(browserDetection: browserDetection, logger: logger)
+            .contains(where: { _ in true })) ?? false
     }
 
     private static func cookieNames(from cookies: [HTTPCookie]) -> String {
