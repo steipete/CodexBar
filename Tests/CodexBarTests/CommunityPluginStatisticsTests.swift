@@ -120,6 +120,41 @@ struct CommunityPluginStatisticsTests {
     }
 
     @Test
+    func `legacy native windows keep known activity from other native sources`() throws {
+        func legacyInput(
+            provider: UsageProvider,
+            historyDays: Int,
+            date: String,
+            tokens: Int) throws -> SpendDashboardModel.ProviderInput
+        {
+            let usage = try ProviderPluginSnapshotMapper.map(
+                JSONProviderPluginValue([
+                    "costUsage": [
+                        "currency": "USD", "historyDays": historyDays, "windowEnd": "2026-11-14",
+                        "entries": [[
+                            "date": date, "inputTokens": tokens, "outputTokens": 0,
+                            "requests": tokens == 0 ? 0 : 1, "cost": tokens == 0 ? 0 : 1,
+                        ]],
+                    ],
+                ]),
+                provider: provider.instanceID)
+            return try SpendDashboardModel.ProviderInput(
+                provider: provider,
+                displayName: provider.rawValue,
+                snapshot: #require(usage.costUsage))
+        }
+        let model = try Self.model(inputs: [
+            legacyInput(provider: .codex, historyDays: 7, date: "2026-11-10", tokens: 10),
+            legacyInput(provider: .claude, historyDays: 1, date: "2026-11-14", tokens: 0),
+        ], days: 7)
+        let point = try #require(model.tokenActivity.first {
+            Self.key($0.day, zone: "Asia/Shanghai") == "2026-11-10"
+        })
+        #expect(point.isScanned)
+        #expect(point.totalTokens == 10)
+    }
+
+    @Test
     func `native history cannot fill a plugin window edge with zero`() throws {
         let native = SpendDashboardModel.ProviderInput(
             provider: .codex,

@@ -720,11 +720,11 @@ struct SpendDashboardModel: Equatable, Sendable {
                     sourceKind: entry.element.input.sourceKind,
                     incompleteRequestCount: entry.element.incompleteRequestCount,
                     costIsLowerBound: entry.element.hasUnpricedRequests || entry.element.historyScanIsPartial ||
-                        (entry.element.input.snapshot
-                            .dailyHistory != nil && (entry.element.coveredDayCount < days || isAllTime)),
+                        (entry.element.input
+                            .reportsOnlyExplicitDays && (entry.element.coveredDayCount < days || isAllTime)),
                     tokensAreLowerBound: entry.element.historyScanIsPartial ||
-                        (entry.element.input.snapshot
-                            .dailyHistory != nil && (entry.element.coveredDayCount < days || isAllTime)))
+                        (entry.element.input
+                            .reportsOnlyExplicitDays && (entry.element.coveredDayCount < days || isAllTime)))
             }
     }
 
@@ -1141,7 +1141,7 @@ struct SpendDashboardModel: Equatable, Sendable {
             var hasUnresolvedScannedProvider = false
             for (input, summary) in zip(inputs, summaries) {
                 guard summary.scanned(day) else {
-                    hasUnresolvedScannedProvider = hasUnresolvedScannedProvider || input.snapshot.dailyHistory != nil
+                    hasUnresolvedScannedProvider = hasUnresolvedScannedProvider || input.reportsOnlyExplicitDays
                     continue
                 }
                 scannedContributors += 1
