@@ -1,5 +1,9 @@
 import Foundation
 
+#if os(macOS)
+import SweetCookieKit
+#endif
+
 public enum ClaudeOAuthDelegatedRefreshCoordinator {
     private struct CooldownState {
         var lastAttemptAt: Date?
@@ -13,7 +17,6 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         var loadedCooldownProfiles: Set<String> = []
         var cooldownByProfile: [String: CooldownState] = [:]
         var inFlightAttemptID: UInt64?
-        var inFlightInteraction: ProviderInteraction?
         var inFlightProfileIdentifier: String?
         var inFlightTask: Task<AttemptResult, Never>?
         var nextAttemptID: UInt64 = 0
@@ -70,15 +73,18 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
             return AttemptResult(.attemptedFailed("Cancelled."))
         }
 
-        let decision = self.inFlightDecision(
-            now: now,
-            timeout: timeout,
-            environment: environment,
-            interaction: ProviderInteractionContext.current)
-        #if DEBUG
-        if case .joinThenRetry = decision {
-            self.userInitiatedBackgroundJoinObserverForTesting?()
+        // Claude owns the child process's Keychain reads; our no-UI query flags cannot constrain them.
+        guard ProviderInteractionContext.current == .userInitiated else {
+            return AttemptResult(.skippedByPromptPolicy)
         }
+        #if os(macOS)
+        guard !BrowserCookieKeychainAccessGate.isUserInteractionDisallowed else {
+            return AttemptResult(.skippedByPromptPolicy)
+        }
+        #endif
+
+        let decision = self.inFlightDecision(now: now, timeout: timeout, environment: environment)
+        #if DEBUG
         if case .joinDifferentProfileThenRetry = decision {
             self.differentProfileJoinObserverForTesting?()
         }
@@ -87,17 +93,6 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         switch decision {
         case let .join(task):
             return await task.value
-        case let .joinThenRetry(id, task, state):
-            let result = await task.value
-            self.clearInFlightTaskIfStillCurrent(id: id, state: state)
-            // Retrying cannot make an unreadable refresh readable, so reuse the joined verdict.
-            if result.isUnreadableAfterRefresh { return result }
-            switch result.outcome {
-            case .attemptedFailed, .skippedByCooldown, .skippedByPromptPolicy, .cliUnavailable:
-                return await self.attemptDetailed(now: now, timeout: timeout, environment: environment)
-            case .attemptedSucceeded:
-                return result
-            }
         case let .joinDifferentProfileThenRetry(id, task, state):
             _ = await task.value
             self.clearInFlightTaskIfStillCurrent(id: id, state: state)
@@ -111,7 +106,6 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
 
     private enum InFlightDecision {
         case join(Task<AttemptResult, Never>)
-        case joinThenRetry(UInt64, Task<AttemptResult, Never>, AttemptStateStorage)
         case joinDifferentProfileThenRetry(UInt64, Task<AttemptResult, Never>, AttemptStateStorage)
         case start(UInt64, Task<AttemptResult, Never>, AttemptStateStorage)
     }
@@ -119,7 +113,6 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
     private struct AttemptConfiguration {
         @ProcessEnvironment private(set) var environment: [String: String]
         let profileIdentifier: String
-        let interaction: ProviderInteraction
         let readStrategy: ClaudeOAuthKeychainReadStrategy
         let promptMode: ClaudeOAuthKeychainPromptMode
         let keychainAccessDisabled: Bool
@@ -135,8 +128,7 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
     private static func inFlightDecision(
         now: Date,
         timeout: TimeInterval,
-        environment: [String: String],
-        interaction: ProviderInteraction) -> InFlightDecision
+        environment: [String: String]) -> InFlightDecision
     {
         let state = self.currentStateStorage
         let profileIdentifier = ClaudeOAuthCredentialsStore.credentialsProfileIdentifier(environment: environment)
@@ -149,12 +141,6 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
             {
                 return .joinDifferentProfileThenRetry(existingID, existing, state)
             }
-            if interaction == .userInitiated,
-               state.inFlightInteraction != .userInitiated,
-               let existingID = state.inFlightAttemptID
-            {
-                return .joinThenRetry(existingID, existing, state)
-            }
             return .join(existing)
         }
 
@@ -166,7 +152,6 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         let configuration = AttemptConfiguration(
             environment: environment,
             profileIdentifier: profileIdentifier,
-            interaction: interaction,
             readStrategy: readStrategy,
             // The delegated Claude process is an opaque Keychain boundary. Its policy must come
             // from the user's stored preference, not the strategy-adjusted mode used by our own reads.
@@ -184,7 +169,6 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         let configuration = AttemptConfiguration(
             environment: environment,
             profileIdentifier: profileIdentifier,
-            interaction: interaction,
             readStrategy: readStrategy,
             // The delegated Claude process is an opaque Keychain boundary. Its policy must come
             // from the user's stored preference, not the strategy-adjusted mode used by our own reads.
@@ -214,7 +198,6 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
             #endif
         }
         state.inFlightAttemptID = attemptID
-        state.inFlightInteraction = interaction
         state.inFlightProfileIdentifier = profileIdentifier
         state.inFlightTask = task
         return .start(attemptID, task, state)
@@ -228,16 +211,6 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
     {
         let profileIdentifier = configuration.profileIdentifier
 
-        // `/status` is an opaque Claude CLI invocation and may launch `/usr/bin/security` outside
-        // CodexBar's own no-UI query controls. Background work may not cross that boundary unless
-        // the user explicitly opted into always allowing Keychain access.
-        if configuration.interaction == .background,
-           configuration.keychainAccessDisabled || configuration.promptMode != .always
-        {
-            self.log.info("Claude OAuth delegated refresh skipped by Keychain prompt policy")
-            return AttemptResult(.skippedByPromptPolicy)
-        }
-
         guard self.isClaudeCLIAvailable(environment: configuration.environment, configuration: configuration) else {
             self.log.info("Claude OAuth delegated refresh skipped: claude CLI unavailable")
             return AttemptResult(.cliUnavailable)
@@ -247,30 +220,12 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         // multiple touches/poll loops.
         guard self.reserveAttemptIfNotInCooldown(
             now: now,
-            bypassCooldown: configuration.interaction == .userInitiated,
+            bypassCooldown: true,
             profileIdentifier: profileIdentifier,
             state: state)
         else {
             self.log.debug("Claude OAuth delegated refresh skipped by cooldown")
             return AttemptResult(.skippedByCooldown)
-        }
-
-        if let mcpOAuthOnlyFailure = self.mcpOAuthOnlyKeychainFailureIfPresent(
-            interaction: configuration.interaction,
-            readStrategy: configuration.readStrategy,
-            keychainAccessDisabled: configuration.keychainAccessDisabled,
-            hasSelectedProfileOAuthCredentialsFile: configuration.hasSelectedProfileOAuthCredentialsFile,
-            environment: configuration.environment)
-        {
-            self.recordAttempt(
-                now: now,
-                cooldown: self.defaultCooldownInterval,
-                profileIdentifier: profileIdentifier,
-                state: state)
-            self.log.warning(
-                "Claude OAuth delegated refresh skipped: Claude keychain has MCP OAuth state only",
-                metadata: ["readStrategy": configuration.readStrategy.rawValue])
-            return AttemptResult(.attemptedFailed(mcpOAuthOnlyFailure))
         }
 
         let baseline = self.currentKeychainChangeObservationBaseline(
@@ -534,32 +489,10 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
             environment: configuration.environment)
     }
 
-    private static func mcpOAuthOnlyKeychainFailureIfPresent(
-        interaction: ProviderInteraction,
-        readStrategy: ClaudeOAuthKeychainReadStrategy,
-        keychainAccessDisabled: Bool,
-        hasSelectedProfileOAuthCredentialsFile: Bool,
-        environment: [String: String]) -> String?
-    {
-        guard interaction != .userInitiated else { return nil }
-        guard !hasSelectedProfileOAuthCredentialsFile else { return nil }
-        guard ClaudeOAuthCredentialsStore.isMcpOAuthOnlyClaudeKeychainPayloadPresent(
-            interaction: interaction,
-            readStrategy: readStrategy,
-            keychainAccessDisabled: keychainAccessDisabled,
-            environment: environment)
-        else {
-            return nil
-        }
-        return ClaudeOAuthCredentialsError.mcpOAuthOnlyKeychain.errorDescription
-            ?? "Claude keychain contains MCP OAuth state only."
-    }
-
     private static func clearInFlightTaskIfStillCurrent(id: UInt64, state: AttemptStateStorage) {
         state.lock.lock()
         if state.inFlightAttemptID == id {
             state.inFlightAttemptID = nil
-            state.inFlightInteraction = nil
             state.inFlightProfileIdentifier = nil
             state.inFlightTask = nil
         }
@@ -684,7 +617,6 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         [String: String]) async throws -> Void)?
     @TaskLocal static var keychainFingerprintOverrideForTesting: (@Sendable () -> ClaudeOAuthCredentialsStore
         .ClaudeKeychainFingerprint?)?
-    @TaskLocal static var userInitiatedBackgroundJoinObserverForTesting: (@Sendable () -> Void)?
     @TaskLocal static var differentProfileJoinObserverForTesting: (@Sendable () -> Void)?
 
     static func withCLIAvailableOverrideForTesting<T>(
@@ -710,15 +642,6 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         operation: () async throws -> T) async rethrows -> T
     {
         try await self.$keychainFingerprintOverrideForTesting.withValue(override) {
-            try await operation()
-        }
-    }
-
-    static func withUserInitiatedBackgroundJoinObserverForTesting<T>(
-        _ observer: (@Sendable () -> Void)?,
-        operation: () async throws -> T) async rethrows -> T
-    {
-        try await self.$userInitiatedBackgroundJoinObserverForTesting.withValue(observer) {
             try await operation()
         }
     }
@@ -756,7 +679,6 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         state.loadedCooldownProfiles.removeAll()
         state.cooldownByProfile.removeAll()
         state.inFlightAttemptID = nil
-        state.inFlightInteraction = nil
         state.inFlightProfileIdentifier = nil
         state.inFlightTask = nil
         state.nextAttemptID = 0
