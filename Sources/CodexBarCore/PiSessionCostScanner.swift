@@ -63,10 +63,47 @@ enum PiSessionCostScanner {
         let entryUsages: [String: PiSessionEntryUsage]
         let parsedBytes: Int64
         let sessionID: String?
+        let projectPath: String?
+        let title: String?
         let lastModelContext: PiModelContext?
+        /// Newest in-window assistant row timestamp; nil when no such row has a timestamp.
+        let lastAssistantUnixMs: Int64?
         let isComplete: Bool
         let unsupportedAssistantDayKeys: Set<String>
         let hasUndatedUnsupportedAssistant: Bool
+    }
+
+    /// Session facts carried across tail parses: the first header's id and cwd, and the latest title.
+    private struct SessionMetadata {
+        var sessionID: String?
+        var projectPath: String?
+        var title: String?
+        /// An OMP title line owns the title even when empty, matching the live session parser.
+        var titleSlotSeen = false
+
+        /// Returns whether `object` was a metadata record; such records carry no usage.
+        mutating func apply(type: String, object: [String: Any]) -> Bool {
+            switch type {
+            case "session":
+                self.sessionID = self.sessionID ?? PiSessionCostScanner.sessionIdentifier(from: object)
+                self.projectPath = self.projectPath
+                    ?? CostUsageScanner.normalizedCodexProjectPath(object["cwd"] as? String)
+                if !self.titleSlotSeen, self.title == nil, let headerTitle = object["title"] as? String {
+                    self.title = PiFamilySessionFileParser.sanitizedTitle(headerTitle)
+                }
+            case "title":
+                self.titleSlotSeen = true
+                self.title = (object["title"] as? String).flatMap(PiFamilySessionFileParser.sanitizedTitle)
+            case "session_info":
+                // The latest Pi rename wins; an empty name clears the title.
+                if let name = object["name"] as? String {
+                    self.title = PiFamilySessionFileParser.sanitizedTitle(name)
+                }
+            default:
+                return false
+            }
+            return true
+        }
     }
 
     private struct SessionFileCandidate {
@@ -133,6 +170,10 @@ enum PiSessionCostScanner {
         /// The scope represented by `report`, which may be the prior cache scope when a
         /// newly requested root set could not be inspected completely.
         let scopeFingerprint: String?
+        /// Pi-only rows that partition `report`; mirror reads leave them empty.
+        var projects: [CostUsageProjectBreakdown] = []
+        var sessions: [CostUsageSessionBreakdown] = []
+        var detailsAreComplete = false
     }
 
     static func loadDailyReportCancellable(
@@ -303,11 +344,21 @@ enum PiSessionCostScanner {
             ? Date(timeIntervalSince1970: TimeInterval(cache.lastScanUnixMs) / 1000)
             : nil
         if provider == .pi {
+            let isComplete = scanIsComplete && !self.hasUnsupportedHistory(cache: cache, range: range)
+            let breakdowns = try self.breakdowns(
+                cache: cache,
+                range: range,
+                checkCancellation: checkCancellation)
             return DailyReportResult(
                 report: reports.pi,
-                isComplete: scanIsComplete && !self.hasUnsupportedHistory(cache: cache, range: range),
+                isComplete: isComplete,
                 lastScanAt: lastScanAt,
-                scopeFingerprint: cache.sessionRootsFingerprint)
+                scopeFingerprint: cache.sessionRootsFingerprint,
+                projects: breakdowns?.projects ?? [],
+                sessions: breakdowns?.sessions ?? [],
+                // A cache with usage but no session rows cannot partition the total.
+                detailsAreComplete: isComplete && breakdowns != nil
+                    && (reports.pi.data.isEmpty || !cache.sessions.isEmpty))
         }
         return DailyReportResult(
             report: provider == .codex ? reports.codex : reports.claude,
@@ -780,6 +831,8 @@ enum PiSessionCostScanner {
                 range: context.range,
                 startOffset: cached.parsedBytes,
                 initialSessionID: cached.sessionID,
+                initialProjectPath: cached.projectPath,
+                initialTitle: cached.title,
                 initialModelContext: cached.lastModelContext,
                 pricingContext: context.pricingContext,
                 checkCancellation: context.checkCancellation)
@@ -796,7 +849,11 @@ enum PiSessionCostScanner {
                 parsedBytes: delta.parsedBytes,
                 fileIdentity: fileIdentity,
                 sessionID: delta.sessionID ?? cached.sessionID,
+                projectPath: delta.projectPath,
+                title: delta.title,
                 lastModelContext: delta.lastModelContext,
+                lastAssistantUnixMs: [cached.lastAssistantUnixMs, delta.lastAssistantUnixMs]
+                    .compactMap(\.self).max(),
                 contributions: merged,
                 unkeyedContributions: mergedUnkeyed,
                 entryUsages: mergedEntryUsages,
@@ -820,7 +877,10 @@ enum PiSessionCostScanner {
             parsedBytes: parsed.parsedBytes,
             fileIdentity: fileIdentity,
             sessionID: parsed.sessionID,
+            projectPath: parsed.projectPath,
+            title: parsed.title,
             lastModelContext: parsed.lastModelContext,
+            lastAssistantUnixMs: parsed.lastAssistantUnixMs,
             contributions: parsed.contributions,
             unkeyedContributions: parsed.unkeyedContributions,
             entryUsages: parsed.entryUsages,
@@ -834,18 +894,24 @@ enum PiSessionCostScanner {
         range: CostUsageScanner.CostUsageDayRange,
         startOffset: Int64 = 0,
         initialSessionID: String? = nil,
+        initialProjectPath: String? = nil,
+        initialTitle: String? = nil,
         initialModelContext: PiModelContext? = nil,
         pricingContext: ModelsDevPricingContext? = nil,
         checkCancellation: CostUsageScanner.CancellationCheck? = nil) throws -> ParseResult
     {
         self.sessionParseObserverForTesting?()
-        var sessionID = initialSessionID
+        var metadata = SessionMetadata(
+            sessionID: initialSessionID,
+            projectPath: initialProjectPath,
+            title: initialTitle)
         var currentModelContext = initialModelContext
         var contributions: [String: [String: [String: PiPackedUsage]]] = [:]
         var unkeyedContributions: [String: [String: [String: PiPackedUsage]]] = [:]
         var entryUsages: [String: PiSessionEntryUsage] = [:]
         var unsupportedAssistantDayKeys: Set<String> = []
         var hasUndatedUnsupportedAssistant = false
+        var lastAssistantDate: Date?
         var isComplete = true
 
         func add(
@@ -905,10 +971,7 @@ enum PiSessionCostScanner {
                         }
                         guard let type = object["type"] as? String else { return }
 
-                        if type == "session" {
-                            sessionID = sessionID ?? self.sessionIdentifier(from: object)
-                            return
-                        }
+                        if metadata.apply(type: type, object: object) { return }
 
                         if type == "model_change" {
                             currentModelContext = self.modelContext(from: object)
@@ -930,6 +993,7 @@ enum PiSessionCostScanner {
                             guard CostUsageScanner.CostUsageDayRange.isInRange(
                                 dayKey: dayKey, since: range.scanSinceKey, until: range.scanUntilKey)
                             else { return }
+                            lastAssistantDate = max(lastAssistantDate ?? date, date)
                             if let usage = self.extractUsage(
                                 provider: identity.pricingProvider,
                                 modelName: identity.modelName,
@@ -966,6 +1030,7 @@ enum PiSessionCostScanner {
                                 dayKey: day, since: range.scanSinceKey, until: range.scanUntilKey)
                             {
                                 unsupportedAssistantDayKeys.insert(day)
+                                lastAssistantDate = max(lastAssistantDate ?? date, date)
                             }
                         } else {
                             hasUndatedUnsupportedAssistant = true
@@ -993,8 +1058,11 @@ enum PiSessionCostScanner {
             unkeyedContributions: unkeyedContributions,
             entryUsages: entryUsages,
             parsedBytes: parsedBytes,
-            sessionID: sessionID,
+            sessionID: metadata.sessionID,
+            projectPath: metadata.projectPath,
+            title: metadata.title,
             lastModelContext: currentModelContext,
+            lastAssistantUnixMs: lastAssistantDate.map { Int64($0.timeIntervalSince1970 * 1000) },
             isComplete: isComplete,
             unsupportedAssistantDayKeys: unsupportedAssistantDayKeys,
             hasUndatedUnsupportedAssistant: hasUndatedUnsupportedAssistant)
@@ -1022,31 +1090,54 @@ enum PiSessionCostScanner {
     {
         var seenEntriesBySessionID: [String: Set<String>] = [:]
         var days: [String: [String: [String: PiPackedUsage]]] = [:]
+        var sessions: [String: PiSessionUsage] = [:]
+        var newestMtimeBySessionKey: [String: Int64] = [:]
+        var newestReplyBySessionKey: [String: Int64] = [:]
 
         for file in files {
             try checkCancellation?()
             guard let usage = cache.files[file.url.path] else { continue }
+            // Pi names files `<timestamp>_<uuid>.jsonl`, so a stem cannot collide with a header id.
+            let sessionKey = usage.sessionID ?? file.url.deletingPathExtension().lastPathComponent
+            var session = sessions[sessionKey]
+                ?? PiSessionUsage(lastActivityUnixMs: usage.mtimeUnixMs, contributions: [:])
+            // Metadata follows the most recently modified copy; activity follows the newest reply.
+            if usage.mtimeUnixMs > newestMtimeBySessionKey[sessionKey] ?? .min {
+                newestMtimeBySessionKey[sessionKey] = usage.mtimeUnixMs
+                session.projectPath = usage.projectPath
+                session.projectSlug = usage.projectPath == nil ? Self.piProjectSlug(fileURL: file.url) : nil
+                session.title = usage.title
+            }
+            if let reply = usage.lastAssistantUnixMs {
+                newestReplyBySessionKey[sessionKey] = max(newestReplyBySessionKey[sessionKey] ?? reply, reply)
+            }
+            session.lastActivityUnixMs = newestReplyBySessionKey[sessionKey]
+                ?? newestMtimeBySessionKey[sessionKey]
+                ?? usage.mtimeUnixMs
+            // Sessions receive exactly the deltas the totals receive, so they partition `days`.
+            func apply(_ contributions: [String: [String: [String: PiPackedUsage]]]) -> Bool {
+                self.applyContributions(daysByProvider: &days, contributions: contributions)
+                    && self.applyContributions(daysByProvider: &session.contributions, contributions: contributions)
+            }
+            defer { sessions[sessionKey] = session }
             guard let sessionID = usage.sessionID else {
-                guard self.applyContributions(daysByProvider: &days, contributions: usage.contributions) else {
-                    return false
-                }
+                guard apply(usage.contributions) else { return false }
                 continue
             }
 
-            guard self.applyContributions(daysByProvider: &days, contributions: usage.unkeyedContributions) else {
-                return false
-            }
+            guard apply(usage.unkeyedContributions) else { return false }
 
             var seenEntries = seenEntriesBySessionID[sessionID] ?? []
             for entryID in usage.entryUsages.keys.sorted() where seenEntries.insert(entryID).inserted {
                 guard let entryUsage = usage.entryUsages[entryID] else { continue }
-                guard self.applyContributions(daysByProvider: &days, contributions: [
+                guard apply([
                     entryUsage.providerRawValue: [entryUsage.dayKey: [entryUsage.modelName: entryUsage.usage]],
                 ]) else { return false }
             }
             seenEntriesBySessionID[sessionID] = seenEntries
         }
         cache.daysByProvider = days
+        cache.sessions = sessions
         return true
     }
 
