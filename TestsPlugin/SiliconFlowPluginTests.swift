@@ -97,6 +97,27 @@ struct SiliconFlowPluginTests {
     }
 
     @Test(arguments: BundledPluginTestSupport.engines)
+    func `retired China API points to the web source while international keeps the console hint`(
+        engine: ProviderPluginEngineKind) async
+    {
+        for (origin, expected) in [
+            (
+                "https://api.siliconflow.cn",
+                "The SiliconFlow China balance API was retired. "
+                    + "Switch SiliconFlow to Web and sign in to cloud.siliconflow.cn."),
+            (
+                "https://api.siliconflow.com",
+                "SiliconFlow refused the balance query. Check the balance in the SiliconFlow console."),
+        ] {
+            for status in [200, 410] {
+                await #expect(throws: ProviderFetchClassifiedError(kind: .providerUnavailable, message: expected)) {
+                    try await Self.fetch(engine, body: #"{"code":20092}"#, status: status, origin: origin)
+                }
+            }
+        }
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
     func `diagnostics use the host supplied translation`(engine: ProviderPluginEngineKind) async {
         await #expect {
             try await Self.fetch(engine, status: 500, messages: [

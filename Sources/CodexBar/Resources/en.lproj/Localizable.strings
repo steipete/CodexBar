@@ -2809,6 +2809,9 @@
 "SiliconFlow is rate limiting requests. Try again later." = "SiliconFlow is rate limiting requests. Try again later.";
 "SiliconFlow request failed. Try refreshing later." = "SiliconFlow request failed. Try refreshing later.";
 "SiliconFlow returned an unrecognized response. Update CodexBar and try again." = "SiliconFlow returned an unrecognized response. Update CodexBar and try again.";
+"Sign in to cloud.siliconflow.cn in your browser, then refresh CodexBar." = "Sign in to cloud.siliconflow.cn in your browser, then refresh CodexBar.";
+"The SiliconFlow China balance API was retired. Switch SiliconFlow to Web and sign in to cloud.siliconflow.cn." = "The SiliconFlow China balance API was retired. Switch SiliconFlow to Web and sign in to cloud.siliconflow.cn.";
+"SiliconFlow denied access to the console balance (HTTP 403). Open cloud.siliconflow.cn, check that this account can view billing, then refresh." = "SiliconFlow denied access to the console balance (HTTP 403). Open cloud.siliconflow.cn, check that this account can view billing, then refresh.";
 "Claude Platform session validated and saved." = "Claude Platform session validated and saved.";
 "Use %@ or %@." = "Use %@ or %@.";
 "Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@." = "Sign in at %@. Supply its Cookie header containing sessionKey privately to %@. Then run %@.";
@@ -2837,6 +2840,7 @@
 "Mistral session expired or invalid." = "Mistral session expired or invalid.";
 "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key." = "The command reads a piped API key and saves it as a standalone key. A selected API token account overrides the standalone key.";
 "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority." = "Use an API key with user_read permission for subscription usage. The command saves a standalone key; a selected API key account takes priority.";
+"Web" = "Web";
 "Credits per million tokens" = "Credits per million tokens";
 "Paused during grace period" = "Paused during grace period";
 "Google Developer Program exposes the current monthly Cloud credit, not local token cost history." = "Google Developer Program exposes the current monthly Cloud credit, not local token cost history.";

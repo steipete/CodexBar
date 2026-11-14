@@ -102,8 +102,12 @@ public enum DeepSeekProviderDescriptor {
                     ProviderColor(hex: 0x020E36),
                 ]),
             tokenCost: ProviderTokenCostConfig(
-                supportsTokenCost: false,
-                noDataMessage: { "DeepSeek per-day cost history is not available via API." }),
+                supportsTokenCost: true,
+                noDataMessage: { "Detailed usage unavailable." },
+                isUsageUnavailable: { $0.costUsage == nil },
+                showsCostMenuSection: false,
+                primaryValue: .latestDaily,
+                showsRequestHistory: false),
             presentation: ProviderUsagePresentation(
                 menuCard: ProviderMenuCardPresentation(
                     usageNotesResolver: { context in

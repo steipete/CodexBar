@@ -15,6 +15,7 @@ public enum XAIProviderDescriptor {
         noDataMessage: "xAI daily spend requires a Management API key and team ID. "
             + "Prepaid balance is not treated as spend.",
         supportsTokenCost: true,
+        isCostUsageUnavailable: { XAICostUsageMapping.isAnalyticsUnavailable($0) },
         environmentKey: XAISettingsReader.apiKeyEnvironmentKey,
         config: ProviderConfigCapabilities(workspaceIDValidationOrder: 6),
         presentation: ProviderUsagePresentation(

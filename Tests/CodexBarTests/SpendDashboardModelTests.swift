@@ -75,6 +75,7 @@ struct SpendDashboardModelTests {
             .vertexai,
             .openai,
             .mistral,
+            .deepseek,
             .bedrock,
             .cursor,
             .grok,
