@@ -1,0 +1,35 @@
+{
+  "enabled": true,
+  "tier": "inference",
+  "periodStart": "2026-11-06T16:01:55Z",
+  "periodEnd": "2026-12-06T16:01:55Z",
+  "allowanceCredits": 7000,
+  "usedCredits": 10.6,
+  "remainingCredits": 6989.4,
+  "packCredits": 25,
+  "packExpiresAt": "2027-05-06T16:01:55Z",
+  "frontierPaused": false,
+  "frozen": false,
+  "models": [
+    {
+      "model": "helm-credit-a",
+      "displayName": "Helm Credit A",
+      "description": "Fast general model",
+      "approxCreditsPerMTokens": 1.075,
+      "rates": { "inputPerM": 10.5, "cachedInputPerM": 0.21, "outputPerM": 42 },
+      "creditsThisMonth": 10.6,
+      "tokensThisMonth": 4628477,
+      "tags": ["ZDR"]
+    },
+    {
+      "model": "helm-credit-b",
+      "displayName": "Helm Credit B",
+      "description": "Larger reasoning model",
+      "approxCreditsPerMTokens": 11.45,
+      "rates": { "inputPerM": 49, "cachedInputPerM": 1.05, "outputPerM": 154 },
+      "creditsThisMonth": 0,
+      "tokensThisMonth": 0,
+      "tags": ["ZDR"]
+    }
+  ]
+}

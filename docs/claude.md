@@ -253,6 +253,7 @@ state can follow a read suppressed by the selected policy. Refresh retries withi
     OAuth and Web share per-entry parsing: malformed siblings or optional fields do not hide valid model rows. Boolean and string percentages are ignored.
   - The menu localizes scoped titles as a model name plus weekly duration; canonical snapshot and CLI titles remain unchanged.
   - Automatic and Session + Weekly menu bar metrics use a measured Sonnet/Opus weekly window when regular quotas are absent, then the most constrained known scoped weekly window. Unknown scoped measurements remain unavailable; Extra usage stays a spend-only fallback.
+  - Without a session window, the status icon draws the weekly window as a single meter instead of reserving an empty session lane.
   - `seven_day_routines` / `seven_day_cowork` → Daily Routines extra window.
   - Claude Design/Omelette keys are ignored because Claude Design shares the main Claude usage limit.
   - `extra_usage` → Extra usage cost (monthly spend/limit).
@@ -629,8 +630,8 @@ mode. The additive field is omitted after recovery and from shell rows.
     "Current session" + "Current week" headers. Cursor jumps preserve unchanged cells from earlier frames, keeping
     scoped weekly percentages, reset spacing, and account identity intact. Erased content is not reused as history.
   - Plain reports, including color-only ANSI output and legacy CR-delimited text, retain their existing parsing behavior.
-  - Capture completion uses the current rendered frame and waits for session quota values and the CLI's
-    `Refreshing…` footer to clear; percentages in the
+  - Capture completion uses the current rendered frame and waits for the first quota value (the session row, or the
+    weekly row on plans without a session window) and the CLI's `Refreshing…` footer to clear; percentages in the
     "What's contributing to your limits usage?" insights section cannot finish a loading quota probe. Once quota is
     visible, further Enter retries stop while the scoped weekly breakdown finishes refreshing. The existing capture
     timeout still bounds the wait; unmarked late redraws cannot be distinguished from a complete panel.
@@ -683,7 +684,7 @@ mode. The additive field is omitted after recovery and from shell rows.
   - Claude-swap history contributes to the combined Claude total, including when an explicit `$CLAUDE_CONFIG_DIR` is set. Shared-history symlinks are scanned once, copied responses use the same deduplication as native logs, and missing profile directories do not prevent other homes from contributing. Local cost records do not establish per-account attribution.
 - Quota-week menu cards reuse the immutable snapshot’s day projection, warmed in the background. New snapshots and changed bucket time zones rebuild it; reset observations and the current time remain live on every card build.
 - Cache:
-  - Bundled fallback pricing includes Claude Mythos 5.1 and Mythos 5 at [Anthropic's published rates](https://platform.claude.com/docs/en/about-claude/pricing). The report-semantics update reprices retained usage without rereading unchanged transcripts.
+  - Bundled fallback pricing includes Claude Mythos 5.2, Mythos 5.1, and Mythos 5 at [Anthropic's published rates](https://platform.claude.com/docs/en/about-claude/pricing). The report-semantics update reprices retained usage without rereading unchanged transcripts.
   - GPT usage recorded through Claude Code uses the bundled OpenAI model's long-context boundary (272K for supported models), while retaining catalog rates. Uncached input and cache-read/create tokens all contribute to the prompt length. Saved reports are recalculated after pricing corrections without discarding retained Codex history.
   - Native provider cache: `~/Library/Caches/CodexBar/cost-usage/claude-v6.json`. This is a small manifest; its sibling `claude-v6.json.fragments` directory holds immutable JSON shards grouped by transcript project/directory, including source identities and empty-file parse offsets.
   - Report memo: `~/Library/Caches/CodexBar/cost-usage/claude-v6.report-memo.json` stores the daily report and references project shards for source stamps. It is reused only while transcript inventory, cache/pricing artifacts, requested window, and report-semantics revision still match.

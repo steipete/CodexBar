@@ -55,6 +55,48 @@ struct TTYIntegrationTests {
     }
 
     @Test
+    func `claude pty stops once a panel without a session row draws its quota`() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let binary = directory.appendingPathComponent("claude-weekly-only")
+        let script = #"""
+        #!/bin/bash
+        /bin/stty -echo
+        panel=0
+        while IFS= read -r line; do
+          case "$line" in
+            *"/usage"*)
+              panel=1
+              printf '\033[2J\033[H'
+              printf '%s\n' 'Settings  Status  Config  Usage  Stats' 'Current week (all models)' '55% used' \
+                'Current week (Example Model)' '14% used' 'Usage credits' 'Esc to cancel'
+              ;;
+            "")
+              if [[ "$panel" == 1 ]]; then printf 'continue\n' >> "$HOME/continues.log"; fi
+              ;;
+            *"/status"*) printf '%s\n' 'Account: fixture@example.com' ;;
+            *"/exit"*) exit 0 ;;
+          esac
+        done
+        """#
+        try script.write(to: binary, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: binary.path)
+        let probe = ClaudeStatusProbe(claudeBinary: binary.path, timeout: 6, environment: [
+            "HOME": directory.path,
+            "CLAUDE_CONFIG_DIR": directory.path,
+            "CLAUDE_SECURESTORAGE_CONFIG_DIR": directory.path,
+        ])
+        let snapshot = try await ClaudeCLISession.withIsolatedSessionForTesting {
+            try await probe.fetch()
+        }
+        #expect(snapshot.sessionPercentLeft == nil)
+        #expect(snapshot.weeklyPercentLeft == 45)
+        // Waiting for a session row that never comes kept pressing Enter into the open panel until the timeout.
+        #expect(!FileManager.default.fileExists(atPath: directory.appendingPathComponent("continues.log").path))
+    }
+
+    @Test
     func `codex RPC usage live`() async throws {
         guard ProcessInfo.processInfo.environment["LIVE_CODEX_TTY"] == "1" else {
             return

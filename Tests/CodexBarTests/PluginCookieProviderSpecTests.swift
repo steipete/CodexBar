@@ -29,7 +29,7 @@ struct PluginCookieProviderSpecTests {
 
     private static let providers: [UsageProvider] = [
         .helmcode, .hyper, .manus, .perplexity, .qoder, .raycast, .sakana, .t3chat, .lithosai, .workbuddy,
-        .claudeplatform, .opendesign,
+        .claudeplatform, .opendesign, .googledeveloper,
     ]
 
     @Test
