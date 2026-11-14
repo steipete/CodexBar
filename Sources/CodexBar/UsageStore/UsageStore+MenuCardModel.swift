@@ -21,6 +21,8 @@ enum UsageMenuCardContext {
         var sourceLabel: String?
         var credits: CreditsSnapshot?
         var tokenAccountID: UUID?
+        /// Shows the provider's stored local costs on this account card, for cards that stand in for the provider row.
+        var includesStoredTokenCosts = false
     }
 
     var account: Account? {
@@ -64,7 +66,7 @@ extension UsageStore {
         // Provider-specific by design: an explicit Claude mapping gives only the active token card local costs.
         let ownsMappedCosts = provider == .claude && self.claudeTokenCostConfigDirectory != nil &&
             account?.tokenAccountID == self.settings.effectiveSelectedTokenAccount(for: provider)?.id
-        let usesStoredCosts = isLive || ownsMappedCosts
+        let usesStoredCosts = isLive || ownsMappedCosts || account?.includesStoredTokenCosts == true
         let metadata = self.metadata(for: provider)
         let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
         // An explicitly empty account stays empty; live data may belong to another account.

@@ -63,6 +63,117 @@ struct MergedOverviewAccountsTests {
     }
 
     @Test
+    func `overview claude card follows the swap account the claude tab presents`() async throws {
+        try await ClaudeSwapRichUsageFixture.withFixture { fixture in
+            let store = fixture.store
+            store.errors[.claude] = "Claude usage probe timed out."
+            store.snapshots[.claude] = nil
+            #expect(!store.settings.mergedOverviewAllAccounts)
+            guard let active = fixture.accounts.first(where: { $0.isActive }) else {
+                Issue.record("Expected an active Claude swap account")
+                return
+            }
+
+            for layout in [MultiAccountMenuLayout.segmented, .stacked] {
+                store.settings.multiAccountMenuLayout = layout
+                let rows = store.mergedOverviewRows(for: [.claude])
+                #expect(rows.count == 1)
+                // A provider row, so Overview keeps its submenu, storage line, and row identity.
+                #expect(rows[0].accountID == nil)
+                #expect(rows[0].model?.subtitleText.localizedCaseInsensitiveContains("probe timed out") != true)
+                #expect(rows[0].model?.metrics.first?.percent == 26)
+            }
+
+            // Below the presentation threshold the ambient card stays.
+            store.claudeSwapAccountSnapshots = [active]
+            store.errors[.claude] = nil
+            store.snapshots[.claude] = UsageSnapshot(
+                primary: RateWindow(usedPercent: 42, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                secondary: nil,
+                updatedAt: Date())
+            #expect(store.mergedOverviewRows(for: [.claude]).first?.model?.metrics.first?.percent == 42)
+            store.settings.claudeSwapShowSingleAccount = true
+            #expect(store.mergedOverviewRows(for: [.claude]).first?.model?.metrics.first?.percent == 26)
+        }
+    }
+
+    @Test
+    func `overview retains inspected Claude account details with or without an active slot`() async throws {
+        try await ClaudeSwapRichUsageFixture.withFixture { fixture in
+            let store = fixture.store
+            store.settings.multiAccountMenuLayout = .segmented
+            let inspectedCandidate = fixture.accounts.first { !$0.isActive && !$0.canActivate }
+            let inspected = try #require(inspectedCandidate)
+
+            let inactiveAccounts: [ProviderAccountUsageSnapshot] = fixture.accounts.filter { !$0.isActive }
+            for accounts in [fixture.accounts, inactiveAccounts] {
+                store.claudeSwapAccountSnapshots = accounts
+                let rows = store.mergedOverviewRows(for: [.claude], claudeSwapInspectedAccountID: inspected.id)
+                #expect(rows.count == 1)
+                let row = try #require(rows.first)
+                #expect(row.accountID == nil)
+                #expect(row.model?.email == inspected.displayLabel)
+                #expect(row.model?.metrics.first?.percent == inspected.snapshot?.primary?.usedPercent)
+            }
+
+            // A removed inspection must not hide the current active account.
+            store.claudeSwapAccountSnapshots = fixture.accounts.filter { $0.id != inspected.id }
+            let fallback = store.mergedOverviewRows(for: [.claude], claudeSwapInspectedAccountID: inspected.id)
+            #expect(fallback.first?.model?.metrics.first?.percent == 26)
+        }
+    }
+
+    @Test
+    func `overview claude swap card keeps the provider row local costs`() async throws {
+        try await ClaudeSwapRichUsageFixture.withFixture { fixture in
+            let store = fixture.store
+            store.settings.costUsageEnabled = true
+            store._setTokenSnapshotForTesting(CostUsageTokenSnapshot(
+                sessionTokens: 123,
+                sessionCostUSD: 0.12,
+                last30DaysTokens: 123,
+                last30DaysCostUSD: 1.23,
+                daily: [
+                    CostUsageDailyReport.Entry(
+                        date: "2026-11-01",
+                        inputTokens: nil,
+                        outputTokens: nil,
+                        totalTokens: 123,
+                        costUSD: 1.23,
+                        modelsUsed: nil,
+                        modelBreakdowns: nil),
+                ],
+                updatedAt: Date()), provider: .claude)
+
+            let row = store.mergedOverviewRows(for: [.claude]).first
+            #expect(row?.model?.metrics.first?.percent == 26)
+            #expect(row?.model?.tokenUsage != nil)
+
+            // "All accounts" rows stay per-account and keep omitting provider-wide costs.
+            store.settings.mergedOverviewAllAccounts = true
+            #expect(store.mergedOverviewRows(for: [.claude]).allSatisfy { $0.model?.tokenUsage == nil })
+        }
+    }
+
+    @Test
+    func `overview keeps the ambient claude card when the swap list has no presented account`() async throws {
+        try await ClaudeSwapRichUsageFixture.withFixture { fixture in
+            let store = fixture.store
+            store.claudeSwapAccountSnapshots = fixture.accounts.filter { !$0.isActive }
+            #expect(store.claudeSwapAccountSnapshots.count > 1)
+            store.snapshots[.claude] = UsageSnapshot(
+                primary: RateWindow(usedPercent: 42, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                secondary: nil,
+                updatedAt: Date())
+
+            let rows = store.mergedOverviewRows(for: [.claude])
+            #expect(rows.count == 1)
+            #expect(rows.first?.accountID == nil)
+            #expect(rows.first?.model?.metrics.first?.percent == 42)
+        }
+    }
+
+    @Test
     func `claude adapters take precedence over saved token accounts and keep privacy`() async throws {
         try await ClaudeSwapRichUsageFixture.withFixture { fixture in
             let store = fixture.store

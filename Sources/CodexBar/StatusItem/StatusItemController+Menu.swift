@@ -555,7 +555,9 @@ extension StatusItemController {
         // interaction closures must always reference the live menu they end up serving.
         let interactionMenu = captureMenu ?? menu
         let providerScopes = self.overviewProviderScopes(enabledProviders: enabledProviders)
-        let rows = self.store.mergedOverviewRows(for: providerScopes.visible)
+        let rows = self.store.mergedOverviewRows(
+            for: providerScopes.visible,
+            claudeSwapInspectedAccountID: self.claudeSwapInspectedAccountID)
         guard !rows.isEmpty else { return false }
 
         let t0 = CACurrentMediaTime()
