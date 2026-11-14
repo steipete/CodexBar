@@ -45,7 +45,7 @@ struct HelmcodePluginTests {
         #expect(usage.identity?.providerID == .helmcode)
         #expect(usage.identity?.accountOrganization == "Helmcode Cloud")
         #expect(usage.dataConfidence == .exact)
-        #expect(result.requests.count == 3)
+        #expect(result.requests.count == 4)
         #expect(result.domains == ["cloud-api.helmcode.com"])
         #expect(HelmcodeProviderDescriptor.dashboardURL(snapshot: usage).absoluteString
             == "https://cloud.helmcode.com/dashboard")
@@ -54,7 +54,7 @@ struct HelmcodePluginTests {
     @Test(arguments: BundledPluginTestSupport.engines)
     func `NaN session stays on NaN and never requests prepaid balance`(engine: ProviderPluginEngineKind) async throws {
         let result = try await Self.fetch(engine: engine, available: ["nan.builders"])
-        #expect(result.requests.count == 2)
+        #expect(result.requests.count == 3)
         #expect(result.requests.allSatisfy { $0.url?.host == "cloud-api.nan.builders" })
         #expect(result.usage.providerCost == nil)
         #expect(result.usage.identity?.accountOrganization == "NaN Builders")
@@ -90,14 +90,14 @@ struct HelmcodePluginTests {
         #expect(result.rejected == ["cloud-api.helmcode.com"])
         #expect(result.domains == ["cloud-api.helmcode.com", "helmcode.com", "nan.builders"])
         #expect(result.usage.identity?.accountOrganization == "NaN Builders")
-        #expect(result.requests.count == 3)
+        #expect(result.requests.count == 5)
     }
 
     @Test(arguments: BundledPluginTestSupport.engines)
     func `manual cookie uses only its selected tenant`(engine: ProviderPluginEngineKind) async throws {
         let result = try await Self.fetch(engine: engine, source: .manual, tenant: "nanBuilders")
         #expect(result.domains == ["nan.builders"])
-        #expect(result.requests.count == 2)
+        #expect(result.requests.count == 3)
         await Self.expectFailure(.authenticationExpired) {
             try await Self.fetch(engine: engine, source: .manual, cloudStatus: 401).usage
         }
@@ -163,6 +163,133 @@ struct HelmcodePluginTests {
         #expect(result.usage.providerCost == nil)
     }
 
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `credit plans do not request legacy quotas`(engine: ProviderPluginEngineKind) async throws {
+        for (status, body) in [(404, "{}"), (200, "not JSON")] {
+            let result = try await Self.fetch(
+                engine: engine,
+                cloudStatus: status,
+                quota: body,
+                usageCredits: Self.fixture("credits-usage"))
+            #expect(result.usage.primary?.quotaLimit == 7000)
+            #expect(result.requests.compactMap(\.url?.path) == ["/api/usage/credits"])
+        }
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `missing model credit usage is not fabricated as zero`(engine: ProviderPluginEngineKind) async throws {
+        let body = try Self.fixture("credits-usage").replacingOccurrences(of: "\"creditsThisMonth\": 10.6,", with: "")
+        let usage = try await Self.fetch(engine: engine, usageCredits: body).usage
+        #expect(usage.details.first?.rows.first { $0.label == "helm-credit-a" }?.value == "—")
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `a credit plan replaces the frozen NaN token quotas`(engine: ProviderPluginEngineKind) async throws {
+        let result = try await Self.fetch(
+            engine: engine,
+            available: ["nan.builders"],
+            usageCredits: Self.fixture("credits-usage"))
+        let primary = try #require(result.usage.primary)
+        #expect(primary.title == "Credits")
+        #expect(primary.usedPercent == 10.6 / 7000 * 100)
+        #expect(primary.quotaLimit == 7000)
+        #expect(primary.quotaUnit == "credits")
+        #expect(primary.resetDescription == "10.6 / 7,000")
+        #expect(primary.windowMinutes == 43200)
+        #expect(primary.resetsAt == ISO8601DateFormatter().date(from: "2026-12-06T16:01:55Z"))
+        #expect(result.usage.extraRateWindows?.isEmpty != false)
+        #expect(result.usage.providerCost == nil)
+        #expect(result.requests.compactMap(\.url?.path) == ["/api/usage/credits"])
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `credit details carry per-model weights and the purchased pack`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let usage = try await Self.fetch(
+            engine: engine,
+            available: ["nan.builders"],
+            usageCredits: Self.fixture("credits-usage")).usage
+        let rows = try #require(usage.details.first?.rows)
+        #expect(rows.first { $0.label == "helm-credit-a" }?.value == "10.6")
+        let weights = try #require(usage.details.first { $0.title == "Credits per million tokens" })
+        #expect(weights.rows.first { $0.label == "helm-credit-a" }?.value == "1.075")
+        #expect(rows.first { $0.label == "helm-credit-b" }?.value == "0")
+        #expect(rows.allSatisfy { $0.label != "Top-up credits" })
+        #expect(usage.details.last?.rows.first { $0.label == "Top-up credits" }?.value == "25")
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `a tenant without a credit plan keeps its token quotas`(engine: ProviderPluginEngineKind) async throws {
+        let usage = try await Self.fetch(engine: engine, usageCredits: #"{"enabled":false}"#).usage
+        #expect(usage.primary?.title != "Credits")
+        #expect(usage.primary?.quotaUnit == nil)
+        #expect(usage.extraRateWindows?.count == 3)
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `reported zero credits stay zero without inventing a billing period`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let usage = try await Self.fetch(
+            engine: engine, usageCredits: #"{"enabled":true,"allowanceCredits":7000,"usedCredits":0}"#).usage
+        #expect(usage.primary?.usedPercent == 0)
+        #expect(usage.primary?.resetsAt == nil)
+        #expect(usage.primary?.windowMinutes == nil)
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `malformed credit totals fail instead of reporting an empty plan`(engine: ProviderPluginEngineKind) async {
+        for body in [
+            #"{"enabled":true,"allowanceCredits":"7000","usedCredits":1}"#,
+            #"{"enabled":true,"allowanceCredits":0,"usedCredits":1}"#,
+            #"{"enabled":true,"allowanceCredits":7000,"usedCredits":-1}"#,
+            #"{"enabled":true,"allowanceCredits":7000}"#,
+            #"{"enabled":true,"allowanceCredits":7000,"usedCredits":1e400}"#,
+            #"{"enabled":true,"allowanceCredits":true,"usedCredits":1}"#,
+            #"{}"#,
+            #"{"enabled":null}"#,
+            #"{"enabled":"true"}"#,
+        ] {
+            await Self.expectFailure(.parseFailure) {
+                try await Self.fetch(engine: engine, available: ["nan.builders"], usageCredits: body).usage
+            }
+        }
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `a failing credit probe fails instead of returning frozen token quotas`(
+        engine: ProviderPluginEngineKind) async
+    {
+        for (status, kind) in [
+            (429, ProviderFetchClassifiedError.Kind.rateLimited),
+            (500, .providerUnavailable),
+            (403, .authenticationExpired),
+            (400, .apiFailure),
+        ] {
+            await Self.expectFailure(kind) {
+                try await Self.fetch(
+                    engine: engine,
+                    available: ["nan.builders"],
+                    usageCreditsStatus: status).usage
+            }
+        }
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `a credit plan labels the primary window as Credits`(engine: ProviderPluginEngineKind) async throws {
+        let credits = try await Self.fetch(
+            engine: engine,
+            available: ["nan.builders"],
+            usageCredits: Self.fixture("credits-usage")).usage
+        let tokens = try await Self.fetch(engine: engine).usage
+        let descriptor = HelmcodeProviderDescriptor.descriptor
+        #expect(descriptor.presentation.rateWindowLabels(metadata: descriptor.metadata, snapshot: credits).primary
+            == "Credits")
+        #expect(descriptor.presentation.rateWindowLabels(metadata: descriptor.metadata, snapshot: tokens).primary
+            == "Model quota")
+    }
+
     @Test
     func `descriptor uses the plugin and preserves cookie configuration`() {
         let descriptor = HelmcodeProviderDescriptor.descriptor
@@ -222,7 +349,7 @@ struct HelmcodePluginTests {
         try #require(fixtureHeader == "session=fixture-cloud-session")
         let result = try await Self.fetch(engine: engine, cookieResolver: cookieHeader)
         #expect(result.usage.identity?.accountOrganization == "Helmcode Cloud")
-        #expect(result.requests.count == 3)
+        #expect(result.requests.count == 4)
         #expect(result.requests.allSatisfy { $0.url?.host == "cloud-api.helmcode.com" })
         #expect(result.requests.allSatisfy {
             $0.value(forHTTPHeaderField: "Cookie") == "session=fixture-cloud-session"
@@ -240,6 +367,8 @@ struct HelmcodePluginTests {
         quota: String? = nil,
         billing: String? = nil,
         credits: String? = nil,
+        usageCredits: String? = nil,
+        usageCreditsStatus: Int? = nil,
         optionalStatus: Int = 200,
         cookieResolver: (@Sendable (String) throws -> String)? = nil) async throws
         -> (usage: UsageSnapshot, requests: [URLRequest], domains: [String], rejected: [String])
@@ -258,7 +387,8 @@ struct HelmcodePluginTests {
             }
             #expect(request.value(forHTTPHeaderField: "Origin") == "https://cloud.\(domain)")
             #expect(request.value(forHTTPHeaderField: "Referer") == "https://cloud.\(domain)/dashboard")
-            #expect(request.timeoutInterval == (url.path == "/api/usage/quota" ? 8 : 2))
+            #expect(request.timeoutInterval == (
+                url.path == "/api/usage/quota" || url.path == "/api/usage/credits" ? 8 : 2))
             var code = optionalStatus
             let body: String
             switch url.path {
@@ -266,6 +396,10 @@ struct HelmcodePluginTests {
                 code = domain == "helmcode.com" ? cloudStatus : 200
                 body = quotaBody
             case "/api/billing": body = billingBody
+            case "/api/usage/credits":
+                // NaN answers 404 until the tenant switches to credit metering.
+                code = usageCreditsStatus ?? (usageCredits == nil ? 404 : 200)
+                body = usageCredits ?? "{}"
             case "/api/billing/credits":
                 #expect(domain == "helmcode.com")
                 body = creditsBody
