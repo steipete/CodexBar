@@ -345,6 +345,8 @@ extension UsageStore {
 
     func installProviderDerivedTokenSnapshot(from snapshot: UsageSnapshot, for provider: UsageProvider) {
         guard Self.tokenCostRequiresProviderSnapshot(provider) else { return }
+        // A timed-out local scan is not evidence of empty history.
+        guard provider != .opencodego || snapshot.opencodegoUsage?.localHistoryPending != true else { return }
         if let tokenSnapshot = self.tokenSnapshot(fromProviderSnapshot: snapshot, provider: provider) {
             self.installCachedTokenSnapshot(tokenSnapshot, for: provider)
         } else {
@@ -356,6 +358,8 @@ extension UsageStore {
 
     func publishProviderDerivedTokenSnapshot(from snapshot: UsageSnapshot, for provider: UsageProvider) {
         guard Self.tokenCostRequiresProviderSnapshot(provider) else { return }
+        // A timed-out local scan is not evidence of empty history.
+        guard provider != .opencodego || snapshot.opencodegoUsage?.localHistoryPending != true else { return }
         if let tokenSnapshot = self.tokenSnapshot(fromProviderSnapshot: snapshot, provider: provider) {
             self.publishTokenSnapshot(tokenSnapshot, for: provider)
             // Provider-specific by design: a prepaid-balance snapshot without a usage chart means
