@@ -68,9 +68,13 @@ struct ClaudeOAuthDelegatedRefreshUnreadableResultTests {
                                         .withCLIAvailableOverrideForTesting(true) {
                                             try await ClaudeOAuthDelegatedRefreshCoordinator
                                                 .withTouchAuthPathOverrideForTesting(touchAuthPath) {
-                                                    await ClaudeOAuthDelegatedRefreshCoordinator.attemptDetailed(
-                                                        now: now,
-                                                        timeout: 0.1)
+                                                    await ProviderInteractionContext.$current
+                                                        .withValue(.userInitiated) {
+                                                            await ClaudeOAuthDelegatedRefreshCoordinator
+                                                                .attemptDetailed(
+                                                                    now: now,
+                                                                    timeout: 0.1)
+                                                        }
                                                 }
                                         }
                                 }

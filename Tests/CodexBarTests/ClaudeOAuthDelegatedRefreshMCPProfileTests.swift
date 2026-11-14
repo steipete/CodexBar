@@ -18,7 +18,7 @@ private final class ClaudeDelegatedProfileTouchCounter: @unchecked Sendable {
 @Suite(.serialized)
 struct ClaudeOAuthDelegatedRefreshMCPProfileTests {
     @Test
-    func `selected profile file lets delegated refresh bypass unrelated global mcp O auth`() async throws {
+    func `selected profile file lets manual delegated refresh bypass unrelated global mcp O auth`() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         let profile = root.appendingPathComponent("selected-profile", isDirectory: true)
@@ -57,7 +57,7 @@ struct ClaudeOAuthDelegatedRefreshMCPProfileTests {
                                             .dynamic { _ in
                                                 touches.count() > 0 ? refreshedCredentials : mcpOAuthOnly
                                             }) {
-                                                await ProviderInteractionContext.$current.withValue(.background) {
+                                                await ProviderInteractionContext.$current.withValue(.userInitiated) {
                                                     await ClaudeOAuthDelegatedRefreshCoordinator.attempt(
                                                         now: Date(timeIntervalSince1970: 64000),
                                                         timeout: 0.1,

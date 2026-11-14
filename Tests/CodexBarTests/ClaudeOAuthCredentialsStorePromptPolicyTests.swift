@@ -703,7 +703,7 @@ struct ClaudeOAuthCredentialsStorePromptPolicyTests {
     }
 
     @Test
-    func `experimental reader allows fallback in background when stored mode always`() throws {
+    func `experimental reader cannot prompt in background when stored mode always`() throws {
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
         try KeychainCacheStore.withServiceOverrideForTesting(service) {
             try KeychainAccessGate.withTaskOverrideForTesting(false) {
@@ -735,35 +735,37 @@ struct ClaudeOAuthCredentialsStorePromptPolicyTests {
                             preAlertHits += 1
                         }
 
-                        let creds = try KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting(
-                            preflightOverride,
-                            operation: {
-                                try KeychainPromptHandler.withHandlerForTesting(promptHandler, operation: {
-                                    try ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-                                        .securityCLIExperimental)
-                                    {
-                                        try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.always) {
-                                            try ProviderInteractionContext.$current.withValue(.background) {
-                                                try ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
-                                                    data: fallbackData,
-                                                    fingerprint: nil)
-                                                {
-                                                    try ClaudeOAuthCredentialsStore
-                                                        .withSecurityCLIReadOverrideForTesting(.timedOut) {
-                                                            try ClaudeOAuthCredentialsStore.load(
-                                                                environment: [:],
-                                                                allowKeychainPrompt: true,
-                                                                respectKeychainPromptCooldown: false)
-                                                        }
+                        #expect(throws: ClaudeOAuthCredentialsError.self) {
+                            try KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting(
+                                preflightOverride,
+                                operation: {
+                                    try KeychainPromptHandler.withHandlerForTesting(promptHandler, operation: {
+                                        try ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+                                            .securityCLIExperimental)
+                                        {
+                                            try ClaudeOAuthKeychainPromptPreference
+                                                .withTaskOverrideForTesting(.always) {
+                                                    try ProviderInteractionContext.$current.withValue(.background) {
+                                                        try ClaudeOAuthCredentialsStore
+                                                            .withClaudeKeychainOverridesForTesting(
+                                                                data: fallbackData,
+                                                                fingerprint: nil)
+                                                            {
+                                                                try ClaudeOAuthCredentialsStore
+                                                                    .withSecurityCLIReadOverrideForTesting(.timedOut) {
+                                                                        try ClaudeOAuthCredentialsStore.load(
+                                                                            environment: [:],
+                                                                            allowKeychainPrompt: true,
+                                                                            respectKeychainPromptCooldown: false)
+                                                                    }
+                                                            }
+                                                    }
                                                 }
-                                            }
                                         }
-                                    }
+                                    })
                                 })
-                            })
-
-                        #expect(creds.accessToken == "fallback-token")
-                        #expect(preAlertHits == 1)
+                        }
+                        #expect(preAlertHits == 0)
                     }
                 }
             }
