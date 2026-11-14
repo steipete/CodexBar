@@ -20,8 +20,8 @@ On Linux, use a manual Cookie header; no browser integration or Muse Code CLI lo
 percentage, reset time, plan, tokens left (paid plans), renewal date, and any additional (top-up) tokens.
 
 muse.ai has no usage API. `museai.js` posts the settings dialog's Next.js server action (`fetchSubscriptionAction`) with
-`Sec-Fetch-*` headers, since muse.ai rejects other server-action requests with 403. The action ID changes on each deploy,
-so the plugin stores the ID only after a successful subscription response. On `404 Server action not found.` it loads the signed-in page's chunks, finds
+`Sec-Fetch-*` headers and the browser's `text/plain;charset=UTF-8` content type. The action ID changes on each deploy,
+so the plugin stores the ID only after a successful subscription response. On HTTP 400, 404 or 409 it loads the signed-in page's chunks, finds
 the lazy module that preloads settings, and reads the new ID from that module's chunk. A redirect to `auth.muse.ai` or a
 403 means that session expired, and the plugin tries the next browser session before reporting it.
 
@@ -29,6 +29,7 @@ Discovery fetches at most 96 page chunks and 32 settings chunks, in batches of a
 fetch deadline. Static chunks receive no session cookies. After a stale ID, the plugin discovers and retries once;
 if the replacement action also fails, it clears the stale ID and reports that the subscription action changed.
 Website changes beyond the supported loader format produce a clear parse error rather than an unbounded scan.
+Timeouts, rate limits, and server errors do not trigger action discovery or discard the cached action ID.
 
 The subscription response reports percentages, not raw weekly token totals. Paid-plan token text is preserved
 from the website. Additional token balances are separate from weekly usage; if their label is absent, their

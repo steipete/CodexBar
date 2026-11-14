@@ -42,6 +42,11 @@ struct TypeSafePluginTests {
         #expect(request.url?.path == "/api/billing/overview")
         #expect(request.value(forHTTPHeaderField: "Cookie") == "session=fixture")
         #expect(request.value(forHTTPHeaderField: "Accept") == "application/json")
+        #expect(request.value(forHTTPHeaderField: "Origin") == "https://console.typesafe.ai")
+        #expect(request.value(forHTTPHeaderField: "Referer") == "https://console.typesafe.ai/billing")
+        #expect(request.value(forHTTPHeaderField: "Sec-Fetch-Site") == "same-origin")
+        #expect(request.value(forHTTPHeaderField: "Sec-Fetch-Mode") == "cors")
+        #expect(request.value(forHTTPHeaderField: "Sec-Fetch-Dest") == "empty")
     }
 
     @Test(arguments: BundledPluginTestSupport.engines)
@@ -127,6 +132,15 @@ struct TypeSafePluginTests {
         status: Int, engine: ProviderPluginEngineKind) async
     {
         await Self.expectFailure(.authenticationExpired, engine: engine, body: "", status: status)
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `cross-origin refusal is an integration failure`(engine: ProviderPluginEngineKind) async {
+        await Self.expectFailure(
+            .apiFailure,
+            engine: engine,
+            body: #"{"detail":"Cross-origin request refused"}"#,
+            status: 403)
     }
 
     @Test(arguments: BundledPluginTestSupport.engines)
