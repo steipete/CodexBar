@@ -122,7 +122,10 @@ struct KimiTokenAccountTests {
         #expect(settings.effectiveSelectedTokenAccount(for: .kimi)?.id == first.id)
         for account in [first, second] {
             let override = TokenAccountOverride(provider: .kimi, account: account)
-            let snapshot = ProviderRegistry.makeSettingsSnapshot(settings: settings, tokenOverride: override)
+            let snapshot = ProviderRegistry.makeSettingsSnapshot(
+                provider: .kimi,
+                settings: settings,
+                tokenOverride: override)
             #expect(snapshot.kimi?.region == .international)
             #expect(snapshot.kimi?.cookieSource == .manual)
             #expect(snapshot.kimi?.manualCookieHeader == (account.id == first.id
@@ -139,7 +142,7 @@ struct KimiTokenAccountTests {
         settings.removeTokenAccount(provider: .kimi, accountID: second.id)
         #expect(settings.tokenAccounts(for: .kimi).isEmpty)
         #expect(ProviderRegistry.resolvedSourceMode(provider: .kimi, settings: settings, account: nil) == source)
-        let snapshot = ProviderRegistry.makeSettingsSnapshot(settings: settings, tokenOverride: nil)
+        let snapshot = ProviderRegistry.makeSettingsSnapshot(provider: .kimi, settings: settings, tokenOverride: nil)
         #expect(snapshot.kimi?.cookieSource == cookies)
         #expect(snapshot.kimi?.manualCookieHeader == "kimi-auth=original")
         let saved = try #require(try settings.configStore.load()?.providerConfig(for: .kimi))

@@ -83,6 +83,18 @@ struct ClaudeIncompleteUsagePropagationTests {
         #expect(ranking.contains("Incomplete"))
     }
 
+    @Test(arguments: [CodexBarCLI.CostGroupBy.project, .session])
+    func `grouped Claude reports retain incomplete usage warnings`(groupBy: CodexBarCLI.CostGroupBy) {
+        let text = CodexBarCLI.renderCostText(
+            provider: .claude,
+            snapshot: Self.snapshot(),
+            groupBy: groupBy,
+            useColor: false,
+            calendar: Self.calendar)
+
+        #expect(text.contains("Incomplete: 2 requests lacked final usage and were excluded from tokens and cost."))
+    }
+
     @Test
     func `older exclusions do not contaminate Today or the seven day detail`() {
         let snapshot = Self.snapshot(entries: [

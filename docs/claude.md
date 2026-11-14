@@ -168,10 +168,13 @@ state can follow a read suppressed by the selected policy. Refresh retries withi
 - Options:
   - `Never prompt`: never attempts interactive Claude OAuth Keychain prompts.
   - `Only on user action` (default): interactive prompts are reserved for user-initiated repair flows.
-  - `Always allow prompts`: allows interactive prompts in both user and background flows.
+  - `Always allow prompts`: permits consented background recovery when access is confirmed without UI;
+    interactive OAuth repair remains manual.
 - Explicit Refresh can repair Claude OAuth Keychain access when direct-read consent is enabled and the policy
-  allows user prompts. Ordinary OAuth fetches remain noninteractive, including with `Always allow prompts`;
-  that policy still governs the existing delegated refresh and experimental reader paths.
+  allows user prompts. The direct credential read shares the manual action's single interactive allowance with
+  browser imports, and a denial suppresses further interactive reads for six hours. Ordinary OAuth fetches remain
+  noninteractive, including with `Always allow prompts`. They inspect both the decrypt ACL and the signing-team
+  partition before reading the credential payload; rejected or inconclusive checks leave it unread.
 - After a missing-credentials failure, a newer Claude Code credential timestamp replaces the stale error with
   **Claude Code credentials changed** and a **Refresh** instruction in the menu and OAuth CLI output. Click the
   existing menu **Refresh** action to retry; direct-read consent and the prompt policy still control access.
@@ -182,15 +185,18 @@ state can follow a read suppressed by the selected policy. Refresh retries withi
   only the last failure time per profile so the guidance survives restarts and is shared with the bundled CLI;
   a readable credential clears it. Auto continues to configured CLI/Web sources under their existing access gates.
 - This setting only affects Claude OAuth Keychain prompting behavior; it does not switch your Claude usage source.
-- The policy also applies to the experimental `/usr/bin/security` reader and delegated OAuth refresh through
-  `claude`: background operations that can prompt require `Always allow prompts`.
-- CodexBar's `Always allow prompts` permits future prompts; macOS's **Always Allow** grants access to the current
-  Keychain item. Claude Code can recreate `Claude Code-credentials` and reset that grant. An ACL entry still named
-  CodexBar does not prove that its stored code-signing requirement matches the running binary. `Only on user action`
-  reduces background interruptions but may require a manual Refresh to recover OAuth access. In #3798, a
-  before/after trace shows Claude Code preserving the decrypt ACL's CodexBar entry but removing CodexBar's Team ID
-  from the separate partition ACL. Decrypt-ACL preflight alone cannot establish partition authorization; repeated
-  manual grants therefore need not survive the next Claude Code refresh.
+- Delegated OAuth refresh through `claude` runs only for an explicit user action, never a scheduled or
+  settings-change refresh, even with `Always allow prompts`. Claude Code controls its own credential reads;
+  CodexBar's no-UI query flags cannot constrain that child process.
+- CodexBar's prompt policy and macOS's **Always Allow** are separate. The latter grants access to the current
+  Keychain item and signing identity. Claude Code saves credentials with `security add-generic-password -U`;
+  an update can replace partition authorization without deleting the item or removing the visible CodexBar
+  entry from its decrypt ACL. The before/after traces in #3798 show CodexBar's Team ID disappearing from that
+  separate partition list. **Always Allow** therefore cannot guarantee access after the next Claude Code write.
+  CodexBar does not rewrite Claude Code's access controls; use **Refresh** when authorization is needed again.
+- To avoid CodexBar's direct read of this item, use an existing OAuth credentials file or choose the CLI usage
+  source. Claude Code can still request its own authorization when run. Web uses a separate browser session and
+  may require a manual Safe Storage grant; it does not repair the Claude Code credential item.
 - If Preferences → Advanced → Disable Keychain access is enabled, this policy remains visible but inactive until
   Keychain access is re-enabled.
 
@@ -351,6 +357,8 @@ is stored on the token account in the config file and does not change quota fetc
   including Firefox import, remains unavailable. This enables the same API request path as macOS; it does not
   bypass Cloudflare challenges, refresh Claude Code OAuth credentials, or guarantee that a browser session will
   work outside the browser. Use the OAuth source when the web request is challenged.
+  Successful OAuth quota and a valid manual cookie can still leave subscription dates unavailable:
+  a challenge on the optional web account check stops billing enrichment before subscription details are fetched.
 - Linux CLI Auto mode: an existing valid manual cookie makes Web eligible ahead of CLI after upgrading.
   Web success returns without launching Claude Code; authentication rejection or a Cloudflare challenge falls
   back to an available CLI using the existing Auto policy. Cancellation stops without launching the CLI.
@@ -523,6 +531,10 @@ The accepted multi-account design in
   `~/.config/codexbar/config.json`; legacy installs may use `~/.codexbar/config.json`). The option defaults off,
   zero accounts still use the ambient presentation, and account identity is `claude-swap:<slot>`, never the display
   email.
+- With **Show all accounts in Overview** off, the single Claude Overview card follows the presented adapter slot:
+  a pending switch, an inspected account, a failed switch, or the active account, in that order. It retains the
+  provider's combined local costs and uses the ambient card when no adapter account is presented. Expanded
+  **Show all accounts** rows keep their account-specific usage without borrowing those combined costs.
 - Session forecasts use each account's own recorded usage. History keys hash the normalized email and organization
   UUID from the existing list response, so moving slots preserves history and the same email in different workspaces
   stays separate. Empty organization UUIDs identify personal accounts; an email change starts a new history.
@@ -676,6 +688,14 @@ mode. The additive field is omitted after recovery and from shell rows.
     single pi-compatible session can contribute to multiple models/days.
   - Matching assistant entry IDs within the same session are counted once across roots; distinct turns are retained. If a Pi/OMP mirror scan is incomplete, established native spend remains usable as a marked partial estimate. The combined history is still incomplete, and native-only reports keep their own coverage.
   - Claude-swap history contributes to the combined Claude total, including when an explicit `$CLAUDE_CONFIG_DIR` is set. Shared-history symlinks are scanned once, copied responses use the same deduplication as native logs, and missing profile directories do not prevent other homes from contributing. Local cost records do not establish per-account attribution.
+- Projects and conversations:
+  - The Cost menu, Usage & Spend, and `codexbar cost --group-by project|session` group native Claude usage by project and conversation. Sessions and projects partition the native total exactly; a model and day the native report cannot fully price stay unpriced in every conversation and project.
+  - A conversation is the row's `sessionId`. Rows without one use the directory above `subagents/` for subagent transcripts, otherwise the transcript file name, so subagent cost folds into its parent conversation.
+  - A project is the first `cwd` on the conversation's own assistant usage lines, preferring parent transcripts over subagents, so a transcript holding several conversations (Cowork audit logs) keeps each one's directory. Appends keep each conversation's first `cwd`; a replaced transcript records new ones. Conversations without any `cwd` appear under **Unknown project**.
+  - A response copied into several transcripts (resumed sessions, sidechains, Cowork audit copies) is counted once and belongs to the conversation of the copy that deduplication keeps.
+  - Titles are not read: conversations show a shortened session ID. Git worktrees stay separate projects. Vertex AI history has no project or conversation breakdown.
+  - Pi/OMP usage merged into the Claude total appears as one **Unknown project** and hides conversations, as for Codex. Session text output and native-only views keep native conversations.
+  - Hide personal information masks project names, paths, and conversation titles in the app; CLI output is not masked.
 - Quota-week menu cards reuse the immutable snapshot’s day projection, warmed in the background. New snapshots and changed bucket time zones rebuild it; reset observations and the current time remain live on every card build.
 - Cache:
   - Bundled fallback pricing includes Claude Mythos 5.2, Mythos 5.1, and Mythos 5 at [Anthropic's published rates](https://platform.claude.com/docs/en/about-claude/pricing). The report-semantics update reprices retained usage without rereading unchanged transcripts.
@@ -695,7 +715,8 @@ mode. The additive field is omitted after recovery and from shell rows.
   - App memos record whether every file's rows were selected for their scan window. Older or externally replaced caches without that proof rebuild once, even if their stored bounds already match. Complete transcript scans also retain source-date bounds in the existing project shards. On a day rollover or other app window change, unchanged files reuse their rows when their full date span fits both windows, or retain no rows when the span is outside the new window. Files crossing a window boundary, incomplete sources, and older entries without date bounds still reparse to preserve cold-scan duplicate selection and recover previously excluded events. Explicit rescans and changed source/filter/configuration checks remain active. Date bounds are populated on the next required parse without a migration-only rebuild. The regular cache filename, compact row schema, parser revision, and standalone CLI range behavior are unchanged.
   - The Claude/Vertex cache artifact retains source file identities independently of the shared Codex parser fingerprint. Replacing a transcript rebuilds its rows rather than merging an old prefix into a new suffix; genuine appends still use the saved parse offset. Older entries without identity are rebuilt once before reuse, including during the normal refresh debounce.
   - Older Claude/Vertex native caches and report memos are rebuilt once from unchanged transcripts to apply the corrected response deduplication. Corrected reports remain eligible for memo reuse across launches.
-  - pi-compatible session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v9.json`. Version 8 rebuilds once from transcripts to establish source scope and completeness. Enabling the standalone [Pi provider](pi.md) keeps Claude history native-only in combined views.
+  - Cache schema 6 records each conversation's working directory per transcript. Older Claude/Vertex caches rebuild once from transcripts after upgrade. The report memo also keeps project and conversation breakdowns, so a restart over unchanged transcripts decodes neither the cache nor the transcripts. A changed refresh reprices each row once for the daily report, once for conversations, and once for projects; only the daily report builds hourly and quota buckets.
+  - pi-compatible session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v10.json`. Older caches rebuild once from transcripts to establish source scope, completeness, and session metadata. Enabling the standalone [Pi provider](pi.md) keeps Claude history native-only in combined views.
 
 ## Key files
 - OAuth: `Sources/CodexBarCore/Providers/Claude/ClaudeOAuth/*`

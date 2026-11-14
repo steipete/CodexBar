@@ -156,9 +156,9 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        // Tripo extends the audited palette without changing existing provider colors.
-        #expect(widgetFingerprint == 8_165_290_587_712_788_196)
-        #expect(burnDownFingerprint == 4_518_705_644_902_934_406)
+        // Tripo and Google Developer Program extend the audited palette without changing existing provider colors.
+        #expect(widgetFingerprint == 14_281_859_890_132_692_949)
+        #expect(burnDownFingerprint == 4_767_200_688_375_901_465)
     }
 
     @Test
@@ -204,6 +204,7 @@ struct ProviderArchitectureGatekeeperTests {
             .perplexity,
             .warp, .kilo, .mistral, .deepseek, .deepinfra, .qoder, .chutes, .longcat, .litellm, .bifrost, .manus,
             .mimo, .neuralwatt, .abacus, .v0, .llmman, .aixy, .raycast, .workbuddy, .claudeplatform, .abliteration,
+            .googledeveloper,
         ])
         #if os(macOS)
         // Antigravity and Muse use bounded local usage readers.
@@ -1287,14 +1288,9 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
         SuppressedProviderReference(
             path: "Sources/CodexBar/UsageStore/UsageStore.swift",
-            anchor: "let sourceMode = self.sourceMode(for: .claude)",
+            anchor: "let provider: UsageProvider = .claude",
             expectedProviderIDs: ["claude"],
-            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
-        SuppressedProviderReference(
-            path: "Sources/CodexBar/UsageStore/UsageStore.swift",
-            anchor: "provider: .claude,",
-            expectedProviderIDs: ["claude"],
-            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+            reason: "Claude debug configuration scopes source mode, settings, and environment to Claude."),
         SuppressedProviderReference(
             path: "Sources/CodexBarCLI/CLICardsRenderer.swift",
             occurrence: 2,
@@ -1305,18 +1301,6 @@ struct ProviderArchitectureGatekeeperTests {
             path: "Sources/CodexBarCLI/CLICardsRenderer.swift",
             anchor: "title: ProviderDescriptorRegistry.descriptor(for: .claude).metadata.displayName,",
             expectedProviderIDs: ["claude"],
-            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
-        SuppressedProviderReference(
-            path: "Sources/CodexBarCLI/CLICostCommand.swift",
-            occurrence: 1,
-            anchor: "lines.append(Self.costEstimateHint(provider: .codex))",
-            expectedProviderIDs: ["codex"],
-            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
-        SuppressedProviderReference(
-            path: "Sources/CodexBarCLI/CLICostCommand.swift",
-            occurrence: 2,
-            anchor: "lines.append(Self.costEstimateHint(provider: .codex))",
-            expectedProviderIDs: ["codex"],
             reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
         SuppressedProviderReference(
             path: "Sources/CodexBarCLI/CLICostCommand.swift",
@@ -1333,6 +1317,11 @@ struct ProviderArchitectureGatekeeperTests {
             anchor: "provider: .codex,",
             expectedProviderIDs: ["codex"],
             reason: "This provider-owned integration passes its fixed identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/Vendored/CostUsage/CostUsageScanner+Claude.swift",
+            anchor: "provider: .claude,",
+            expectedProviderIDs: ["claude"],
+            reason: "The Claude projection entry point selects its own provider in the shared transcript scanner."),
         SuppressedProviderReference(
             path: "Sources/CodexBarCore/CostUsageFetcher.swift",
             occurrence: 1,
@@ -1640,13 +1629,6 @@ struct ProviderArchitectureGatekeeperTests {
             expectedReferenceFingerprint: ["claude@0"],
             reason: "The monthly cap metric reuses Claude's currency caption instead of duplicating cost formatting."),
         AllowedProviderConstruct(
-            path: "Sources/CodexBar/Menu/CostHistoryChartMenuView.swift",
-            anchor: "let projects = provider == .codex ? snapshot.projects : []",
-            expectedProviderIDs: ["codex"],
-            expectedReferenceCount: 2,
-            expectedReferenceFingerprint: ["codex@0", "codex@1"],
-            reason: "This exact shared renderer maps provider-owned presentation data into the generic UI model."),
-        AllowedProviderConstruct(
             path: "Sources/CodexBar/HistoricalUsagePace.swift",
             anchor: "$0.provider == .codex &&",
             expectedProviderIDs: ["codex"],
@@ -1662,7 +1644,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/IconRenderer.swift",
-            anchor: "let twistGemini = decorations.contains(.gemini)",
+            anchor: "let addGeminiTwist = decorations.contains(.gemini)",
             expectedProviderIDs: ["antigravity", "factory", "gemini", "grok", "warp"],
             expectedReferenceCount: 5,
             expectedReferenceFingerprint: ["gemini@0", "antigravity@1", "factory@2", "warp@3", "grok@4"],
@@ -2369,13 +2351,6 @@ struct ProviderArchitectureGatekeeperTests {
             expectedReferenceCount: 3,
             expectedReferenceFingerprint: ["codex@0", "codex@1", "codex@12"],
             reason: "Codex reset observation follows the local credit projection and excludes remote fleet usage."),
-        AllowedProviderConstruct(
-            path: "Sources/CodexBar/StatusItem/StatusItemController+HostedSubmenus.swift",
-            anchor: "projects: provider == .codex ? tokenSnapshot.projects : [],",
-            expectedProviderIDs: ["codex"],
-            expectedReferenceCount: 1,
-            expectedReferenceFingerprint: ["codex@0"],
-            reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/StatusItem/StatusItemController+MemoryPressure.swift",
             anchor: "scope: UsageProvider.codex.rawValue,",
@@ -3155,11 +3130,11 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact CLI construct preserves the provider-specific command and output contract."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCLI/CLICostCommand.swift",
-            anchor: "let projects = provider == .codex",
-            expectedProviderIDs: ["codex"],
-            expectedReferenceCount: 1,
-            expectedReferenceFingerprint: ["codex@0"],
-            reason: "This exact CLI construct preserves the provider-specific command and output contract."),
+            anchor: "static let costGroupingProviders: Set<UsageProvider> = [.codex, .claude, .pi]",
+            expectedProviderIDs: ["claude", "codex", "pi"],
+            expectedReferenceCount: 3,
+            expectedReferenceFingerprint: ["claude@0", "codex@0", "pi@0"],
+            reason: "Only the Codex, Claude, and Pi local ledgers currently publish project and session attribution."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCLI/CLICostCommand.swift",
             anchor: "guard provider == .cursor else { return nil }",
@@ -3248,12 +3223,19 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact cost scanner dispatch selects a provider-owned transcript, cache, or pricing format."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/CostUsageFetcher.swift",
-            occurrence: 3,
-            anchor: "if provider == .codex {",
-            expectedProviderIDs: ["codex"],
+            occurrence: 2,
+            anchor: "if provider == .codex || provider == .claude {",
+            expectedProviderIDs: ["claude", "codex"],
+            expectedReferenceCount: 2,
+            expectedReferenceFingerprint: ["claude@0", "codex@0"],
+            reason: "Codex and Claude project totals merge native-ledger and Pi contributions before publication."),
+        AllowedProviderConstruct(
+            path: "Sources/CodexBarCore/CostUsageFetcher.swift",
+            anchor: "if provider == .vertexai,",
+            expectedProviderIDs: ["vertexai"],
             expectedReferenceCount: 1,
-            expectedReferenceFingerprint: ["codex@0"],
-            reason: "Codex project totals must merge native-ledger and Pi contributions before publishing the report."),
+            expectedReferenceFingerprint: ["vertexai@0"],
+            reason: "The legacy Vertex fallback retries shared Claude transcripts only when explicitly enabled."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/CostUsageFetcher.swift",
             anchor: "options.provider == .codex || options.provider == .claude || options.provider == .antigravity",
@@ -3275,6 +3257,13 @@ struct ProviderArchitectureGatekeeperTests {
             expectedReferenceCount: 2,
             expectedReferenceFingerprint: ["vertexai@0", "claude@2"],
             reason: "This exact cost scanner dispatch selects a provider-owned transcript, cache, or pricing format."),
+        AllowedProviderConstruct(
+            path: "Sources/CodexBarCore/PiSessionCostScanner.swift",
+            anchor: "report: provider == .codex ? reports.codex : reports.claude,",
+            expectedProviderIDs: ["claude", "codex"],
+            expectedReferenceCount: 3,
+            expectedReferenceFingerprint: ["claude@0", "codex@0", "codex@0"],
+            reason: "Native Codex and Claude mirrors return their own backend partitions without standalone Pi groups."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/LocalAgentSessionScanner.swift",
             anchor: "let codexCWDs = processes.filter { AgentPSOutputParser.provider(for: $0) == .codex }",

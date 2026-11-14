@@ -116,6 +116,31 @@ struct CostHistoryChartMenuViewTests {
     }
 
     @Test
+    func `pi render fingerprint tracks projects and sessions`() {
+        let session = CostUsageSessionBreakdown(
+            sessionID: "pi-session",
+            lastActivity: Date(timeIntervalSince1970: 1_750_000_000),
+            inputTokens: 10,
+            cachedInputTokens: nil,
+            outputTokens: 5,
+            totalTokens: 15,
+            requestCount: 1,
+            costUSD: 0.01,
+            modelBreakdowns: [],
+            title: "Refactor parser")
+        let project = Self.project(path: "/Users/test/projects/alpha", sourcePath: "/Users/test/projects/alpha")
+        let pi = Self.fingerprint(projects: [project], sessions: [session], provider: .pi)
+        #expect(CostHistoryChartMenuView.showsLocalBreakdowns(provider: .pi))
+        #expect(!CostHistoryChartMenuView.showsLocalBreakdowns(provider: .vertexai))
+        #expect(pi.projects.count == 1)
+        #expect(pi.sessions.map(\.sessionID) == ["pi-session"])
+        #expect(pi != Self.fingerprint(projects: [project], sessions: [], provider: .pi))
+        let vertex = Self.fingerprint(projects: [project], sessions: [session], provider: .vertexai)
+        #expect(vertex.projects.isEmpty)
+        #expect(vertex.sessions.isEmpty)
+    }
+
+    @Test
     func `partial Codex token history is marked refreshing until coverage completes`() {
         #expect(CostHistoryChartMenuView._showsHistoryRefreshingForTesting(
             provider: .codex,
@@ -953,16 +978,50 @@ struct CostHistoryChartMenuViewTests {
 
     @Test
     @MainActor
-    func `render fingerprint excludes projects hidden for non-codex providers`() {
+    func `render fingerprint excludes projects for providers without breakdowns`() {
         let first = Self.fingerprint(
             projects: [Self.makeProject(index: 0, sourceCount: 2)],
-            provider: .claude)
+            provider: .vertexai)
         let changed = Self.fingerprint(
             projects: [Self.makeProject(index: 0, sourceCount: 2, totalCostUSD: 99)],
-            provider: .claude)
+            provider: .vertexai)
 
         #expect(first.projects.isEmpty)
         #expect(first == changed)
+    }
+
+    @Test
+    @MainActor
+    func `claude render fingerprint includes projects and sessions`() {
+        func session(costUSD: Double) -> CostUsageSessionBreakdown {
+            CostUsageSessionBreakdown(
+                sessionID: "session-alpha-1",
+                lastActivity: Date(timeIntervalSince1970: 100),
+                inputTokens: 100,
+                cachedInputTokens: 0,
+                outputTokens: 10,
+                totalTokens: 110,
+                requestCount: 1,
+                costUSD: costUSD,
+                modelBreakdowns: [])
+        }
+        let base = Self.fingerprint(
+            projects: [Self.makeProject(index: 0, sourceCount: 1)],
+            sessions: [session(costUSD: 0.01)],
+            provider: .claude)
+
+        #expect(base.projects.count == 1)
+        #expect(base.sessions.count == 1)
+        #expect(base != Self.fingerprint(
+            projects: [Self.makeProject(index: 0, sourceCount: 1, totalCostUSD: 99)],
+            sessions: [session(costUSD: 0.01)],
+            provider: .claude))
+        #expect(base != Self.fingerprint(
+            projects: [Self.makeProject(index: 0, sourceCount: 1)],
+            sessions: [session(costUSD: 0.02)],
+            provider: .claude))
+        #expect(CostHistoryChartMenuView.showsLocalBreakdowns(provider: .claude))
+        #expect(!CostHistoryChartMenuView.showsLocalBreakdowns(provider: .vertexai))
     }
 
     @Test

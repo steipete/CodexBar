@@ -6,6 +6,33 @@ import Testing
 @MainActor
 struct ProviderSettingsIntegrationTests {
     @Test
+    func `a provider fetch constructs only its own settings section`() throws {
+        let settings = testSettingsStore(suiteName: #function, userDefaults: InMemoryUserDefaults())
+        settings.kimiCookieSource = .off
+        settings.debugMenuEnabled = true
+        settings.debugKeepCLISessionsAlive = true
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+        let context = store.makeFetchContext(provider: .kimi, override: nil)
+        let snapshot = try #require(context.settings)
+        let sectionCount = ProviderDescriptorRegistry.all.count { $0.settingsSection.canRead(from: snapshot) }
+
+        #expect(sectionCount == 1)
+        #expect(snapshot.kimi?.cookieSource == .off)
+        #expect(snapshot.debugMenuEnabled)
+        #expect(snapshot.debugKeepCLISessionsAlive)
+
+        settings.kimiCookieSource = .manual
+        settings.kimiManualCookieHeader = "kimi-auth=fixture"
+        let refreshed = store.makeFetchContext(provider: .kimi, override: nil)
+        #expect(refreshed.settings?.kimi?.manualCookieHeader == "kimi-auth=fixture")
+    }
+
+    @Test
     func `reordering visible providers preserves saved configuration for absent plugins`() throws {
         let absent = try #require(ProviderInstanceID(rawValue: "absent-fixture-plugin"))
         let settings = testSettingsStore(
@@ -124,19 +151,25 @@ struct ProviderSettingsIntegrationTests {
         settings.miMoCookieHeader = "mimo=configured"
         let account = ProviderTokenAccount(id: UUID(), label: "Fixture", token: "override", addedAt: 0, lastUsed: nil)
         let snapshot = ProviderRegistry.makeSettingsSnapshot(
+            provider: .manus,
+            settings: settings,
+            tokenOverride: TokenAccountOverride(provider: .manus, account: account))
+        let otherSnapshot = ProviderRegistry.makeSettingsSnapshot(
+            provider: .mimo,
             settings: settings,
             tokenOverride: TokenAccountOverride(provider: .manus, account: account))
 
         #expect(snapshot.manus?.cookieSource == .manual)
         #expect(snapshot.manus?.manualCookieHeader == "session_id=override")
-        #expect(snapshot.mimo?.cookieSource == .auto)
-        #expect(snapshot.mimo?.manualCookieHeader == "mimo=configured")
+        #expect(otherSnapshot.mimo?.cookieSource == .auto)
+        #expect(otherSnapshot.mimo?.manualCookieHeader == "mimo=configured")
         #expect(settings[providerConfig: .manus, field: .cookieHeader] == "session_id=configured")
         #expect(settings.tokenAccounts(for: .manus).isEmpty)
 
         #expect(TokenAccountSupportCatalog.support(for: .qwencloud) == nil)
         settings.qwenCloudCookieHeader = "qwen=configured"
         let unsupportedOverride = ProviderRegistry.makeSettingsSnapshot(
+            provider: .qwencloud,
             settings: settings,
             tokenOverride: TokenAccountOverride(provider: .qwencloud, account: account))
         #expect(unsupportedOverride.qwenCloud?.cookieSource == .auto)
@@ -146,6 +179,7 @@ struct ProviderSettingsIntegrationTests {
         settings.setCookieSource(.manual, provider: .raycast)
         settings[providerConfig: .raycast, field: .cookieHeader] = "__raycast_session=configured"
         let raycastOverride = ProviderRegistry.makeSettingsSnapshot(
+            provider: .raycast,
             settings: settings,
             tokenOverride: TokenAccountOverride(provider: .raycast, account: account))
         #expect(raycastOverride.raycast?.cookieSource == .manual)
