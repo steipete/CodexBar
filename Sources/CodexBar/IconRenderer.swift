@@ -830,7 +830,7 @@ enum IconRenderer {
                         }
                     }
                 } else {
-                    // Weekly exhausted/missing: show credits on top (thicker), weekly (likely 0) on bottom.
+                    // Zero secondary: use compact lanes only when showing the taller credits meter.
                     if let ratio = creditsRatio {
                         drawBar(
                             rectPx: creditsRectPx,
@@ -858,7 +858,7 @@ enum IconRenderer {
                             addGrokTwist: twistGrok,
                             blink: blink)
                     }
-                    drawBar(rectPx: creditsBottomRectPx, remaining: bottomValue)
+                    drawBar(rectPx: creditsRatio == nil ? bottomRectPx : creditsBottomRectPx, remaining: bottomValue)
                 }
 
                 Self.drawStatusOverlay(
