@@ -73,8 +73,10 @@ does not read credentials, launch login flows, import cookies, or contact provid
 OpenAI API distinguishes Admin access from legacy balance access, and Azure OpenAI requires a key, endpoint,
 and deployment. ElevenLabs declares an API-key route with `user_read` permission, including both environment
 names and the selected saved-account alternative. Its stdin command saves a standalone key; a selected saved
-account takes priority. Other providers and user plugins report `status: "unknown"`, which means guidance has not
-been declared, not that credentials are unnecessary or unsupported. Existing `authentication` fields stay unchanged.
+account takes priority. DeepInfra also declares its existing API-key route with standalone config,
+selected saved accounts, and both environment names. Other providers and user plugins report `status: "unknown"`,
+which means guidance has not been declared, not that credentials are unnecessary or unsupported.
+Existing `authentication` fields stay unchanged.
 
 Routes are alternatives; all `requiredInputs` in one route are required together. Each input lists alternative
 config fields and environment variable names, never values or precedence. Config paths are relative to a provider

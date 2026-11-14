@@ -29,6 +29,9 @@ for capture-age semantics and the existing history retention/privacy behavior.
 Codex reads account usage through PAT, OAuth, CLI RPC, or an explicitly selected web dashboard source.
 Local token/cost history is scanned separately; the CLI PTY parser is a manual diagnostic tool.
 
+Archived rollout state is detected from the filesystem and does not invalidate unchanged cost-cache rows.
+Changed archived usage still persists normally; cache formats and parser compatibility remain unchanged.
+
 ## Data sources + fallback order
 
 ### Auto selection (app and CLI `--source auto`)
