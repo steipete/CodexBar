@@ -12,7 +12,7 @@ struct SpendModelRankingTests {
     {
         SpendDashboardModel.ModelRow(
             rank: 0,
-            provider: provider,
+            provider: provider.instanceID,
             providerName: provider == .claude ? "Claude" : "Codex",
             modelName: name,
             totalTokens: tokens,

@@ -47,12 +47,99 @@ struct UserPluginRefreshTests {
         #expect(fixture.store.snapshots[fixture.id] == nil)
         #expect(fixture.store.errors[fixture.id] == nil)
         #expect(fixture.store.lastSourceLabels[fixture.id] == nil)
+        #expect(fixture.store.tokenSnapshotPublications[fixture.id] == nil)
         #expect(!fixture.store.refreshingProviders.contains(fixture.id))
         try await Task.sleep(for: .milliseconds(100))
         #expect(!FileManager.default.fileExists(atPath: output.path))
         #expect(fixture.store.sessionQuotaTransitionStates[fixture.id] == nil)
         #expect(fixture.store.sessionLimitResetDetectorStates.isEmpty)
         #expect(fixture.store.weeklyLimitResetDetectorStates.isEmpty)
+    }
+
+    @Test(arguments: [false, true])
+    func `published statistics cannot survive disabling or reenabling`(reenable: Bool) async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        fixture.settings.costUsageEnabled = true
+        let refresh = Task { await fixture.store.refreshUserPlugin(fixture.id) }
+        try await fixture.transport.waitForRequests(1)
+        await fixture.transport.finish(1, used: 42)
+        await refresh.value
+        #expect(SpendDashboardSource.capturePluginInputs(store: fixture.store).count == 1)
+        fixture.settings.setPluginEnabled(fixture.id, enabled: false)
+        if reenable { fixture.settings.setPluginEnabled(fixture.id, enabled: true) }
+        #expect(SpendDashboardSource.capturePluginInputs(store: fixture.store).isEmpty)
+    }
+
+    @Test
+    func `shared statistics publication follows plugin refresh and deletion`() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        fixture.settings.costUsageEnabled = true
+        for provider in UsageProvider.allCases {
+            guard let metadata = ProviderRegistry.shared.metadata[provider] else { continue }
+            fixture.settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: false)
+        }
+        fixture.settings.openCodexUsageLogsEnabled = false
+        fixture.settings.costUsageBucketTimeZoneIdentifier = "Asia/Shanghai"
+        let refresh = Task { await fixture.store.refreshUserPlugin(fixture.id) }
+        try await fixture.transport.waitForRequests(1)
+        await fixture.transport.finish(1, used: 42)
+        await refresh.value
+        fixture.store.startSharedSpendDashboardPublication()
+        defer { fixture.store.stopSharedSpendDashboardPublication() }
+        try await SpendDashboardStateWait.until {
+            fixture.store.spendDashboardPublication.inputs.contains { $0.provider == fixture.id }
+        }
+        #expect(fixture.store.spendDashboardPublication.sources.first?.provider == fixture.id)
+        let failed = Task { await fixture.store.refreshUserPlugin(fixture.id) }
+        try await fixture.transport.waitForRequests(2)
+        await fixture.transport.finish(2, used: 0, failure: true)
+        await failed.value
+        try await SpendDashboardStateWait.until { fixture.store.spendDashboardPublication.inputs.isEmpty }
+        #expect(fixture.store.sharedSpendDashboardController().model.groups.isEmpty)
+        try FileManager.default.removeItem(at: fixture.pluginURL)
+        fixture.store.refreshUserPluginDiscovery(loader: fixture.loader)
+        try await SpendDashboardStateWait.until { fixture.store.spendDashboardPublication.inputs.isEmpty }
+        #expect(SpendDashboardSource.capturePluginInputs(store: fixture.store).isEmpty)
+    }
+
+    @Test
+    func `statistics reject previous config runtime approval and failed refresh`() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        fixture.settings.costUsageEnabled = true
+        let first = Task { await fixture.store.refreshUserPlugin(fixture.id) }
+        try await fixture.transport.waitForRequests(1)
+        await fixture.transport.finish(1, used: 42)
+        await first.value
+        let plugin = try #require(UserProviderPluginRegistry.plugin(for: fixture.id))
+        #expect(SpendDashboardSource.capturePluginInputs(store: fixture.store).first?.snapshot.last30DaysTokens == 42)
+        #expect(fixture.store.userPluginTokenPublication(plugin)?.snapshot?.last30DaysCostUSD == nil)
+
+        fixture.settings.updatePluginConfig(instanceID: fixture.id) { $0.pluginSettings = ["ACCOUNT": "second"] }
+        #expect(SpendDashboardSource.capturePluginInputs(store: fixture.store).isEmpty)
+        fixture.settings.updatePluginConfig(instanceID: fixture.id) { $0.pluginSettings = ["ACCOUNT": "first"] }
+        #expect(SpendDashboardSource.capturePluginInputs(store: fixture.store).isEmpty)
+
+        let second = Task { await fixture.store.refreshUserPlugin(fixture.id) }
+        try await fixture.transport.waitForRequests(2)
+        await fixture.transport.finish(2, used: 65)
+        await second.value
+        #expect(SpendDashboardSource.capturePluginInputs(store: fixture.store).first?.snapshot.last30DaysTokens == 65)
+        try fixture.store.pluginApprovalStore.remove(instanceID: fixture.id)
+        #expect(SpendDashboardSource.capturePluginInputs(store: fixture.store).isEmpty)
+        try fixture.store.pluginApprovalStore.record(plugin.approvalBinding(settings: ["ACCOUNT": "first"]))
+
+        let failed = Task { await fixture.store.refreshUserPlugin(fixture.id) }
+        try await fixture.transport.waitForRequests(3)
+        await fixture.transport.finish(3, used: 0, failure: true)
+        await failed.value
+        #expect(fixture.store.snapshots[fixture.id]?.costUsage?.last30DaysTokens == 65)
+        #expect(SpendDashboardSource.capturePluginInputs(store: fixture.store).isEmpty)
+        fixture.store.refreshUserPluginDiscovery(loader: fixture.loader)
+        #expect(fixture.store.tokenSnapshotPublications[fixture.id] == nil)
+        #expect(SpendDashboardSource.capturePluginInputs(store: fixture.store).isEmpty)
     }
 
     @Test
@@ -277,7 +364,10 @@ struct UserPluginRefreshTests {
                 return {
                   primary:{usedPercent:result.json.used,windowMinutes:300},
                   secondary:{usedPercent:result.json.used + 10,windowMinutes:10080},
-                  identity:{email:"fixture@example.test"}
+                  identity:{email:"fixture@example.test"},
+                  costUsage: { version: 2, timeZone: 'Asia/Shanghai',
+                    windowStart: '2026-11-01', windowEnd: '2026-11-14',
+                    entries: [{ date: '2026-11-14', totalTokens: result.json.used }] }
                 };
               }
             });

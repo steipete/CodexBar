@@ -161,7 +161,22 @@ public struct CostUsageTimedEntry: Sendable, Equatable {
     }
 }
 
+/// Calendar and declared window for a feed that reports only explicit daily observations.
+/// Missing rows are unknown, including inside the declared window.
+public struct CostUsageDailyHistory: Sendable, Equatable {
+    public let timeZoneIdentifier: String
+    public let windowStart: String
+    public let windowEnd: String
+
+    public init(timeZoneIdentifier: String, windowStart: String, windowEnd: String) {
+        self.timeZoneIdentifier = timeZoneIdentifier
+        self.windowStart = windowStart
+        self.windowEnd = windowEnd
+    }
+}
+
 public struct CostUsageTokenSnapshot: Sendable, Equatable {
+    public let dailyHistory: CostUsageDailyHistory?
     public let sessionTokens: Int?
     public let sessionCostUSD: Double?
     public internal(set) var sessionRequests: Int?
@@ -215,6 +230,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         costProvenance: CostProvenance = .unknown,
         credentialScopeFingerprint: String? = nil,
         daily: [CostUsageDailyReport.Entry],
+        dailyHistory: CostUsageDailyHistory? = nil,
         projects: [CostUsageProjectBreakdown] = [],
         sessions: [CostUsageSessionBreakdown] = [],
         detailsAreComplete: Bool = false,
@@ -222,6 +238,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         quotaSlices: [CostUsageTimedEntry] = [],
         updatedAt: Date)
     {
+        self.dailyHistory = dailyHistory
         self.sessionTokens = sessionTokens
         self.sessionCostUSD = sessionCostUSD
         self.sessionRequests = sessionRequests

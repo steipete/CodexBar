@@ -3,7 +3,7 @@ import CodexBarCore
 import SwiftUI
 
 struct SpendProviderBreakdown: Identifiable, Equatable {
-    let provider: UsageProvider
+    let provider: ProviderInstanceID
     let displayName: String
     let subscriptions: [SpendDashboardModel.ProviderRow]
     let models: [SpendDashboardModel.ModelRow]
@@ -44,7 +44,9 @@ func spendDashboardProviderBreakdowns(
         let incompleteRequestCount = CostUsageIncompleteRequests.sum(subscriptions.map(\.incompleteRequestCount))
         return SpendProviderBreakdown(
             provider: provider,
-            displayName: ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName,
+            displayName: provider.firstPartyProvider.map {
+                ProviderDescriptorRegistry.descriptor(for: $0).metadata.displayName
+            } ?? subscriptions.first?.displayName ?? models.first?.providerName ?? "Community plugin",
             subscriptions: subscriptions,
             models: models,
             totalTokens: totalTokens,
@@ -100,7 +102,7 @@ func spendDashboardBreakdownMetricText(
 
 struct SpendProviderBreakdownRows: View {
     let group: SpendDashboardModel.CurrencyGroup
-    @State private var expandedProviders: Set<UsageProvider> = []
+    @State private var expandedProviders: Set<ProviderInstanceID> = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -277,7 +279,7 @@ struct SpendProviderBreakdownRows: View {
 }
 
 struct SpendProviderIcon: View {
-    let provider: UsageProvider
+    let provider: ProviderInstanceID
     var sourceKind: SpendDashboardModel.SourceKind = .native
     var style: ProviderBrandIcon.Style = .brand
     var size: CGFloat = 20
@@ -287,7 +289,7 @@ struct SpendProviderIcon: View {
             if self.sourceKind == .openCodex {
                 Image(systemName: "arrow.triangle.branch")
                     .resizable().scaledToFit()
-            } else if let icon = ProviderBrandIcon.image(for: self.provider, style: self.style) {
+            } else if let icon = self.icon {
                 Image(nsImage: icon)
                     .resizable()
                     .renderingMode(icon.isTemplate ? .template : .original)
@@ -295,6 +297,9 @@ struct SpendProviderIcon: View {
                     .frame(
                         width: self.size * self.artworkScale(for: icon),
                         height: self.size * self.artworkScale(for: icon))
+            } else if let plugin = UserProviderPluginRegistry.plugin(for: self.provider) {
+                Text(plugin.manifest.icon.monogram)
+                    .font(.system(size: self.size * 0.55, weight: .bold))
             } else {
                 Image(systemName: "circle.dotted")
                     .resizable().scaledToFit()
@@ -303,6 +308,13 @@ struct SpendProviderIcon: View {
         .foregroundStyle(.primary)
         .frame(width: self.size, height: self.size)
         .accessibilityHidden(true)
+    }
+
+    private var icon: NSImage? {
+        if let provider = self.provider.firstPartyProvider {
+            return ProviderBrandIcon.image(for: provider, style: self.style)
+        }
+        return UserProviderPluginRegistry.plugin(for: self.provider).flatMap { ProviderBrandIcon.image(for: $0) }
     }
 
     private func artworkScale(for icon: NSImage) -> CGFloat {

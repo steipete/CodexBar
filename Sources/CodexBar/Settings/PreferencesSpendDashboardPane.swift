@@ -726,7 +726,7 @@ struct SpendDashboardCurrencySection: View {
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(self.group.currencyCode)
+                Text(self.group.currencyCode == "XXX" ? L("Tokens") : self.group.currencyCode)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Text(spendDashboardHistoryCaption(self.group, requestedDays: self.requestedDays))
@@ -1135,7 +1135,9 @@ struct SpendSessionRows: View {
 
     private func sourceName(_ id: String) -> String {
         guard let row = self.group.sessions.first(where: { $0.sourceID == id }) else { return "" }
-        let provider = ProviderDescriptorRegistry.descriptor(for: row.provider).metadata.displayName
+        let provider = row.provider.firstPartyProvider.map {
+            ProviderDescriptorRegistry.descriptor(for: $0).metadata.displayName
+        } ?? "Community plugin"
         if self.hidePersonalInfo {
             let index = (self.sourceIDs.firstIndex(of: id) ?? 0) + 1
             return self.sourceIDs.count > 1 ? "\(provider) · \(codexBarLocalizedInteger(index))" : provider

@@ -21,8 +21,7 @@ extension UsageStore {
                 continue
             }
             if current.runtime !== plugin.runtime {
-                self.providerRefreshCoordinator.invalidateRequests(for: plugin.manifest.id)
-                self.clearUserPluginHookState(plugin.manifest.id)
+                self.clearUserPluginState(plugin.manifest.id)
             }
         }
         self.pruneUserPluginHookState()
@@ -68,7 +67,11 @@ extension UsageStore {
         let enablementRevision = self.settings.providerEnablementRevision(forInstanceID: instanceID)
         let configRevision = self.settings.providerConfigRevision(forInstanceID: instanceID)
         func canPublish() -> Bool {
-            !Task.isCancelled &&
+            guard let binding = try? plugin.approvalBinding(
+                settings: self.settings.pluginConfig(instanceID)?.pluginSettings ?? [:]),
+                self.pluginApprovalStore.isApproved(binding)
+            else { return false }
+            return !Task.isCancelled &&
                 self.providerRefreshCoordinator.isCurrent(generation, for: instanceID) &&
                 self.settings.isPluginEnabled(instanceID) &&
                 self.settings.providerEnablementRevision(forInstanceID: instanceID) == enablementRevision &&
@@ -85,17 +88,20 @@ extension UsageStore {
                 approvalStore: self.pluginApprovalStore,
                 browserDetection: self.browserDetection)
             guard canPublish() else { return }
+            self.publishUserPluginStatistics(snapshot.costUsage, plugin: plugin)
             self.snapshots[instanceID] = snapshot
             self.errors[instanceID] = nil
             self.lastSourceLabels[instanceID] = plugin.fileURL.pathExtension.lowercased()
             self.emitUserPluginHooks(provider: instanceID, snapshot: snapshot)
         } catch {
             guard canPublish() else { return }
+            self.publishUserPluginStatistics(nil, plugin: plugin)
             self.errors[instanceID] = error.localizedDescription
         }
     }
 
     func clearUserPluginState(_ instanceID: ProviderInstanceID) {
+        self.invalidateUserPluginStatistics(instanceID)
         self.providerRefreshCoordinator.invalidateRequests(for: instanceID)
         self.refreshingProviders.remove(instanceID)
         self.snapshots.removeValue(forKey: instanceID)

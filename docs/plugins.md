@@ -355,6 +355,7 @@ so portable third-party plugins must use the host helpers below instead of ECMA-
   fractional offsets, or results outside JavaScript's Date range throw.
 - `ctx.env.timeZone` is the host's current IANA time-zone identifier; zero-offset GMT aliases are normalized to `UTC`.
 - `ctx.env.supportsMenuBarItems === true` means snapshots may include a compact multi-quota menu-bar summary.
+- `ctx.env.supportsCostUsageV2 === true` enables nullable daily statistics with explicit calendar coverage (see below).
 - `ctx.env.supportsIconProvider === true` means snapshots may request built-in provider branding with `iconProvider`.
   Older hosts omit this flag; omit the snapshot field on those hosts to retain the manifest icon without a fetch error.
 - `ctx.format.number(value, options?)`, `usd(value)`, and `monthDay(date)` provide deterministic formatting on both
@@ -518,6 +519,55 @@ organization, plan/login-method, and account-ID fields in the menu and CLI. A ve
 may return `{empty: true}` with optional identity. This creates no artificial rate window; every supplied field is still
 validated. An empty object, an empty `identity` object, or metadata such as confidence and subscription dates without
 displayable usage or identity remains invalid unless `empty: true` is explicitly declared.
+
+## Daily statistics and sharing
+
+An enabled, approved community plugin can contribute `costUsage` to **Usage & Spend**, token activity, and sharing.
+The plugin instance ID remains the accounting identity; `iconProvider` never changes ownership or merges sources.
+Statistics use the manifest's public name and icon. Account identity, settings, secrets, and source paths are excluded
+from sharing, and plugin subscription names are not inferred from identity fields.
+
+The existing unversioned `costUsage` contract remains supported: `currency`, `historyDays`, `windowEnd`, and `entries`,
+with required `inputTokens`, `outputTokens`, `requests`, and `cost` per row. Its total is input plus output.
+Use version 2 when fees, requests, or token components are unknown, or the service reports an authoritative total.
+
+Always gate version 2 on the host capability. Older hosts reject unsupported snapshot fields; keep their original
+quota/details result without the new history object:
+
+```javascript
+const snapshot = { primary: { usedPercent: 25 } };
+if (ctx.env.supportsCostUsageV2 === true) {
+  snapshot.costUsage = {
+    version: 2,
+    timeZone: "Asia/Shanghai",
+    windowStart: "2026-10-16",
+    windowEnd: "2026-11-14",
+    entries: [
+      { date: "2026-11-13", totalTokens: "9007199254740993", cacheReadTokens: 400 },
+      { date: "2026-11-14", totalTokens: 0 }
+    ]
+  };
+}
+return snapshot;
+```
+
+- `timeZone` is the source's time-zone identifier, not the viewer's. Start/end and row dates are strict Gregorian
+  `YYYY-MM-DD` dates in that zone. The inclusive window may span 1–366 days; daily dates must be unique and inside it.
+  Source midnight boundaries map to the containing dashboard day, matching the existing daily-feed calendar policy.
+- Only explicit rows establish observations. A missing day, including inside the window, remains unknown. Supply
+  an explicit `totalTokens: 0` only when the source proves inactivity. Longer periods show the available subtotal and
+  partial coverage; an all-time view cannot establish lifetime completeness from a bounded daily feed.
+- `totalTokens`, `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheCreationTokens`, `reasoningTokens`, and
+  `requests` are independently optional/nullable nonnegative integers. JavaScript numbers must be safe integers;
+  use canonical decimal strings for larger exact counts within the host's signed integer range. Overflow rejects the
+  snapshot. `totalTokens` is authoritative: components and caches are never added to it or used to invent a total.
+- `cost` is an optional/nullable finite nonnegative number per row. Reporting any cost requires an uppercase
+  three-letter `currency`. Omit currency when spend is unknown; no currency or zero price is invented. A reported
+  zero remains distinct from unknown. Optional `historyLabel` describes the source window.
+- Refresh success replaces the source publication. A failed refresh removes its statistics from current totals;
+  the independent quota card may retain its labeled last-known snapshot. Disabling, deleting, reconfiguring, or
+  replacing a plugin invalidates its statistics. Reconfiguring and restoring a previous value still requires a new
+  successful refresh. No plugin history is persisted or merged across accounts by this feature.
 
 ## External hooks
 

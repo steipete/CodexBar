@@ -2,7 +2,7 @@ import CodexBarCore
 import Foundation
 
 struct ShareStatsProviderPayload: Sendable, Equatable {
-    let provider: UsageProvider
+    let provider: ProviderInstanceID
     let providerName: String
     let subscriptionName: String?
     let currencyCode: String
@@ -12,7 +12,7 @@ struct ShareStatsProviderPayload: Sendable, Equatable {
 }
 
 struct ShareStatsModelPayload: Sendable, Equatable {
-    let provider: UsageProvider
+    let provider: ProviderInstanceID
     let providerName: String
     let modelName: String
     let currencyCode: String
@@ -21,7 +21,7 @@ struct ShareStatsModelPayload: Sendable, Equatable {
 }
 
 private struct ShareStatsModelFamilyKey: Hashable {
-    let provider: UsageProvider
+    let provider: ProviderInstanceID
     let providerName: String
     let modelName: String
     let currencyCode: String
@@ -47,6 +47,10 @@ struct ShareStatsCurrencyPayload: Sendable, Equatable, Identifiable {
 
     var id: String {
         self.currencyCode
+    }
+
+    var displayName: String {
+        self.currencyCode == "XXX" ? L("Tokens") : self.currencyCode
     }
 }
 
@@ -127,6 +131,11 @@ struct ShareStatsSubscriptionName: Sendable, Equatable {
 }
 
 enum ShareStatsSanitizer {
+    static func providerName(_ rawValue: String) -> String? {
+        guard !rawValue.contains("/"), !rawValue.contains("\\"), !rawValue.contains(":") else { return nil }
+        return self.safeLabel(rawValue, maximumLength: 72, maximumWords: 8, requireModelShape: false)
+    }
+
     static func modelName(_ rawValue: String) -> String? {
         guard let value = self.safeLabel(
             rawValue,
@@ -221,7 +230,8 @@ enum ShareStatsBuilder {
             group.providers.map { row in
                 ShareStatsProviderPayload(
                     provider: row.provider,
-                    providerName: row.displayName,
+                    providerName: row.provider.firstPartyProvider == nil
+                        ? ShareStatsSanitizer.providerName(row.displayName) ?? "Community plugin" : row.displayName,
                     subscriptionName: subscriptionNames[row.id]?.displayName,
                     currencyCode: group.currencyCode,
                     totalTokens: row.totalTokens,
@@ -302,7 +312,8 @@ enum ShareStatsBuilder {
                 isPartial: $0.hasPartialCost)
         }
         let totalTokens = self.combinedTotalTokens(model.groups.map(\.totalTokens))
-        let hasPartialTokens = model.groups.contains(where: \.hasPartialTokens)
+        let hasPartialTokens = model.groups.contains(where: \.hasPartialTokens) ||
+            (model.groups.contains { $0.totalTokens != nil } && model.groups.contains { $0.totalTokens == nil })
         guard let periodGroup = model.groups.max(by: { $0.chartDomain.upperBound < $1.chartDomain.upperBound }) else {
             return nil
         }
@@ -351,6 +362,7 @@ enum ShareStatsPayloadFactory {
         var names: [String: ShareStatsSubscriptionName] = [:]
         for group in model.groups {
             for row in group.providers {
+                guard let nativeProvider = row.provider.firstPartyProvider else { continue }
                 let snapshots: [UsageSnapshot?] = if row.provider == .codex,
                                                      row.id.hasPrefix("codex:")
                 {
@@ -360,9 +372,9 @@ enum ShareStatsPayloadFactory {
                         }?.snapshot,
                     ]
                 } else {
-                    [store.snapshot(for: row.provider.instanceID)]
+                    [store.snapshot(for: row.provider)]
                 }
-                if let name = ShareStatsSubscriptionName.first(from: snapshots, provider: row.provider) {
+                if let name = ShareStatsSubscriptionName.first(from: snapshots, provider: nativeProvider) {
                     names[row.id] = name
                 }
             }
@@ -440,7 +452,11 @@ enum ShareStatsFormatting {
                 return currency.isPartial ? L("%@ (partial)", amount) : amount
             } ?? L("Spend unavailable")
             let coverage = self.coverageFraction(covered: currency.coveredDayCount, payload: payload)
-            return L("%@: %@ · coverage %@", currency.currencyCode, spend, coverage)
+            return L(
+                "%@: %@ · coverage %@",
+                currency.displayName,
+                spend,
+                coverage)
         })
         lines.append(contentsOf: payload.providers.map { provider in
             var metrics: [String] = []
@@ -452,7 +468,7 @@ enum ShareStatsFormatting {
             } else {
                 metrics.append(L("Spend unavailable"))
             }
-            if provider.estimatedCost != nil, provider.coveredDayCount < payload.days {
+            if provider.coveredDayCount < payload.days {
                 metrics.append(self.coverageFraction(covered: provider.coveredDayCount, payload: payload))
             }
             let subscription = provider.subscriptionName.map { " · \($0)" } ?? ""

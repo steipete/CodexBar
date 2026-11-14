@@ -202,14 +202,15 @@ enum SpendDashboardSource {
         SpendDashboardConfiguration(
             costUsageEnabled: self.spendCollectionEnabled(settings: settings, providers: providers),
             preferredCurrencyCode: settings.preferredCurrencyCode,
-            providerIDs: providers.map(\.rawValue),
+            providerIDs: providers.map(\.rawValue) + self.statisticsPlugins(store: store).map(\.manifest.id.rawValue),
             codexAccountIdentities: codexSources.map(\.identity),
             codexAccountDisplayNames: self.codexDisplayNamesByID(codexSources),
             sourceOwnershipFingerprints: self.sourceOwnershipFingerprints(
                 providers: providers,
                 settings: settings,
-                store: store),
-            sourceRevisions: self.sourceRevisions(providers: providers, settings: settings, store: store),
+                store: store) + self.pluginOwnership(store: store),
+            sourceRevisions: self.sourceRevisions(providers: providers, settings: settings, store: store) + self
+                .pluginRevisions(store: store),
             bucketTimeZoneIdentifier: settings.costUsageBucketTimeZoneIdentifier,
             openCodexUsageLogsEnabled: settings.openCodexUsageLogsEnabled,
             hideNativeCodexCostWhenOpenCodexPresent: settings.hideNativeCodexCostWhenOpenCodexPresent,
@@ -240,6 +241,12 @@ enum SpendDashboardSource {
                 force: mode.forcesLoader)
         }
 
+        for plugin in self.approvedStatisticsPlugins(store: store)
+            where mode == .forceRefresh ||
+            (mode == .refreshMissing && store.userPluginTokenPublication(plugin) == nil)
+        {
+            await store.refreshUserPlugin(plugin.manifest.id)
+        }
         let providerBaselines = initialProviders.filter { $0 != .codex }.map { provider in
             let captured = self.capturedTokenPublication(store: store, provider: provider)
             let shouldRefresh: Bool = if mode == .refreshMissing,
@@ -303,8 +310,10 @@ enum SpendDashboardSource {
             && piBaseline != nil
             && piCurrent.publication?.snapshot != nil
             && !(piBaseline?.shouldRefresh == true && piBaseline?.publicationRevision == piCurrent.revision)
-        var inputs: [SpendDashboardModel.ProviderInput] = []
-        var unavailableSourceIDs: Set<String> = []
+        var inputs = self.capturePluginInputs(store: store)
+        let pluginInputIDs = Set(inputs.map(\.id))
+        var unavailableSourceIDs = Set(self.statisticsPlugins(store: store).map(\.manifest.id.rawValue))
+            .subtracting(pluginInputIDs)
         var confirmedEmptySourceIDs: Set<String> = []
         // Provider-specific by design: spend dashboard
         for provider in providers where provider != .codex {
@@ -716,6 +725,7 @@ enum SpendDashboardSource {
         var parts = providers.map { provider in
             "\(provider.rawValue):\(settings.providerConfigRevision(for: provider))"
         }
+        parts.append(contentsOf: self.pluginOwnership(store: store))
         parts.append("bucket:\(settings.costUsageBucketTimeZoneIdentifier)")
         if providers.contains(.codex) {
             parts.append(contentsOf: self.codexHomes(settings: settings, store: store).map { home in
@@ -1576,7 +1586,8 @@ final class SpendDashboardController {
         if !result.failedSourceIDs.isEmpty {
             let freshIDs = Set(nextInputs.map(\.id))
             let retainedInputs = self.loadedInputs.filter {
-                result.failedSourceIDs.contains($0.id) &&
+                $0.sourceKind != .communityPlugin &&
+                    result.failedSourceIDs.contains($0.id) &&
                     !unsafeSourceIDs.contains($0.id) &&
                     self.loadedInputScopes[$0.id] == SpendDashboardLoadedInputScope(
                         configuration: request.configuration, input: $0) &&
@@ -1769,7 +1780,7 @@ final class SpendDashboardController {
                 switch input?.sourceKind {
                 case .openCodex: .enrichment
                 case .localHistory: .localHistory
-                case .native, nil: .subscription
+                case .native, .communityPlugin, nil: .subscription
                 }
             }
             return SpendSourcePublication(
@@ -1841,15 +1852,18 @@ final class SpendDashboardController {
         return ids.filter { seen.insert($0).inserted }
     }
 
-    private func provider(for sourceID: String) -> UsageProvider? {
+    private func provider(for sourceID: String) -> ProviderInstanceID? {
         // Provider-specific by design: account source IDs map to Codex.
         if sourceID.hasPrefix("codex:") { return .codex }
-        return UsageProvider(rawValue: sourceID)
+        return ProviderInstanceID(rawValue: sourceID)
     }
 
-    private func displayName(for sourceID: String, provider: UsageProvider) -> String {
-        self.configuration?.codexAccountDisplayNames[sourceID]
-            ?? ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
+    private func displayName(for sourceID: String, provider: ProviderInstanceID) -> String {
+        if let native = provider.firstPartyProvider {
+            return self.configuration?.codexAccountDisplayNames[sourceID]
+                ?? ProviderDescriptorRegistry.descriptor(for: native).metadata.displayName
+        }
+        return "Community plugin"
     }
 
     private func refreshRetainedCodexDisplayNames(_ displayNamesByID: [String: String]) {

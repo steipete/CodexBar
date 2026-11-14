@@ -82,6 +82,34 @@ interface CodexBarCostUsageSnapshot {
   entries: CodexBarCostUsageEntry[];
 }
 
+/** Exact counts above Number.MAX_SAFE_INTEGER must use canonical decimal strings. */
+type CodexBarTokenCount = number | string;
+
+interface CodexBarCostUsageEntryV2 {
+  date: string;
+  /** Authoritative server total. Components and cache counts are never added to it. */
+  totalTokens?: CodexBarTokenCount | null;
+  inputTokens?: CodexBarTokenCount | null;
+  outputTokens?: CodexBarTokenCount | null;
+  cacheReadTokens?: CodexBarTokenCount | null;
+  cacheCreationTokens?: CodexBarTokenCount | null;
+  reasoningTokens?: CodexBarTokenCount | null;
+  requests?: CodexBarTokenCount | null;
+  cost?: number | null;
+}
+
+/** Send only when ctx.env.supportsCostUsageV2 === true. Missing dates are unknown. */
+interface CodexBarCostUsageSnapshotV2 {
+  version: 2;
+  timeZone: string;
+  windowStart: string;
+  windowEnd: string;
+  /** Required if any daily cost is reported. Omit when spend is unknown. */
+  currency?: string | null;
+  historyLabel?: string | null;
+  entries: CodexBarCostUsageEntryV2[];
+}
+
 interface CodexBarIdentitySnapshot {
   email?: string | null;
   organization?: string | null;
@@ -133,7 +161,7 @@ interface CodexBarUsageSnapshot {
   extraWindows?: CodexBarNamedRateWindow[] | null;
   cost?: CodexBarCostSnapshot | null;
   /** Exact provider-reported daily spend. The host validates and sums every numeric row. */
-  costUsage?: CodexBarCostUsageSnapshot | null;
+  costUsage?: CodexBarCostUsageSnapshot | CodexBarCostUsageSnapshotV2 | null;
   identity?: CodexBarIdentitySnapshot | null;
   /** Built-in provider ID for the menu-bar/switcher logo only. Send only when ctx.env.supportsIconProvider === true. */
   iconProvider?: string | null;
@@ -302,6 +330,7 @@ interface CodexBarPluginContext {
     /** Older hosts omit this flag and reject the iconProvider snapshot field. */
     readonly supportsIconProvider?: boolean;
     readonly supportsMenuBarItems?: boolean;
+    readonly supportsCostUsageV2?: boolean;
   };
   readonly cache: {
     get<T = unknown>(key: string): T | undefined;

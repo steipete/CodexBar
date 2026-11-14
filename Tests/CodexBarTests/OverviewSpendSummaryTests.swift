@@ -149,7 +149,7 @@ struct OverviewSpendSummaryTests {
         SpendDashboardModel.ProviderRow(
             id: provider.rawValue,
             rank: 1,
-            provider: provider,
+            provider: provider.instanceID,
             displayName: provider.rawValue,
             totalTokens: tokens,
             totalCost: cost,

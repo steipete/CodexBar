@@ -77,7 +77,8 @@ struct ShareStatsCardView: View {
                     .foregroundStyle(.secondary)
                 ForEach(self.payload.currencies.prefix(2)) { currency in
                     HStack(alignment: .firstTextBaseline) {
-                        Text("\(currency.currencyCode) · \(currency.coveredDayCount)/\(self.coverageDenominator)")
+                        Text(
+                            "\(currency.displayName) · \(currency.coveredDayCount)/\(self.coverageDenominator)")
                             .font(.system(size: 17, weight: .semibold, design: .rounded))
                             .foregroundStyle(.secondary)
                         Spacer()
@@ -309,11 +310,11 @@ private struct ShareStatsProviderRow: View {
         }
         if let cost = self.provider.estimatedCost, cost.isFinite {
             metrics.append("~\(ShareStatsFormatting.currency(cost, code: self.provider.currencyCode))")
-            if self.provider.coveredDayCount < self.days {
-                metrics.append(L("%d/%dd", self.provider.coveredDayCount, self.days))
-            }
         } else {
             metrics.append(L("Spend unavailable"))
+        }
+        if self.provider.coveredDayCount < self.days {
+            metrics.append(L("%d/%dd", self.provider.coveredDayCount, self.days))
         }
         return metrics.isEmpty ? L("connected") : metrics.joined(separator: " · ")
     }

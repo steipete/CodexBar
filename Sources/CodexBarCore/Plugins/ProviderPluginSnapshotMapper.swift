@@ -376,6 +376,12 @@ enum ProviderPluginSnapshotMapper {
         guard value.isObject, !value.isArray else {
             throw ProviderPluginError.invalidSnapshot("costUsage must be an object")
         }
+        if let version = value.property("version"), !version.isUndefined {
+            guard version.isNumber, version.doubleValue() == 2 else {
+                throw ProviderPluginError.invalidSnapshot("costUsage.version must be 2 when present")
+            }
+            return try ProviderPluginCostUsageV2Mapper.map(value)
+        }
         let currency = try self.requiredString(value, property: "currency", path: "costUsage")
         guard currency.range(of: "^[A-Z]{3}$", options: .regularExpression) != nil else {
             throw ProviderPluginError.invalidSnapshot(
