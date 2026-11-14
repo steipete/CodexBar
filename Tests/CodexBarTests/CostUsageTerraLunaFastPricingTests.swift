@@ -43,7 +43,7 @@ struct CostUsageTerraLunaFastPricingTests {
                 outputTokens: 3000,
                 modelsDevCatalog: catalog,
                 customPricing: .empty)
-            #expect(try abs(#require(cost) - expected) < 1e-12)
+            #expect(cost.map { abs($0 - expected) < 1e-12 } == true, "\(model), \(input) input tokens")
         }
     }
 }
