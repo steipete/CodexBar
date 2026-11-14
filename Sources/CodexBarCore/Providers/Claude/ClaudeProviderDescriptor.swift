@@ -1131,11 +1131,23 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
         let throttleKey = binary.flatMap { self.throttleKey(binary: $0, context: context) }
         if context.runtime == .app,
            ProviderInteractionContext.current == .background,
-           !context.claudeOwnerCLIRecoveryOnly,
-           let throttleKey,
-           let cached = ClaudeCLIUsageSpawnThrottle.cachedResult(for: throttleKey)
+           let throttleKey
         {
-            return cached
+            if !context.claudeOwnerCLIRecoveryOnly,
+               let cached = ClaudeCLIUsageSpawnThrottle.cachedResult(for: throttleKey)
+            {
+                return cached
+            }
+            // Launching Claude with no session window running would open one (see `idleSession`). This also holds
+            // for the owner-CLI recovery pass: idle state is shared by every strategy probing the same CLI account.
+            switch ClaudeCLIUsageSpawnThrottle.idleSession(for: throttleKey, environment: context.env) {
+            case let .usage(usage)?:
+                return self.makeResult(usage: usage, sourceLabel: "claude")
+            case let .failure(error)?:
+                throw error
+            case nil:
+                break
+            }
         }
         let keepAlive = context.settings?.debugKeepCLISessionsAlive ?? false
         let fetcher = ClaudeUsageFetcher(
@@ -1158,6 +1170,10 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
         } catch {
             if Task.isCancelled || ClaudeOAuthFetchError.isCancellation(error) {
                 throw error
+            }
+            // Later idle refreshes surface this failure instead of a rolled-over reading, without launching Claude.
+            if let throttleKey {
+                ClaudeCLIUsageSpawnThrottle.recordFailure(error, for: throttleKey)
             }
             // A transient probe failure does not revoke this account's established CLI availability.
             if ClaudeUsageFetcher.isRetryableCLIProbeError(error),

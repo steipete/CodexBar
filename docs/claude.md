@@ -608,6 +608,16 @@ mode. The additive field is omitted after recovery and from shell rows.
   deep-link URL handler registration during headless probes.
 - After transient probes exit, CodexBar removes Claude Code `.jsonl` session artifacts for that dedicated
   `ClaudeProbe` project directory so background `/usage` polling does not clutter the user's Claude project history.
+- Launching Claude Code sends a startup request that opens a new five-hour window when none is running. Once the
+  last CLI reading's session window has reset, background refreshes do not launch Claude again until a local Claude
+  transcript in the selected CLI profile changes after that reset. Other profiles' backups and Claude Desktop
+  sessions do not count as activity for this CLI account; CodexBar's own `ClaudeProbe` transcripts are also excluded.
+  Until then they publish the last reading with elapsed windows at 0% and no reset time, or the failure of a probe
+  made after that reset. Authentication failures stay visible across resets until a successful probe clears them.
+  Unreadable transcript roots and nested symlinks count as activity. A manual Refresh always probes.
+  The reading is kept in memory, so the first background probe after launch still runs. Usage on another
+  device or in an app that does not write to this profile is not detected while idle; use manual Refresh to read it.
+  The snapshot keeps the timestamp of the last real reading.
 - Command flow:
   1) Start CLI with `--allowed-tools ""` (no tools).
   2) Handle first-run prompts during startup and command capture. For the modern trust dialog, move the `❯`
