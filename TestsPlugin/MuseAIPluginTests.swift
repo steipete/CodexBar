@@ -81,6 +81,20 @@ struct MuseAIPluginTests {
         #expect(result.storedID == Self.actionID)
     }
 
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `immutable chunk paths discover the subscription action`(engine: ProviderPluginEngineKind) async throws {
+        var chunks: [String: String] = [:]
+        for (path, body) in Self.chunks {
+            chunks[path.replacing("static/chunks/", with: "static/immutable/chunks/")] =
+                body.replacing("static/chunks/", with: "static/immutable/chunks/")
+        }
+        let result = try await Self.fetch(engine: engine, storedID: nil, action: Self.free, chunks: chunks)
+        #expect(result.snapshot.primary?.usedPercent == 28)
+        #expect(result.requests.contains("GET /_next/static/immutable/chunks/settings.js"))
+        #expect(!result.requests.contains("GET /_next/static/immutable/chunks/other.js"))
+        #expect(result.storedID == Self.actionID)
+    }
+
     @Test(arguments: [400, 409], BundledPluginTestSupport.engines)
     func `a stale action answered with an unstructured error is rediscovered`(
         staleStatus: Int,
