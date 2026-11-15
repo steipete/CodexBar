@@ -788,7 +788,7 @@ extension StatusMenuTests {
         #expect(shareItem.title == "Share Usage Snapshot…")
         #expect(shareItem.image != nil)
         #expect(shareItem.action == #selector(StatusItemController.presentOverviewShareStats))
-        #expect(Set(model.groups.first?.providers.map(\.provider) ?? []) == Set(pricedProviders))
+        #expect(Set(model.groups.first?.providers.map(\.provider) ?? []) == Set(pricedProviders.map(\.instanceID)))
         #expect(abs((model.groups.first?.totalCost ?? -1) - 85) < 1e-9)
         #expect(summary.primarySpendText == "~$85.00")
         #expect(summary.providerCoverageText == "3 of 7 subscriptions have spend")

@@ -10,7 +10,7 @@ extension SpendDashboardModel {
     }
 
     private struct ModelKey: Hashable {
-        let provider: UsageProvider
+        let provider: ProviderInstanceID
         let modelName: String
     }
 
@@ -282,7 +282,7 @@ extension SpendDashboardModel {
 
     /// Provider-specific by design: Cursor usage events can omit totalCents without voiding priced rows.
     static func hasExplicitlyUnpriceableLedgerCost(
-        _ provider: UsageProvider,
+        _ provider: ProviderInstanceID,
         _ entry: CostUsageDailyReport.Entry) -> Bool
     {
         switch provider {

@@ -114,7 +114,7 @@ struct SpendTrendScopeTests {
             SpendDashboardModel.ProviderRow(
                 id: source.0,
                 rank: rank,
-                provider: source.1,
+                provider: source.1.instanceID,
                 displayName: source.3,
                 totalTokens: nil,
                 totalCost: source.2,
@@ -129,7 +129,7 @@ struct SpendTrendScopeTests {
         let daily = try amounts.map { day, id, provider, cost in
             try SpendDashboardModel.DailyPoint(
                 sourceID: id,
-                provider: provider,
+                provider: provider.instanceID,
                 providerName: id,
                 day: Self.day(day, calendar: calendar),
                 cost: cost,
@@ -143,7 +143,7 @@ struct SpendTrendScopeTests {
         let hourly = try hours.map { day, id, provider, cost in
             try SpendDashboardModel.HourlyPoint(
                 sourceID: id,
-                provider: provider,
+                provider: provider.instanceID,
                 providerName: id,
                 hour: Self.day(day, month: day == 30 ? 9 : 10, calendar: calendar).addingTimeInterval(9 * 3600),
                 cost: cost,

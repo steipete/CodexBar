@@ -17,7 +17,7 @@ struct SpendSourcePublication: Sendable, Equatable {
     }
 
     let id: String
-    let provider: UsageProvider?
+    let provider: ProviderInstanceID?
     let displayName: String
     let role: Role
     let state: State
@@ -56,7 +56,8 @@ struct SpendDashboardPublication: Sendable {
             source.state == .staleLastKnown ? source.id : nil
         })
         let inputs = self.inputs.filter { input in
-            (providerScope?.contains(input.provider) ?? true) && !staleSourceIDs.contains(input.id)
+            (providerScope.map { scope in input.provider.firstPartyProvider.map(scope.contains) ?? false } ?? true) &&
+                !staleSourceIDs.contains(input.id)
         }
         return SpendDashboardModel.build(
             inputs: inputs,
@@ -83,7 +84,7 @@ struct SpendDashboardPublication: Sendable {
                 hideNativeCodexWhenOpenCodexPresent: hideNativeCodexWhenOpenCodexPresent)
             if rosterSources.isEmpty, coverageSources.isEmpty {
                 let hasVisibleLocalHistory = self.sources.contains {
-                    $0.provider == provider &&
+                    $0.provider == provider.instanceID &&
                         $0.role == .localHistory &&
                         !hiddenSourceIDs.contains($0.id)
                 }
@@ -147,7 +148,7 @@ struct SpendDashboardPublication: Sendable {
     }
 
     private func subscriptionRosterSources(for provider: UsageProvider) -> [SpendSourcePublication] {
-        self.sources.filter { $0.provider == provider && $0.role == .subscription }
+        self.sources.filter { $0.provider == provider.instanceID && $0.role == .subscription }
     }
 
     private func coverageSources(
