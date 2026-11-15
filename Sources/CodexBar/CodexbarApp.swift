@@ -38,6 +38,9 @@ enum CodexBarEntryPoint {
             return
         }
         #if DEBUG
+        if CodexSessionQuotaNativeProof.runIfRequested() {
+            return
+        }
         if MenuBarLayoutNativeProof.runIfRequested() {
             return
         }
