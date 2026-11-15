@@ -93,6 +93,22 @@ struct SpendDashboardProjectlessTests {
     }
 
     @Test
+    func `unpriced or incomplete project usage marks only that project as a floor`() throws {
+        let rows = try Self.group(projects: [
+            Self.project(name: "a", path: "/fixtures/a", cost: 4, tokens: 900, unpricedRequestCount: 2),
+            Self.project(name: "b", path: "/fixtures/b", cost: 6, tokens: 100),
+        ]).projects
+        let a = try #require(rows.first { $0.projectName == "a" })
+        let b = try #require(rows.first { $0.projectName == "b" })
+        #expect(a.totalCost == 4 && a.costIsLowerBound && !a.tokensAreLowerBound)
+        #expect(!b.costIsLowerBound && !b.tokensAreLowerBound)
+        // $4 + $6 is not the complete denominator, so the bars compare the complete token counts.
+        let shares = spendDashboardProjectShares(rows)
+        #expect(shares?.basis == .tokens)
+        #expect(shares?.values == [a.id: 0.9, b.id: 0.1])
+    }
+
+    @Test
     func `independent chat fallback and privacy labels are localized without exposing paths`() {
         for (language, fallback, maskedChat, maskedProject) in [
             ("en", "Independent chat", "Chat 1", "Project 1"),
@@ -138,19 +154,24 @@ struct SpendDashboardProjectlessTests {
         path: String,
         cost: Double?,
         tokens: Int? = 10,
-        isProjectless: Bool = false) -> CostUsageProjectBreakdown
+        isProjectless: Bool = false,
+        unpricedRequestCount: Int? = nil) -> CostUsageProjectBreakdown
     {
         CostUsageProjectBreakdown(
             name: name,
             path: path,
             totalTokens: tokens,
             totalCostUSD: cost,
-            daily: [self.entry(cost: cost, tokens: tokens)],
+            daily: [self.entry(cost: cost, tokens: tokens, unpricedRequestCount: unpricedRequestCount)],
             modelBreakdowns: nil,
             isProjectless: isProjectless)
     }
 
-    private static func entry(cost: Double?, tokens: Int?) -> CostUsageDailyReport.Entry {
+    private static func entry(
+        cost: Double?,
+        tokens: Int?,
+        unpricedRequestCount: Int? = nil) -> CostUsageDailyReport.Entry
+    {
         CostUsageDailyReport.Entry(
             date: "2026-07-16",
             inputTokens: nil,
@@ -158,7 +179,8 @@ struct SpendDashboardProjectlessTests {
             totalTokens: tokens,
             costUSD: cost,
             modelsUsed: nil,
-            modelBreakdowns: nil)
+            modelBreakdowns: nil,
+            unpricedRequestCount: unpricedRequestCount)
     }
 
     private static func input(

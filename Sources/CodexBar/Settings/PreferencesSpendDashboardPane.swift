@@ -957,8 +957,11 @@ private struct SpendProjectRows: View {
     private static let collapsedRowCount = 8
 
     var body: some View {
-        let shares = spendDashboardShares(self.rows, cost: \.totalCost, tokens: \.totalTokens)
+        let shares = spendDashboardProjectShares(self.rows)
         VStack(alignment: .leading, spacing: 0) {
+            if let shares {
+                SpendShareBasisHeader(title: shares.basisTitle)
+            }
             ForEach(self.visibleRows) { row in
                 let identity = row.displayIdentity(hidePersonalInfo: self.hidePersonalInfo)
                 if row.rank > 1 {
@@ -979,7 +982,7 @@ private struct SpendProjectRows: View {
                         Text(row.providerName)
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        if let share = shares[row.id] {
+                        if let share = shares?.values[row.id] {
                             ProgressView(value: share)
                                 .progressViewStyle(.linear)
                                 .controlSize(.mini)

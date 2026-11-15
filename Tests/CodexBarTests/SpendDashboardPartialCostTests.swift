@@ -635,12 +635,9 @@ struct SpendDashboardPartialCostTests {
         let breakdowns = spendDashboardProviderBreakdowns(group)
         let codex = try #require(breakdowns.first { $0.provider == .codex })
         #expect(codex.totalCost == 4 && codex.hasPartialCost)
-        // Codex's $4 omits its unpriced account, so a $4 vs $3 spend share would overstate Cursor.
-        let shares = spendDashboardProviderShares(breakdowns)
-        let codexShare = try #require(shares[UsageProvider.codex.rawValue])
-        let cursorShare = try #require(shares[UsageProvider.cursor.rawValue])
-        #expect(abs(codexShare - 60.0 / 90.0) < 1e-12)
-        #expect(abs(cursorShare - 30.0 / 90.0) < 1e-12)
+        // Codex's $4 omits its unpriced account, so a $4 vs $3 spend share would overstate Cursor,
+        // and Codex and Cursor tokens come from different tokenizers, so neither metric can share.
+        #expect(spendDashboardProviderShares(breakdowns) == nil)
     }
 
     @Test(arguments: [UsageProvider.claude, .pi])

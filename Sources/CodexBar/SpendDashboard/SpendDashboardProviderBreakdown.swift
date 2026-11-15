@@ -37,8 +37,8 @@ struct SpendProviderBreakdown: Identifiable, Equatable {
     }
 }
 
-func spendDashboardProviderShares(_ breakdowns: [SpendProviderBreakdown]) -> [String: Double] {
-    spendDashboardShares(breakdowns, cost: \.completeCost, tokens: \.completeTokens)
+func spendDashboardProviderShares(_ breakdowns: [SpendProviderBreakdown]) -> SpendDashboardShares<String>? {
+    spendDashboardShares(breakdowns, cost: \.completeCost, tokens: \.completeTokens, provider: \.provider)
 }
 
 private let spendProviderModelDisplayLimit = 6
@@ -117,14 +117,17 @@ struct SpendProviderBreakdownRows: View {
 
     var body: some View {
         let breakdowns = self.breakdowns
-        let shares = spendDashboardProviderShares(breakdowns)
+        let shares = breakdowns.count > 1 ? spendDashboardProviderShares(breakdowns) : nil
         VStack(alignment: .leading, spacing: 0) {
+            if let shares {
+                SpendShareBasisHeader(title: shares.basisTitle)
+            }
             ForEach(Array(breakdowns.enumerated()), id: \.element.id) { index, breakdown in
                 if index > 0 {
                     Divider()
                         .padding(.vertical, 6)
                 }
-                self.providerGroup(breakdown, share: breakdowns.count > 1 ? shares[breakdown.id] : nil)
+                self.providerGroup(breakdown, share: shares?.values[breakdown.id])
             }
         }
     }
