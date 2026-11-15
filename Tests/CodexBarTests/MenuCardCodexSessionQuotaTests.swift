@@ -1,5 +1,7 @@
+import AppKit
 import CodexBarCore
 import Foundation
+import SwiftUI
 import Testing
 @testable import CodexBar
 
@@ -81,6 +83,39 @@ struct MenuCardCodexSessionQuotaTests {
         #expect(model.heightFingerprint(section: "card") != withoutWarning.heightFingerprint(section: "card"))
         #expect(!model.hasCompatibleTrackedLayout(with: withoutWarning))
         #expect(!withoutWarning.hasCompatibleTrackedLayout(with: model))
+    }
+
+    @Test
+    @MainActor
+    func `render synthetic session quota cards when requested`() throws {
+        guard let directory = ProcessInfo.processInfo.environment["CODEXBAR_SESSION_QUOTA_PROOF_DIR"] else { return }
+        let output = URL(fileURLWithPath: directory, isDirectory: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+
+        try CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            let (model, _) = try self.model()
+            for compact in [false, true] {
+                let view = VStack(spacing: 0) {
+                    UsageMenuCardHeaderSectionView(model: model, showDivider: true, width: 350)
+                    UsageMenuCardUsageSectionView(
+                        model: model,
+                        layoutModel: model,
+                        showBottomDivider: false,
+                        bottomPadding: 12,
+                        width: 350,
+                        compactMetrics: compact)
+                }
+                .environment(\.colorScheme, .dark)
+                .environment(\.locale, Locale(identifier: "en_US"))
+                .background(Color(white: 0.16))
+                let renderer = ImageRenderer(content: view)
+                renderer.scale = 2
+                let bitmap = try NSBitmapImageRep(cgImage: #require(renderer.cgImage))
+                let png = try #require(bitmap.representation(using: .png, properties: [:]))
+                let name = compact ? "compact" : "expanded"
+                try png.write(to: output.appendingPathComponent("codex-weekly-block-\(name).png"))
+            }
+        }
     }
 
     private func model(
