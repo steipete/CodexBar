@@ -2851,3 +2851,4 @@
 "Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program returnerade ett okänt svar. Uppdatera CodexBar och försök igen.";
 "Google session expired or invalid." = "Google-sessionen har gått ut eller är ogiltig.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Inga sessionskakor för Google Developer Program hittades. Logga in på me.developers.google.com/benefits eller klistra in ett Cookie-huvud.";
+"Weekly limit reached" = "Veckogränsen har nåtts";

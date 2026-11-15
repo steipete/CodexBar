@@ -21,7 +21,10 @@ extension UsageMenuCardView.Model {
     {
         projection.displayedRateLanes(
             showOptionalCreditsAndExtraUsage: input.showOptionalCreditsAndExtraUsage).compactMap { lane in
-            guard let window = projection.rateWindow(for: lane) else { return nil }
+            // A labeled quota row describes its own window. The effective availability projection
+            // still applies to the menu bar, where the weekly limit can block unused session quota.
+            guard let window = projection.sourceRateWindow(for: lane) else { return nil }
+            let weeklyBlocked = lane == .session && projection.hasBindingWeeklyCap
 
             let title = CodexConsumerProjection.rateTitle(
                 lane: lane,
@@ -35,7 +38,7 @@ extension UsageMenuCardView.Model {
                 id = "primary"
                 // UsagePaceText.sessionPace suppresses weekly/monthly durations centrally;
                 // unknown durations in the session lane keep their existing pace.
-                paceDetail = Self.sessionPaceDetail(
+                paceDetail = weeklyBlocked ? nil : Self.sessionPaceDetail(
                     provider: input.provider,
                     window: window,
                     now: input.now,
@@ -61,7 +64,7 @@ extension UsageMenuCardView.Model {
                 []
             }
 
-            return Metric(
+            var metric = Metric(
                 id: id,
                 title: title,
                 percent: Self.clamped(input.usageBarsShowUsed ? window.usedPercent : window.remainingPercent),
@@ -81,7 +84,12 @@ extension UsageMenuCardView.Model {
                 sessionEquivalentDetail: lane == .weekly
                     ? Self.sessionEquivalentDetail(input: input, weeklyWindow: window, weeklyWindowID: nil)
                     : nil,
-                isSyntheticCreditLane: lane == .monthly && window.windowMinutes == nil)
+                isSyntheticCreditLane: lane == .monthly && window.windowMinutes == nil,
+                warningText: weeklyBlocked ? L("Weekly limit reached") : nil)
+            if weeklyBlocked {
+                metric.helpText = L("Weekly limit reached")
+            }
+            return metric
         }
     }
 

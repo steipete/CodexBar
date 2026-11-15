@@ -127,6 +127,7 @@ extension UsageMenuCardView.Model.Metric {
             MenuCardHeightFingerprint.field("reset", presentation.resetText),
             MenuCardHeightFingerprint.field("meta", presentation.metaText),
             self.detailText == nil ? "detail=0" : "detail=1",
+            self.warningText == nil ? "warning=0" : "warning=1",
             MenuCardHeightFingerprint.field("dailyTarget", self.dailyTargetText),
             self.pacePercent == nil ? "pace=0" : "pace=1",
             self.paceOnTop ? "paceTop=1" : "paceTop=0",

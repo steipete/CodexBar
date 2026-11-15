@@ -2856,3 +2856,4 @@
 "Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program پاسخی ناشناخته برگرداند. CodexBar را به‌روز کنید و دوباره امتحان کنید.";
 "Google session expired or invalid." = "نشست Google منقضی شده یا نامعتبر است.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "هیچ کوکی نشست Google Developer Program پیدا نشد. در me.developers.google.com/benefits وارد شوید یا یک سرآیند Cookie جای‌گذاری کنید.";
+"Weekly limit reached" = "سقف هفتگی پر شده است";

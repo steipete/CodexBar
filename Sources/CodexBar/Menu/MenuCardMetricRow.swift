@@ -46,6 +46,13 @@ struct MetricRow: View {
                     warningMarkerPercents: self.metric.warningMarkerPercents,
                     workdayMarkerPercents: self.metric.workdayMarkerPercents,
                     workdayTickAppearance: self.metric.workdayTickAppearance)
+                // A blocking limit must remain visible even when compact cards hide optional detail.
+                if let layoutWarningText = self.layoutMetric.warningText {
+                    self.layoutPreservingText(
+                        self.metric.warningText,
+                        layoutText: layoutWarningText,
+                        lineLimit: 1)
+                }
                 if !self.compact, let layoutMetaText = layoutPresentation.metaText {
                     self.layoutPreservingText(
                         presentation.metaText,

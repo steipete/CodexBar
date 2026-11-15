@@ -38,6 +38,7 @@ struct UsageMenuCardView: View {
             var statusText: String?
             var resetText: String?
             var detailText: String?
+            var warningText: String?
             var dailyTargetText: String?
             var detailLeftText: String?
             var detailRightText: String?
@@ -73,7 +74,8 @@ struct UsageMenuCardView: View {
                 cardStyle: Bool = false,
                 sessionEquivalentDetail: UsagePaceText.SessionEquivalentDetail? = nil,
                 isSyntheticCreditLane: Bool = false,
-                retainedMeasurementOverride: Bool? = nil)
+                retainedMeasurementOverride: Bool? = nil,
+                warningText: String? = nil)
             {
                 self.id = id
                 self.title = title
@@ -82,6 +84,7 @@ struct UsageMenuCardView: View {
                 self.statusText = statusText
                 self.resetText = resetText
                 self.detailText = detailText
+                self.warningText = warningText
                 self.detailLeftText = detailLeftText
                 self.detailRightText = detailRightText
                 self.pacePercent = pacePercent

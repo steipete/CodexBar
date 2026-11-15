@@ -2855,3 +2855,4 @@
 "Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program tanınmayan bir yanıt döndürdü. CodexBar’ı güncelleyip tekrar deneyin.";
 "Google session expired or invalid." = "Google oturumunun süresi doldu veya oturum geçersiz.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Google Developer Program oturum çerezleri bulunamadı. me.developers.google.com/benefits adresinde oturum açın veya bir Cookie başlığı yapıştırın.";
+"Weekly limit reached" = "Haftalık sınıra ulaşıldı";
