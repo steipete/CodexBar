@@ -531,6 +531,9 @@ The accepted multi-account design in
   `~/.config/codexbar/config.json`; legacy installs may use `~/.codexbar/config.json`). The option defaults off,
   zero accounts still use the ambient presentation, and account identity is `claude-swap:<slot>`, never the display
   email.
+- Cost: claude-swap slots share the combined local Claude history, which cannot be attributed to one slot.
+  The menu shows that history once in a **This Mac** section below the account cards or rows, in every
+  multi-account layout, instead of attaching it to an account.
 - With **Show all accounts in Overview** off, the single Claude Overview card follows the presented adapter slot:
   a pending switch, an inspected account, a failed switch, or the active account, in that order. It retains the
   provider's combined local costs and uses the ambient card when no adapter account is presented. Expanded

@@ -7,6 +7,16 @@ extension StatusItemController {
         captureMenu: NSMenu,
         context: MenuCardContext)
     {
+        self.addClaudeSwapAccountRows(to: menu, captureMenu: captureMenu, context: context)
+        // Combined Claude history is not attributable to one claude-swap slot, so it renders once for the menu.
+        self.addAccountAgnosticCostMenuSection(to: menu, context: context)
+    }
+
+    private func addClaudeSwapAccountRows(
+        to menu: NSMenu,
+        captureMenu: NSMenu,
+        context: MenuCardContext)
+    {
         let accounts = self.store.claudeSwapAccountSnapshots
         let display = ClaudeSwapAccountMenuDisplay(
             accounts: accounts,

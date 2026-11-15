@@ -113,13 +113,20 @@ struct MenuCardCodexAmbientCostTests {
     }
 
     @Test
-    func `only the ambient codex ledger counts as account agnostic`() {
+    func `shared local cost ledgers count as account agnostic`() {
         let fixture = Self.makeFixture(seedAmbientCost: false)
 
         // Ambient `~/.codex/sessions` scan: machine-wide, so it is rendered once for the menu.
         #expect(fixture.store.tokenCostIsAccountAgnostic(for: .codex))
-        // Claude's cost is credential-scoped and belongs to a single account, so it is never
-        // promoted to a menu-wide section.
+        // Claude's default scan combines every local Claude home and cannot attribute rows to an account.
+        #expect(fixture.store.tokenCostIsAccountAgnostic(for: .claude))
+        #expect(!fixture.store.tokenCostIsAccountAgnostic(for: .gemini))
+        // A selected token account mapped to its own Claude config directory owns that history.
+        fixture.settings.addTokenAccount(
+            provider: .claude,
+            label: "Mapped",
+            token: "fixture-mapped",
+            claudeConfigDirectory: "/fixtures/claude-personal")
         #expect(!fixture.store.tokenCostIsAccountAgnostic(for: .claude))
     }
 
