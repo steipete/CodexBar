@@ -25,20 +25,30 @@ enum CodexSessionQuotaNativeProof {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let snapshot = UsageSnapshot(
             primary: RateWindow(
-                usedPercent: 0, windowMinutes: 300,
-                resetsAt: now.addingTimeInterval(3600), resetDescription: nil),
+                usedPercent: 0,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: nil),
             secondary: RateWindow(
-                usedPercent: 100, windowMinutes: 10080,
-                resetsAt: now.addingTimeInterval(3 * 86400), resetDescription: nil),
+                usedPercent: 100,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(3 * 86400),
+                resetDescription: nil),
             tertiary: nil,
             updatedAt: now,
             identity: nil)
         let projection = CodexConsumerProjection.make(
             surface: .liveCard,
             context: .init(
-                snapshot: snapshot, rawUsageError: nil, liveCredits: nil, rawCreditsError: nil,
-                liveDashboard: nil, rawDashboardError: nil, dashboardAttachmentAuthorized: false,
-                dashboardRequiresLogin: false, now: now))
+                snapshot: snapshot,
+                rawUsageError: nil,
+                liveCredits: nil,
+                rawCreditsError: nil,
+                liveDashboard: nil,
+                rawDashboardError: nil,
+                dashboardAttachmentAuthorized: false,
+                dashboardRequiresLogin: false,
+                now: now))
         return UsageMenuCardView.Model.make(.init(
             provider: .codex,
             metadata: metadata,
