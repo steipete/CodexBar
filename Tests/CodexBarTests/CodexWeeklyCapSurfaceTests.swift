@@ -8,7 +8,7 @@ import Testing
 @Suite(.serialized)
 struct CodexWeeklyCapSurfaceTests {
     @Test
-    func `menu card session metric shows weekly cap and reset`() throws {
+    func `menu card keeps reported session values and explains the weekly cap`() throws {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let metadata = try #require(ProviderDefaults.metadata[.codex])
         let weeklyReset = now.addingTimeInterval(4 * 24 * 60 * 60)
@@ -59,9 +59,13 @@ struct CodexWeeklyCapSurfaceTests {
 
         let session = try #require(model.metrics.first { $0.id == "primary" })
         let weekly = try #require(model.metrics.first { $0.id == "secondary" })
-        #expect(session.percent == 0)
-        #expect(session.resetText == weekly.resetText)
-        #expect(session.resetText != nil)
+        #expect(session.percent == 99)
+        #expect(session.resetText == "Resets in 3h")
+        #expect(session.warningText == L("Weekly limit reached"))
+        #expect(weekly.percent == 0)
+        #expect(weekly.resetText == "Resets in 4d")
+        #expect(projection.rateWindow(for: .session)?.remainingPercent == 0)
+        #expect(projection.rateWindow(for: .session)?.resetsAt == weeklyReset)
     }
 
     @Test

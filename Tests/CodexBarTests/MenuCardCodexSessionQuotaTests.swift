@@ -1,4 +1,3 @@
-import AppKit
 import CodexBarCore
 import Foundation
 import SwiftUI
@@ -97,56 +96,6 @@ struct MenuCardCodexSessionQuotaTests {
         #expect(session.resetText == "Resets in 1h")
         #expect(session.warningText == L("Weekly limit reached"))
         #expect(ProviderDetailView<EmptyView>.metricInlinePresentation(session) == .progress)
-    }
-
-    @Test
-    @MainActor
-    func `render synthetic session quota cards when requested`() throws {
-        guard let directory = ProcessInfo.processInfo.environment["CODEXBAR_SESSION_QUOTA_PROOF_DIR"] else { return }
-        let output = URL(fileURLWithPath: directory, isDirectory: true)
-        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-
-        try CodexBarLocalizationOverride.$appLanguage.withValue("en") {
-            let (model, _) = try self.model()
-            for compact in [false, true] {
-                let view = VStack(spacing: 0) {
-                    UsageMenuCardHeaderSectionView(model: model, showDivider: true, width: 350)
-                    UsageMenuCardUsageSectionView(
-                        model: model,
-                        layoutModel: model,
-                        showBottomDivider: false,
-                        bottomPadding: 12,
-                        width: 350,
-                        compactMetrics: compact)
-                }
-                .environment(\.colorScheme, .dark)
-                .environment(\.locale, Locale(identifier: "en_US"))
-                .background(Color(white: 0.16))
-                let name = compact ? "compact" : "expanded"
-                try self.render(view, to: output.appendingPathComponent("codex-weekly-block-\(name).png"))
-            }
-            let settings = ProviderMetricsInlineView(
-                provider: .codex,
-                model: model.applyingUsageItemVisibility(hiddenItemIDs: [.metric("secondary")]),
-                openAIWebDiagnostic: nil,
-                isEnabled: true,
-                isRefreshing: false)
-                .padding(16)
-                .frame(width: 350)
-                .environment(\.colorScheme, .dark)
-                .environment(\.locale, Locale(identifier: "en_US"))
-                .background(Color(white: 0.16))
-            try self.render(settings, to: output.appendingPathComponent("codex-weekly-block-settings.png"))
-        }
-    }
-
-    @MainActor
-    private func render(_ view: some View, to url: URL) throws {
-        let renderer = ImageRenderer(content: view)
-        renderer.scale = 2
-        let bitmap = try NSBitmapImageRep(cgImage: #require(renderer.cgImage))
-        let png = try #require(bitmap.representation(using: .png, properties: [:]))
-        try png.write(to: url)
     }
 
     private func model(
