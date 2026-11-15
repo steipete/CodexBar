@@ -17,6 +17,7 @@
 
 ### Fixed
 
+- Cursor: restore Automatic local spend fallback for Tokscale JSON caches, preserving event snapshot deduplication and Manual credential boundaries.
 - Providers: stop cancelled refreshes before loading or attempting another browser-session candidate (#5085). Thanks @Lucenx9!
 - Plugins: align community-provider card headers with built-in cards and give refresh an explicit accessibility label (#5086). Thanks @tangwz!
 - Menu bar: preserve the full-size leading provider icon beside both text rows in high-contrast custom layouts (#5041). Thanks @deinspanjer and @nunoh!

@@ -175,7 +175,7 @@ The storage detail lists measured paths and their sizes. CodexBar does not delet
 
 ## Token cost (dashboard API)
 The cost summary's Cursor section is opt-in: it only fetches when **Show cost summary** is enabled and the Cursor provider is on.
-Unlike Claude and Codex cost (scanned from local session logs on this machine), Cursor cost is remote, account-wide data from the cursor.com dashboard, so it covers usage from every machine on the account.
+Unlike Claude and Codex cost (scanned from local session logs on this machine), Cursor cost normally uses remote, account-wide data from the cursor.com dashboard, so it covers usage from every machine on the account.
 
 Auth reuses the exact status-probe session resolution and cookie-source policy:
 - **Auto**: Cursor.app local auth → cached cookie header → browser cookie import → stored session.
@@ -198,7 +198,28 @@ API-list-price estimates are not estimates of actual Cursor charges: they do not
 
 Caching: automatic cost refreshes follow the app's token-cost cadence, with a minimum interval of 15 minutes (30 minutes in Low Power Mode). Snapshots are scoped to the history window, cookie source, and resolved account (manual-cookie hash or auto-mode account fingerprint), so switching accounts or pasting a new cookie invalidates them immediately.
 
-An HTTP 403 from the cost endpoint records a failed cost source with an in-memory retry time at least six hours later, even when no cost snapshot is available. It does not invalidate the working quota session. Automatic mode retains the local CSV fallback; Manual mode surfaces the selected credential failure because local CSV files carry no account identity. Manual and menu-open refreshes bypass the cooldown, and a changed account, credential source, history window, timezone, or provider configuration permits a new attempt. Timed-out cost scans keep their normal cooldown without a snapshot; transient failures retain their normal retry behavior. Restarting the app clears this in-memory cooldown.
+An HTTP 403 from the cost endpoint records a failed cost source with an in-memory retry time at least six hours later, even when no cost snapshot is available. It does not invalidate the working quota session. Automatic mode retains the local cache fallback; Manual mode surfaces the selected credential failure because local cache metadata cannot establish the selected credential identity. Manual and menu-open refreshes bypass the cooldown, and a changed account, credential source, history window, timezone, or provider configuration permits a new attempt. Timed-out cost scans keep their normal cooldown without a snapshot; transient failures retain their normal retry behavior. Restarting the app clears this in-memory cooldown.
+
+The local fallback first reads Tokscale's canonical `usage.json` on macOS. It supports object and positional event rows,
+Unix-millisecond and ISO-8601 timestamps, and numeric strings. Repeated snapshots of the same `usageEventId` count once,
+keeping the largest token total and then the largest reported cost, with the earliest row retained on an exact tie.
+Distinct event IDs remain distinct. Id-less rows keep their multiplicity unless they match an identified event's
+conversation, model, and timestamp; ambiguous matches join only the smallest event ID.
+
+Only the canonical JSON cache is read. Other accounts' `usage.account-*.json` files, backups, and archives are excluded.
+When owner metadata is present, its supported version, account hash, and header/footer generation must agree.
+Metadata-free legacy JSON remains eligible for Automatic fallback, like legacy CSV. These tags describe cache consistency;
+they do not authenticate a selected CodexBar account. Manual credentials and Off mode retain their existing behavior.
+
+Once `usage.json` exists, it takes precedence over CSV, including when it is malformed, unreadable, empty, or outside the
+requested history window. The fallback never combines JSON with migration CSVs or substitutes CSV after rejecting the
+canonical JSON. A missing canonical JSON retains CSV-only compatibility. Rejected event rows leave usable history marked
+partial and withhold the Cursor-metered total; invalid reported amounts stay unpriced rather than becoming zero.
+Reported API-rate amounts and Cursor-metered charges remain separate, and both use the requested history window.
+
+The producer schema and snapshot rules are documented in
+[Tokscale's pinned Cursor parser](https://github.com/junhoyeo/tokscale/blob/5569a0397b52c6c445e346814747a772fc3c0a11/crates/tokscale-core/src/sessions/cursor.rs)
+and [cache writer](https://github.com/junhoyeo/tokscale/blob/5569a0397b52c6c445e346814747a772fc3c0a11/crates/tokscale-cli/src/cursor.rs).
 
 The local Tokscale CSV fallback supports legacy, `Kind`, and cloud-agent layouts. A `Cloud Agent ID` header identifies
 the cloud-agent layout; trailing billing columns such as `Cost to you` leave the layout unchanged. The existing
