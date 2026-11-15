@@ -691,6 +691,12 @@ private struct ProviderMetricInlineRow: View {
                     workdayTickAppearance: self.metric.workdayTickAppearance)
                     .frame(maxWidth: .infinity)
 
+                if let warningText = self.metric.warningText {
+                    Text(warningText)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
                 if let metaText = presentation.metaText {
                     Text(metaText)
                         .font(.footnote)
