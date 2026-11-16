@@ -562,7 +562,9 @@ struct MenuBarLayoutProviderBalanceTests {
             scopedWeeklyTitle: nil,
             automatic: automatic,
             automaticText: StatusItemController.menuBarLayoutAutomaticText(
-                provider: provider, snapshot: snapshot, automatic: automatic,
+                provider: provider,
+                snapshot: snapshot,
+                automatic: automatic,
                 showsOptionalCredits: showsOptionalCredits),
             sessionPace: nil,
             weeklyPace: nil,
