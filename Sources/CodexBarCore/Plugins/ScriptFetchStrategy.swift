@@ -159,6 +159,22 @@ public final class ScriptFetchStrategy: ProviderFetchStrategy, @unchecked Sendab
         false
     }
 
+    /// Prepare the idle cached runtime with a controlled clock/engine for strategy deadline tests.
+    func prepareRuntime(
+        contextOptions: ProviderPluginContextOptions,
+        engine: ProviderPluginEngineKind) throws
+    {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        precondition(!self.runtimeInUse)
+        self.runtime = try ProviderPluginRuntime(
+            bundledPlugin: self.bundledPlugin,
+            transport: self.transport,
+            timeout: self.timeout,
+            contextOptions: contextOptions,
+            engine: engine)
+    }
+
     private func acquireRuntime() throws -> ProviderPluginRuntime {
         self.lock.lock()
         defer { self.lock.unlock() }

@@ -27,12 +27,16 @@ struct NotionMenuCardModelTests {
             updatedAt: self.now)
     }
 
-    private static func model(weeklyPace: UsagePace?) throws -> UsageMenuCardView.Model {
+    private static func model(
+        weeklyPace: UsagePace?,
+        snapshot: UsageSnapshot = Self.snapshot(),
+        showOptional: Bool = true) throws -> UsageMenuCardView.Model
+    {
         let metadata = try #require(ProviderDefaults.metadata[.notion])
         return UsageMenuCardView.Model.make(.init(
             provider: .notion,
             metadata: metadata,
-            snapshot: Self.snapshot(),
+            snapshot: snapshot,
             credits: nil,
             creditsError: nil,
             dashboardError: nil,
@@ -44,7 +48,7 @@ struct NotionMenuCardModelTests {
             usageBarsShowUsed: true,
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
-            showOptionalCreditsAndExtraUsage: true,
+            showOptionalCreditsAndExtraUsage: showOptional,
             hidePersonalInfo: false,
             weeklyPace: weeklyPace,
             now: Self.now))
@@ -85,5 +89,82 @@ struct NotionMenuCardModelTests {
 
         // Five of the six rolling hours elapsed against 50% used.
         #expect(metric.detailLeftText == "33% in reserve")
+    }
+
+    @Test(arguments: ["7,850.5", "0", nil] as [String?])
+    func `premium balance renders as a separate text section without a fabricated gauge`(balance: String?) throws {
+        let base = Self.snapshot()
+        let sections = try balance.map { value in
+            try [ProviderDetailSection(title: "Notion Credits", rows: [
+                .init(label: "Remaining credits", value: value),
+            ])]
+        } ?? []
+        let snapshot = UsageSnapshot(
+            primary: base.primary,
+            secondary: base.secondary,
+            details: sections,
+            updatedAt: Self.now)
+        let model = try Self.model(weeklyPace: nil, snapshot: snapshot)
+        #expect(model.metrics.map(\.id) == ["primary", "secondary"])
+        #expect(model.providerDetails.first?.title == (balance == nil ? nil : "Notion Credits"))
+        #expect(model.providerDetails.first?.rows.first?.value == balance)
+        #expect(model.providerDetails.first?.rows.first?.progress == nil)
+        #expect(model.creditsText == nil)
+        #expect(model.cloudCredits == nil)
+        let hidden = try Self.model(weeklyPace: nil, snapshot: snapshot, showOptional: false)
+        #expect(hidden.providerDetails.isEmpty)
+        #expect(hidden.metrics.map(\.id) == model.metrics.map(\.id))
+        let restored = try Self.model(weeklyPace: nil, snapshot: snapshot, showOptional: true)
+        #expect(restored.providerDetails.first?.rows.first?.value == balance)
+        let refreshedWithoutCredits = try Self.model(weeklyPace: nil, snapshot: base, showOptional: true)
+        #expect(refreshedWithoutCredits.providerDetails.isEmpty)
+    }
+
+    @Test
+    func `personal monthly labels and pace use the exact server duration even at the legacy sentinel`() throws {
+        let standard = RateWindow(
+            usedPercent: 20,
+            windowMinutes: 43200,
+            resetsAt: Self.periodEnd,
+            resetDescription: nil,
+            quotaLimit: 1500,
+            quotaUnit: "credits",
+            title: "Standard")
+        let select = RateWindow(
+            usedPercent: 0,
+            windowMinutes: 43200,
+            resetsAt: Self.periodEnd,
+            resetDescription: nil,
+            quotaLimit: 500,
+            quotaUnit: "credits",
+            title: "Select")
+        let snapshot = try UsageSnapshot(
+            primary: standard,
+            secondary: select,
+            details: [
+                ProviderDetailSection(title: "Personal credits", rows: [
+                    .init(label: "Standard remaining", value: "1,200 credits"),
+                    .init(label: "Select remaining", value: "500 credits"),
+                ]),
+                ProviderDetailSection(title: "Notion Credits", rows: [
+                    .init(label: "Remaining credits", value: "300"),
+                ]),
+            ], updatedAt: Self.now)
+        let model = try Self.model(weeklyPace: nil, snapshot: snapshot)
+        #expect(model.metrics.map(\.title) == ["Standard", "Select"])
+        // This server interval starts January 30. Inferring February would incorrectly yield 25%.
+        #expect(model.metrics.map(\.pacePercent) == [30, 30])
+        let labels = MenuBarLayoutLaneLabels(provider: .notion, snapshot: snapshot)
+        #expect(labels.primary == "Standard")
+        #expect(labels.secondary == "Select")
+        #expect(MenuBarPercentWindowPreference.session.label(for: .notion, snapshot: snapshot) == "Rolling")
+        #expect(MenuBarLayoutSemanticWindowResolver.windows(provider: .notion, snapshot: snapshot).session == nil)
+        #expect(MenuBarLayoutBalanceResolver.balance(provider: .notion, snapshot: snapshot) == "300")
+        #expect(MenuBarLayoutBalanceResolver.legacyBalance(provider: .notion, snapshot: snapshot) == nil)
+        let hidden = try Self.model(weeklyPace: nil, snapshot: snapshot, showOptional: false)
+        #expect(hidden.metrics.map(\.title) == model.metrics.map(\.title))
+        #expect(hidden.providerDetails.map(\.title) == ["Personal credits"])
+        #expect(MenuBarLayoutBalanceResolver.balance(
+            provider: .notion, snapshot: snapshot, showsOptionalCredits: false) == nil)
     }
 }
