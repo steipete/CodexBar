@@ -13,6 +13,7 @@ private enum QuickJSHostFunction: Int32 {
     case rejectCookie
     case cookieHeader
     case cookieSession
+    case localStorage
     case storage
     case cacheGet
     case cacheSet
@@ -522,6 +523,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
             (.rejectCookie, "rejectCookie", 2),
             (.acceptCookie, "acceptCookie", 2),
             (.cookieSession, "cookieSession", 4),
+            (.localStorage, "localStorage", 4),
             (.cookieAvailability, "cookieAvailability", 1),
             (.storage, "storage", 3),
             (.cacheGet, "cacheGet", 1),
@@ -541,6 +543,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
         }
     }
 
+    // swiftlint:disable:next cyclomatic_complexity
     fileprivate func handleHostCall(
         _ function: QuickJSHostFunction,
         context _: OpaquePointer,
@@ -569,6 +572,9 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
                 return cqjs_undefined()
             case .cookieHeader, .cookieSession:
                 try self.hostCookieHeader(values, session: function == .cookieSession)
+                return cqjs_undefined()
+            case .localStorage:
+                try self.hostLocalStorage(values)
                 return cqjs_undefined()
             case .storage:
                 return try self.hostStorage(values)
@@ -740,6 +746,28 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
             state.redactionValues.insert(header)
             for pair in CookieHeaderNormalizer.pairs(from: header) {
                 state.redactionValues.insert(pair.value)
+            }
+            let value = self.makeString(payload)
+            defer { cqjs_free_value(self.context, value) }
+            try self.invoke(arguments[2], argument: value)
+        } catch {
+            try self.reject(arguments[3], error: error, redactionValues: state.redactionValues)
+        }
+    }
+
+    private func hostLocalStorage(_ arguments: UnsafeBufferPointer<JSValue>) throws {
+        guard arguments.count >= 4, let state = self.fetchState else {
+            throw ProviderPluginError.secretAccess("local storage bridge is unavailable")
+        }
+        do {
+            let origin = try self.string(from: arguments[0])
+            let key = try self.string(from: arguments[1])
+            let payload = try self.blockingValue(timeout: self.timeout) {
+                try await state.contextOptions.readLocalStorage(
+                    manifest: self.manifest,
+                    origin: origin,
+                    key: key,
+                    redactionValues: state.redactionValues)
             }
             let value = self.makeString(payload)
             defer { cqjs_free_value(self.context, value) }

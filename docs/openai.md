@@ -1,9 +1,10 @@
 ---
-summary: "OpenAI API provider: Admin API key daily graphs, per-minute live usage, and legacy balance fallback."
+summary: "OpenAI API provider: Admin API key daily graphs, per-minute live usage, legacy balance fallback, and opt-in browser-session API credits on macOS."
 read_when:
   - Updating OpenAI API Platform usage or cost display
   - Updating the OpenAI Live Usage window
   - Debugging OPENAI_ADMIN_KEY or OPENAI_API_KEY behavior
+  - Debugging the platform.openai.com browser-session credit grants
 ---
 
 # OpenAI API provider
@@ -23,6 +24,25 @@ usage-card adapter; the script supplies daily history, source labels, project sc
      Project-scoped requests add `project_ids=<project>` to both Admin API endpoints.
 2. Best-effort fallback: legacy `GET https://api.openai.com/v1/dashboard/billing/credit_grants` for older user API
    keys that cannot access organization usage. This endpoint is not part of OpenAI's current public API reference.
+
+3. Browser session (macOS, `web`, opt-in): API credit grants, including the monthly API credits that ChatGPT Pro and
+   Business subscriptions add to the linked API organization. The bundled `openai-platform.js` plugin owns the
+   requests and parsing, and the host supplies only the `browser-local-storage` capability.
+   - Reads the access token in the `oai-auth:onboard` entry that platform.openai.com keeps in Chromium local storage,
+     one per browser profile in the shared default browser order. Chromium local storage is not encrypted, so this
+     never touches the Keychain. Safari and Firefox are not read.
+   - Each refresh runs plain HTTP: `POST https://api.openai.com/v1/dashboard/onboarding/login` turns an access token
+     into a session key, and `GET https://api.openai.com/v1/dashboard/billing/credit_grants` reads the grants with it.
+   - A token whose JWT `exp` already lies behind is skipped. A token OpenAI rejects with HTTP 401 moves on to the next
+     profile, and the first accepted one wins.
+   - The session is read-only. CodexBar never refreshes, caches, or stores these tokens. Opening platform.openai.com
+     in the browser renews the session there, and the next refresh uses it.
+   - No API key can replace this: OpenAI answers that endpoint with HTTP 403 "must be made with a session key" for
+     secret, project, service-account and Admin keys alike.
+   - No session in any profile reports a missing credential. When every token is expired or rejected, the error says
+     the OpenAI Platform session expired.
+   - `auto` and `api` never read browser storage. Select this source with `codexbar usage --provider openai --source
+     web` or `"source": "web"` in the config.
 
 ## Setup
 

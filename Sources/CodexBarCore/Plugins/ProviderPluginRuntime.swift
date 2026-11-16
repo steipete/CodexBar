@@ -8,6 +8,7 @@ import FoundationNetworking
 
 public final class ProviderPluginRuntime: @unchecked Sendable {
     public typealias CookieInvalidator = @Sendable (String) -> Void
+    public typealias LocalStorageResolver = @Sendable (String, String) async throws -> [ProviderPluginLocalStorageEntry]
     public typealias CookieSessionResolver = @Sendable (String, Bool) async throws -> ProviderPluginCookieSession?
     public typealias CookieSessionValidator = @Sendable (String, String) throws -> Void
     public typealias CookieSessionInvalidator = @Sendable (String, String) -> Void
@@ -175,7 +176,8 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
         cookieSessionInvalidator: CookieSessionInvalidator? = nil,
         cookieSessionValidator: CookieSessionValidator? = nil,
         cookieResolver: CookieResolver? = nil,
-        instanceCookieResolver: InstanceCookieResolver? = nil) async throws -> UsageSnapshot
+        instanceCookieResolver: InstanceCookieResolver? = nil,
+        localStorageResolver: LocalStorageResolver? = nil) async throws -> UsageSnapshot
     {
         try await self.fetchResult(
             settings: settings,
@@ -189,7 +191,8 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
             cookieSessionInvalidator: cookieSessionInvalidator,
             cookieSessionValidator: cookieSessionValidator,
             cookieResolver: cookieResolver,
-            instanceCookieResolver: instanceCookieResolver).usage
+            instanceCookieResolver: instanceCookieResolver,
+            localStorageResolver: localStorageResolver).usage
     }
 
     public func fetchResult(
@@ -204,7 +207,8 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
         cookieSessionInvalidator: CookieSessionInvalidator? = nil,
         cookieSessionValidator: CookieSessionValidator? = nil,
         cookieResolver: CookieResolver? = nil,
-        instanceCookieResolver: InstanceCookieResolver? = nil) async throws -> ProviderPluginResult
+        instanceCookieResolver: InstanceCookieResolver? = nil,
+        localStorageResolver: LocalStorageResolver? = nil) async throws -> ProviderPluginResult
     {
         let sanitizedSettings = settings.mapValues {
             $0.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -229,6 +233,8 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
             instanceResolver: instanceCookieResolver)
         contextOptions.cookieSessionInvalidator = cookieSessionInvalidator
         contextOptions.cookieSessionValidator = cookieSessionValidator
+        // Browser storage is read only for an explicit web source, never for auto.
+        contextOptions.localStorageResolver = sourceMode == .web ? localStorageResolver : nil
         if self.manifest.usesCookieJar {
             let jar = ProviderPluginCookieJar(headerEcho: self.manifest.cookiePolicy?.headerEcho)
             let resolver = contextOptions.cookieSessionResolver
@@ -429,6 +435,7 @@ private struct ProviderPluginHTTPRequestCallbacks: @unchecked Sendable {
 final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked Sendable {
     private typealias HTTPBlock = @convention(block) (String, JSValue, String, Bool, JSValue, JSValue) -> Void
     private typealias CookieBlock = @convention(block) (String, Bool, JSValue, JSValue) -> Void
+    private typealias LocalStorageBlock = @convention(block) (String, String, JSValue, JSValue) -> Void
 
     let manifest: ProviderPluginManifest
 
@@ -797,6 +804,9 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
             redactionValues: redactionValues)
         host.setObject(cookieSession, forKeyedSubscript: "cookieSession" as NSString)
 
+        let localStorage = self.makeLocalStorageBlock(contextOptions: contextOptions, redactionValues: redactionValues)
+        host.setObject(localStorage, forKeyedSubscript: "localStorage" as NSString)
+
         self.installMemoryCache(on: host)
 
         let log: @convention(block) (String) -> Void = { [manifest] message in
@@ -946,6 +956,35 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
                         error: error,
                         message: message,
                         transportErrors: redactionValues.transportErrors)
+                }
+            }
+        }
+    }
+
+    private func makeLocalStorageBlock(
+        contextOptions: ProviderPluginContextOptions,
+        redactionValues: ProviderPluginRedactionValues) -> LocalStorageBlock
+    {
+        { [weak self] origin, key, resolve, reject in
+            guard let self else { return }
+            let worker = self
+            let resolveBox = ProviderPluginJSValueBox(resolve)
+            let rejectBox = ProviderPluginJSValueBox(reject)
+            Task.detached {
+                do {
+                    let payload = try await contextOptions.readLocalStorage(
+                        manifest: worker.manifest,
+                        origin: origin,
+                        key: key,
+                        redactionValues: redactionValues)
+                    worker.queue.async {
+                        _ = resolveBox.value.call(withArguments: [payload])
+                    }
+                } catch {
+                    let failure = ProviderPluginError.secretAccess(redactionValues.redact(error.localizedDescription))
+                    worker.queue.async {
+                        worker.reject(rejectBox, error: failure)
+                    }
                 }
             }
         }

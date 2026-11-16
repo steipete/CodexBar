@@ -218,9 +218,13 @@ defineProvider({
   URL requires fresh approval; links add no HTTP, cookie, or script authority and never fall back to another provider.
 - `settings`: up to 32 setting definitions. Keys contain 1–64 ASCII letters, digits, or underscores and start with a
   letter. Each entry has `key`, `title`, optional `subtitle`, and `type: "plain" | "secure"` (default `secure`).
-- `capabilities` (optional): `"browser-cookies"`, `"http-status"`, and `"persistent-storage"`. With `"http-status"`, the plugin observes
-  non-2xx responses itself instead of the host failing the request.
+- `capabilities` (optional): `"browser-cookies"`, `"browser-local-storage"`, `"http-status"`, and
+  `"persistent-storage"`. With `"http-status"`, the plugin observes non-2xx responses itself instead of the host
+  failing the request.
 - `cookieDomains`: required with `browser-cookies`; a non-empty list of normalized DNS host names.
+- `localStorage`: required with `browser-local-storage` and bundled-only. One to four grants, each
+  `{ origin: "https://example.com", keys: ["key"] }` with a normalized HTTPS origin and one to eight exact key
+  names. Undeclared origins and keys are denied by the host, and user-installed plugins cannot declare the capability.
 - `fetchUsage(ctx)`: function returning a snapshot or fetch result envelope, or a promise for one.
 
 Authentication forms:
@@ -338,6 +342,12 @@ so portable third-party plugins must use the host helpers below instead of ECMA-
   ID makes late rejections safe. Continuing the iterator visits the next candidate; a successful fetch can return
   immediately. User plugins follow the same lazy traversal and should use this iterator to recover from expired
   sessions in earlier browsers. `cookieHeader` remains available for providers needing only one header.
+- `await ctx.browser.localStorage(origin, key)` returns `[{id, label, value}]`, one entry per Chromium profile that
+  holds the key, in the shared default browser order. It needs the bundled `browser-local-storage` capability and a
+  matching `localStorage` grant, runs only on macOS in a `web` source, and is denied when the cookie source is off or
+  manual. It reads Chromium's unencrypted local-storage files, so it never touches the Keychain, and Safari and
+  Firefox expose nothing. Values are secret-equivalent and redacted. The host reads and stores nothing else: it never
+  refreshes, caches, or writes what the script receives.
 - `ctx.html.metaContent(html, name)` returns the first matching quoted meta value or `null`.
 - `ctx.html.matchFirst(html, regexSource, flags?)` returns the first capture/full match or `null`.
 - `ctx.log(...values)` writes to the instance-scoped plugin log. Known secrets and cookie values are redacted.

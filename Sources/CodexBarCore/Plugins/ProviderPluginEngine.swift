@@ -33,6 +33,7 @@ struct ProviderPluginContextOptions: Sendable {
     var cookieSource: ProviderCookieSource = .auto
     var cookieInvalidator: ProviderPluginRuntime.CookieInvalidator?
     var cookieSessionResolver: ProviderPluginRuntime.CookieSessionResolver?
+    var localStorageResolver: ProviderPluginRuntime.LocalStorageResolver?
     var cookieSessionInvalidator: ProviderPluginRuntime.CookieSessionInvalidator?
     var cookieJar: ProviderPluginCookieJar?
     var cookieSessionValidator: ProviderPluginRuntime.CookieSessionValidator?

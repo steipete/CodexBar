@@ -60,12 +60,24 @@ public enum OpenAIAPIProviderDescriptor {
                 showsRequestHistory: false,
                 chartCalendar: CostUsageBucketTimeZone.calendar(identifier: "UTC")),
             presentation: ProviderUsagePresentation(
+                // Browser-session credit grants carry a balance. Key-based sources keep the spend label.
+                rateWindowLabeler: { metadata, snapshot, _ in
+                    ProviderRateWindowLabels(
+                        primary: snapshot.providerCost?.balance != nil ? "API credit" : metadata.sessionLabel,
+                        secondary: metadata.weeklyLabel,
+                        tertiary: metadata.opusLabel ?? "",
+                        showsTertiary: metadata.supportsOpus)
+                },
                 costPresenter: { snapshot in
+                    if snapshot.providerCost?.balance != nil {
+                        return ProviderCostPresentation(showsGenericFallback: false, menuCardStyle: .prepaidCredits)
+                    }
                     let style: ProviderCostMenuCardStyle = (snapshot.providerCost?.limit ?? 1) <= 0
                         ? .apiSpend
                         : .generic
                     return ProviderCostPresentation(menuCardStyle: style)
                 },
+                menuBarBalanceUsesPrepaidCost: true,
                 menuCard: ProviderMenuCardPresentation(
                     usageNotesResolver: { context in
                         context.snapshot?.openAIAPIUsage.map(ProviderUsageNotesResolution.openAIAPI) ?? .unhandled
@@ -78,6 +90,8 @@ public enum OpenAIAPIProviderDescriptor {
                         }
                         return snapshot == nil ? tokenSnapshot : nil
                     }),
+                menu: ProviderMenuDescriptorPresentation(
+                    primaryDescriptionIsDetail: { $0.providerCost?.balance != nil }),
                 optionalDetails: ProviderOptionalDetailsPresentation(
                     costSummaryTitles: ["Usage summary"])),
             fetchPlan: self.fetchPlan(),
@@ -110,9 +124,30 @@ public enum OpenAIAPIProviderDescriptor {
     }
 
     private static func fetchPlan() -> ProviderFetchPlan {
-        ProviderFetchPlan(sourceModes: [.auto, .api], pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
-            [Self.scriptStrategy()]
+        // Browser-session credits are opt-in and macOS only. Auto keeps the configured credentials and never reads
+        // browser storage. Other platforms keep the original source modes, so CLI source checks are unchanged.
+        #if os(macOS)
+        let sourceModes: Set<ProviderSourceMode> = [.auto, .api, .web]
+        #else
+        let sourceModes: Set<ProviderSourceMode> = [.auto, .api]
+        #endif
+        return ProviderFetchPlan(sourceModes: sourceModes, pipeline: ProviderFetchPipeline(resolveStrategies: {
+            $0.sourceMode == .web ? [Self.platformStrategy()] : [Self.scriptStrategy()]
         }))
+    }
+
+    static func platformStrategy(transport: any ProviderHTTPTransport = ProviderHTTPClient
+        .shared) -> ScriptFetchStrategy
+    {
+        ScriptFetchStrategy(
+            id: "openai.platform",
+            provider: .openai,
+            bundledPlugin: "openai-platform",
+            sourceLabel: "web",
+            kind: .web,
+            transport: transport,
+            resolveValues: { _ in .init() },
+            isEnabled: { _ in true })
     }
 
     static func scriptStrategy(transport: any ProviderHTTPTransport = ProviderHTTPClient

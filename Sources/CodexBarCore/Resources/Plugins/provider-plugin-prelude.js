@@ -147,6 +147,12 @@
     cookieHeader(domain) {
       return new Promise((resolve, reject) => host.cookieHeader(String(domain), false, resolve, reject));
     },
+    async localStorage(origin, key) {
+      const payload = await new Promise((resolve, reject) =>
+        host.localStorage(String(origin), String(key), resolve, reject),
+      );
+      return JSON.parse(payload).map((entry) => Object.freeze(entry));
+    },
   });
 
   ctx.html = Object.freeze({

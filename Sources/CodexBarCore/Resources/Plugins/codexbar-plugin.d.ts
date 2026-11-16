@@ -275,6 +275,12 @@ interface CodexBarPluginContext {
     rejectCookie(domain: string, session?: CodexBarCookieSession): void;
     sessions(domain: string, options?: { cachedOnly?: boolean }): AsyncIterable<CodexBarCookieSession>;
     cookieHeader(domain: string): Promise<string>;
+    /**
+     * Raw value of a declared local-storage key, one entry per Chromium profile that holds it, in the shared
+     * default browser order. Requires the bundled `browser-local-storage` capability and a matching
+     * `localStorage` grant. macOS only, and denied when the cookie source is off or manual.
+     */
+    localStorage(origin: string, key: string): Promise<Array<{ id: string; label: string; value: string }>>;
   };
   readonly html: {
     metaContent(html: string, name: string): string | null;
@@ -334,8 +340,10 @@ interface CodexBarProviderDefinition {
   auth?: CodexBarAuth;
   settings: CodexBarSetting[];
   /** Grants declared cookie access, HTTP status handling, or bounded non-secret persistent state. */
-  capabilities?: Array<"browser-cookies" | "http-status" | "persistent-storage">;
+  capabilities?: Array<"browser-cookies" | "browser-local-storage" | "http-status" | "persistent-storage">;
   cookieDomains?: string[];
+  /** Bundled-only origin and key allowlist for `browser-local-storage`; required with that capability. */
+  localStorage?: Array<{ origin: string; keys: string[] }>;
   snapshotPolicy?: { percent: "clamp" | "preserve-overage" };
   /** Bundled-only, host-owned per-profile cookie selection without persistent session caching. */
   cookiePolicy?: {

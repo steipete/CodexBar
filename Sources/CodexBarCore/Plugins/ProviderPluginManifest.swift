@@ -66,6 +66,7 @@ public enum ProviderPluginEndpoint: Equatable, Hashable, Sendable {
 
 public enum ProviderPluginCapability: String, Hashable, Sendable {
     case browserCookies = "browser-cookies"
+    case browserLocalStorage = "browser-local-storage"
     case httpStatus = "http-status"
     case persistentStorage = "persistent-storage"
 }
@@ -94,6 +95,8 @@ public struct ProviderPluginManifest: Sendable {
     public let settings: [ProviderPluginSetting]
     public let capabilities: Set<ProviderPluginCapability>
     public let cookieDomains: Set<String>
+    /// Declared `origin -> keys` allowlist for the bundled `browser-local-storage` capability.
+    public let localStorageKeys: [String: Set<String>]
     let dashboardLink: ProviderPluginDashboardLink?
     public let percentPolicy: ProviderPluginPercentPolicy
     public let cookiePolicy: ProviderPluginCookiePolicy?
@@ -107,6 +110,13 @@ public struct ProviderPluginManifest: Sendable {
             throw ProviderPluginError.secretAccess("cookie domain is not declared")
         }
         return domain
+    }
+
+    func localStorageKey(origin rawOrigin: String, key: String) throws -> (origin: String, key: String) {
+        let origin = try ProviderPluginOrigin.normalizedOrigin(rawOrigin)
+        guard self.capabilities.contains(.browserLocalStorage), self.localStorageKeys[origin]?.contains(key) == true
+        else { throw ProviderPluginError.secretAccess("local storage key is not declared") }
+        return (origin, key)
     }
 
     func openRouterManagementAuthSecret(method: String, url: URL) throws -> String {
@@ -326,6 +336,10 @@ public struct ProviderPluginManifest: Sendable {
                 "the browser-cookies capability requires at least one declared cookie domain")
         }
         self.cookieDomains = cookieDomains
+        self.localStorageKeys = try Self.parseLocalStorage(
+            definition.property("localStorage"),
+            enabled: capabilities.contains(.browserLocalStorage),
+            bundled: !allowsDynamicID && id.firstPartyProvider != nil)
         if let snapshot = definition.property("snapshotPolicy"), !snapshot.isUndefined {
             guard snapshot.isObject, !snapshot.isArray, try Set(snapshot.propertyNames()) == ["percent"],
                   let value = snapshot.property("percent"), value.isString,
@@ -354,6 +368,56 @@ public struct ProviderPluginManifest: Sendable {
         {
             throw ProviderPluginError.invalidManifest("cookie headerEcho may not replace manifest auth")
         }
+    }
+
+    private static func parseLocalStorage(
+        _ value: (any ProviderPluginValue)?,
+        enabled: Bool,
+        bundled: Bool) throws -> [String: Set<String>]
+    {
+        let declared = value.map { !$0.isUndefined && !$0.isNull } ?? false
+        guard enabled else {
+            guard !declared else {
+                throw ProviderPluginError
+                    .invalidManifest("'localStorage' requires the browser-local-storage capability")
+            }
+            return [:]
+        }
+        guard bundled else {
+            throw ProviderPluginError.invalidManifest("browser-local-storage is available only to bundled providers")
+        }
+        guard let value, value.isArray else {
+            throw ProviderPluginError.invalidManifest("'localStorage' must be an array of origin and key grants")
+        }
+        let count = Int(value.property("length")?.int32Value() ?? 0)
+        guard (1...4).contains(count) else {
+            throw ProviderPluginError.invalidManifest("'localStorage' must declare one to four origins")
+        }
+        var grants: [String: Set<String>] = [:]
+        for index in 0..<count {
+            guard let grant = value.element(at: index), grant.isObject,
+                  try Set(grant.propertyNames()) == ["origin", "keys"],
+                  let keys = grant.property("keys"), keys.isArray
+            else {
+                throw ProviderPluginError.invalidManifest("local storage grant at index \(index) is invalid")
+            }
+            let origin = try ProviderPluginOrigin.normalizedOrigin(self.requiredString(grant, property: "origin"))
+            let keyCount = Int(keys.property("length")?.int32Value() ?? 0)
+            guard (1...8).contains(keyCount), grants[origin] == nil else {
+                throw ProviderPluginError.invalidManifest("local storage grant for '\(origin)' is invalid")
+            }
+            var names: Set<String> = []
+            for keyIndex in 0..<keyCount {
+                guard let key = keys.element(at: keyIndex), key.isString,
+                      !key.stringValue().isEmpty, key.stringValue().utf8.count <= 128
+                else {
+                    throw ProviderPluginError.invalidManifest("local storage key at index \(keyIndex) is invalid")
+                }
+                names.insert(key.stringValue())
+            }
+            grants[origin] = names
+        }
+        return grants
     }
 
     private static func requiredString(_ object: any ProviderPluginValue, property: String) throws -> String {

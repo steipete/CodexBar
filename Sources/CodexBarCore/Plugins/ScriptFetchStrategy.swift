@@ -143,7 +143,11 @@ public final class ScriptFetchStrategy: ProviderFetchStrategy, @unchecked Sendab
             policy: runtime.manifest.cookiePolicy,
             settingsOverride: self.cookieSettings?(context))
         let result = try await runtime.fetchResult(
-            cookies: cookies, settings: values.settings, secrets: values.secrets, sourceMode: context.sourceMode)
+            cookies: cookies,
+            settings: values.settings,
+            secrets: values.secrets,
+            sourceMode: context.sourceMode,
+            localStorageResolver: ProviderPluginLocalStorage.resolver(browserDetection: context.browserDetection))
         try Task.checkCancellation()
         if runtime.manifest.cookiePolicy?.cache == .nonpersistent {
             CookieHeaderCache.markNonpersistentRefreshValidated(provider: self.provider)

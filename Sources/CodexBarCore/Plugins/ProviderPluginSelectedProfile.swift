@@ -158,7 +158,8 @@ extension ProviderPluginRuntime {
         settings: [String: String] = [:],
         secrets: [String: String] = [:],
         now: Date = Date(),
-        sourceMode: ProviderSourceMode = .web) async throws
+        sourceMode: ProviderSourceMode = .web,
+        localStorageResolver: LocalStorageResolver? = nil) async throws
         -> ProviderPluginResult
     {
         let result: Result<ProviderPluginResult, Error>
@@ -173,7 +174,8 @@ extension ProviderPluginRuntime {
                 cookieSessionResolver: { try cookies.nextSession(domain: $0, cachedOnly: $1) },
                 cookieSessionInvalidator: { cookies.rejectCookie(domain: $0, id: $1) },
                 cookieSessionValidator: { try cookies.acceptCookie(domain: $0, id: $1) },
-                cookieResolver: { _, domain in try cookies.cookieHeader(domain: domain) }))
+                cookieResolver: { _, domain in try cookies.cookieHeader(domain: domain) },
+                localStorageResolver: localStorageResolver))
         } catch {
             result = .failure(error)
         }
