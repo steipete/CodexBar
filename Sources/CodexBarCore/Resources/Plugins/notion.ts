@@ -225,7 +225,9 @@ defineProvider({
                 "Notion AI usage allowance is not tracked for this workspace. Allowances apply to Business and Enterprise workspaces.",
               );
             if (!primary && !secondary)
-              throw ctx.fail.apiFailure("Notion AI personal allowances are not resolved for this workspace.");
+              throw ctx.fail.apiFailure(
+                "Notion did not provide usable personal AI allowances for this workspace. Check AI usage for the selected workspace in Notion, then refresh CodexBar again.",
+              );
           }
           if (usage.window == null && usage.billingPeriodWindow == null)
             return invalid("getCreditRateLimitStatus returned no usage windows");

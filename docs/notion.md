@@ -29,6 +29,13 @@ either way.
 > **Unsupported integration:** CodexBar uses Notion's internal, cookie-authenticated `/api/v3` endpoints.
 > These endpoints are not a supported public API and may change or break without notice.
 
+![Notion credit pools with optional usage on and off](screenshots/notion-three-credit-pools.png)
+
+This fixture-based preview replays the captured allowance response through the bundled plugin and the
+production card renderer, with synthetic account/workspace data and a workspace balance of 300.
+Both personal pools remain visible when optional usage is off; only the workspace balance disappears.
+No live account access is used to render this preview.
+
 ## Requirements
 
 The usage allowance only exists on **Business** and **Enterprise** workspaces. Free, Plus, and personal

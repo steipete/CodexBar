@@ -2333,8 +2333,8 @@ struct ProviderArchitectureGatekeeperTests {
                 "devpass@2",
                 "opencodego@2",
                 "mistral@3",
-                "kiro@9",
-                "cursor@17",
+                "kiro@13",
+                "cursor@21",
             ],
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(

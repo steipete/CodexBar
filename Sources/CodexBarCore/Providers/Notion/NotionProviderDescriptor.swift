@@ -107,7 +107,8 @@ public enum NotionProviderDescriptor {
                 },
                 semanticWindowResolver: { snapshot in
                     if Self.isPersonalAllowance(snapshot.primary) || Self.isPersonalAllowance(snapshot.secondary) {
-                        return ProviderSemanticWindows(session: nil, weekly: snapshot.primary ?? snapshot.secondary)
+                        // The card supplies its semantic weekly pace to the secondary (Select) metric.
+                        return ProviderSemanticWindows(session: nil, weekly: snapshot.secondary ?? snapshot.primary)
                     }
                     let rolling = snapshot.primary.flatMap { window -> RateWindow? in
                         guard !window.isSyntheticPlaceholder,

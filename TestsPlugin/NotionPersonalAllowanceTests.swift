@@ -191,7 +191,9 @@ struct NotionPersonalAllowanceTests {
                     _ = try await Self.fetch(engine, usage: usage)
                     Issue.record("Unresolved pools cannot create measured zero windows")
                 } catch {
-                    #expect(error.localizedDescription.contains("not resolved"))
+                    #expect(error.localizedDescription.contains("did not provide usable personal AI allowances"))
+                    #expect(error.localizedDescription.contains("Check AI usage for the selected workspace in Notion"))
+                    #expect(error.localizedDescription.contains("refresh CodexBar again"))
                 }
             }
         }
