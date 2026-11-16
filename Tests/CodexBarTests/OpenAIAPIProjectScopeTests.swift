@@ -58,6 +58,44 @@ struct OpenAIAPIProjectScopeTests {
         #expect(env[OpenAIAPISettingsReader.projectIDEnvironmentKey] == nil)
     }
 
+    @Test(arguments: [ProviderSourceMode.auto, .api, .web])
+    func `CLI web source and explicit account selection retain distinct authority`(
+        source: ProviderSourceMode) throws
+    {
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "Work",
+            token: "sk-admin-work",
+            addedAt: 0,
+            lastUsed: nil)
+        let config = CodexBarConfig(providers: [ProviderConfig(
+            id: .openai,
+            source: source,
+            tokenAccounts: ProviderTokenAccountData(version: 1, accounts: [account], activeIndex: 0))])
+        for selection in [
+            TokenAccountCLISelection(label: nil, index: nil, allAccounts: false),
+            TokenAccountCLISelection(label: "Work", index: nil, allAccounts: false),
+            TokenAccountCLISelection(label: nil, index: 0, allAccounts: false),
+            TokenAccountCLISelection(label: nil, index: nil, allAccounts: true),
+        ] {
+            let context = try TokenAccountCLIContext(
+                selection: selection,
+                config: config,
+                verbose: false,
+                baseEnvironment: [:])
+            let configured = try context.resolvedAccounts(for: .openai)
+            #expect(configured.isEmpty == (source == .web && !selection.usesOverride))
+            let web = try context.resolvedAccounts(for: .openai, sourceMode: .web)
+            let selected = web.first
+            #expect(selected?.id == (selection.usesOverride ? account.id : nil))
+            #expect(context.effectiveSourceMode(base: .web, provider: .openai, account: selected)
+                == (selection.usesOverride ? .api : .web))
+            let env = context.environment(base: [:], provider: .openai, account: selected)
+            #expect(env[OpenAIAPISettingsReader.adminAPIKeyEnvironmentKey]
+                == (selection.usesOverride ? account.token : nil))
+        }
+    }
+
     @MainActor
     private static func makeSettingsStore(suite: String) -> SettingsStore {
         let defaults = UserDefaults(suiteName: suite)!

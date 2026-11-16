@@ -64,10 +64,26 @@ defineProvider({
     const send = async (request) => {
       const response = await request;
       if (response.status === 401) return null;
-      if (response.status === 429) throw ctx.fail.rateLimited(`OpenAI Platform error: HTTP ${response.status}`);
-      if (response.status >= 500) throw ctx.fail.providerUnavailable(`OpenAI Platform error: HTTP ${response.status}`);
-      if (response.status < 200 || response.status >= 300)
-        throw ctx.fail.apiFailure(`OpenAI Platform error: HTTP ${response.status}`);
+      if (response.status === 403) {
+        throw ctx.fail.apiFailure(
+          `OpenAI Platform denied access (HTTP ${response.status}). Sign in at platform.openai.com again or verify your account has billing access, then refresh.`,
+        );
+      }
+      if (response.status === 429) {
+        throw ctx.fail.rateLimited(
+          `OpenAI Platform rate-limited this request (HTTP ${response.status}). Wait a moment and refresh.`,
+        );
+      }
+      if (response.status >= 500) {
+        throw ctx.fail.providerUnavailable(
+          `OpenAI Platform is temporarily unavailable (HTTP ${response.status}). Wait a moment and refresh.`,
+        );
+      }
+      if (response.status < 200 || response.status >= 300) {
+        throw ctx.fail.apiFailure(
+          `OpenAI Platform request failed (HTTP ${response.status}). Check platform.openai.com in your browser and refresh.`,
+        );
+      }
       return response.bodyText;
     };
     const parse = (text, what) => {

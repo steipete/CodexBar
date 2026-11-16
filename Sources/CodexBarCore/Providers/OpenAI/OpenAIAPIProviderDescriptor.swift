@@ -17,7 +17,12 @@ public enum OpenAIAPIProviderDescriptor {
             injection: .environment(key: OpenAIAPISettingsReader.adminAPIKeyEnvironmentKey),
             requiresManualCookieSource: false,
             cookieName: nil,
-            environmentKeysToScrub: [OpenAIAPISettingsReader.projectIDEnvironmentKey]))
+            environmentKeysToScrub: [OpenAIAPISettingsReader.projectIDEnvironmentKey],
+            passiveSourceModes: [.web]),
+        // A selected API token account is the credential authority: route it
+        // to the API script instead of fetching an ambient browser session
+        // that would be mislabeled as that account.
+        selectedAccountSourceModeResolver: { base, account, _ in account == nil ? base : .api })
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(

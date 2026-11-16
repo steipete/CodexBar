@@ -166,16 +166,40 @@ struct OpenAIPlatformPluginTests {
     func `rate limits and server errors are classified without trying other profiles`(
         engine: ProviderPluginEngineKind) async throws
     {
-        for status in [429, 503, 418] {
+        let expectations: [(Int, String)] = [
+            (403, "Sign in at platform.openai.com again"),
+            (429, "Wait a moment and refresh"),
+            (503, "temporarily unavailable"),
+            (418, "Check platform.openai.com in your browser"),
+        ]
+        for (status, expectedDetail) in expectations {
             let token = Self.jwt(expiresIn: 3600)
             let fixture = Fixture(loginStatus: [token: status])
-            await #expect(throws: (any Error).self) {
+            let error = await #expect(throws: (any Error).self) {
                 try await Self.fetch(engine, fixture: fixture, entries: [
                     Self.entry("a", token: token), Self.entry("b", token: Self.jwt(expiresIn: 7200)),
                 ])
             }
+            let message = String(describing: error)
+            #expect(message.contains("HTTP \(status)"))
+            #expect(message.contains(expectedDetail))
             #expect(await fixture.requests == ["POST /v1/dashboard/onboarding/login"])
         }
+    }
+
+    @Test
+    func `selected token account routes to api instead of ambient web`() {
+        let credentials = OpenAIAPIProviderDescriptor.descriptor.credentials
+        #expect(credentials?.tokenAccountSupport?.passiveSourceModes == [.web])
+        #expect(credentials?.selectedAccountSourceMode(base: .web, account: nil, config: nil) == .web)
+        #expect(credentials?.selectedAccountSourceMode(base: .auto, account: nil, config: nil) == .auto)
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "Work",
+            token: "sk-admin-work",
+            addedAt: 1_700_000_000,
+            lastUsed: nil)
+        #expect(credentials?.selectedAccountSourceMode(base: .web, account: account, config: nil) == .api)
     }
 
     @Test(arguments: [ProviderSourceMode.auto, .api, .web])
