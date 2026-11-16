@@ -75,7 +75,7 @@ extension AntigravityLocalReader {
         let limits: Limits
         let cancellation: () throws -> Void
         let clock: () -> TimeInterval
-        let started: TimeInterval
+        private(set) var started: TimeInterval
         var statistics = Statistics()
         /// Schema text inspected in the current database. The schema allowance applies to each database,
         /// like the entry and column limits, so a long history of small schemas never adds up to it.
@@ -95,6 +95,10 @@ extension AntigravityLocalReader {
         func check() throws {
             try self.cancellation()
             guard self.clock() - self.started < self.limits.duration else { throw ScanFailure.exhausted }
+        }
+
+        func excludeElapsedSince(_ start: TimeInterval) {
+            self.started += max(0, self.clock() - start)
         }
 
         func chargeBytes(_ count: Int) throws {
@@ -129,7 +133,12 @@ extension AntigravityLocalReader {
         var isComplete = true
     }
 
-    static func discover(roots: [URL], extension suffix: String, budget: Budget) throws -> Discovery {
+    static func discover(
+        roots: [URL],
+        extension suffix: String,
+        budget: Budget,
+        enforceDatabaseCap: Bool = true) throws -> Discovery
+    {
         var result = Discovery()
         for root in roots {
             try budget.check()
@@ -166,7 +175,7 @@ extension AntigravityLocalReader {
                     throw ScanFailure.exhausted
                 }
                 guard !url.lastPathComponent.hasPrefix("."), url.pathExtension.lowercased() == suffix else { continue }
-                guard result.paths.count < budget.limits.databases else {
+                guard !enforceDatabaseCap || result.paths.count < budget.limits.databases else {
                     throw ScanFailure.exhausted
                 }
                 do {

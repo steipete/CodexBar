@@ -16,7 +16,10 @@ extension UsageStore {
     }
 
     func scheduleTokenRefresh() {
-        guard self.tokenRefreshSequenceTask == nil, !self.hasForcedRefreshEnrichmentInFlight else { return }
+        guard !self.isClearingCostUsageCache,
+              self.tokenRefreshSequenceTask == nil,
+              !self.hasForcedRefreshEnrichmentInFlight
+        else { return }
         if self.startPendingForcedTokenRefreshIfPossible() {
             return
         }
@@ -39,6 +42,7 @@ extension UsageStore {
     /// less than `forcedTokenRefreshMinInterval` ago already delivered fresh cost data, so the
     /// request is dropped instead of queued.
     func scheduleForcedTokenRefresh(now: Date = Date()) {
+        guard !self.isClearingCostUsageCache else { return }
         if let last = self.lastForcedTokenRefreshStartedAt,
            now.timeIntervalSince(last) >= 0,
            now.timeIntervalSince(last) < Self.forcedTokenRefreshMinInterval
@@ -61,6 +65,7 @@ extension UsageStore {
     }
 
     func refreshTokenUsageNow(for provider: UsageProvider, force: Bool) async {
+        guard !self.isClearingCostUsageCache else { return }
         if force,
            self.tokenRefreshSequenceTask != nil,
            let activeProvider = self.tokenRefreshSequenceProvider,
@@ -68,7 +73,19 @@ extension UsageStore {
         {
             // A scoped user refresh can run beside unrelated scheduled work. The scheduled
             // sequence still owns the shared slot, so provider refreshes cannot introduce a third pass.
-            await self.refreshTokenUsage(provider, force: true)
+            let token = UUID()
+            let task = Task { @MainActor [weak self] in
+                guard let self else { return }
+                defer {
+                    if self.scopedTokenRefreshTasks[provider.instanceID]?.token == token {
+                        self.scopedTokenRefreshTasks.removeValue(forKey: provider.instanceID)
+                    }
+                }
+                await self.refreshTokenUsage(provider, force: true)
+            }
+            self.scopedTokenRefreshTasks[provider.instanceID]?.task.cancel()
+            self.scopedTokenRefreshTasks[provider.instanceID] = (token: token, task: task)
+            await self.awaitTokenRefreshSequence(task)
             self.scheduleMemoryPressureRelief()
             return
         }
@@ -83,11 +100,12 @@ extension UsageStore {
         force: Bool,
         scope: TokenRefreshSequenceScope) async -> Task<Void, Never>?
     {
+        guard !self.isClearingCostUsageCache else { return nil }
         if force {
             while let existing = self.tokenRefreshSequenceTask {
                 existing.cancel()
                 await existing.value
-                guard !Task.isCancelled else { return nil }
+                guard !Task.isCancelled, !self.isClearingCostUsageCache else { return nil }
             }
         } else if let existing = self.tokenRefreshSequenceTask {
             return existing
@@ -154,7 +172,7 @@ extension UsageStore {
     /// on start instead.
     @discardableResult
     private func startPendingForcedTokenRefreshIfPossible() -> Bool {
-        guard self.pendingForcedTokenRefresh, !Task.isCancelled else { return false }
+        guard self.pendingForcedTokenRefresh, !Task.isCancelled, !self.isClearingCostUsageCache else { return false }
         self.pendingForcedTokenRefresh = false
         guard !self.hasForcedRefreshEnrichmentInFlight else { return false }
         // The forced all-provider pass rescans every enabled lane, so stale-retry lanes fold into it.
@@ -164,6 +182,7 @@ extension UsageStore {
     }
 
     func requestTokenRefreshAfterStaleCompletion(for provider: UsageProvider) {
+        guard !self.isClearingCostUsageCache else { return }
         self.tokenRefreshRetryProviders.insert(provider.instanceID)
         Task { @MainActor [weak self] in
             await Task.yield()
@@ -174,6 +193,7 @@ extension UsageStore {
     @discardableResult
     private func startPendingTokenRefreshRetryIfPossible() -> Bool {
         guard !self.tokenRefreshRetryProviders.isEmpty,
+              !self.isClearingCostUsageCache,
               self.tokenRefreshSequenceTask == nil,
               self.settings.costUsageEnabled || self.settings.codexLocalSessionCostLedgerEnabled
         else {

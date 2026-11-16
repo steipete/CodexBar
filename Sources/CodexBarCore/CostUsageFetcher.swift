@@ -600,14 +600,14 @@ public struct CostUsageFetcher: Sendable {
                     retryUnknown: retryUnknownPricing,
                     inBackground: refreshPricingInBackground || !forceRefresh),
                 client: modelsDevClient)
-            if let local = try await self.loadPricedAntigravityLocalSnapshot(
+            if let local = try await self.loadPricedAntigravityLocalResult(
                 context: .init(environment: environment, additionalProfileHomes: antigravityAdditionalProfileHomes),
                 now: now,
                 historyDays: clampedHistoryDays,
                 calendar: fallbackCalendar,
                 pricing: pricing)
             {
-                return CostUsageTokenResult(snapshot: local)
+                return local
             }
             if let remoteError {
                 throw remoteError
@@ -1219,14 +1219,14 @@ public struct CostUsageFetcher: Sendable {
         }
     }
 
-    private static func loadPricedAntigravityLocalSnapshot(
+    private static func loadPricedAntigravityLocalResult(
         context: AntigravityLocalReader.Context,
         now: Date,
         historyDays: Int,
         calendar: Calendar,
-        pricing: AntigravityPricingOptions) async throws -> CostUsageTokenSnapshot?
+        pricing: AntigravityPricingOptions) async throws -> CostUsageTokenResult?
     {
-        let snapshot = try await self.loadAntigravityLocalSnapshot(
+        let initial = try await self.loadAntigravityLocalResult(
             context: context,
             now: now,
             historyDays: historyDays,
@@ -1235,13 +1235,13 @@ public struct CostUsageFetcher: Sendable {
         // Provider-specific by design: Antigravity returns before the shared scan path, so it is the
         // one provider that has to request its own unknown-model pricing refresh; without it a
         // newly released model stays unpriced forever.
-        guard let snapshot, !snapshot.daily.isEmpty,
+        guard let initial, !initial.snapshot.daily.isEmpty,
               pricing.refresh.isAllowed,
               pricing.refresh.retryUnknown
-        else { return snapshot }
+        else { return initial }
         guard let request = Self.unknownPricingRefreshRequest(
             provider: .antigravity,
-            daily: CostUsageDailyReport(data: snapshot.daily, summary: nil),
+            daily: CostUsageDailyReport(data: initial.snapshot.daily, summary: nil),
             now: now,
             cacheRoot: pricing.cacheRoot,
             client: pricing.client)
@@ -1252,19 +1252,39 @@ public struct CostUsageFetcher: Sendable {
                 now: now,
                 cacheRoot: pricing.cacheRoot,
                 client: pricing.client)
-            return snapshot
+            return initial
         }
         guard await Self.refreshUnknownPricingIfNeeded(request, inBackground: pricing.refresh.inBackground)
-        else { return snapshot }
-        let repriced = try await self.loadAntigravityLocalSnapshot(
+        else { return initial }
+        let repriced = try await self.loadAntigravityLocalResult(
             context: context,
             now: now,
             historyDays: historyDays,
             calendar: calendar,
             pricingCacheRoot: pricing.cacheRoot)
         // A pricing download must not replace a complete scan with history truncated in the meantime.
-        guard let repriced, snapshot.historyScanIsPartial || !repriced.historyScanIsPartial else { return snapshot }
-        return repriced
+        guard let repriced,
+              initial.snapshot.historyScanIsPartial || !repriced.snapshot.historyScanIsPartial
+        else { return initial }
+        let combinedDuration: TimeInterval? = switch (
+            initial.antigravityScanActiveDuration,
+            repriced.antigravityScanActiveDuration)
+        {
+        case let (first?, second?):
+            first + second
+        case let (first?, nil):
+            first
+        case let (nil, second?):
+            second
+        case (nil, nil):
+            nil
+        }
+        return CostUsageTokenResult(
+            snapshot: repriced.snapshot,
+            accounting: repriced.accounting,
+            antigravityCatchUpPending: repriced.antigravityCatchUpPending,
+            antigravityCatchUpMadeProgress: repriced.antigravityCatchUpMadeProgress,
+            antigravityScanActiveDuration: combinedDuration)
     }
 
     private struct UnknownPricingRefreshRequest: Sendable {
@@ -1763,34 +1783,58 @@ public struct CostUsageFetcher: Sendable {
             costProvenance: .listPriceEstimate)
     }
 
-    private static func loadAntigravityLocalSnapshot(
+    private static func loadAntigravityLocalResult(
         context: AntigravityLocalReader.Context,
         now: Date,
         historyDays: Int,
         calendar: Calendar = .current,
-        pricingCacheRoot: URL?) async throws -> CostUsageTokenSnapshot?
+        pricingCacheRoot: URL?) async throws -> CostUsageTokenResult?
     {
-        let reportResult = try await CostUsageScanExecutor.run { checkCancellation in
+        let scanCacheRoot = AntigravityLocalScanCacheIO.resolvedCacheRoot(
+            explicitCacheRoot: pricingCacheRoot,
+            environment: context.environment)
+        let timedReport = try await CostUsageScanExecutor.runTimed { checkCancellation in
             try AntigravityLocalReader.makeDailyReportWithStatus(
                 context: context,
                 calendar: calendar,
                 estimateCost: true,
                 pricingCacheRoot: pricingCacheRoot,
+                scanCacheRoot: scanCacheRoot,
+                now: now,
                 checkCancellation: checkCancellation)
         }
+        let reportResult = timedReport.value
         // A scan can be partial when an old Antigravity database has a missing WAL sidecar or the
         // safety budget stops early. Those rows are a trustworthy subset, so keep them as a marked
         // lower bound. Contradicted evidence is different in kind — the surviving rows may be
         // wrong, not merely incomplete — and stays unpublishable. The same applies to an
         // immutable SQLite read whose underlying files changed during the read.
+        if !reportResult.isAvailable,
+           reportResult.report.data.isEmpty,
+           !reportResult.evidenceIsContradicted,
+           !reportResult.evidenceIsUnstable,
+           reportResult.catchUpPending,
+           reportResult.batchMadeProgress
+        {
+            return CostUsageTokenResult(
+                snapshot: Self.unavailableLocalSnapshot(
+                    now: now,
+                    historyDays: historyDays,
+                    calendar: calendar),
+                antigravityCatchUpPending: true,
+                antigravityCatchUpMadeProgress: true,
+                antigravityScanActiveDuration: timedReport.activeDuration)
+        }
         guard reportResult.isAvailable
             || (!reportResult.report.data.isEmpty && !reportResult.evidenceIsContradicted
                 && !reportResult.evidenceIsUnstable)
         else { return nil }
         let report = reportResult.report
         guard !report.data.isEmpty || reportResult.isComplete else { return nil }
+        let snapshotUpdatedAt = reportResult.retainedUpdatedAt ?? now
         let daily = Self.windowedDailyReport(report, historyDays: historyDays, now: now, calendar: calendar)
-        return Self.tokenSnapshot(
+        let historyCoverageIsEstablished = reportResult.isComplete || reportResult.retainedUpdatedAt != nil
+        let snapshot = Self.tokenSnapshot(
             from: daily,
             now: now,
             historyDays: historyDays,
@@ -1799,9 +1843,15 @@ public struct CostUsageFetcher: Sendable {
             // A truncated scan must not claim the window: absence of a row is not proof of a zero
             // day. `historyScanIsPartial` keeps the rows it did read usable as a marked lower
             // bound, which is what separates "read part of it" from "could not read it".
-            historyCoverageIsEstablished: reportResult.isComplete,
+            historyCoverageIsEstablished: historyCoverageIsEstablished,
             historyScanIsPartial: !reportResult.isComplete,
-            costProvenance: daily.summary?.totalCostUSD == nil ? .unknown : .listPriceEstimate)
+            costProvenance: daily.summary?.totalCostUSD == nil ? .unknown : .listPriceEstimate,
+            updatedAt: snapshotUpdatedAt)
+        return CostUsageTokenResult(
+            snapshot: snapshot,
+            antigravityCatchUpPending: reportResult.catchUpPending,
+            antigravityCatchUpMadeProgress: reportResult.batchMadeProgress,
+            antigravityScanActiveDuration: timedReport.activeDuration)
     }
 
     private static func windowedDailyReport(

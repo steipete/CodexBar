@@ -18,19 +18,31 @@ enum AntigravityLocalReader {
         /// An immutable SQLite read observed the database change beneath it, so its rows cannot
         /// be established as one valid snapshot and must not be published.
         let evidenceIsUnstable: Bool
+        /// True when a bounded incremental batch stopped early and remaining conversations can make progress.
+        let catchUpPending: Bool
+        /// True when at least one uncached/changed database completed cleanly in this batch.
+        let batchMadeProgress: Bool
+        /// Original capture time when returning a previously complete snapshot during catch-up.
+        let retainedUpdatedAt: Date?
 
         init(
             report: CostUsageDailyReport,
             coverage: Coverage,
             statistics: Statistics,
             evidenceIsContradicted: Bool = false,
-            evidenceIsUnstable: Bool = false)
+            evidenceIsUnstable: Bool = false,
+            catchUpPending: Bool = false,
+            batchMadeProgress: Bool = false,
+            retainedUpdatedAt: Date? = nil)
         {
             self.report = report
             self.coverage = coverage
             self.statistics = statistics
             self.evidenceIsContradicted = evidenceIsContradicted
             self.evidenceIsUnstable = evidenceIsUnstable
+            self.catchUpPending = catchUpPending
+            self.batchMadeProgress = batchMadeProgress
+            self.retainedUpdatedAt = retainedUpdatedAt
         }
 
         var isComplete: Bool {
@@ -81,7 +93,7 @@ enum AntigravityLocalReader {
         let response: String
     }
 
-    private struct LabelIdentity: Hashable {
+    struct LabelIdentity: Hashable {
         let session: String
         let label: String
     }
@@ -148,12 +160,25 @@ enum AntigravityLocalReader {
         calendar: Calendar = .current,
         estimateCost: Bool = false,
         pricingCacheRoot: URL? = nil,
+        scanCacheRoot: URL? = nil,
+        now: Date = Date(),
         limits: Limits = Limits(),
         clock: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
         checkCancellation: @escaping () throws -> Void = {}) throws -> DailyReportResult
     {
         let budget = Budget(limits: limits, clock: clock, cancellation: checkCancellation)
         let pricing = estimateCost ? CostUsagePricing.ClaudeResolver(now: Date(), cacheRoot: pricingCacheRoot) : nil
+        if let scanCacheRoot {
+            return try self.makeIncrementalDailyReportWithStatus(
+                IncrementalScanRequest(
+                    context: context,
+                    calendar: calendar,
+                    estimateCost: estimateCost,
+                    pricing: pricing,
+                    scanCacheRoot: scanCacheRoot,
+                    now: now,
+                    budget: budget))
+        }
         do {
             let databases = try self.discover(roots: context.databaseRoots, extension: "db", budget: budget)
             // A discovery error is not absence and never authorizes a cache replacement.
@@ -184,7 +209,7 @@ enum AntigravityLocalReader {
         }
     }
 
-    private static func aggregate(
+    static func aggregate(
         _ source: SourceResult,
         discoveryComplete: Bool,
         calendar: Calendar,
@@ -276,7 +301,7 @@ enum AntigravityLocalReader {
             evidenceIsUnstable: source.evidenceIsUnstable)
     }
 
-    private static func entry(
+    static func entry(
         _ event: Event,
         models: [LabelIdentity: String],
         conflicts: Set<LabelIdentity>,
@@ -329,7 +354,7 @@ enum AntigravityLocalReader {
     /// Prices the exact recorded model ID first so an explicitly catalogued variant keeps its own
     /// price, then falls back to the base model of a known routing variant, then to an explicit
     /// catalog entry for a model that no first-party vendor prices.
-    private static func costUSD(
+    static func costUSD(
         pricing: CostUsagePricing.ClaudeResolver,
         model: String,
         date: Date,
@@ -352,7 +377,7 @@ enum AntigravityLocalReader {
         return resolve(entry.modelID, providerID: entry.providerID)
     }
 
-    private static func checkedMergeEntry(
+    static func checkedMergeEntry(
         _ existing: CostUsageDailyReport.Entry,
         _ new: CostUsageDailyReport.Entry) -> CostUsageDailyReport.Entry?
     {

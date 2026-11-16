@@ -23,9 +23,35 @@ package enum PiSnapshotAccounting: Sendable, Equatable {
 package struct CostUsageTokenResult: Sendable, Equatable {
     package let snapshot: CostUsageTokenSnapshot
     package let accounting: PiSnapshotAccounting?
+    package let antigravityCatchUpPending: Bool
+    package let antigravityCatchUpMadeProgress: Bool
+    package let antigravityScanActiveDuration: TimeInterval?
 
-    package init(snapshot: CostUsageTokenSnapshot, accounting: PiSnapshotAccounting? = nil) {
+    package init(
+        snapshot: CostUsageTokenSnapshot,
+        accounting: PiSnapshotAccounting? = nil,
+        antigravityCatchUpPending: Bool = false,
+        antigravityCatchUpMadeProgress: Bool = false)
+    {
+        self.init(
+            snapshot: snapshot,
+            accounting: accounting,
+            antigravityCatchUpPending: antigravityCatchUpPending,
+            antigravityCatchUpMadeProgress: antigravityCatchUpMadeProgress,
+            antigravityScanActiveDuration: nil)
+    }
+
+    package init(
+        snapshot: CostUsageTokenSnapshot,
+        accounting: PiSnapshotAccounting? = nil,
+        antigravityCatchUpPending: Bool = false,
+        antigravityCatchUpMadeProgress: Bool = false,
+        antigravityScanActiveDuration: TimeInterval?)
+    {
         self.snapshot = snapshot
         self.accounting = accounting
+        self.antigravityCatchUpPending = antigravityCatchUpPending
+        self.antigravityCatchUpMadeProgress = antigravityCatchUpMadeProgress
+        self.antigravityScanActiveDuration = antigravityScanActiveDuration
     }
 }

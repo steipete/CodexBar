@@ -79,7 +79,7 @@ extension AntigravityLocalReader {
         }
     }
 
-    private static func readDatabase(_ url: URL, budget: Budget) throws -> SourceResult {
+    static func readDatabase(_ url: URL, budget: Budget) throws -> SourceResult {
         let attempt = try self.readDatabase(url, budget: budget, mode: .readOnly)
         // Some SQLite builds (Apple's system library among them) decline read-only access to a WAL database
         // whose -wal and -shm sidecars are absent, because a read-only connection may not create them.

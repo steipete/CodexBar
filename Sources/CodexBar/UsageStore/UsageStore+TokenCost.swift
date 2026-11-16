@@ -783,9 +783,18 @@ extension UsageStore {
             .appendingPathComponent("cost-usage", isDirectory: true)
     }
 
+    var isClearingCostUsageCache: Bool {
+        self.costUsageCacheClearDepth > 0
+    }
+
     func clearCostUsageCache(
         fileManagerFactory: @escaping @Sendable () -> FileManager = { .default }) async -> String?
     {
+        self.costUsageCacheClearDepth &+= 1
+        defer { self.costUsageCacheClearDepth -= 1 }
+
+        await self.drainCostUsageWritersBeforeCacheClear()
+
         let errorMessage: String? = await Task.detached(priority: .utility) {
             let fileManager = fileManagerFactory()
             do {
@@ -801,10 +810,13 @@ extension UsageStore {
 
         guard errorMessage == nil else { return errorMessage }
 
+        self.cancelAntigravityCostCatchUp()
         self.clearTokenSnapshots()
         self.tokenErrors.removeAll()
         self.lastTokenFetchAt.removeAll()
         self.lastTokenFetchScope.removeAll()
+        self.lastSpendDashboardTokenFetchAt.removeAll()
+        self.lastSpendDashboardTokenFetchScope.removeAll()
         self.tokenFetchFailureCooldowns.removeAll()
         self.tokenFailureGates[.codex]?.reset()
         self.tokenFailureGates[.claude]?.reset()
@@ -836,6 +848,43 @@ extension UsageStore {
         let costScopeSignature: String
         let publicationScope: TokenRefreshPublicationScope
         let startedAt: Date
+        let costUsageClearGeneration: UInt64
+
+        init(
+            provider: UsageProvider,
+            now: Date,
+            historyDays: Int,
+            costScopeSignature: String,
+            publicationScope: TokenRefreshPublicationScope,
+            startedAt: Date)
+        {
+            self.init(
+                provider: provider,
+                now: now,
+                historyDays: historyDays,
+                costScopeSignature: costScopeSignature,
+                publicationScope: publicationScope,
+                startedAt: startedAt,
+                costUsageClearGeneration: 0)
+        }
+
+        init(
+            provider: UsageProvider,
+            now: Date,
+            historyDays: Int,
+            costScopeSignature: String,
+            publicationScope: TokenRefreshPublicationScope,
+            startedAt: Date,
+            costUsageClearGeneration: UInt64)
+        {
+            self.provider = provider
+            self.now = now
+            self.historyDays = historyDays
+            self.costScopeSignature = costScopeSignature
+            self.publicationScope = publicationScope
+            self.startedAt = startedAt
+            self.costUsageClearGeneration = costUsageClearGeneration
+        }
     }
 
     func commitTokenUsageResult(
@@ -844,6 +893,13 @@ extension UsageStore {
     {
         let snapshot = result.snapshot
         try Task.checkCancellation()
+        guard context.costUsageClearGeneration == self.costUsageCacheClearGeneration else {
+            self.clearTokenFetchMetadataIfMatching(
+                provider: context.provider,
+                attemptedAt: context.now,
+                costScopeSignature: context.costScopeSignature)
+            return
+        }
         let completedCostScopeSignature = self.completedTokenCostScopeSignature(
             provider: context.provider,
             historyDays: context.historyDays,
@@ -869,6 +925,19 @@ extension UsageStore {
         }
         self.lastTokenFetchScope[context.provider.instanceID] = completedCostScopeSignature
         self.startCodexCostCatchUpIfNeeded(afterRefreshing: context.provider)
+        self.handleAntigravityCostCatchUp(
+            afterRefreshing: context.provider,
+            result: result,
+            scopeSignature: completedCostScopeSignature)
+
+        if result.antigravityCatchUpPending,
+           result.antigravityCatchUpMadeProgress,
+           snapshot.daily.isEmpty,
+           snapshot.meteredCostUSD == nil,
+           !self.retainsEstablishedTokenHistory(snapshot, for: context.provider)
+        {
+            return
+        }
 
         if try self.regularTokenSnapshotIsConfirmedEmpty(snapshot, for: context.provider) {
             self.publishConfirmedEmptyTokenSnapshot(for: context.provider, accounting: result.accounting)
@@ -893,6 +962,7 @@ extension UsageStore {
             self.cancelCodexCostCatchUp()
             self.cancelSpendDashboardCodexCostCatchUp()
         }
+        self.cancelAntigravityCostCatchUpIfNeeded(for: provider)
         self.clearTokenSnapshot(for: provider)
         self.clearSpendDashboardTokenSnapshot(for: provider)
         self.tokenErrors[provider.instanceID] = nil

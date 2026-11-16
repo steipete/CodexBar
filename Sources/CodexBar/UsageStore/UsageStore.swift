@@ -379,6 +379,16 @@ final class UsageStore {
     @ObservationIgnored var pendingForcedTokenRefresh = false
     @ObservationIgnored var lastForcedTokenRefreshStartedAt: Date?
     @ObservationIgnored var tokenRefreshRetryProviders: Set<ProviderInstanceID> = []
+    @ObservationIgnored var scopedTokenRefreshTasks: [ProviderInstanceID: (token: UUID, task: Task<Void, Never>)] =
+        [:]
+    @ObservationIgnored var spendDashboardTokenRefreshTasks: [ProviderInstanceID: Task<CostUsageTokenResult, Error>] =
+        [:]
+    @ObservationIgnored var costUsageCacheClearGeneration: UInt64 = 0
+    @ObservationIgnored var costUsageCacheClearDepth = 0
+    @ObservationIgnored var tokenRefreshDrainWaiters: [ProviderInstanceID: [CheckedContinuation<Void, Never>]] = [:]
+    @ObservationIgnored var spendDashboardTokenRefreshDrainWaiters:
+        [ProviderInstanceID: [CheckedContinuation<Void, Never>]] = [:]
+
     @ObservationIgnored var codexCostCatchUpTask: Task<Void, Never>?
     @ObservationIgnored var codexCostCatchUpToken: UUID?
     @ObservationIgnored var codexCostCatchUpScopeSignature: String?
@@ -386,6 +396,14 @@ final class UsageStore {
     @ObservationIgnored var codexCostCatchUpStopRequested = false
     @ObservationIgnored var codexCostCatchUpPassIsRunning = false
     @ObservationIgnored var codexCostCatchUpRestartRequested = false
+    @ObservationIgnored var antigravityCostCatchUpTask: Task<Void, Never>?
+    @ObservationIgnored var antigravityCostCatchUpTasksInFlight: [UUID: Task<Void, Never>] = [:]
+    @ObservationIgnored var antigravityCostCatchUpRun: (token: UUID, scopeSignature: String)?
+    @ObservationIgnored var _test_antigravityCostCatchUpSleepOverride: (@MainActor (TimeInterval) async throws -> Void)?
+    @ObservationIgnored var _test_antigravityCostCatchUpResourceStateOverride: (@MainActor () -> (
+        powerSource: CodexCostCatchUpPowerSource,
+        lowPowerModeEnabled: Bool,
+        thermalState: ProcessInfo.ThermalState))?
     @ObservationIgnored var spendDashboardCodexCostCatchUpTask: Task<Void, Never>?
     @ObservationIgnored var spendDashboardCodexCostCatchUpContext: SpendDashboardCodexCostCatchUpContext?
     @ObservationIgnored var spendDashboardCodexCostCatchUpMode: CodexCostCatchUpMode = .automatic
@@ -971,7 +989,10 @@ final class UsageStore {
         self.codexWeeklyResetFollowUps.values.forEach { $0.task.cancel() }
         self.timerTask?.cancel()
         self.tokenRefreshSequenceTask?.cancel()
+        self.scopedTokenRefreshTasks.values.forEach { $0.task.cancel() }
+        self.spendDashboardTokenRefreshTasks.values.forEach { $0.cancel() }
         self.codexCostCatchUpTask?.cancel()
+        self.antigravityCostCatchUpTask?.cancel()
         self.forcedRefreshEnrichmentTask?.cancel()
         self.pendingForcedRefreshEnrichmentTask?.cancel()
         self.requiredRefreshTask?.cancel()
@@ -1430,6 +1451,7 @@ extension UsageStore {
     }
 
     func refreshTokenUsage(_ provider: UsageProvider, force: Bool) async {
+        guard !self.isClearingCostUsageCache else { return }
         guard ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.supportsTokenCost else {
             self.resetTokenUsageState(for: provider)
             return
@@ -1462,6 +1484,7 @@ extension UsageStore {
         }
 
         guard await self.refreshPiHistoryScope(for: provider),
+              !self.isClearingCostUsageCache,
               !self.tokenRefreshInFlight.contains(provider.instanceID) else { return }
 
         let now = Date()
@@ -1491,7 +1514,11 @@ extension UsageStore {
         self.lastTokenFetchAt[provider.instanceID] = now
         self.lastTokenFetchScope[provider.instanceID] = costScopeSignature
         self.tokenRefreshInFlight.insert(provider.instanceID)
-        defer { self.tokenRefreshInFlight.remove(provider.instanceID) }
+        defer {
+            self.tokenRefreshInFlight.remove(provider.instanceID)
+            let waiters = self.tokenRefreshDrainWaiters.removeValue(forKey: provider.instanceID) ?? []
+            waiters.forEach { $0.resume() }
+        }
 
         if let override = self._test_tokenUsageRefreshOverride {
             await override(provider, force)
@@ -1503,6 +1530,7 @@ extension UsageStore {
         }
 
         let startedAt = Date()
+        let costUsageClearGeneration = self.costUsageCacheClearGeneration
         self.tokenCostLogger
             .debug("cost usage start provider=\(provider.rawValue) force=\(force)")
         let refreshContext = TokenUsageRefreshContext(
@@ -1511,7 +1539,8 @@ extension UsageStore {
             historyDays: historyDays,
             costScopeSignature: costScopeSignature,
             publicationScope: publicationScope,
-            startedAt: startedAt)
+            startedAt: startedAt,
+            costUsageClearGeneration: costUsageClearGeneration)
 
         do {
             // Codex cost usage scans the explicit token-cost scope: selected managed account by
@@ -1526,6 +1555,13 @@ extension UsageStore {
                 includePiSessions: self.shouldIncludePiSessionsInTokenSnapshot(for: provider))
             try self.commitTokenUsageResult(result, context: refreshContext)
         } catch {
+            guard self.costUsageCacheClearGeneration == costUsageClearGeneration else {
+                self.clearTokenFetchMetadataIfMatching(
+                    provider: provider,
+                    attemptedAt: now,
+                    costScopeSignature: costScopeSignature)
+                return
+            }
             guard self.tokenRefreshPublicationDisposition(
                 provider: provider,
                 scope: publicationScope) == .current

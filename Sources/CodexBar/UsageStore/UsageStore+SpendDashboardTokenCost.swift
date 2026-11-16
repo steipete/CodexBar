@@ -68,6 +68,7 @@ extension UsageStore {
     }
 
     func refreshSpendDashboardTokenUsageNow(for provider: UsageProvider, force: Bool) async {
+        guard !self.isClearingCostUsageCache else { return }
         guard Self.usesSpendDashboardIndependentTokenSnapshot(provider) else { return }
         guard self.settings.isCostUsageEffectivelyEnabled(for: provider) else {
             self.clearSpendDashboardTokenSnapshot(for: provider)
@@ -85,7 +86,7 @@ extension UsageStore {
             return
         }
 
-        guard await self.refreshPiHistoryScope(for: provider) else { return }
+        guard await self.refreshPiHistoryScope(for: provider), !self.isClearingCostUsageCache else { return }
 
         guard !self.spendDashboardTokenRefreshInFlight.contains(provider.instanceID) else { return }
 
@@ -102,12 +103,12 @@ extension UsageStore {
         let publicationRevision = self.providerPublicationRevision(for: provider)
         let providerConfigRevision = self.settings.providerConfigRevision(for: provider)
         let trigger = self.spendDashboardTokenRefreshTrigger(for: provider)
+        let costUsageClearGeneration = self.costUsageCacheClearGeneration
         self.lastSpendDashboardTokenFetchAt[provider.instanceID] = now
         self.lastSpendDashboardTokenFetchScope[provider.instanceID] = costScopeSignature
         self.spendDashboardTokenRefreshInFlight.insert(provider.instanceID)
         defer {
-            self.spendDashboardTokenRefreshInFlight.remove(provider.instanceID)
-            self.synchronizeSharedSpendDashboardAfterTokenPublication(for: provider)
+            self.finishSpendDashboardTokenRefresh(for: provider, clearGeneration: costUsageClearGeneration)
         }
 
         if let override = self._test_tokenUsageRefreshOverride {
@@ -120,17 +121,23 @@ extension UsageStore {
         }
 
         do {
-            let result = try await self.loadTokenUsageSnapshot(
+            let scanRequest = SpendDashboardTokenScanRequest(
                 provider: provider,
                 force: force,
                 now: now,
                 codexHomePath: costScope.codexHomePath,
                 historyDays: historyDays,
-                cursorCookieHeaderOverride: cursorCookieHeaderOverride,
-                includePiSessions: self.shouldIncludePiSessionsInTokenSnapshot(for: provider),
-                reportContext: .spendDashboard)
+                cursorCookieHeaderOverride: cursorCookieHeaderOverride)
+            let result = try await self.loadSpendDashboardTokenSnapshotResult(scanRequest)
             let snapshot = result.snapshot
             try Task.checkCancellation()
+            guard self.costUsageCacheClearGeneration == costUsageClearGeneration else {
+                self.clearSpendDashboardTokenFetchMetadataIfMatching(
+                    provider: provider,
+                    attemptedAt: now,
+                    costScopeSignature: costScopeSignature)
+                return
+            }
             guard self.tokenAccountingScopeIsCurrent(result.accounting, for: provider) else {
                 throw TokenSnapshotError.historyUnavailable
             }
@@ -181,6 +188,13 @@ extension UsageStore {
             }
             self.publishSpendDashboardTokenSnapshot(snapshot, for: provider, accounting: result.accounting)
         } catch {
+            guard self.costUsageCacheClearGeneration == costUsageClearGeneration else {
+                self.clearSpendDashboardTokenFetchMetadataIfMatching(
+                    provider: provider,
+                    attemptedAt: now,
+                    costScopeSignature: costScopeSignature)
+                return
+            }
             guard self.spendDashboardTokenRefreshPublicationIsCurrent(
                 provider: provider,
                 publicationRevision: publicationRevision,
@@ -262,6 +276,48 @@ extension UsageStore {
             return currentSignature == resolvedSignature
         }
         return currentSignature == costScopeSignature
+    }
+
+    private struct SpendDashboardTokenScanRequest {
+        let provider: UsageProvider
+        let force: Bool
+        let now: Date
+        let codexHomePath: String?
+        let historyDays: Int
+        let cursorCookieHeaderOverride: String?
+    }
+
+    private func finishSpendDashboardTokenRefresh(for provider: UsageProvider, clearGeneration: UInt64) {
+        self.spendDashboardTokenRefreshInFlight.remove(provider.instanceID)
+        let waiters = self.spendDashboardTokenRefreshDrainWaiters.removeValue(forKey: provider.instanceID) ?? []
+        waiters.forEach { $0.resume() }
+        if self.costUsageCacheClearGeneration == clearGeneration {
+            self.synchronizeSharedSpendDashboardAfterTokenPublication(for: provider)
+        }
+    }
+
+    private func loadSpendDashboardTokenSnapshotResult(
+        _ request: SpendDashboardTokenScanRequest) async throws -> CostUsageTokenResult
+    {
+        let includePiSessions = self.shouldIncludePiSessionsInTokenSnapshot(for: request.provider)
+        let scanTask = Task { @MainActor in
+            try await self.loadTokenUsageSnapshot(
+                provider: request.provider,
+                force: request.force,
+                now: request.now,
+                codexHomePath: request.codexHomePath,
+                historyDays: request.historyDays,
+                cursorCookieHeaderOverride: request.cursorCookieHeaderOverride,
+                includePiSessions: includePiSessions,
+                reportContext: .spendDashboard)
+        }
+        self.spendDashboardTokenRefreshTasks[request.provider.instanceID] = scanTask
+        defer { self.spendDashboardTokenRefreshTasks.removeValue(forKey: request.provider.instanceID) }
+        return try await withTaskCancellationHandler {
+            try await scanTask.value
+        } onCancel: {
+            scanTask.cancel()
+        }
     }
 
     private func clearSpendDashboardTokenFetchMetadataIfMatching(

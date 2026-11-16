@@ -29,6 +29,24 @@ struct AntigravityProtoReader {
         var botID: String? {
             self.botIdentifier.value
         }
+
+        init(
+            newInput: Int = 0,
+            cacheRead: Int = 0,
+            output: Int = 0,
+            reasoning: Int = 0,
+            responseID: String? = nil,
+            modelID: Int? = nil,
+            botID: String? = nil)
+        {
+            self.newInput = newInput
+            self.cacheRead = cacheRead
+            self.output = output
+            self.reasoning = reasoning
+            self.responseID = responseID
+            self.modelID = modelID
+            self.botIdentifier = AuxiliaryIdentifier(value: botID)
+        }
     }
 
     struct ParsedTurn: Equatable, Sendable {
@@ -87,6 +105,10 @@ struct AntigravityProtoReader {
     fileprivate struct AuxiliaryIdentifier: Equatable, Sendable {
         private(set) var value: String?
         private var isValid = true
+
+        init(value: String? = nil) {
+            self.value = value
+        }
 
         static func == (lhs: Self, rhs: Self) -> Bool {
             // Parser invalidity is not part of finalized event identity or copied-row deduplication.
