@@ -51,7 +51,7 @@ enum CLIServeRoute: Equatable {
     case providerIcon(name: String)
     case health
     case accounts(id: String?)
-    case usage(provider: String?)
+    case usage(provider: String?, allAccounts: Bool = false)
     case cost(provider: String?)
     case dashboardSnapshot(provider: String?, detail: String?)
 }
@@ -86,7 +86,9 @@ enum CLIServeRouter {
             guard !id.isEmpty, !id.contains("/") else { throw CLIServeRouteError.notFound }
             return .accounts(id: id)
         case "/usage":
-            return .usage(provider: normalizedProvider)
+            return .usage(
+                provider: normalizedProvider,
+                allAccounts: Self.parseBooleanQueryFlag(queryItems["allAccounts"]))
         case "/cost":
             return .cost(provider: normalizedProvider)
         case "/dashboard/v1/snapshot":
@@ -97,6 +99,15 @@ enum CLIServeRouter {
         default:
             throw CLIServeRouteError.notFound
         }
+    }
+
+    private static func parseBooleanQueryFlag(_ rawValue: String?) -> Bool {
+        guard let trimmed = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              !trimmed.isEmpty
+        else {
+            return false
+        }
+        return trimmed == "true" || trimmed == "1" || trimmed == "yes"
     }
 }
 
@@ -893,7 +904,7 @@ extension CodexBarCLI {
             return Self.serveHealthResponse(version: runtime.healthVersion)
         case let .accounts(id):
             return Self.serveAccountsRoute(request, id: id, runtime: runtime)
-        case let .usage(provider):
+        case let .usage(provider, allAccounts):
             // On non-loopback binds every data route requires the bearer token,
             // checked before any cache access so unauthenticated requests can
             // neither warm nor read account data.
@@ -904,7 +915,9 @@ extension CodexBarCLI {
             let operationKey: String
             do {
                 snapshot = try Self.loadServeConfigSnapshot(configStore: runtime.configStore)
-                operationKey = try Self.serveOperationKey(kind: "usage", provider: provider)
+                operationKey = try Self.serveOperationKey(
+                    kind: allAccounts ? "usage-all-accounts" : "usage",
+                    provider: provider)
             } catch {
                 let status: CLIHTTPStatus = error is CLIServeArgumentError ? .badRequest : .internalServerError
                 return Self.addingNoStore(Self.serveError(status: status, message: error.localizedDescription))
@@ -928,6 +941,7 @@ extension CodexBarCLI {
                             providerTimeout: providerTimeout,
                             providerDeadline: providerDeadline,
                             providerOperations: runtime.providerOperations,
+                            includeAllAccounts: allAccounts,
                             forceRefresh: request.queryItems["refresh"] == "1"))
                 }))
         case let .cost(provider):
