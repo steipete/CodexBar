@@ -915,9 +915,8 @@ extension CodexBarCLI {
             let operationKey: String
             do {
                 snapshot = try Self.loadServeConfigSnapshot(configStore: runtime.configStore)
-                operationKey = try Self.serveOperationKey(
-                    kind: allAccounts ? "usage-all-accounts" : "usage",
-                    provider: provider)
+                operationKey = try Self.serveOperationKey(kind: "usage", provider: provider)
+                    + (allAccounts ? ":all-accounts" : "")
             } catch {
                 let status: CLIHTTPStatus = error is CLIServeArgumentError ? .badRequest : .internalServerError
                 return Self.addingNoStore(Self.serveError(status: status, message: error.localizedDescription))
