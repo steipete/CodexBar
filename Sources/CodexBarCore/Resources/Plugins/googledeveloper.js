@@ -164,7 +164,8 @@ defineProvider({
           dataConfidence: "exact",
         };
       }
-      if (signedIn) break;
+      if (unapplied) break;
+      if (signedIn) continue;
       // A session whose first account fails the page or the RPC is signed out.
       ctx.browser.rejectCookie(domain, session);
       rejected = true;

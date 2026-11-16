@@ -112,7 +112,7 @@ struct GoogleDeveloperPluginTests {
                 .contains("Check your Google Developer Program benefits") == true
         }
         #expect(await fixture.rejections == 0)
-        #expect(await fixture.sessions == 1)
+        #expect(await fixture.sessions == 2)
     }
 
     @Test(arguments: ["repeat", "no email", "cap"], BundledPluginTestSupport.engines)
@@ -252,6 +252,16 @@ struct GoogleDeveloperPluginTests {
         let usage = try await Self.fetch(engine, fixture: Fixture([[Self.applied]]), settings: ["MESSAGES": encoded])
         #expect(usage.primary?.resetDescription == "$87.50 di $100.00 rimanenti · Scade il 2027-11-07")
         #expect(usage.identity?.loginMethod == "Sessione del browser")
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `signed-in browser session without credit falls through to a later session with credit`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let noCredit = Account(benefits: Self.benefits(Self.otherBenefit))
+        let usage = try await Self.fetch(engine, fixture: Fixture([[noCredit], [Self.applied]]))
+        #expect(usage.providerCost?.balance == 87.5)
+        #expect(usage.identity?.accountEmail == Self.email)
     }
 
     private static func fetch(
