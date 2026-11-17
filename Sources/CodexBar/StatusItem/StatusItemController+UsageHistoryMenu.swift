@@ -74,12 +74,14 @@ extension StatusItemController {
     /// History and snapshot behind the Plan Usage submenu. When claude-swap rows own the Claude menu,
     /// the chart follows the presented account (the same one the Overview Claude card shows); ambient
     /// Claude history can point at an account that stopped refreshing once claude-swap took over.
+    /// A Fleet fallback card renders ahead of the swap rows, so it keeps the ambient source.
     func usageHistorySource(
         for provider: UsageProvider) -> (selection: PlanUtilizationHistorySelection, snapshot: UsageSnapshot?)
     {
         if let account = self.store.claudeSwapMenuDisplay(
             for: provider,
-            inspectedAccountID: self.claudeSwapInspectedAccountID)?.displayedAccount
+            inspectedAccountID: self.claudeSwapInspectedAccountID)?.displayedAccount,
+            self.fleetAccountProjection(for: provider).fallback == nil
         {
             return (self.store.claudeSwapPlanUtilizationHistorySelection(for: account), account.snapshot)
         }

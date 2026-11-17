@@ -536,7 +536,8 @@ The accepted multi-account design in
   provider's combined local costs and uses the ambient card when no adapter account is presented. Expanded
   **Show all accounts** rows keep their account-specific usage without borrowing those combined costs.
 - The **Plan Usage** submenu charts the same presented adapter account's recorded history, so it matches the card
-  rather than ambient Claude history. With no presented account it falls back to ambient Claude history.
+  rather than ambient Claude history. With no presented account, or while an iCloud Fleet card stands in for this
+  Mac's usage, it uses ambient Claude history.
 - Session forecasts use each account's own recorded usage. History keys hash the normalized email and organization
   UUID from the existing list response, so moving slots preserves history and the same email in different workspaces
   stays separate. Empty organization UUIDs identify personal accounts; an email change starts a new history.

@@ -500,20 +500,93 @@ struct StatusMenuHostedSubmenuRefreshTests {
         #expect(sessionPercents(ambientSeries) == [24])
     }
 
-    private static func claudeSwapAccounts(sessionUsed: [Int: Double]) -> [ProviderAccountUsageSnapshot] {
+    @Test
+    func `plan usage submenu keeps the ambient source when a fleet card owns the claude menu`() async throws {
+        let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer { StatusItemController.menuCardRenderingEnabled = previousMenuCardRendering }
+
+        let settings = Self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.multiAccountMenuLayout = .segmented
+        settings.iCloudSyncEnabled = true
+        settings.iCloudSyncSnapshotsEnabled = true
+        settings.iCloudSyncShowFleetAccounts = true
+        Self.enableOnlyClaude(settings)
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        store.planUtilizationHistoryLoaded = true
+        let ambientKey = "ambient-account"
+        store.planUtilizationHistory[.claude] = PlanUtilizationHistoryBuckets(
+            preferredAccountKey: ambientKey,
+            accounts: [ambientKey: [Self.makePlanHistory(usedPercent: 24)]])
+        // Saved swap history from earlier refreshes; the rows now have no usage (expired tokens, no last-good).
+        await store.recordClaudeSwapPlanUtilizationHistory(Self.claudeSwapAccounts(sessionUsed: [1: 35, 2: 50]))
+        let expiredAccounts = Self.claudeSwapAccounts(sessionUsed: [1: 35, 2: 50], usageStatus: .tokenExpired)
+        #expect(expiredAccounts.allSatisfy { $0.snapshot == nil && $0.historyAccountKey != nil })
+        store.claudeSwapAccountSnapshots = expiredAccounts
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+        let remoteAt = Date(timeIntervalSince1970: 1_800_000_000)
+        controller.cloudSyncState.fleetSnapshots["remote-claude"] = AccountSnapshotSyncPayload(
+            provider: .claude,
+            deviceID: "remote-device",
+            accountKey: "remote-account",
+            fetchedAt: remoteAt,
+            displayLabel: "remote@example.com",
+            usage: UsageSnapshot(
+                primary: RateWindow(usedPercent: 80, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                secondary: nil,
+                updatedAt: remoteAt))
+        #expect(controller.fleetAccountProjection(for: .claude).fallback != nil)
+
+        func sessionPercents(_ submenu: NSMenu) throws -> [Double]? {
+            let hosting = try #require(
+                submenu.items.last?.view as? NSHostingView<PlanUtilizationHistoryChartMenuView>)
+            return hosting.rootView._visibleSeriesForTesting
+                .first { $0.selection.name == .session }?.history.entries.map(\.usedPercent)
+        }
+
+        let submenu = try #require(controller.makeUsageHistorySubmenu(
+            provider: .claude,
+            width: StatusItemController.menuCardBaseWidth))
+        controller.menuWillOpen(submenu)
+        #expect(try sessionPercents(submenu) == [24])
+
+        // Once the Fleet card no longer owns the menu, the presented swap account's history returns.
+        controller.cloudSyncState.fleetSnapshots = [:]
+        controller.refreshHostedSubviewMenu(submenu)
+        #expect(try sessionPercents(submenu) == [35])
+    }
+
+    private static func claudeSwapAccounts(
+        sessionUsed: [Int: Double],
+        usageStatus: ClaudeSwapUsageStatus = .ok) -> [ProviderAccountUsageSnapshot]
+    {
         let fetchedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        let hasUsage = usageStatus == .ok
         let rows = sessionUsed.keys.sorted().map { number in
             ClaudeSwapAccountRow(
                 number: number,
                 email: "account\(number)@example.com",
                 organizationUuid: "",
                 isActive: number == 1,
-                usageStatus: .ok,
-                fiveHour: ClaudeSwapUsageWindow(
+                usageStatus: usageStatus,
+                fiveHour: hasUsage ? ClaudeSwapUsageWindow(
                     usedPercent: sessionUsed[number] ?? 0,
-                    resetsAt: fetchedAt.addingTimeInterval(3600)),
-                sevenDay: ClaudeSwapUsageWindow(usedPercent: 64, resetsAt: fetchedAt.addingTimeInterval(3 * 86400)),
-                usageFetchedAt: fetchedAt,
+                    resetsAt: fetchedAt.addingTimeInterval(3600)) : nil,
+                sevenDay: hasUsage
+                    ? ClaudeSwapUsageWindow(usedPercent: 64, resetsAt: fetchedAt.addingTimeInterval(3 * 86400))
+                    : nil,
+                usageFetchedAt: hasUsage ? fetchedAt : nil,
                 lastGoodUsage: nil)
         }
         return ClaudeSwapAccountProjection.accountSnapshots(
