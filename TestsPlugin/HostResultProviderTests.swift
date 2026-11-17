@@ -123,6 +123,7 @@ struct HostResultProviderTests {
             settings: ["OPENAI_ALLOW_BALANCE_FALLBACK": "1"], secrets: ["OPENAI_API_KEY": "fixture-key"], now: Self.now)
         #expect(result.sourceLabel == "billing-api" && result.usage.openAIAPIUsage == nil)
         #expect(result.usage.providerCost?.used == 25 && result.usage.primary?.usedPercent == 25)
+        #expect(result.usage.providerCost?.balance == 75)
         #expect(result.usage.identity?.loginMethod == "API balance: $75.00")
         #expect(result.usage.primary?.resetsAt == Date(timeIntervalSince1970: 1_800_000_000))
         #expect(result.usage.details.isEmpty)
