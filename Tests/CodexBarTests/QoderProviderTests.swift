@@ -1,4 +1,5 @@
 import CodexBarCore
+import Foundation
 import Testing
 @testable import CodexBar
 
@@ -12,6 +13,8 @@ struct QoderProviderTests {
         #expect(QoderWebSite.international.dashboardURL.absoluteString == "https://qoder.com/account/usage")
         #expect(QoderWebSite.china.dashboardURL.absoluteString == "https://qoder.com.cn/account/usage")
         #expect(descriptor.metadata.cliName == "qoder")
+        #expect(descriptor.metadata.sessionLabel == "Credits")
+        #expect(descriptor.metadata.weeklyLabel == "Add-on credits")
         #expect(descriptor.branding.iconResourceName == "ProviderIcon-qoder")
         #expect(descriptor.branding.iconStyle == .qoder)
         #expect(!descriptor.metadata.supportsCredits)
@@ -26,6 +29,56 @@ struct QoderProviderTests {
     @Test
     func `implementation is registered`() {
         #expect(ProviderCatalog.implementation(for: .qoder) != nil)
+    }
+
+    @Test
+    func `dynamic labels distinguish plan organization and aggregate credits`() {
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .qoder)
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let plan = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 100,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: "0 / 0 credits",
+                title: "Plan credits"),
+            secondary: RateWindow(
+                usedPercent: 24,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: "1,200 / 5,000 credits",
+                title: "Organization resource package"),
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .qoder,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: nil))
+        let planLabels = descriptor.presentation.rateWindowLabels(metadata: descriptor.metadata, snapshot: plan)
+        #expect(planLabels.primary == "Plan credits")
+        #expect(planLabels.secondary == "Organization resource package")
+
+        let legacy = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 68,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: "1,700 / 2,500 credits",
+                title: "Credits"),
+            secondary: nil,
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .qoder,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: nil))
+        let legacyLabels = descriptor.presentation.rateWindowLabels(metadata: descriptor.metadata, snapshot: legacy)
+        #expect(legacyLabels.primary == "Credits")
+    }
+
+    @Test
+    func `semantic weekly label stays neutral for credit pools`() {
+        #expect(PercentWindow.weekly.providerLabel(provider: .qoder) == "Credits")
     }
 
     @Test

@@ -34,6 +34,17 @@ CodexBar requests:
 - `GET https://qoder.com/api/v2/me/usages/big_model_credits`
 - `GET https://qoder.com.cn/api/v2/me/usages/big_model_credits`
 
+When the member response reports no merged member quota (the Teams case), CodexBar also requests:
+
+- `GET https://qoder.com/sash/api/v2/me/usage`
+- `GET https://qoder.com.cn/sash/api/v2/me/usage`
+
+The supplemental response carries the member-visible `orgResourcePackage` and, when present, `addOnQuota`, plus
+`expiresAt` / `refreshAt` for the plan refresh. The supplemental request is optional: 401, 403, 404, malformed, or
+unsupported responses fall back to the member summary without invalidating the cached cookie. The empty merged member quota gate is
+Phase 1 coverage for the captured Teams account; always fetching the supplemental response for non-empty plans is a
+follow-up.
+
 The selected site controls the `Origin` and `Referer` headers. Automatic mode imports Qoder cookies in the shared browser order
 and caches valid cookie headers. Invalid cached sessions are skipped so a fresh browser cookie can be retried.
 The bundled JavaScript provider performs HTTP requests and quota parsing on both QuickJS and JavaScriptCore. Browser
@@ -42,9 +53,12 @@ for the source label and usage-dashboard action.
 
 ## Display
 
-- Shows used credits, total credits, and usage percentage.
-- Merges `totalQuota` with `sharedQuota` when Qoder returns both.
-- Uses `nextResetAt` when the API includes a reset timestamp.
+- Shows the member credit window as `Plan credits`, or `Credits` when the legacy `totalQuota` + `sharedQuota` aggregate is used.
+- Shows the organization resource package and personal add-on credits as separate, distinctly named windows.
+- A zero-capacity plan is shown as exhausted rather than fully available.
+- Merges `totalQuota` with `sharedQuota` for the legacy member response.
+- Uses the supplemental `expiresAt` / `refreshAt` when available; otherwise uses `nextResetAt`.
+- Skips the optional supplemental request when the runtime deadline is too close, so a supplemental timeout cannot discard the member snapshot.
 - Token-cost history is not supported.
 
 ## CLI Usage
@@ -69,6 +83,11 @@ Log in to Qoder again. CodexBar clears invalid cached cookies and retries fresh 
 
 Open the matching Qoder usage page and confirm whether the account is on `qoder.com` or `qoder.com.cn`; manual cURL
 captures should come from the same site.
+
+### Teams resource package is missing
+
+Confirm the signed-in Teams account shows a resource package under **Settings -> Usage**. CodexBar requests the
+supplemental usage presentation only when the merged member quota is empty; if that request fails, it keeps the member summary.
 
 ## Related Files
 

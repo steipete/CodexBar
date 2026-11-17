@@ -9,6 +9,7 @@ public struct QoderUsageSnapshot: Sendable {
     public let unit: String?
     public let resetsAt: Date?
     public let updatedAt: Date
+    public let primaryTitle: String
 
     public init(
         usedCredits: Double,
@@ -17,7 +18,8 @@ public struct QoderUsageSnapshot: Sendable {
         usagePercentage: Double,
         unit: String?,
         resetsAt: Date? = nil,
-        updatedAt: Date = Date())
+        updatedAt: Date = Date(),
+        primaryTitle: String = "Plan credits")
     {
         self.usedCredits = usedCredits
         self.totalCredits = totalCredits
@@ -26,6 +28,7 @@ public struct QoderUsageSnapshot: Sendable {
         self.unit = unit
         self.resetsAt = resetsAt
         self.updatedAt = updatedAt
+        self.primaryTitle = primaryTitle
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
@@ -34,7 +37,8 @@ public struct QoderUsageSnapshot: Sendable {
             usedPercent: min(100, max(0, self.usagePercentage)),
             windowMinutes: nil,
             resetsAt: self.resetsAt,
-            resetDescription: creditSummary)
+            resetDescription: creditSummary,
+            title: self.primaryTitle)
 
         let identity = ProviderIdentitySnapshot(
             providerID: .qoder,

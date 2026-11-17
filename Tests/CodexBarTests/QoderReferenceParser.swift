@@ -14,9 +14,13 @@ enum QoderReferenceParser {
             throw QoderUsageError.parseFailed("missing totalQuota.quotaSummary")
         }
 
+        let shared = response.sharedQuota?.quotaSummary
         let merged = try Self.mergedQuota(
             base: summary,
-            shared: response.sharedQuota?.quotaSummary)
+            shared: shared)
+        let aggregate = shared.map {
+            $0.limitValue > 0 || $0.usedValue > 0 || ($0.remainingValue ?? 0) > 0
+        } ?? false
 
         return QoderUsageSnapshot(
             usedCredits: merged.usedCredits,
@@ -25,7 +29,8 @@ enum QoderReferenceParser {
             usagePercentage: merged.usagePercentage,
             unit: merged.unit,
             resetsAt: response.nextResetAt,
-            updatedAt: now)
+            updatedAt: now,
+            primaryTitle: aggregate ? "Credits" : "Plan credits")
     }
 
     private struct MergedQuota {

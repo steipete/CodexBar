@@ -162,6 +162,82 @@ struct QoderProviderBehaviorTests {
 
     @MainActor
     @Test
+    func `menu shows add-on credits detail and automatic selection prefers the remaining pool`() {
+        let suite = "QoderProviderBehaviorTests-add-on-menu"
+        let defaults = InMemoryUserDefaults()
+
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.usageBarsShowUsed = false
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let now = Date(timeIntervalSince1970: 1_719_206_400)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 100,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(86400),
+                resetDescription: "0 / 0 credits"),
+            secondary: RateWindow(
+                usedPercent: 100,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: "5,000 / 5,000 credits"),
+            tertiary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "qoder-add-on",
+                    title: "Add-on credits",
+                    window: RateWindow(
+                        usedPercent: 24,
+                        windowMinutes: nil,
+                        resetsAt: nil,
+                        resetDescription: "1,200 / 5,000 credits")),
+            ],
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .qoder,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: nil))
+        store._setSnapshotForTesting(snapshot, provider: .qoder)
+
+        let descriptor = MenuDescriptor.build(
+            provider: .qoder,
+            store: store,
+            settings: settings,
+            account: AccountInfo(email: nil, plan: nil),
+            updateReady: false,
+            includeContextualActions: false)
+
+        let textLines = descriptor.sections
+            .flatMap(\.entries)
+            .compactMap { entry -> String? in
+                guard case let .text(text, _) = entry else { return nil }
+                return text
+            }
+        #expect(textLines.contains("1,200 / 5,000 credits"))
+        #expect(!textLines.contains(where: { $0.contains("Resets 1,200 / 5,000 credits") }))
+        #expect(textLines.contains("5,000 / 5,000 credits"))
+
+        let selected = MenuBarMetricWindowResolver.rateWindow(
+            preference: .automatic,
+            provider: .qoder,
+            snapshot: snapshot,
+            supportsAverage: false,
+            now: now)
+        #expect(selected?.usedPercent == 24)
+    }
+
+    @MainActor
+    @Test
     func `standard menu shows credit total as detail instead of reset line`() throws {
         let suite = "QoderProviderBehaviorTests-menu-detail"
         let defaults = try #require(UserDefaults(suiteName: suite))
@@ -212,6 +288,56 @@ struct QoderProviderBehaviorTests {
 
         #expect(textLines.contains("125 / 500 credits"))
         #expect(!textLines.contains(where: { $0.contains("Resets 125 / 500 credits") }))
+    }
+
+    @MainActor
+    @Test
+    func `menu card shows the secondary credit balance without a reset prefix`() throws {
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .qoder)
+        let now = Date(timeIntervalSince1970: 1_719_206_400)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 100,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: "0 / 0 credits",
+                title: "Plan credits"),
+            secondary: RateWindow(
+                usedPercent: 24,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: "1,200 / 5,000 credits",
+                title: "Organization resource package"),
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .qoder,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: nil))
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .qoder,
+            metadata: descriptor.metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            weeklyPace: nil,
+            now: now))
+
+        let secondary = try #require(model.metrics.first { $0.title == "Organization resource package" })
+        #expect(secondary.detailText == "1,200 / 5,000 credits")
+        #expect(secondary.resetText == nil)
+        #expect(!(secondary.detailText ?? "").hasPrefix("Resets"))
     }
 }
 

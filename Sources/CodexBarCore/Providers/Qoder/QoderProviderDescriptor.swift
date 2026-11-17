@@ -8,7 +8,7 @@ public enum QoderProviderDescriptor {
         id: .qoder,
         displayName: "Qoder",
         sessionLabel: "Credits",
-        weeklyLabel: "Balance",
+        weeklyLabel: "Add-on credits",
         creditsHint: "Big model credits from the Qoder usage dashboard.",
         debugLogUnavailableMessage: "Qoder debug log not yet implemented",
         usesDetailBackedWindow: true,
@@ -17,10 +17,39 @@ public enum QoderProviderDescriptor {
         confetti: [0x2ADB5C, 0x111113, 0xFFFFFF],
         noDataMessage: "Qoder cost summary is not supported.",
         presentation: ProviderUsagePresentation(
+            rateWindowLabeler: { metadata, snapshot, _ in
+                ProviderRateWindowLabels(
+                    primary: snapshot.primary?.title ?? metadata.sessionLabel,
+                    secondary: snapshot.secondary?.title ?? metadata.weeklyLabel,
+                    tertiary: metadata.opusLabel ?? "Sonnet",
+                    showsTertiary: metadata.supportsOpus)
+            },
+            extraRateWindowSelector: { snapshot in
+                snapshot.extraRateWindows ?? []
+            },
+            treatsExhaustedSecondaryIconWindowAsMissing: true,
+            semanticWindowResolver: { snapshot in
+                ProviderSemanticWindows(session: snapshot.primary, weekly: snapshot.secondary)
+            },
+            menuBarLayoutSecondaryLabel: "Credits",
+            automaticSelectionPrioritizesExhaustedWindow: false,
+            switcherUsesAutomaticMenuBarWindow: true,
+            menuBarWindowResolver: { context in
+                guard context.metric == .automatic else { return .unhandled }
+                let windows = [context.snapshot.primary, context.snapshot.secondary].compactMap(\.self)
+                    + (context.snapshot.extraRateWindows ?? []).filter(\.usageKnown).map(\.window)
+                return .resolved(windows.first { $0.remainingPercent > 0 } ?? windows.first)
+            },
             menuCard: ProviderMenuCardPresentation(
                 showsPrimaryBalanceDescription: true,
-                hidesPrimaryResetWithoutDate: true),
-            menu: ProviderMenuDescriptorPresentation(primaryDescriptionIsDetail: { _ in true })),
+                showsSecondaryBalanceDescription: true,
+                hidesPrimaryResetWithoutDate: true,
+                extraRateWindowUsesResetDescriptionAsDetail: { namedWindow in
+                    namedWindow.id == "qoder-add-on" || namedWindow.id == "qoder-org-resource-package"
+                }),
+            menu: ProviderMenuDescriptorPresentation(
+                primaryDescriptionIsDetail: { _ in true },
+                secondaryDescriptionMode: .resetOverride)),
         webSource: .init(
             settingsSection: .init(QoderProviderSettingsKey.self, cookieSettings: QoderProviderSettings.self),
             browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
@@ -87,7 +116,13 @@ struct QoderPluginFetchStrategy: ProviderFetchStrategy {
             transport: transport,
             resolveValues: { context in
                 guard context.settings?.qoder?.cookieSource != .off else { return nil }
-                return .init(settings: ["REQUEST_TIMEOUT": String(min(30, max(1, context.webTimeout)))])
+                let deadline = Date()
+                    .addingTimeInterval(ProviderPluginRuntime.defaultTimeout - 1)
+                    .timeIntervalSince1970 * 1000
+                return .init(settings: [
+                    "REQUEST_TIMEOUT": String(min(30, max(1, context.webTimeout))),
+                    "REQUEST_DEADLINE_MILLIS": String(deadline),
+                ])
             }, isEnabled: { _ in true })
     }
 
