@@ -315,12 +315,12 @@ extension StatusItemController {
     }
 
     private func usageHistoryRenderSignature(for provider: UsageProvider) -> String {
-        let snapshot = self.store.snapshot(for: provider.instanceID)
-        let selection = self.store.planUtilizationHistorySelection(for: provider)
+        let (selection, snapshot) = self.usageHistorySource(for: provider)
         return [
             "\(self.store.planUtilizationHistoryRevision)",
             "\(Int(Date().timeIntervalSince1970 / 60))",
-            selection.accountKey ?? "unscoped",
+            selection.cacheIdentity,
+            snapshot == nil ? "0" : "1",
             snapshot?.primary == nil ? "0" : "1",
             snapshot?.secondary == nil ? "0" : "1",
             snapshot?.tertiary == nil ? "0" : "1",

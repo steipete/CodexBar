@@ -430,6 +430,98 @@ struct StatusMenuHostedSubmenuRefreshTests {
         #expect(submenu.items.first?.view is NSHostingView<PlanUtilizationHistoryChartMenuView>)
     }
 
+    @Test
+    func `plan usage submenu follows the presented claude swap account`() async throws {
+        let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer { StatusItemController.menuCardRenderingEnabled = previousMenuCardRendering }
+
+        let settings = Self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.multiAccountMenuLayout = .segmented
+        Self.enableOnlyClaude(settings)
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        store.planUtilizationHistoryLoaded = true
+        // Ambient history that stopped refreshing, including a retired model-scoped weekly series.
+        let staleKey = "stale-ambient-account"
+        store.planUtilizationHistory[.claude] = PlanUtilizationHistoryBuckets(
+            preferredAccountKey: staleKey,
+            accounts: [staleKey: [
+                Self.makePlanHistory(usedPercent: 24),
+                PlanUtilizationSeriesHistory(
+                    name: .opus,
+                    windowMinutes: 10080,
+                    entries: [.init(
+                        capturedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                        usedPercent: 12,
+                        resetsAt: Date(timeIntervalSince1970: 1_700_604_800))]),
+            ]])
+        let accounts = Self.claudeSwapAccounts(sessionUsed: [1: 35, 2: 50])
+        store.claudeSwapAccountSnapshots = accounts
+        await store.recordClaudeSwapPlanUtilizationHistory(accounts)
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        func chartSeries(_ submenu: NSMenu) throws -> [PlanUtilizationHistoryChartMenuView.VisibleSeries] {
+            let hosting = try #require(
+                submenu.items.last?.view as? NSHostingView<PlanUtilizationHistoryChartMenuView>)
+            return hosting.rootView._visibleSeriesForTesting
+        }
+        func sessionPercents(_ series: [PlanUtilizationHistoryChartMenuView.VisibleSeries]) -> [Double]? {
+            series.first { $0.selection.name == .session }?.history.entries.map(\.usedPercent)
+        }
+
+        let submenu = try #require(controller.makeUsageHistorySubmenu(
+            provider: .claude,
+            width: StatusItemController.menuCardBaseWidth))
+        controller.menuWillOpen(submenu)
+        let activeSeries = try chartSeries(submenu)
+        #expect(Set(activeSeries.map(\.selection.name)) == [.session, .weekly])
+        #expect(sessionPercents(activeSeries) == [35])
+
+        controller.claudeSwapInspectedAccountID = accounts[1].id
+        controller.refreshHostedSubviewMenu(submenu)
+        #expect(try sessionPercents(chartSeries(submenu)) == [50])
+
+        controller.claudeSwapInspectedAccountID = nil
+        store.claudeSwapAccountSnapshots = []
+        controller.refreshHostedSubviewMenu(submenu)
+        let ambientSeries = try chartSeries(submenu)
+        #expect(ambientSeries.contains { $0.selection.name == .opus })
+        #expect(sessionPercents(ambientSeries) == [24])
+    }
+
+    private static func claudeSwapAccounts(sessionUsed: [Int: Double]) -> [ProviderAccountUsageSnapshot] {
+        let fetchedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        let rows = sessionUsed.keys.sorted().map { number in
+            ClaudeSwapAccountRow(
+                number: number,
+                email: "account\(number)@example.com",
+                organizationUuid: "",
+                isActive: number == 1,
+                usageStatus: .ok,
+                fiveHour: ClaudeSwapUsageWindow(
+                    usedPercent: sessionUsed[number] ?? 0,
+                    resetsAt: fetchedAt.addingTimeInterval(3600)),
+                sevenDay: ClaudeSwapUsageWindow(usedPercent: 64, resetsAt: fetchedAt.addingTimeInterval(3 * 86400)),
+                usageFetchedAt: fetchedAt,
+                lastGoodUsage: nil)
+        }
+        return ClaudeSwapAccountProjection.accountSnapshots(
+            from: ClaudeSwapAccountList(activeAccountNumber: 1, accounts: rows),
+            source: .claudeSwap,
+            now: fetchedAt)
+    }
+
     private func assertHostedChartItemHeightMatchesRefresh(
         chartID: String,
         provider: UsageProvider,

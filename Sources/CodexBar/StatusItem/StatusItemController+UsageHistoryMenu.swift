@@ -37,8 +37,9 @@ extension StatusItemController {
         provider: UsageProvider,
         width: CGFloat) -> Bool
     {
-        let histories = self.store.planUtilizationHistory(for: provider)
-        let snapshot = self.store.snapshot(for: provider.instanceID)
+        let source = self.usageHistorySource(for: provider)
+        let histories = source.selection.histories
+        let snapshot = source.snapshot
 
         if !self.menuCardRenderingEnabledForController {
             let chartItem = NSMenuItem()
@@ -68,6 +69,23 @@ extension StatusItemController {
             width: width)
         self.appendUsageHistoryChart(chartView, to: submenu, provider: provider, width: width)
         return true
+    }
+
+    /// History and snapshot behind the Plan Usage submenu. When claude-swap rows own the Claude menu,
+    /// the chart follows the presented account (the same one the Overview Claude card shows); ambient
+    /// Claude history can point at an account that stopped refreshing once claude-swap took over.
+    func usageHistorySource(
+        for provider: UsageProvider) -> (selection: PlanUtilizationHistorySelection, snapshot: UsageSnapshot?)
+    {
+        if let account = self.store.claudeSwapMenuDisplay(
+            for: provider,
+            inspectedAccountID: self.claudeSwapInspectedAccountID)?.displayedAccount
+        {
+            return (self.store.claudeSwapPlanUtilizationHistorySelection(for: account), account.snapshot)
+        }
+        return (
+            self.store.planUtilizationHistorySelection(for: provider),
+            self.store.snapshot(for: provider.instanceID))
     }
 
     private func appendUsageHistoryChart(

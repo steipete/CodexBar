@@ -725,6 +725,10 @@ struct PlanUtilizationHistoryChartMenuView: View {
         return self.detailLine(point: model.points.last, windowMinutes: selectedSeries?.history.windowMinutes ?? 0)
     }
 
+    var _visibleSeriesForTesting: [VisibleSeries] {
+        self.visibleSeries
+    }
+
     nonisolated static func _emptyStateTextForTesting(title: String?) -> String {
         self.emptyStateText(title: title)
     }
