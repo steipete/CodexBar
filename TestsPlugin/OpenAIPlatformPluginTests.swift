@@ -43,12 +43,18 @@ struct OpenAIPlatformPluginTests {
     private actor Fixture: ProviderHTTPTransport {
         var loginStatus: [String: Int]
         var grantsStatus: [String: Int]
+        let grantsBody: String
         var requests: [String] = []
         var bodies: [String] = []
 
-        init(loginStatus: [String: Int] = [:], grantsStatus: [String: Int] = [:]) {
+        init(
+            loginStatus: [String: Int] = [:],
+            grantsStatus: [String: Int] = [:],
+            grantsBody: String = OpenAIPlatformPluginTests.grantsBody)
+        {
             self.loginStatus = loginStatus
             self.grantsStatus = grantsStatus
+            self.grantsBody = grantsBody
         }
 
         func data(for request: URLRequest) async throws -> (Data, URLResponse) {
@@ -63,7 +69,7 @@ struct OpenAIPlatformPluginTests {
             let status = isLogin ? self.loginStatus[bearer] ?? 200 : self.grantsStatus[bearer] ?? 200
             let body = isLogin
                 ? "{\"user\":{\"session\":{\"sensitive_id\":\"sess-\(bearer.suffix(6))\"}}}"
-                : OpenAIPlatformPluginTests.grantsBody
+                : self.grantsBody
             return try (Data(body.utf8), #require(HTTPURLResponse(
                 url: url, statusCode: status, httpVersion: nil, headerFields: nil)))
         }
@@ -109,6 +115,32 @@ struct OpenAIPlatformPluginTests {
             "GET /v1/dashboard/billing/credit_grants",
         ])
         #expect(await fixture.bodies.first == "{\"app\":\"api\"}")
+    }
+
+    @Test(arguments: [24, 25, 200], BundledPluginTestSupport.engines)
+    func `many grants retain the balance and subscription within the detail row limit`(
+        count: Int, engine: ProviderPluginEngineKind) async throws
+    {
+        let expiry = Int(Self.now.timeIntervalSince1970) + 86400
+        let grants: [[String: Any]] = [[
+            "id": "chatgpt_api_credits_promo_subscription", "grant_amount": 124,
+            "used_amount": 10.49, "effective_at": 1, "expires_at": expiry,
+        ]] + (0..<count).map { [
+            "id": "credit_grant_\($0)", "grant_amount": 1, "used_amount": 0,
+            "effective_at": 1, "expires_at": expiry,
+        ] }
+        let body = try JSONSerialization.data(withJSONObject: [
+            "total_granted": 124 + count, "total_used": 10.49, "total_available": 113.51 + Double(count),
+            "grants": ["data": grants],
+        ])
+        let fixture = Fixture(grantsBody: String(decoding: body, as: UTF8.self))
+        let usage = try await Self.fetch(engine, fixture: fixture, entries: [
+            Self.entry("fixture", token: Self.jwt(expiresIn: 3600)),
+        ])
+        #expect(usage.providerCost?.balance == 113.51 + Double(count))
+        #expect(usage.primary?.resetDescription?.hasPrefix("$113.51 of $124.00 left") == true)
+        #expect(usage.details.count == 1)
+        #expect(usage.details.first?.rows.count == ProviderDetailSection.maximumRowsPerSection)
     }
 
     @Test(arguments: BundledPluginTestSupport.engines)
@@ -309,21 +341,32 @@ struct OpenAIPlatformPluginTests {
     }
 
     @Test(arguments: [ProviderCookieSource.off, .manual], BundledPluginTestSupport.engines)
-    func `the off and manual cookie sources deny browser local storage`(
+    func `configured off and manual sources block the browser before discovery`(
         source: ProviderCookieSource, engine: ProviderPluginEngineKind) async throws
     {
         let calls = Counter()
-        let runtime = try Self.inline(Self.declared, script: """
-        await ctx.browser.localStorage('\(Self.origin)', '\(Self.key)');
-        return {empty:true};
-        """, engine: engine)
+        let fixture = Fixture()
+        let runtime = try BundledPluginTestSupport.runtime(
+            "openai-platform", engine: engine, wallClock: Self.now, transport: fixture)
+        let config = ProviderConfig(id: .openai, source: .web, cookieSource: source)
+        let registration = OpenAIAPIProviderDescriptor.descriptor.settingsSection
+        let settings = registration.credentialContribution(context: .init(config: config, account: nil))
+            .map { ProviderSettingsSnapshot(contributions: [$0]) }
+        let browser = BrowserDetection(cacheTTL: 0)
+        let context = ProviderFetchContext(
+            runtime: .cli, sourceMode: .web, includeCredits: true, webTimeout: 1,
+            webDebugDumpHTML: false, verbose: false, env: [:], settings: settings,
+            fetcher: UsageFetcher(environment: [:]),
+            claudeFetcher: ClaudeUsageFetcher(browserDetection: browser), browserDetection: browser)
+        let cookies = ProviderPluginCookieBroker(provider: .openai, domains: [], context: context)
         await #expect(throws: (any Error).self) {
-            try await runtime.fetchUsage(sourceMode: .web, cookieSource: source, localStorageResolver: { _, _ in
+            try await runtime.fetchResult(cookies: cookies, now: Self.now, localStorageResolver: { _, _ in
                 calls.increment()
-                return []
+                return [Self.entry("fixture", token: Self.jwt(expiresIn: 3600))]
             })
         }
         #expect(calls.value == 0)
+        #expect(await fixture.requests.isEmpty)
     }
 
     @Test(arguments: [ProviderSourceMode.auto, .api], BundledPluginTestSupport.engines)

@@ -199,7 +199,7 @@ defineProvider({
         ? [
             {
               title: "Other credit grants",
-              rows: others.map((grant) => ({
+              rows: others.slice(0, 24).map((grant) => ({
                 label: grant.scheduled
                   ? "Scheduled credit"
                   : grant.id.startsWith(subscriptionPrefix)

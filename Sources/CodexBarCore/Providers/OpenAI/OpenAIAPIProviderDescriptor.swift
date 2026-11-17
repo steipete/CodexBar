@@ -27,6 +27,7 @@ public enum OpenAIAPIProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .openai,
+            settingsSection: .init(OpenAIAPIProviderSettingsKey.self, cookieSettings: CookieProviderSettings.self),
             credentials: self.credentials,
             pluginResultPolicy: ProviderPluginResultPolicy(cardMapper: mapPluginCard),
             config: ProviderConfigCapabilities(workspaceIDValidationOrder: 1),
@@ -177,6 +178,11 @@ public enum OpenAIAPIProviderDescriptor {
                     secrets: [OpenAIAPISettingsReader.apiKeyEnvironmentKey: credential.apiKey])
             }, isEnabled: { _ in true })
     }
+}
+
+public enum OpenAIAPIProviderSettingsKey: ProviderSettingsSectionKey {
+    public static let providerID = ProviderInstanceID.openai
+    public typealias Section = CookieProviderSettings
 }
 
 struct OpenAIAPIUsageCredential: Equatable {
