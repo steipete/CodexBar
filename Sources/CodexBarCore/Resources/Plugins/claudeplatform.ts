@@ -185,15 +185,23 @@ defineProvider({
         const details: CodexBarDetailSection[] = [];
         const otherGrants = grants.filter((grant) => grant !== subscription && grant !== purchased);
         if (otherGrants.length > 0) {
-          details.push({
-            title: "Other credit grants",
-            rows: otherGrants.map((grant) => ({
-              label: grant.label,
-              value: amounts(grant),
-              secondaryValue: grant.expiresAt ? expiry(grant.expiresAt) : null,
-              progress: (grant.granted - Math.min(grant.remaining, grant.granted)) / grant.granted,
-            })),
-          });
+          // The host rejects the whole snapshot if a section exceeds 24 rows.
+          const maxRows = 24;
+          const overflow = otherGrants.length > maxRows;
+          const visibleGrants = otherGrants.slice(0, overflow ? maxRows - 1 : maxRows);
+          const rows: CodexBarDetailRow[] = visibleGrants.map((grant) => ({
+            label: grant.label,
+            value: amounts(grant),
+            secondaryValue: grant.expiresAt ? expiry(grant.expiresAt) : null,
+            progress: (grant.granted - Math.min(grant.remaining, grant.granted)) / grant.granted,
+          }));
+          if (overflow) {
+            rows.push({
+              label: "Additional credit grants",
+              value: `${otherGrants.length - visibleGrants.length} not shown`,
+            });
+          }
+          details.push({ title: "Other credit grants", rows });
         }
 
         // Spend is optional: a broken report must not discard an authenticated balance.
