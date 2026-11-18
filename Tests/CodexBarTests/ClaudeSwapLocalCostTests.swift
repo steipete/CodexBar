@@ -6,6 +6,30 @@ import Testing
 @MainActor
 struct ClaudeSwapLocalCostTests {
     @Test
+    func `legacy adapter config loads without a profile mapping`() throws {
+        let json = """
+        {
+          "id": "claude",
+          "enabled": true,
+          "source": "cli",
+          "cookieSource": "off",
+          "claudeSwapEnabled": true,
+          "claudeSwapExecutablePath": "/fixture/legacy-adapter",
+          "claudeSwapShowSingleAccount": true
+        }
+        """
+        let legacy = try JSONDecoder().decode(ProviderConfig.self, from: Data(json.utf8))
+        let roundTrip = try JSONDecoder().decode(ProviderConfig.self, from: JSONEncoder().encode(legacy))
+        #expect(roundTrip.claudeSwapCostProfiles == nil)
+        #expect(roundTrip.enabled == true)
+        #expect(roundTrip.source == .cli)
+        #expect(roundTrip.cookieSource == .off)
+        #expect(roundTrip.claudeSwapEnabled == true)
+        #expect(roundTrip.claudeSwapExecutablePath == "/fixture/legacy-adapter")
+        #expect(roundTrip.claudeSwapShowSingleAccount == true)
+    }
+
+    @Test
     func `profile costs follow the account identity across switches and slot reuse`() async throws {
         let fixture = try CostUsageTestEnvironment()
         defer { fixture.cleanup() }
@@ -110,6 +134,18 @@ struct ClaudeSwapLocalCostTests {
         #expect(store.claudeSwapAccountSnapshots.map {
             store.claudeSwapLocalTokenCost(for: $0)?.last30DaysTokens
         } == [nil, 110])
+
+        let mappedAccount = store.claudeSwapAccountSnapshots[1]
+        for (period, label) in [(CostReportingPeriod.monthToDate, "Month to date"), (.allTime, "All")] {
+            settings.costReportingPeriod = period
+            #expect(store.claudeSwapLocalTokenCost(for: mappedAccount) == nil)
+            store.scheduleClaudeSwapLocalCostRefresh(now: now)
+            await store.claudeSwapLocalCostState.task?.value
+            let estimate = try #require(store.claudeSwapLocalTokenCost(for: mappedAccount))
+            #expect(estimate.last30DaysTokens == 110)
+            #expect(estimate.reportingPeriod == period)
+            #expect(estimate.historyLabel == label)
+        }
 
         try FileManager.default.removeItem(at: personal)
         store.scheduleClaudeSwapLocalCostRefresh(force: true, now: now)

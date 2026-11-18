@@ -4,6 +4,7 @@ import Foundation
 struct ClaudeSwapLocalCostRequest: Equatable {
     let directories: [String: String]
     let calendar: Calendar
+    let period: CostReportingPeriod
     let historyDays: Int
     let settingsRevision: UInt64
 }
@@ -58,7 +59,7 @@ extension UsageStore {
                     historyDays: request.historyDays,
                     includePiSessions: false,
                     claudeConfigDirectoryOverride: directory)
-                snapshots[key] = result?.snapshot
+                snapshots[key] = result?.snapshot.reporting(request.period)
             }
             guard !Task.isCancelled else { return }
             self.claudeSwapLocalCostState.task = nil
@@ -93,10 +94,12 @@ extension UsageStore {
         }
         guard !directories.isEmpty else { return nil }
         let calendar = self.settings.costUsageBucketCalendar
+        let period = self.settings.costReportingPeriod
         return ClaudeSwapLocalCostRequest(
             directories: directories,
             calendar: calendar,
-            historyDays: self.settings.costReportingPeriod.days(now: now, calendar: calendar),
+            period: period,
+            historyDays: period.days(now: now, calendar: calendar),
             settingsRevision: self.settings.costUsageSettingsRevision)
     }
 }
