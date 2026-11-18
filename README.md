@@ -180,9 +180,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [Atlas Cloud](docs/atlascloud.md) — API key for the account's available USD balance.
 - [Vercel AI Gateway](docs/vercel.md) — API key for the team's USD balance and lifetime spend.
 - [xKiro](docs/xkiro.md) — API key for daily free-token usage, remaining allowance, and the midnight UTC reset.
-- Open to new providers: [provider authoring guide](docs/provider.md).
-
-<!-- Generated provider additions: Scripts/regenerate-provider-docs.mjs -->
+  <!-- Generated provider additions: Scripts/regenerate-provider-docs.mjs -->
 - [Langdock](docs/langdock.md) — Selected Edge, Chrome, or Safari profile → personal included session and weekly limits (`web`, macOS).
 - [Soniox](docs/soniox.md) — Organization API key for prepaid USD balance and monthly spend against the organization budget.
 - [X API](docs/xapi.md) — Browser or manual console.x.com cookies for prepaid and free credits, including negative balances.
@@ -210,6 +208,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [Tripo](docs/tripo.md) — API key for available and reserved account credits from the official account balance endpoint.
 - [Google Developer Program](docs/googledeveloper.md) — Browser or manual me.developers.google.com session cookies for the current monthly Gen AI & Cloud credit of Google AI Pro and Ultra.
 <!-- End generated provider additions -->
+- Open to new providers: [provider authoring guide](docs/provider.md).
 
 ## Icon & Screenshot
 The menu bar icon is a tiny usage meter. Bar meaning is provider-specific, and errors/stale data can dim the icon or
