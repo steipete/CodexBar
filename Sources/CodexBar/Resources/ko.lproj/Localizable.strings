@@ -2791,6 +2791,12 @@
 "Tripo request failed. Try refreshing later." = "Tripo 요청에 실패했습니다. 나중에 다시 새로 고침하세요.";
 "Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo가 알 수 없는 응답을 반환했습니다. CodexBar를 업데이트하고 다시 시도하세요.";
 
+"TrustedRouter" = "TrustedRouter";
+"Show TrustedRouter usage" = "TrustedRouter 사용량 표시";
+"TrustedRouter is rate limiting requests. Try again later." = "TrustedRouter가 요청 빈도를 제한하고 있습니다. 나중에 다시 시도하세요.";
+"TrustedRouter request failed. Try refreshing later." = "TrustedRouter 요청에 실패했습니다. 나중에 다시 새로 고침하세요.";
+"TrustedRouter returned an unrecognized response. Update CodexBar and try again." = "TrustedRouter가 알 수 없는 응답을 반환했습니다. CodexBar를 업데이트하고 다시 시도하세요.";
+
 /* Provider setup guidance. */
 "Authorize GitHub's device code to save a Copilot token account." = "GitHub 기기 코드를 승인하여 Copilot 토큰 계정을 저장하세요.";
 "Supply a GitHub token accepted by the Copilot usage API." = "Copilot 사용량 API에서 허용하는 GitHub 토큰을 입력하세요.";

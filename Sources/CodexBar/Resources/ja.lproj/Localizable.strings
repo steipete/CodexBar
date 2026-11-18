@@ -2823,6 +2823,12 @@
 "Tripo request failed. Try refreshing later." = "Tripo へのリクエストに失敗しました。後でもう一度更新してください。";
 "Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo から認識できない応答が返されました。CodexBar を更新して、もう一度お試しください。";
 
+"TrustedRouter" = "TrustedRouter";
+"Show TrustedRouter usage" = "TrustedRouter の使用状況を表示";
+"TrustedRouter is rate limiting requests. Try again later." = "TrustedRouter がリクエストの頻度を制限しています。後でもう一度お試しください。";
+"TrustedRouter request failed. Try refreshing later." = "TrustedRouter へのリクエストに失敗しました。後でもう一度更新してください。";
+"TrustedRouter returned an unrecognized response. Update CodexBar and try again." = "TrustedRouter から認識できない応答が返されました。CodexBar を更新して、もう一度お試しください。";
+
 /* Provider setup guidance. */
 "Authorize GitHub's device code to save a Copilot token account." = "GitHubのデバイスコードを承認して、Copilotトークンアカウントを保存します。";
 "Supply a GitHub token accepted by the Copilot usage API." = "Copilotの使用量APIで受け付けられるGitHubトークンを指定してください。";

@@ -103,6 +103,9 @@ See [WorkBuddy](workbuddy.md) for the request contract, bounded optional reset l
 [Tripo](tripo.md) reads available and reserved API credits with one fixed-origin bearer request. It keeps credits
 as credits, without inferred quota windows or dollar conversions.
 
+[TrustedRouter](trustedrouter.md) reads the current API key's microdollar limit and spend with one fixed-origin
+bearer request. Remaining is the API's reservation-aware amount, without inferred reset dates.
+
 [abliteration.ai](abliteration.md) uses a fixed-origin bearer request to read prepaid USD credits. It reuses the
 standard API-key field and classified errors, with no browser access or inferred reset schedule.
 

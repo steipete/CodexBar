@@ -2824,6 +2824,12 @@
 "Tripo request failed. Try refreshing later." = "Yêu cầu Tripo không thành công. Hãy thử làm mới sau.";
 "Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo trả về phản hồi không nhận dạng được. Hãy cập nhật CodexBar rồi thử lại.";
 
+"TrustedRouter" = "TrustedRouter";
+"Show TrustedRouter usage" = "Hiển thị mức sử dụng TrustedRouter";
+"TrustedRouter is rate limiting requests. Try again later." = "TrustedRouter đang giới hạn tần suất yêu cầu. Hãy thử lại sau.";
+"TrustedRouter request failed. Try refreshing later." = "Yêu cầu TrustedRouter không thành công. Hãy thử làm mới sau.";
+"TrustedRouter returned an unrecognized response. Update CodexBar and try again." = "TrustedRouter trả về phản hồi không nhận dạng được. Hãy cập nhật CodexBar rồi thử lại.";
+
 /* Provider setup guidance. */
 "Authorize GitHub's device code to save a Copilot token account." = "Ủy quyền mã thiết bị GitHub để lưu tài khoản mã thông báo Copilot.";
 "Supply a GitHub token accepted by the Copilot usage API." = "Cung cấp mã thông báo GitHub được API mức sử dụng Copilot chấp nhận.";
