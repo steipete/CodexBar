@@ -12,6 +12,14 @@ struct ClaudeSwapAccountMenuDisplay {
         self.layout == .segmented && self.accounts.count > 1
     }
 
+    var switcherAccounts: [ProviderAccountUsageSnapshot] {
+        // Projection puts the active card first for stacked consumers. Tabs stay in slot order.
+        self.accounts.sorted {
+            (Int($0.id.opaqueID) ?? Int.max, $0.id.opaqueID) <
+                (Int($1.id.opaqueID) ?? Int.max, $1.id.opaqueID)
+        }
+    }
+
     var displayedAccount: ProviderAccountUsageSnapshot? {
         // Keep pending/failed activation details attached to the requested stable slot.
         for id in [self.switchingAccountID, self.inspectedAccountID, self.errorAccountID].compactMap(\.self) {

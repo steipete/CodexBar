@@ -45,6 +45,17 @@ struct ClaudeSwapAccountMenuDisplayTests {
     }
 
     @Test
+    func `segmented tabs stay in numeric slot order when the active account changes`() {
+        for activeSlot in ["2", "10"] {
+            let active = self.account(activeSlot, active: true)
+            let inactive = self.account(activeSlot == "2" ? "10" : "2")
+            let display = self.display([active, inactive])
+            #expect(display.switcherAccounts.map(\.id.opaqueID) == ["2", "10"])
+            #expect(display.displayedAccount?.id == active.id)
+        }
+    }
+
+    @Test
     func `pending and failed activation retain the requested account details`() {
         let active = self.account("2", active: true)
         let target = self.account("7")
