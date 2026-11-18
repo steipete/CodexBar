@@ -311,6 +311,7 @@ struct CostHistoryChartMenuView: View {
                                     .frame(height: model.detailRowHeight, alignment: .leading)
                                 }
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .scrollIndicators(
                             Self.detailRowsNeedScrolling(itemCount: detail.rows.count) ? .visible : .hidden)
