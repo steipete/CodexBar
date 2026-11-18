@@ -23,6 +23,7 @@ enum UsageMenuCardContext {
         var tokenAccountID: UUID?
         /// Shows the provider's stored local costs on this account card, for cards that stand in for the provider row.
         var includesStoredTokenCosts = false
+        var localTokenCost: CostUsageTokenSnapshot?
     }
 
     var account: Account? {
@@ -85,7 +86,7 @@ extension UsageStore {
             ? self.tokenSnapshot(for: provider) : nil
         let projected = !isSettings && (isLive || snapshot != nil)
             ? self.tokenSnapshot(fromProviderSnapshot: snapshot, provider: provider) : nil
-        let tokenSnapshot = projected ?? stored
+        let tokenSnapshot = projected ?? account?.localTokenCost ?? stored
         let weeklyWindow = codexProjection?.rateWindow(for: .weekly)
             ?? snapshot.flatMap { descriptor.presentation.semanticWindows(snapshot: $0).weekly }
         let weeklyPace = weeklyWindow.flatMap {

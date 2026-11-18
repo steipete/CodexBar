@@ -1,6 +1,24 @@
 import Foundation
 
+/// An explicit, machine-local assignment of Claude Code transcript history.
+public struct ClaudeSwapCostProfile: Codable, Equatable, Sendable {
+    public let email: String
+    public let organizationUuid: String?
+    public let configDirectory: String
+
+    public init(email: String, organizationUuid: String? = nil, configDirectory: String) {
+        self.email = email
+        self.organizationUuid = organizationUuid
+        self.configDirectory = configDirectory
+    }
+}
+
 extension ProviderConfig {
+    public var claudeSwapCostProfiles: [ClaudeSwapCostProfile]? {
+        get { self.extensionValue(forKey: "claudeSwapCostProfiles") }
+        set { self.setExtensionValue(newValue, forKey: "claudeSwapCostProfiles") }
+    }
+
     public var claudeDesktopCookiesEnabled: Bool? {
         get { self.extensionValue(forKey: "claudeDesktopCookiesEnabled") }
         set { self.setExtensionValue(newValue, forKey: "claudeDesktopCookiesEnabled") }

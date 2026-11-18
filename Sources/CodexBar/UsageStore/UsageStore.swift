@@ -169,6 +169,7 @@ final class UsageStore {
     var claudeSwapLastError: String?
     var claudeSwapDetectedVersion: String?
     var claudeSwapRevision: UInt64 = 0
+    @ObservationIgnored var claudeSwapLocalCostState = ClaudeSwapLocalCostState()
     @ObservationIgnored var claudeSwapRefreshTask: Task<Void, Never>?
     @ObservationIgnored var claudeSwapTransientState = ClaudeSwapTransientState()
     var tokenSnapshotPublications: [ProviderInstanceID: TokenSnapshotPublication] = [:]
@@ -1430,6 +1431,9 @@ extension UsageStore {
     }
 
     func refreshTokenUsage(_ provider: UsageProvider, force: Bool) async {
+        if provider == .claude {
+            self.scheduleClaudeSwapLocalCostRefresh(force: force)
+        }
         guard ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.supportsTokenCost else {
             self.resetTokenUsageState(for: provider)
             return

@@ -78,7 +78,8 @@ extension UsageStore {
                     switchError: self.claudeSwapTransientState.lastErrorAccountID == account.id
                         ? self.claudeSwapTransientState.lastError : nil,
                     historySelection: self.claudeSwapPlanUtilizationHistorySelection(for: account),
-                    includesStoredTokenCosts: !allAccounts))
+                    includesStoredTokenCosts: !allAccounts && !self.hasClaudeSwapLocalCostProfiles,
+                    localTokenCost: self.claudeSwapLocalTokenCost(for: account)))
                 return MergedOverviewRow(
                     provider: provider.instanceID,
                     accountID: allAccounts ? account.id.source + ":" + account.id.opaqueID : nil,

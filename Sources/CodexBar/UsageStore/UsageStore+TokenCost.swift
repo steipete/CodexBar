@@ -149,7 +149,8 @@ extension UsageStore {
         historyDays: Int,
         cursorCookieHeaderOverride: String? = nil,
         includePiSessions: Bool = true,
-        reportContext: CostUsageReportContext = .regular) async throws -> CostUsageTokenResult
+        reportContext: CostUsageReportContext = .regular,
+        claudeConfigDirectoryOverride: String? = nil) async throws -> CostUsageTokenResult
     {
         if let override = self._test_tokenUsageResultLoaderOverride {
             return try await override(provider, force, now, codexHomePath, historyDays, includePiSessions)
@@ -162,7 +163,8 @@ extension UsageStore {
         let fetcher = self.costUsageFetcher
         let timeoutSeconds = self.tokenFetchTimeout
         // Provider-specific by design: mapped Claude costs include only the declared account directory.
-        let claudeDirectory = provider == .claude ? self.claudeTokenCostConfigDirectory : nil
+        let claudeDirectory = provider == .claude
+            ? claudeConfigDirectoryOverride ?? self.claudeTokenCostConfigDirectory : nil
         let effectiveIncludePiSessions = includePiSessions && claudeDirectory == nil
         // Provider-specific by design: the Codex ledger owns pricing refresh while Bedrock resolves AWS environment.
         let allowPricingRefresh = provider != .codex || !self.settings.codexLocalSessionCostLedgerEnabled

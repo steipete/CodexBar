@@ -63,6 +63,7 @@ extension UsageStore {
         self.claudeSwapRefreshTask?.cancel()
         self.claudeSwapRefreshTask = nil
         self.claudeSwapAccountSnapshots = []
+        self.scheduleClaudeSwapLocalCostRefresh()
         self.claudeSwapLastRefreshAt = nil
         self.claudeSwapLastError = nil
         self.claudeSwapTransientState = ClaudeSwapTransientState(
@@ -119,6 +120,7 @@ extension UsageStore {
             self.claudeSwapLastError = nil
             self.claudeSwapRevision &+= 1
             self.persistWidgetSnapshot(reason: "claude-swap-accounts")
+            self.scheduleClaudeSwapLocalCostRefresh()
             await self.recordClaudeSwapPlanUtilizationHistory(snapshots)
         } catch is CancellationError {
             return

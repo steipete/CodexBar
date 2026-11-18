@@ -50,7 +50,8 @@ public enum ClaudeSwapAccountProjection {
                 provider: .claude,
                 displayLabel: self.decoratedLabel(label, row: row),
                 accountEmail: row.email.isEmpty ? nil : row.email,
-                historyAccountKey: self.historyAccountKey(for: row, source: source),
+                historyAccountKey: self.historyAccountKey(
+                    email: row.email, organizationUuid: row.organizationUuid, source: source),
                 isActive: row.isActive,
                 canActivate: list.supportsAccountSwitching && self.canActivate(row),
                 usesLastKnownUsage: projected.usesLastKnownUsage,
@@ -299,9 +300,13 @@ public enum ClaudeSwapAccountProjection {
             identity: self.identitySnapshot(for: row, source: source))
     }
 
-    private static func historyAccountKey(for row: ClaudeSwapAccountRow, source: ClaudeSwapAccountSource) -> String? {
-        let email = self.normalizedEmail(row.email)
-        let organization = row.organizationUuid.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    package static func historyAccountKey(
+        email: String,
+        organizationUuid: String,
+        source: ClaudeSwapAccountSource) -> String?
+    {
+        let email = self.normalizedEmail(email)
+        let organization = organizationUuid.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !email.isEmpty, source == .claudeSwap || !organization.isEmpty else { return nil }
         let pair = try? JSONEncoder().encode([email, organization])
         return pair.map { "__claude_swap__:" + SHA256.hash(data: $0).map { String(format: "%02x", $0) }.joined() }

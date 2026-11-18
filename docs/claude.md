@@ -535,6 +535,26 @@ The accepted multi-account design in
   a pending switch, an inspected account, a failed switch, or the active account, in that order. It retains the
   provider's combined local costs and uses the ambient card when no adapter account is presented. Expanded
   **Show all accounts** rows keep their account-specific usage without borrowing those combined costs.
+- For separate local cost estimates on Claude account cards, enable **Track costs** and set
+  `claudeSwapCostProfiles` on the Claude provider in the resolved config file. Each entry has the account
+  `email`, its `organizationUuid` from the adapter list (omit it only for an empty organization UUID), and
+  an absolute `configDirectory` pointing to that Claude Code profile. For example:
+  ```json
+  {
+    "claudeSwapCostProfiles": [
+      { "email": "personal@example.com", "configDirectory": "/Users/example/.claude" },
+      {
+        "email": "work@example.com",
+        "organizationUuid": "00000000-0000-0000-0000-000000000001",
+        "configDirectory": "/Users/example/.claude-work"
+      }
+    ]
+  }
+  ```
+  Use a directory whose local `projects` history belongs to that account. Each estimate includes only that
+  directory, is based on API token prices, and follows the account across slot changes. Unmapped accounts
+  and missing or unreadable directories have no per-account estimate. The mapping stays on this device.
+  Existing combined Usage & Spend reports are unaffected.
 - Session forecasts use each account's own recorded usage. History keys hash the normalized email and organization
   UUID from the existing list response, so moving slots preserves history and the same email in different workspaces
   stays separate. Empty organization UUIDs identify personal accounts; an email change starts a new history.

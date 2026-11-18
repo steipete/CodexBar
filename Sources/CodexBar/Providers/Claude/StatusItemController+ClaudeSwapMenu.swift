@@ -161,7 +161,8 @@ extension StatusItemController {
                 switchError: self.store.claudeSwapTransientState.lastErrorAccountID == account.id
                     ? self.store.claudeSwapTransientState.lastError
                     : nil,
-                historySelection: self.store.claudeSwapPlanUtilizationHistorySelection(for: account)))
+                historySelection: self.store.claudeSwapPlanUtilizationHistorySelection(for: account),
+                localTokenCost: self.store.claudeSwapLocalTokenCost(for: account)))
     }
 
     func claudeSwapAccountSwitchAction(
