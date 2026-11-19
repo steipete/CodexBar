@@ -1139,7 +1139,7 @@ extension CostUsageDailyReport {
         }
         return CostUsageDailyReport(
             data: entries,
-            summary: entries.isEmpty ? nil : self.mergedSummary(from: reports),
+            summary: entries.isEmpty ? nil : self.summary(for: reports.lazy.flatMap(\.data)),
             hourly: mergedHourly,
             quotaSlices: mergedQuotaSlices)
     }
@@ -1243,14 +1243,12 @@ extension CostUsageDailyReport {
             }
     }
 
-    private static func mergedSummary(from reports: [CostUsageDailyReport]) -> Summary {
+    static func summary(for entries: some Sequence<Entry>) -> Summary {
         // Reuse source accumulators so daily overflow cannot revive in a later day, while a
         // missing metric does not erase useful subtotals from the rest of the history.
         var totals = EntryAccumulator()
-        for report in reports {
-            for entry in report.data {
-                totals.add(entry)
-            }
+        for entry in entries {
+            totals.add(entry)
         }
         return Summary(
             totalInputTokens: totals.tokenMix.inputTokens,
