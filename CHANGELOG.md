@@ -17,6 +17,7 @@
 
 ### Fixed
 
+- Amp: load enterprise-paid workspaces, which report no balance, instead of failing with “Missing Amp usage data”, and show their 30-day recorded cost with daily cost, token, and model history from `amp usage --details` in the cost chart and Usage & Spend.
 - Providers: stop cancelled refreshes before loading or attempting another browser-session candidate (#5085). Thanks @Lucenx9!
 - Plugins: align community-provider card headers with built-in cards and give refresh an explicit accessibility label (#5086). Thanks @tangwz!
 - Menu bar: preserve the full-size leading provider icon beside both text rows in high-contrast custom layouts (#5041). Thanks @deinspanjer and @nunoh!

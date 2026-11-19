@@ -24,6 +24,11 @@ local Amp CLI, then an Amp access token, and finally browser cookies.
 - **Time-to-full reset**: Legacy dollar-based Amp Free output estimates when hourly replenishment reaches full.
 - **Individual credits**: Shows the remaining paid balance shared by agent and orb usage when Amp reports one.
 - **Workspace credits**: Shows each workspace's remaining paid credit balance separately.
+- **Enterprise workspaces**: Workspaces whose usage is paid by an enterprise have no balance, so they are listed as
+  Enterprise. With the CLI source, the recorded cost and token totals for the last 30 days are shown instead.
+- **Cost history**: Daily recorded cost, token counts, and per-model breakdowns feed the shared cost chart and
+  Usage & Spend when cost summaries are enabled. Amounts are Amp's recorded cost, not an estimate. Days follow the
+  local calendar.
 - **CLI-first fetch**: Uses `amp usage` when the Amp CLI is installed and signed in.
 - **Access token support**: Uses `AMP_API_KEY` or the access token saved in CodexBar settings.
 - **Browser cookie fallback**: Reads the legacy settings-page payload when the CLI and access token are unavailable.
@@ -47,6 +52,10 @@ Create an access token in Amp settings, then paste it into **Amp → Access toke
 ## How it works
 
 - Runs `amp usage` first in automatic mode
+- For enterprise-paid workspaces, runs `amp usage --details --start … --end …` over the last 30 local days, then once
+  per active day, because Amp reports tokens and models only for the whole requested range. Day queries run up to
+  eight at a time; days that ended more than six hours ago are reused until CodexBar restarts. All of this is
+  best-effort: a failed range keeps the account, and a failed day marks the history as partial
 - Calls `POST https://ampcode.com/api/internal?userDisplayBalanceInfo` with an Amp access token
 - Falls back to the settings page with browser cookies
 - Parses the same usage display format returned to the CLI

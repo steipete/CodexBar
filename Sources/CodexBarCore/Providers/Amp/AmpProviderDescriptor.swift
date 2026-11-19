@@ -40,8 +40,11 @@ public enum AmpProviderDescriptor {
                     ProviderColor(hex: 0xF34E3F),
                 ]),
             tokenCost: ProviderTokenCostConfig(
-                supportsTokenCost: false,
-                noDataMessage: { "Amp cost summary is not supported." }),
+                supportsTokenCost: true,
+                noDataMessage: { "Amp reports recorded cost history only for enterprise workspaces via the CLI." },
+                isUsageUnavailable: { $0.costUsage == nil },
+                estimateDisclaimer: "Recorded cost reported by Amp",
+                historyTitleStyle: .compact),
             pace: ProviderPaceCapability(resetWindowPace: .custom { window, _ in
                 window.windowMinutes != nil && window.resetDescription?.hasPrefix("renews in ") == true
             }),
@@ -56,7 +59,9 @@ public enum AmpProviderDescriptor {
                 extraRateWindowSelector: { snapshot in
                     (snapshot.extraRateWindows ?? []).filter { $0.id == "amp-free" }
                 },
-                menuCard: ProviderMenuCardPresentation(creditsVisibility: .hiddenWhenUsageSnapshotPresent)),
+                menuCard: ProviderMenuCardPresentation(
+                    creditsVisibility: .hiddenWhenUsageSnapshotPresent,
+                    supportsInlineTokenCostDashboard: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api, .web, .cli],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),

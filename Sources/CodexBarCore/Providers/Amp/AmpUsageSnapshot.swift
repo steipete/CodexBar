@@ -10,6 +10,135 @@ public struct AmpWorkspaceBalance: Codable, Equatable, Sendable {
     }
 }
 
+/// One UTC day from the `amp usage --details` daily recorded cost table.
+public struct AmpDailyRecordedCost: Equatable, Sendable {
+    /// `yyyy-MM-dd`, as reported by Amp in UTC.
+    public let date: String
+    public let cost: Double
+
+    public init(date: String, cost: Double) {
+        self.date = date
+        self.cost = cost
+    }
+}
+
+/// One row of the `amp usage --details` models table.
+public struct AmpModelUsage: Equatable, Sendable {
+    public let name: String
+    public let inputTokens: Int
+    public let cacheReadTokens: Int
+    public let cacheWriteTokens: Int
+    public let outputTokens: Int
+    public let totalTokens: Int
+    public let cost: Double
+
+    public init(
+        name: String,
+        inputTokens: Int,
+        cacheReadTokens: Int,
+        cacheWriteTokens: Int,
+        outputTokens: Int,
+        totalTokens: Int,
+        cost: Double)
+    {
+        self.name = name
+        self.inputTokens = inputTokens
+        self.cacheReadTokens = cacheReadTokens
+        self.cacheWriteTokens = cacheWriteTokens
+        self.outputTokens = outputTokens
+        self.totalTokens = totalTokens
+        self.cost = cost
+    }
+}
+
+/// Recorded usage for one local day, from a single-day `amp usage --details` range.
+public struct AmpDailyUsage: Equatable, Sendable {
+    /// `yyyy-MM-dd` in the calendar the probe bucketed days with.
+    public let date: String
+    public let cost: Double?
+    public let tokens: Int?
+    public let models: [AmpModelUsage]
+
+    public init(date: String, cost: Double?, tokens: Int?, models: [AmpModelUsage] = []) {
+        self.date = date
+        self.cost = cost
+        self.tokens = tokens
+        self.models = models
+    }
+}
+
+/// Recorded totals for the range reported by `amp usage --details`.
+public struct AmpRecentUsage: Equatable, Sendable {
+    public let days: Int?
+    public let recordedCost: Double?
+    public let tokens: Int?
+    /// Amp's own UTC-day cost table for the range; it carries no token counts.
+    public let daily: [AmpDailyRecordedCost]
+    public let models: [AmpModelUsage]
+    /// Per-day tokens, cost, and models. Amp only reports these for one-day ranges, so the CLI probe fills them in.
+    public var dailyUsage: [AmpDailyUsage]
+    /// `true` when some day ranges could not be read; totals from `dailyUsage` are then a lower bound.
+    public var dailyUsageIsPartial: Bool
+
+    public init(
+        days: Int?,
+        recordedCost: Double?,
+        tokens: Int?,
+        daily: [AmpDailyRecordedCost] = [],
+        models: [AmpModelUsage] = [],
+        dailyUsage: [AmpDailyUsage] = [],
+        dailyUsageIsPartial: Bool = false)
+    {
+        self.days = days
+        self.recordedCost = recordedCost
+        self.tokens = tokens
+        self.daily = daily
+        self.models = models
+        self.dailyUsage = dailyUsage
+        self.dailyUsageIsPartial = dailyUsageIsPartial
+    }
+
+    func toCostUsageTokenSnapshot(now: Date, calendar: Calendar = .current) -> CostUsageTokenSnapshot? {
+        guard !self.dailyUsage.isEmpty else { return nil }
+        let entries = self.dailyUsage.sorted { $0.date < $1.date }.map { day in
+            let models = day.models
+            return CostUsageDailyReport.Entry(
+                date: day.date,
+                inputTokens: models.isEmpty ? nil : models.map(\.inputTokens).reduce(0, +),
+                outputTokens: models.isEmpty ? nil : models.map(\.outputTokens).reduce(0, +),
+                cacheReadTokens: models.isEmpty ? nil : models.map(\.cacheReadTokens).reduce(0, +),
+                cacheCreationTokens: models.isEmpty ? nil : models.map(\.cacheWriteTokens).reduce(0, +),
+                totalTokens: day.tokens,
+                costUSD: day.cost.map { max(0, $0) },
+                modelsUsed: models.isEmpty ? nil : models.map(\.name),
+                modelBreakdowns: models.isEmpty ? nil : models.map { model in
+                    CostUsageDailyReport.ModelBreakdown(
+                        modelName: model.name,
+                        costUSD: max(0, model.cost),
+                        totalTokens: model.totalTokens,
+                        inputTokens: model.inputTokens,
+                        outputTokens: model.outputTokens,
+                        cacheReadTokens: model.cacheReadTokens,
+                        cacheCreationTokens: model.cacheWriteTokens)
+                })
+        }
+        let todayKey = CostUsageLocalDay.key(
+            from: now,
+            calendar: CostUsageLocalDay.gregorianCalendar(matching: calendar))
+        let today = entries.first { $0.date == todayKey }
+        return CostUsageTokenSnapshot(
+            sessionTokens: today?.totalTokens ?? 0,
+            sessionCostUSD: today?.costUSD ?? 0,
+            last30DaysTokens: self.tokens ?? entries.compactMap(\.totalTokens).reduce(0, +),
+            last30DaysCostUSD: self.recordedCost ?? entries.compactMap(\.costUSD).reduce(0, +),
+            historyDays: self.days ?? 30,
+            historyScanIsPartial: self.dailyUsageIsPartial,
+            costProvenance: .vendorMetered,
+            daily: entries,
+            updatedAt: now)
+    }
+}
+
 public struct AmpSubscriptionUsage: Equatable, Sendable {
     public let plan: String
     public let otherUsedPercent: Double
@@ -59,6 +188,9 @@ public struct AmpUsageSnapshot: Sendable {
     public let updatedAt: Date
     public let freeResetDescription: String?
     public let subscription: AmpSubscriptionUsage?
+    /// Workspaces whose usage is paid by an enterprise; Amp reports no balance for them.
+    public let enterpriseWorkspaces: [String]
+    public var recentUsage: AmpRecentUsage?
 
     public init(
         freeQuota: Double?,
@@ -71,7 +203,9 @@ public struct AmpUsageSnapshot: Sendable {
         accountOrganization: String? = nil,
         updatedAt: Date,
         freeResetDescription: String? = nil,
-        subscription: AmpSubscriptionUsage? = nil)
+        subscription: AmpSubscriptionUsage? = nil,
+        enterpriseWorkspaces: [String] = [],
+        recentUsage: AmpRecentUsage? = nil)
     {
         self.freeQuota = freeQuota
         self.freeUsed = freeUsed
@@ -84,6 +218,8 @@ public struct AmpUsageSnapshot: Sendable {
         self.updatedAt = updatedAt
         self.freeResetDescription = freeResetDescription
         self.subscription = subscription
+        self.enterpriseWorkspaces = enterpriseWorkspaces
+        self.recentUsage = recentUsage
     }
 }
 
@@ -156,7 +292,7 @@ extension AmpUsageSnapshot {
             providerID: .amp,
             accountEmail: self.accountEmail,
             accountOrganization: self.accountOrganization,
-            loginMethod: self.subscription?.plan ?? (primary == nil ? "Amp" : "Amp Free"))
+            loginMethod: self.subscription?.plan ?? self.fallbackLoginMethod(hasPrimary: primary != nil))
 
         var allowanceRows: [ProviderDetailSection.Row] = []
         if let remaining = self.subscription?.agentRemaining {
@@ -185,8 +321,25 @@ extension AmpUsageSnapshot {
         detailRows.append(contentsOf: self.workspaceBalances.map {
             .makeRow(label: "Workspace \($0.name)", value: UsageFormatter.usdString($0.remaining))
         })
+        detailRows.append(contentsOf: self.enterpriseWorkspaces.map {
+            .makeRow(label: "Workspace \($0)", value: "Enterprise", secondaryValue: "Usage paid by your enterprise")
+        })
         if !detailRows.isEmpty {
             details.append(.makeSection(title: "Credits", rows: detailRows))
+        }
+
+        // The shared cost chart already carries these totals when Amp reports daily history.
+        let costUsage = self.recentUsage?.toCostUsageTokenSnapshot(now: self.updatedAt)
+        var recentRows: [ProviderDetailSection.Row] = []
+        if costUsage == nil, let cost = self.recentUsage?.recordedCost {
+            recentRows.append(.makeRow(label: "Recorded cost", value: UsageFormatter.usdString(cost)))
+        }
+        if costUsage == nil, let tokens = self.recentUsage?.tokens {
+            recentRows.append(.makeRow(label: "Tokens", value: UsageFormatter.tokenCountString(tokens)))
+        }
+        if !recentRows.isEmpty {
+            let title = self.recentUsage?.days.map { $0 == 1 ? "Last day" : "Last \($0) days" } ?? "Recent usage"
+            details.append(.makeSection(title: title, rows: recentRows))
         }
 
         return UsageSnapshot(
@@ -195,9 +348,17 @@ extension AmpUsageSnapshot {
             tertiary: nil,
             extraRateWindows: extraRateWindows,
             providerCost: nil,
+            costUsage: costUsage,
             details: details,
             updatedAt: self.updatedAt,
             identity: identity)
+    }
+
+    private func fallbackLoginMethod(hasPrimary: Bool) -> String {
+        if !self.enterpriseWorkspaces.isEmpty {
+            return "Enterprise"
+        }
+        return hasPrimary ? "Amp Free" : "Amp"
     }
 
     private static func nextFreeTierReset(after date: Date) -> Date? {
