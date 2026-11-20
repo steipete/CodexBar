@@ -8,7 +8,36 @@ ApplicationWindow {
     title: "CodexBar"
     width: 420
     height: selectedIndex === -1 ? Math.min(650, 405 + desktop.entries.length * 54) : 680
-    minimumWidth: 360; minimumHeight: 400
+    minimumWidth: pinned ? 180 : 360; minimumHeight: pinned ? 40 : 400
+    property bool pinned: false
+    property size expandedSize
+    property int expandedFlags
+    readonly property var capsuleEntry: selectedEntry || desktop.entries[0]
+    readonly property string capsuleSummary: {
+        const entry = capsuleEntry;
+        if (!entry) return desktop.busy ? "Loading usage…" : "Usage unavailable";
+        const mode = desktop.settings.quotaDisplay;
+        const quotas = entry.windows.slice(0, 2).map(metric =>
+            metric.label + " " + Usage.quotaValue(metric.remaining, mode) + "%");
+        const values = quotas.length ? quotas.join(" · ") + (mode === "used" ? " used" : " left") : "Usage unavailable";
+        return Usage.providerName(entry.provider) + " · " + values + (desktop.stale ? " · Stale" : "");
+    }
+
+    function setPinned(value) {
+        if (value === pinned) return;
+        if (value) {
+            expandedSize = Qt.size(width, height);
+            expandedFlags = flags;
+        }
+        pinned = value;
+        flags = value ? Qt.Window | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.NoDropShadowWindowHint : expandedFlags;
+        width = value ? capsuleWidth : expandedSize.width;
+        height = value ? 40 : expandedSize.height;
+        Qt.callLater(fitWindow);
+        if (!value) settleFrame.restart();
+        if (!value) pinButton.forceActiveFocus();
+        else expandButton.forceActiveFocus();
+    }
     property int selectedIndex: 0 // -1 is Overview; entries may include multiple accounts.
     readonly property var selectedEntry: selectedIndex >= 0 && selectedIndex < desktop.entries.length ?
         desktop.entries[selectedIndex] : null
@@ -42,9 +71,127 @@ ApplicationWindow {
         }
     }
     SystemPalette { id: nativePalette }
-    background: Rectangle { color: nativePalette.window }
+    readonly property int capsuleWidth: Math.max(180, capsuleRow.implicitWidth + 45)
+    function fitWindow() { desktop.fitQuickView(window, pinned); }
+    // X11 window managers restore the title bar asynchronously after the flag change.
+    Timer { id: settleFrame; interval: 120; onTriggered: if (!window.pinned) window.fitWindow() }
+    onCapsuleWidthChanged: if (pinned) {
+        width = capsuleWidth;
+        Qt.callLater(fitWindow);
+    }
+    color: pinned ? "transparent" : nativePalette.window
+    background: Rectangle {
+        radius: window.pinned ? height / 2 : 0
+        color: nativePalette.window
+    }
 
+    RowLayout {
+        anchors.fill: parent
+        anchors.leftMargin: 5
+        anchors.rightMargin: 10
+        visible: window.pinned
+        spacing: 3
+        Item {
+            Layout.preferredWidth: 22
+            Layout.fillHeight: true
+            Grid {
+                anchors.centerIn: parent
+                columns: 2
+                spacing: 2
+                Repeater {
+                    model: 6
+                    Rectangle { width: 2; height: 2; radius: 1; color: window.secondaryText }
+                }
+            }
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.SizeAllCursor
+                hoverEnabled: true
+                ToolTip.visible: containsMouse && !pressed
+                ToolTip.delay: 700
+                ToolTip.text: "Drag to move"
+                onPressed: window.startSystemMove()
+            }
+        }
+        ToolButton {
+            id: expandButton
+            objectName: "expandQuickView"
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            padding: 0
+            Accessible.name: "Expand Quick View. " + window.capsuleSummary
+            background: Rectangle {
+                radius: height / 2
+                color: expandButton.hovered || expandButton.down ? window.hoverColor : "transparent"
+                border.width: expandButton.visualFocus ? 1 : 0
+                border.color: window.accent
+            }
+            contentItem: RowLayout {
+                id: capsuleRow
+                spacing: 8
+                Image {
+                    source: window.capsuleEntry ? "image://provider-icon/" + window.capsuleEntry.provider +
+                        "?color=" + window.primaryText.toString().slice(1) : ""
+                    visible: status === Image.Ready
+                    Layout.preferredWidth: 16
+                    Layout.preferredHeight: 16
+                    sourceSize: Qt.size(32, 32)
+                }
+                Label {
+                    text: window.capsuleEntry ? Usage.providerName(window.capsuleEntry.provider) : "CodexBar"
+                    textFormat: Text.PlainText
+                    font.pixelSize: 12
+                    font.weight: Font.DemiBold
+                    color: window.primaryText
+                }
+                Repeater {
+                    model: window.capsuleEntry ? window.capsuleEntry.windows.slice(0, 2) : []
+                    Column {
+                        required property var modelData
+                        readonly property int percent: Usage.quotaValue(modelData.remaining, desktop.settings.quotaDisplay)
+                        Layout.preferredWidth: 108
+                        spacing: 3
+                        RowLayout {
+                            width: parent.width
+                            Label {
+                                Layout.fillWidth: true
+                                text: modelData.label
+                                textFormat: Text.PlainText
+                                elide: Text.ElideRight
+                                font.pixelSize: 11
+                                color: window.secondaryText
+                            }
+                            Label {
+                                text: percent + (desktop.settings.quotaDisplay === "used" ? "% used" : "% left")
+                                font.pixelSize: 11
+                                font.weight: Font.DemiBold
+                                color: window.primaryText
+                            }
+                        }
+                        Rectangle {
+                            width: parent.width; height: 3; radius: 1.5
+                            color: window.trackColor
+                            Rectangle {
+                                width: parent.width * percent / 100
+                                height: parent.height; radius: parent.radius
+                                color: window.meterColor
+                            }
+                        }
+                    }
+                }
+                Label {
+                    visible: !window.capsuleEntry || !window.capsuleEntry.windows.length || desktop.stale
+                    text: !window.capsuleEntry ? window.capsuleSummary :
+                        !window.capsuleEntry.windows.length ? "Usage unavailable" : "Stale"
+                    font.pixelSize: 11
+                    color: window.secondaryText
+                }
+            }
+            onClicked: window.setPinned(false)
+        }
+    }
     ColumnLayout {
+        visible: !window.pinned
         anchors.fill: parent
         spacing: 0
 
@@ -58,6 +205,12 @@ ApplicationWindow {
                 font.pixelSize: 14
                 font.weight: Font.DemiBold
                 Layout.fillWidth: true
+            }
+            ToolButton {
+                id: pinButton
+                text: "Pin compact"
+                Accessible.name: "Collapse and pin Quick View"
+                onClicked: window.setPinned(true)
             }
             ToolButton {
                 text: "↻"

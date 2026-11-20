@@ -22,6 +22,7 @@ TestCase {
         property string costError: ""
         signal changed()
         function refresh() {}
+        function fitQuickView(window, compact) {}
         function showWindow(page) {}
     }
     property var view: null
@@ -81,5 +82,23 @@ TestCase {
         desktop.settings = {showCosts: true, quotaDisplay: "used", resetDisplay: "countdown",
             showPace: true, warningColors: true, notifyThreshold: 10};
         tryCompare(fill, "width", fill.parent.width * 0.4);
+    }
+    function test_pinAndExpandPreservesSizeAndShowsLiveQuota() {
+        view.width = 510;
+        view.height = 550;
+        const flags = view.flags;
+        const pin = textItem(view.contentItem, "Pin compact");
+        verify(pin);
+        mouseClick(pin);
+        tryCompare(view, "height", 40);
+        verify(view.flags & Qt.WindowStaysOnTopHint);
+        verify(shown("Session") && shown("60% left"));
+        desktop.settings = Object.assign({}, desktop.settings, {quotaDisplay: "used"});
+        tryVerify(function() { return shown("40% used"); });
+        mouseClick(findChild(view.contentItem, "expandQuickView"));
+        tryCompare(view, "height", 550);
+        compare(view.width, 510);
+        compare(view.flags, flags);
+        verify(shown("Cost across accounts"));
     }
 }
