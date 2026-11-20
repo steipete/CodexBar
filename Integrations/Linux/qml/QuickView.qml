@@ -13,12 +13,13 @@ ApplicationWindow {
     property size expandedSize
     property int expandedFlags
     readonly property var capsuleEntry: selectedEntry || desktop.entries[0]
+    readonly property bool capsuleRefreshFailed: !!desktop.error || !!(capsuleEntry && capsuleEntry.failed)
     readonly property string capsuleStatus: desktop.busy ? "Refreshing…" :
-        desktop.error || (capsuleEntry && capsuleEntry.error) ? "Refresh failed" :
+        capsuleRefreshFailed ? "Refresh failed" :
         desktop.stale ? "Stale" : !capsuleEntry || !capsuleEntry.windows.length ? "No usage" :
         desktop.updated ? "Up to date" : "Waiting…"
     readonly property string capsuleStatusIcon: desktop.busy ? "↻" :
-        desktop.error || (capsuleEntry && capsuleEntry.error) ? "!" :
+        capsuleRefreshFailed ? "!" :
         desktop.stale ? "◷" : capsuleStatus === "Up to date" ? "✓" : "…"
     property double capsuleNow: Date.now()
     onPinnedChanged: if (pinned) capsuleNow = Date.now()

@@ -1,6 +1,7 @@
 import QtQuick
 import QtTest
 import "../../qml" as Desktop
+import "../../Shared/Usage.js" as Usage
 
 TestCase {
     id: testCase
@@ -121,5 +122,20 @@ TestCase {
         desktop.stale = false;
         desktop.settings = Object.assign({}, desktop.settings, {refreshSeconds: 90});
         compare(view.refreshCadence, "Every 90 s");
+    }
+    function test_capsuleProviderWithoutQuotaWindows() {
+        const previousEntries = desktop.entries;
+        try {
+            desktop.entries = Usage.rows(JSON.stringify({provider: "vertexai", usage: {}}), false);
+            view.setPinned(true);
+            compare(view.capsuleStatus, "No usage");
+            verify(shown("…"));
+
+            desktop.entries = Usage.rows(JSON.stringify({provider: "vertexai", error: "Synthetic failure"}), false);
+            compare(view.capsuleStatus, "Refresh failed");
+            verify(shown("!"));
+        } finally {
+            desktop.entries = previousEntries;
+        }
     }
 }
