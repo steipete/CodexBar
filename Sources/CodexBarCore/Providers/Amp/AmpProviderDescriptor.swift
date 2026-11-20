@@ -43,6 +43,7 @@ public enum AmpProviderDescriptor {
                 supportsTokenCost: true,
                 noDataMessage: { "Amp reports recorded cost history only for enterprise workspaces via the CLI." },
                 isUsageUnavailable: { $0.costUsage == nil },
+                menuHintLines: [.estimate],
                 estimateDisclaimer: "Recorded cost reported by Amp",
                 historyTitleStyle: .compact),
             pace: ProviderPaceCapability(resetWindowPace: .custom { window, _ in
