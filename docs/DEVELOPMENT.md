@@ -489,6 +489,11 @@ snapshot replacement, saturation, exact spelling, and report-only repricing agai
 The shared pricing source changes the generated Codex parser hash, but Codex algorithms are unchanged;
 `6366caa15c925349` remains an explicitly tested compatible predecessor.
 
+Claude swap profile cost scans set `claudeTranscriptCacheRoot`, so each mapped directory keeps its own
+transcript cache and report memo under `cost-usage/claude-directories/<digest>` while pricing stays shared.
+The new scanner option changes the generated Codex parser hash without changing Codex parsing;
+`0e253ad335df6daa` is an explicitly tested compatible predecessor.
+
 ### Adaptive refresh fixtures
 
 Heuristics and timer tests seed disabled providers through `testSettingsStore(config:)`, which saves the

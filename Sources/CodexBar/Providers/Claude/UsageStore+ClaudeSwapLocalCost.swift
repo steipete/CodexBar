@@ -31,6 +31,12 @@ extension UsageStore {
         return self.claudeSwapLocalCostState.snapshots[key]
     }
 
+    func resetClaudeSwapLocalCost() {
+        self.claudeSwapLocalCostState.task?.cancel()
+        self.claudeSwapLocalCostState = ClaudeSwapLocalCostState()
+        self.claudeSwapRevision &+= 1
+    }
+
     func scheduleClaudeSwapLocalCostRefresh(force: Bool = false, now: Date = Date()) {
         let request = self.claudeSwapLocalCostRequest(now: now)
         if self.claudeSwapLocalCostState.request != request {
@@ -58,7 +64,8 @@ extension UsageStore {
                     codexHomePath: nil,
                     historyDays: request.historyDays,
                     includePiSessions: false,
-                    claudeConfigDirectoryOverride: directory)
+                    claudeConfigDirectoryOverride: directory,
+                    isolatesClaudeDirectoryCache: true)
                 snapshots[key] = result?.snapshot.reporting(request.period)
             }
             guard !Task.isCancelled else { return }

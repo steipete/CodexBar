@@ -802,9 +802,10 @@ extension CostUsageScanner {
         try checkCancellation?()
 
         let cacheContext = reportContext ?? .regular
+        let transcriptCacheRoot = options.claudeTranscriptCacheRoot ?? options.cacheRoot
         let cacheURL = CostUsageClaudeCacheIO.cacheFileURL(
             provider: provider,
-            cacheRoot: options.cacheRoot,
+            cacheRoot: transcriptCacheRoot,
             reportContext: cacheContext)
         let canonicalCachePath = cacheURL.standardizedFileURL.resolvingSymlinksInPath().path
         let cacheArtifactStamp = CostUsageClaudeFileStamp.read(at: cacheURL)
@@ -834,7 +835,7 @@ extension CostUsageScanner {
 
         var artifact = CostUsageClaudeCacheIO.load(
             provider: provider,
-            cacheRoot: options.cacheRoot,
+            cacheRoot: transcriptCacheRoot,
             reportContext: cacheContext,
             calendar: range.calendar)
         var cache = artifact.usage
@@ -959,7 +960,7 @@ extension CostUsageScanner {
             try CostUsageClaudeCacheIO.save(
                 provider: provider,
                 cache: artifact,
-                cacheRoot: options.cacheRoot,
+                cacheRoot: transcriptCacheRoot,
                 reportContext: cacheContext,
                 calendar: range.calendar,
                 checkCancellation: checkCancellation)

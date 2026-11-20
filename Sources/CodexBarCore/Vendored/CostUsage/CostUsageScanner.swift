@@ -184,6 +184,9 @@ enum CostUsageScanner {
         var includeOpenCodeLocalHistory = false
         var claudeProjectsRoots: [URL]?
         var cacheRoot: URL?
+        /// Claude transcript cache and report memo location; pricing stays under `cacheRoot`.
+        /// Separate roots keep independently scanned profiles from evicting each other's rows.
+        var claudeTranscriptCacheRoot: URL?
         var codexTraceDatabaseURL: URL?
         var codexScanBudgetForTesting: CodexScanBudget?
         var calendar: Calendar

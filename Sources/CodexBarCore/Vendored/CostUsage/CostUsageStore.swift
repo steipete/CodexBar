@@ -122,6 +122,7 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "0e253ad335df6daa", // Claude-only transcript cache roots leave native Codex rows and checkpoints unchanged.
         "51f8655d53d65b3d", // Current main before Terra and Luna Fast repricing.
         "ad011f05e9ab733a", // 0.84.0 rows and checkpoints survive Terra and Luna Fast repricing.
         "2dc85fe95af0aa95", // Preserve project-accumulation caches when combined with linked-root discovery.

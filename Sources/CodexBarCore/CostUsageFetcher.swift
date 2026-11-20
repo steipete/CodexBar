@@ -1,4 +1,7 @@
 // swiftlint:disable file_length
+#if canImport(CryptoKit)
+import CryptoKit
+#endif
 import Foundation
 
 public enum CostUsageError: LocalizedError, Sendable {
@@ -260,7 +263,8 @@ public struct CostUsageFetcher: Sendable {
         piSessionProcessContexts: [PiSessionProcessContext] = [],
         bypassScannerDebounce: Bool,
         calendar: Calendar? = nil,
-        reportContext: CostUsageReportContext = .regular) async throws -> CostUsageTokenResult
+        reportContext: CostUsageReportContext = .regular,
+        isolatesClaudeDirectoryCache: Bool = false) async throws -> CostUsageTokenResult
     {
         var options = self.scannerOptions(calendar: calendar, includeOpenCodeLocalHistory: includeOpenCodeLocalHistory)
         // Provider-specific by design: explicit account roots never include ambient or swap history.
@@ -272,6 +276,11 @@ public struct CostUsageFetcher: Sendable {
             }
             options = options ?? CostUsageScanner.Options()
             options?.claudeProjectsRoots = roots
+            if isolatesClaudeDirectoryCache {
+                let cacheRoot = options?.cacheRoot
+                options?.claudeTranscriptCacheRoot = Self.claudeDirectoryCacheRoot(
+                    cacheRoot: cacheRoot, configDirectory: claudeConfigDirectory)
+            }
         }
         return try await Self.loadTokenResult(
             provider: provider,
@@ -316,6 +325,25 @@ public struct CostUsageFetcher: Sendable {
             historyDays: historyDays,
             allowPricingRefresh: allowPricingRefresh,
             refreshPricingInBackground: refreshPricingInBackground)
+    }
+
+    /// Directories scanned side by side keep their own transcript cache under `cost-usage`, so
+    /// they scan incrementally and the cost-cache clear action removes them with everything else.
+    static func claudeDirectoryCacheRoot(cacheRoot: URL?, configDirectory: String) -> URL {
+        let base = cacheRoot ?? FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("CodexBar", isDirectory: true)
+        let standardized = URL(fileURLWithPath: configDirectory, isDirectory: true).standardizedFileURL.path
+        #if canImport(CryptoKit)
+        let digest = SHA256.hash(data: Data(standardized.utf8)).map { String(format: "%02x", $0) }.joined()
+        #else
+        let digest = String(
+            standardized.utf8.reduce(UInt64(14_695_981_039_346_656_037)) { ($0 ^ UInt64($1)) &* 1_099_511_628_211 },
+            radix: 16)
+        #endif
+        return base
+            .appendingPathComponent("cost-usage", isDirectory: true)
+            .appendingPathComponent("claude-directories", isDirectory: true)
+            .appendingPathComponent(digest, isDirectory: true)
     }
 
     private func scannerOptions(

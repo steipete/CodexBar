@@ -150,7 +150,8 @@ extension UsageStore {
         cursorCookieHeaderOverride: String? = nil,
         includePiSessions: Bool = true,
         reportContext: CostUsageReportContext = .regular,
-        claudeConfigDirectoryOverride: String? = nil) async throws -> CostUsageTokenResult
+        claudeConfigDirectoryOverride: String? = nil,
+        isolatesClaudeDirectoryCache: Bool = false) async throws -> CostUsageTokenResult
     {
         if let override = self._test_tokenUsageResultLoaderOverride {
             return try await override(provider, force, now, codexHomePath, historyDays, includePiSessions)
@@ -211,7 +212,8 @@ extension UsageStore {
                     piSessionProcessContexts: piSessionProcessContexts,
                     bypassScannerDebounce: true,
                     calendar: self.settings.costUsageBucketCalendar,
-                    reportContext: reportContext)
+                    reportContext: reportContext,
+                    isolatesClaudeDirectoryCache: isolatesClaudeDirectoryCache)
             }
             group.addTask {
                 try await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
@@ -804,6 +806,7 @@ extension UsageStore {
         guard errorMessage == nil else { return errorMessage }
 
         self.clearTokenSnapshots()
+        self.resetClaudeSwapLocalCost()
         self.tokenErrors.removeAll()
         self.lastTokenFetchAt.removeAll()
         self.lastTokenFetchScope.removeAll()
