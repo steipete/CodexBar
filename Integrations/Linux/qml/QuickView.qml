@@ -13,6 +13,20 @@ ApplicationWindow {
     property size expandedSize
     property int expandedFlags
     readonly property var capsuleEntry: selectedEntry || desktop.entries[0]
+    readonly property string capsuleStatus: desktop.busy ? "Refreshing…" :
+        desktop.error || (capsuleEntry && capsuleEntry.error) ? "Refresh failed" :
+        desktop.stale ? "Stale" : !capsuleEntry || !capsuleEntry.windows.length ? "No usage" :
+        desktop.updated ? "Up to date" : "Waiting…"
+    readonly property string capsuleStatusIcon: desktop.busy ? "↻" :
+        desktop.error || (capsuleEntry && capsuleEntry.error) ? "!" :
+        desktop.stale ? "◷" : capsuleStatus === "Up to date" ? "✓" : "…"
+    property double capsuleNow: Date.now()
+    onPinnedChanged: if (pinned) capsuleNow = Date.now()
+    readonly property string refreshCadence: {
+        const seconds = desktop.settings.refreshSeconds;
+        if (!seconds) return "";
+        return seconds % 60 === 0 ? "Every " + seconds / 60 + " min" : "Every " + seconds + " s";
+    }
     readonly property string capsuleSummary: {
         const entry = capsuleEntry;
         if (!entry) return desktop.busy ? "Loading usage…" : "Usage unavailable";
@@ -66,6 +80,7 @@ ApplicationWindow {
     Connections {
         target: desktop
         function onChanged() {
+            if (window.pinned) window.capsuleNow = Date.now();
             if (desktop.entries.length && window.selectedIndex >= desktop.entries.length)
                 window.selectedIndex = 0;
         }
@@ -119,7 +134,12 @@ ApplicationWindow {
             Layout.fillWidth: true
             Layout.fillHeight: true
             padding: 0
-            Accessible.name: "Expand Quick View. " + window.capsuleSummary
+            hoverEnabled: true
+            readonly property string statusDescription: window.capsuleStatus + (window.refreshCadence ? " · " + window.refreshCadence : "") +
+                (window.capsuleEntry ? window.capsuleEntry.windows.slice(0, 2).map(metric =>
+                    "\n" + metric.label + " · " + Usage.resetText(metric.resetsAt, window.capsuleNow, "countdown")).join("") : "")
+            Accessible.name: "Expand Quick View. " + window.capsuleSummary + ". " +
+                statusDescription
             background: Rectangle {
                 radius: height / 2
                 color: expandButton.hovered || expandButton.down ? window.hoverColor : "transparent"
@@ -150,7 +170,7 @@ ApplicationWindow {
                         required property var modelData
                         readonly property int percent: Usage.quotaValue(modelData.remaining, desktop.settings.quotaDisplay)
                         Layout.preferredWidth: 108
-                        spacing: 3
+                        spacing: 1
                         RowLayout {
                             width: parent.width
                             Label {
@@ -177,14 +197,26 @@ ApplicationWindow {
                                 color: window.meterColor
                             }
                         }
+                        Label {
+                            readonly property double resetAt: Date.parse(modelData.resetsAt)
+                            visible: Number.isFinite(resetAt)
+                            text: resetAt <= window.capsuleNow ? "Reset due" :
+                                Usage.resetLabel(modelData.resetsAt, window.capsuleNow)
+                            font.pixelSize: 10
+                            color: window.secondaryText
+                        }
                     }
                 }
                 Label {
-                    visible: !window.capsuleEntry || !window.capsuleEntry.windows.length || desktop.stale
-                    text: !window.capsuleEntry ? window.capsuleSummary :
-                        !window.capsuleEntry.windows.length ? "Usage unavailable" : "Stale"
-                    font.pixelSize: 11
-                    color: window.secondaryText
+                    text: window.capsuleStatusIcon
+                    HoverHandler { id: statusHover }
+                    ToolTip.visible: statusHover.hovered
+                    ToolTip.delay: 700
+                    ToolTip.text: expandButton.statusDescription
+                    horizontalAlignment: Text.AlignHCenter
+                    Layout.preferredWidth: 15
+                    font.pixelSize: 14
+                    color: window.primaryText
                 }
             }
             onClicked: window.setPinned(false)

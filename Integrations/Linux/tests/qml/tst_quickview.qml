@@ -101,4 +101,25 @@ TestCase {
         compare(view.flags, flags);
         verify(shown("Cost across accounts"));
     }
+    function test_capsuleRefreshStatus() {
+        desktop.settings = Object.assign({}, desktop.settings, {refreshSeconds: 300});
+        view.setPinned(true);
+        verify(shown("✓"));
+        compare(view.refreshCadence, "Every 5 min");
+        view.capsuleNow = Date.parse("2029-12-29T20:00:00Z");
+        verify(shown("Resets in 2d 4h"));
+        view.capsuleNow = Date.parse("2030-01-01T00:00:00Z");
+        verify(shown("Reset due"));
+        desktop.busy = true;
+        verify(shown("↻"));
+        desktop.busy = false;
+        desktop.stale = true;
+        verify(shown("◷"));
+        desktop.error = "Synthetic refresh failure";
+        verify(shown("!"));
+        desktop.error = "";
+        desktop.stale = false;
+        desktop.settings = Object.assign({}, desktop.settings, {refreshSeconds: 90});
+        compare(view.refreshCadence, "Every 90 s");
+    }
 }
