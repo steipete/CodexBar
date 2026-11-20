@@ -470,6 +470,8 @@ extension CodexBarCLI {
             tokenAccountTokenUpdater: tokenContext.tokenUpdater(for: account),
             providerManualTokenUpdater: tokenContext.manualTokenUpdater(),
             settingsWriter: Self.pluginSettingsWriter(provider: provider, config: tokenContext.config),
+            costUsageBucketCalendar: CostUsageBucketTimeZone.calendar(
+                identifier: Self.stringFromAppDefaults("tokenCostUsageBucketTimeZone")),
             persistsCLISessions: Self.persistsCLISessions(provider: provider, command: command),
             persistentCLISessionIdleWindow: command.persistentCLISessionIdleWindow,
             resolvedCLIVersion: resolvedCLIVersion)

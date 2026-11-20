@@ -9,9 +9,10 @@ public struct AmpCLIProbe: Sendable {
     private let arguments: [String]
     private let calendar: Calendar
 
-    public init() {
+    /// - Parameter calendar: The Statistics calendar; Amp history is queried and keyed by its days.
+    public init(calendar: Calendar = .current) {
         self.arguments = ["usage"]
-        self.calendar = .current
+        self.calendar = calendar
     }
 
     init(arguments: [String], calendar: Calendar = .current) {
@@ -101,7 +102,7 @@ public struct AmpCLIProbe: Sendable {
 
         for (day, value) in fetched {
             guard let value else {
-                recent.dailyUsageIsPartial = true
+                recent.unreadDays.insert(CostUsageLocalDay.key(from: day, calendar: calendar))
                 continue
             }
             usage.append(value)

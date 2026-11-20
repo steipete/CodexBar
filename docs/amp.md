@@ -52,10 +52,11 @@ Create an access token in Amp settings, then paste it into **Amp → Access toke
 ## How it works
 
 - Runs `amp usage` first in automatic mode
-- For enterprise-paid workspaces, runs `amp usage --details --start … --end …` over the last 30 local days, then once
-  per active day, because Amp reports tokens and models only for the whole requested range. Day queries run up to
-  eight at a time; days that ended more than six hours ago are reused until CodexBar restarts. All of this is
-  best-effort: a failed range keeps the account, and a failed day marks the history as partial
+- For enterprise-paid workspaces, runs `amp usage --details --start … --end …` over the last 30 days, then once
+  per active day, because Amp reports tokens and models only for the whole requested range. Days follow the
+  Statistics time zone. Day queries run up to eight at a time; days that ended more than six hours ago are reused
+  until CodexBar restarts. All of this is best-effort: a failed range keeps the account, and a failed day marks the
+  history as partial and leaves that day's totals unknown instead of zero
 - Calls `POST https://ampcode.com/api/internal?userDisplayBalanceInfo` with an Amp access token
 - Falls back to the settings page with browser cookies
 - Parses the same usage display format returned to the CLI

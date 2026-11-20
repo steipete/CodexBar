@@ -109,9 +109,10 @@ struct AmpCLIFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        let snapshot = try await AmpCLIProbe().fetch(environment: context.env)
+        let calendar = context.costUsageBucketCalendar
+        let snapshot = try await AmpCLIProbe(calendar: calendar).fetch(environment: context.env)
         return self.makeResult(
-            usage: snapshot.toUsageSnapshot(now: snapshot.updatedAt),
+            usage: snapshot.toUsageSnapshot(now: snapshot.updatedAt, calendar: calendar),
             sourceLabel: "cli")
     }
 
@@ -142,7 +143,7 @@ struct AmpAPIFetchStrategy: ProviderFetchStrategy {
         let snapshot = try await AmpUsageFetcher(browserDetection: context.browserDetection)
             .fetch(apiToken: token, logger: logger)
         return self.makeResult(
-            usage: snapshot.toUsageSnapshot(now: snapshot.updatedAt),
+            usage: snapshot.toUsageSnapshot(now: snapshot.updatedAt, calendar: context.costUsageBucketCalendar),
             sourceLabel: "api")
     }
 
@@ -176,7 +177,7 @@ struct AmpStatusFetchStrategy: ProviderFetchStrategy {
             : nil
         let snap = try await fetcher.fetch(cookieHeaderOverride: manual, logger: logger)
         return self.makeResult(
-            usage: snap.toUsageSnapshot(now: snap.updatedAt),
+            usage: snap.toUsageSnapshot(now: snap.updatedAt, calendar: context.costUsageBucketCalendar),
             sourceLabel: "web")
     }
 

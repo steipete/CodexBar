@@ -77,8 +77,12 @@ public struct AmpRecentUsage: Equatable, Sendable {
     public let models: [AmpModelUsage]
     /// Per-day tokens, cost, and models. Amp only reports these for one-day ranges, so the CLI probe fills them in.
     public var dailyUsage: [AmpDailyUsage]
+    /// Day keys whose range could not be read. Their usage is unknown, not zero.
+    public var unreadDays: Set<String>
     /// `true` when some day ranges could not be read; totals from `dailyUsage` are then a lower bound.
-    public var dailyUsageIsPartial: Bool
+    public var dailyUsageIsPartial: Bool {
+        !self.unreadDays.isEmpty
+    }
 
     public init(
         days: Int?,
@@ -87,7 +91,7 @@ public struct AmpRecentUsage: Equatable, Sendable {
         daily: [AmpDailyRecordedCost] = [],
         models: [AmpModelUsage] = [],
         dailyUsage: [AmpDailyUsage] = [],
-        dailyUsageIsPartial: Bool = false)
+        unreadDays: Set<String> = [])
     {
         self.days = days
         self.recordedCost = recordedCost
@@ -95,7 +99,7 @@ public struct AmpRecentUsage: Equatable, Sendable {
         self.daily = daily
         self.models = models
         self.dailyUsage = dailyUsage
-        self.dailyUsageIsPartial = dailyUsageIsPartial
+        self.unreadDays = unreadDays
     }
 
     func toCostUsageTokenSnapshot(now: Date, calendar: Calendar = .current) -> CostUsageTokenSnapshot? {
@@ -126,9 +130,11 @@ public struct AmpRecentUsage: Equatable, Sendable {
             from: now,
             calendar: CostUsageLocalDay.gregorianCalendar(matching: calendar))
         let today = entries.first { $0.date == todayKey }
+        // A day Amp was asked about and reported nothing for is a known zero; an unread day is unknown.
+        let todayIsUnread = self.unreadDays.contains(todayKey)
         return CostUsageTokenSnapshot(
-            sessionTokens: today?.totalTokens ?? 0,
-            sessionCostUSD: today?.costUSD ?? 0,
+            sessionTokens: today?.totalTokens ?? (todayIsUnread ? nil : 0),
+            sessionCostUSD: today?.costUSD ?? (todayIsUnread ? nil : 0),
             last30DaysTokens: self.tokens ?? entries.compactMap(\.totalTokens).reduce(0, +),
             last30DaysCostUSD: self.recordedCost ?? entries.compactMap(\.costUSD).reduce(0, +),
             historyDays: self.days ?? 30,
@@ -224,7 +230,7 @@ public struct AmpUsageSnapshot: Sendable {
 }
 
 extension AmpUsageSnapshot {
-    public func toUsageSnapshot(now: Date = Date()) -> UsageSnapshot {
+    public func toUsageSnapshot(now: Date = Date(), calendar: Calendar = .current) -> UsageSnapshot {
         let freeWindow: RateWindow? = if let freeQuota, let freeUsed {
             {
                 let quota = max(0, freeQuota)
@@ -329,7 +335,7 @@ extension AmpUsageSnapshot {
         }
 
         // The shared cost chart already carries these totals when Amp reports daily history.
-        let costUsage = self.recentUsage?.toCostUsageTokenSnapshot(now: self.updatedAt)
+        let costUsage = self.recentUsage?.toCostUsageTokenSnapshot(now: self.updatedAt, calendar: calendar)
         var recentRows: [ProviderDetailSection.Row] = []
         if costUsage == nil, let cost = self.recentUsage?.recordedCost {
             recentRows.append(.makeRow(label: "Recorded cost", value: UsageFormatter.usdString(cost)))

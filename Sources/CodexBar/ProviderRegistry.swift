@@ -90,6 +90,7 @@ struct ProviderRegistry {
                             }
                         },
                         costUsageHistoryDays: settings.costUsageHistoryDays,
+                        costUsageBucketCalendar: settings.costUsageBucketCalendar,
                         persistsCLISessions: true,
                         persistentCLISessionIdleWindow: Self.persistentCLISessionIdleWindow(
                             refreshInterval: Self.nominalRefreshInterval(

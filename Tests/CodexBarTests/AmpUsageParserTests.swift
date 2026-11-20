@@ -386,7 +386,103 @@ struct AmpUsageParserTests {
 
         #expect(snapshot.recentUsage?.dailyUsageIsPartial == true)
         #expect(snapshot.recentUsage?.dailyUsage == [AmpDailyUsage(date: "2026-11-18", cost: 1, tokens: 10)])
-        #expect(snapshot.toUsageSnapshot(now: now).costUsage?.historyScanIsPartial == true)
+        let utc = CostUsageBucketTimeZone.calendar(identifier: "UTC")
+        let history = try #require(snapshot.toUsageSnapshot(now: now, calendar: utc).costUsage)
+        #expect(history.historyScanIsPartial == true)
+        #expect(history.sessionCostUSD == 1)
+        #expect(history.sessionTokens == 10)
+    }
+
+    @Test
+    func `amp history keeps today unknown when today's day query fails`() async throws {
+        let script = """
+        echo 'Signed in as partial@example.com'
+        echo 'Workspace acme: usage paid by your enterprise'
+        [ "$2" = "--details" ] || exit 0
+        case "$4" in
+        2026-10-20T00:00:00Z)
+        cat <<'EOF'
+        Total tokens: 30
+        Total recorded cost: $3.00
+
+        ## Daily Recorded Cost
+
+        | Date (UTC) | Covered | Paid | Total |
+        | --- | ---: | ---: | ---: |
+        | 2026-11-18 | $0.00 | $1.00 | $1.00 |
+        | 2026-11-17 | $0.00 | $2.00 | $2.00 |
+        EOF
+        ;;
+        2026-11-17T00:00:00Z) printf 'Total tokens: 20\\nTotal recorded cost: $2.00\\n' ;;
+        *) exit 6 ;;
+        esac
+        """
+
+        let now = try self.date("2026-11-18T20:00:00Z")
+        let utc = CostUsageBucketTimeZone.calendar(identifier: "UTC")
+        let snapshot = try await AmpCLIProbe(arguments: ["-c", script, "amp", "usage"], calendar: utc).fetch(
+            environment: ["AMP_CLI_PATH": "/bin/sh"],
+            now: now)
+
+        #expect(snapshot.recentUsage?.unreadDays == ["2026-11-18"])
+        let history = try #require(snapshot.toUsageSnapshot(now: now, calendar: utc).costUsage)
+        #expect(history.daily.map(\.date) == ["2026-11-17"])
+        #expect(history.historyScanIsPartial == true)
+        #expect(history.sessionCostUSD == nil)
+        #expect(history.sessionTokens == nil)
+        #expect(history.last30DaysCostUSD == 3)
+
+        // A day Amp reported nothing for stays a known zero, even when another day is unread.
+        let idleToday = AmpRecentUsage(
+            days: 30,
+            recordedCost: 2,
+            tokens: 20,
+            dailyUsage: [AmpDailyUsage(date: "2026-11-17", cost: 2, tokens: 20)],
+            unreadDays: ["2026-11-16"])
+        let idleHistory = try #require(idleToday.toCostUsageTokenSnapshot(now: now, calendar: utc))
+        #expect(idleHistory.sessionCostUSD == 0)
+        #expect(idleHistory.sessionTokens == 0)
+        #expect(idleHistory.historyScanIsPartial == true)
+    }
+
+    @Test
+    func `amp history is queried and keyed by the statistics calendar`() async throws {
+        // 2026-11-18T20:00Z is already November 19 in Tokyo, whatever zone the Mac is in.
+        let script = """
+        echo 'Signed in as zone@example.com'
+        echo 'Workspace acme: usage paid by your enterprise'
+        [ "$2" = "--details" ] || exit 0
+        case "$4 $6" in
+        '2026-10-20T15:00:00Z 2026-11-19T15:00:00Z')
+        cat <<'EOF'
+        Total tokens: 10
+        Total recorded cost: $1.00
+
+        ## Daily Recorded Cost
+
+        | Date (UTC) | Covered | Paid | Total |
+        | --- | ---: | ---: | ---: |
+        | 2026-11-18 | $0.00 | $1.00 | $1.00 |
+        EOF
+        ;;
+        '2026-11-17T15:00:00Z 2026-11-18T15:00:00Z') printf 'Total tokens: 0\\nTotal recorded cost: $0.00\\n' ;;
+        '2026-11-18T15:00:00Z 2026-11-19T15:00:00Z') printf 'Total tokens: 10\\nTotal recorded cost: $1.00\\n' ;;
+        *) exit 6 ;;
+        esac
+        """
+
+        let now = try self.date("2026-11-18T20:00:00Z")
+        let tokyo = CostUsageBucketTimeZone.calendar(identifier: "Asia/Tokyo")
+        let snapshot = try await AmpCLIProbe(arguments: ["-c", script, "amp", "usage"], calendar: tokyo).fetch(
+            environment: ["AMP_CLI_PATH": "/bin/sh"],
+            now: now)
+
+        #expect(snapshot.recentUsage?.dailyUsage == [AmpDailyUsage(date: "2026-11-19", cost: 1, tokens: 10)])
+        #expect(snapshot.recentUsage?.dailyUsageIsPartial == false)
+        let history = try #require(snapshot.toUsageSnapshot(now: now, calendar: tokyo).costUsage)
+        #expect(history.daily.map(\.date) == ["2026-11-19"])
+        #expect(history.sessionCostUSD == 1)
+        #expect(history.sessionTokens == 10)
     }
 
     @Test

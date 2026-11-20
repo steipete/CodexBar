@@ -46,6 +46,9 @@ public struct ProviderFetchContext: Sendable {
     public let settingsWriter: SettingsWriter?
     public let providerManualTokenUpdater: ProviderManualTokenUpdater?
     public let costUsageHistoryDays: Int
+    /// Calendar pinned to the Statistics time zone, so provider-reported history buckets the same days
+    /// the cost readers and Usage & Spend interpret.
+    public let costUsageBucketCalendar: Calendar
     /// Restricts a Claude retry to the credential-owning CLI after an ambient account mismatch rejects OAuth.
     /// The original source mode remains intact so background interaction gates still apply.
     public let claudeOwnerCLIRecoveryOnly: Bool
@@ -82,6 +85,7 @@ public struct ProviderFetchContext: Sendable {
         providerManualTokenUpdater: ProviderManualTokenUpdater? = nil,
         settingsWriter: SettingsWriter? = nil,
         costUsageHistoryDays: Int = 30,
+        costUsageBucketCalendar: Calendar = CostUsageBucketTimeZone.calendar(identifier: nil),
         claudeOwnerCLIRecoveryOnly: Bool = false,
         persistsCLISessions: Bool = false,
         persistentCLISessionIdleWindow: TimeInterval? = nil,
@@ -106,6 +110,7 @@ public struct ProviderFetchContext: Sendable {
         self.providerManualTokenUpdater = providerManualTokenUpdater
         self.settingsWriter = settingsWriter
         self.costUsageHistoryDays = max(1, min(365, costUsageHistoryDays))
+        self.costUsageBucketCalendar = costUsageBucketCalendar
         self.claudeOwnerCLIRecoveryOnly = claudeOwnerCLIRecoveryOnly
         self.persistsCLISessions = persistsCLISessions
         self.persistentCLISessionIdleWindow = persistentCLISessionIdleWindow
