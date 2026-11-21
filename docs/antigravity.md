@@ -381,7 +381,8 @@ Quota values, account ownership, and family selection remain unchanged.
   metrics retain their existing selection policies.
 - To pin both weekly allowances, open **Settings → Display → Menu Bar → Layout**, select **Antigravity**,
   and add **Gemini weekly %** and **Claude/GPT weekly %** from Usage. Add a **Line break** between them for
-  a stacked display. These choices appear when the corresponding known quota-summary windows are available;
+  a stacked display. The menu bar uses `G W` and `C/G W`, respectively, while VoiceOver uses the full titles.
+  These choices appear when the corresponding known quota-summary windows are available;
   a missing or unknown family allowance hides only its token, without substituting its session quota or the
   other family's weekly quota. The existing **Weekly %** token still shows the most constrained family.
 - Antigravity reports every model family the plan covers, so an account that only uses Gemini still receives a
