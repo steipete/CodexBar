@@ -291,7 +291,10 @@ extension UsageStore {
         isUnavailable: Bool = false)
     {
         if let snapshot, self.retainsEstablishedTokenHistory(snapshot, for: provider) { return }
-        self.tokenSnapshotPublicationRevisions[provider.instanceID, default: 0] &+= 1
+        // A settled unavailable result is not evidence of recovered spend.
+        if !isUnavailable {
+            self.tokenSnapshotPublicationRevisions[provider.instanceID, default: 0] &+= 1
+        }
         self.installCachedTokenSnapshot(snapshot, for: provider, accounting: accounting, isUnavailable: isUnavailable)
         self.synchronizeSharedSpendDashboardAfterTokenPublication(for: provider)
     }

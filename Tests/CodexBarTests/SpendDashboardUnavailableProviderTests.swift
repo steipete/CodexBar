@@ -18,6 +18,7 @@ struct SpendDashboardUnavailableProviderTests {
             store.publishProviderDerivedTokenSnapshot(from: snapshot, for: provider)
         }
 
+        var settledRevisions: [UInt64]?
         for _ in 0..<3 {
             await store.refreshProvider(provider)
             let request = await SpendDashboardSource.makeRequest(
@@ -27,6 +28,10 @@ struct SpendDashboardUnavailableProviderTests {
             #expect(request.capturedInputs.isEmpty)
             #expect(request.unavailableSourceIDs == [provider.rawValue])
             #expect(request.confirmedEmptySourceIDs.isEmpty)
+            if let settledRevisions {
+                #expect(request.configuration.sourcePublicationRevisions == settledRevisions)
+            }
+            settledRevisions = request.configuration.sourcePublicationRevisions
         }
         #expect(fetches == 3)
     }

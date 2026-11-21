@@ -89,7 +89,8 @@ before attempts, so a cancelled refresh stops traversal even after a retryable a
 
 Snapshot-backed spend sources keep a current-config publication even when a successful provider fetch explicitly
 reports unavailable analytics. That settled state stays unavailable in Overview and Usage & Spend; it is not zero
-spend and does not trigger an extra provider fetch when those surfaces fill missing data. Missing publications,
+spend and does not trigger an extra provider fetch when those surfaces fill missing data. Repeated unavailable
+results do not advertise a recovery to the dashboard. Missing publications,
 changed credentials or account scope, and failed refreshes that clear their publication still need a fetch.
 
 ### Provider architecture gatekeeper threat model
