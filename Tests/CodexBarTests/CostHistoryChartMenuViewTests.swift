@@ -696,6 +696,27 @@ struct CostHistoryChartMenuViewTests {
     }
 
     @Test
+    func `overflowing model list spans the cost history content width`() throws {
+        let chart = CostHistoryChartMenuView(
+            provider: .codex,
+            daily: [Self.entry(date: "2026-06-08", modelCount: 5)],
+            totalCostUSD: nil,
+            hidePersonalInfo: false,
+            width: 320)
+        let hosting = MenuHostingView(rootView: chart)
+        let viewport = CostHistoryMenuScrollView(hosting: hosting, width: 320, maximumHeight: 620)
+        viewport.layoutSubtreeIfNeeded()
+        hosting.layoutSubtreeIfNeeded()
+
+        let modelList = try #require(Self.descendant(of: hosting, as: NSScrollView.self))
+        let listFrame = modelList.convert(modelList.bounds, to: hosting)
+        let contentFrame = hosting.bounds.insetBy(dx: 16, dy: 0)
+
+        #expect(abs(listFrame.minX - contentFrame.minX) <= 1)
+        #expect(abs(listFrame.maxX - contentFrame.maxX) <= 1)
+    }
+
+    @Test
     @MainActor
     func `single differing project source remains visible`() {
         let matching = Self.project(path: "/tmp/main", sourcePath: "/tmp/main")

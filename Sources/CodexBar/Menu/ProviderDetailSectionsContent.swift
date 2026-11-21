@@ -87,10 +87,24 @@ struct ProviderDetailSectionsContent: View {
     }
 }
 
-private struct ProviderDetailChartContent: View {
+struct ProviderDetailChartContent: View {
     let chart: ProviderDetailSection.Chart
     let color: Color
     @Environment(\.menuItemHighlighted) private var isHighlighted
+    @Environment(\.menuUsageBarSelection) private var selectionOverride
+    @State private var localSelection: String?
+
+    private var selection: Binding<String?> {
+        self.selectionOverride ?? self.$localSelection
+    }
+
+    private var barPoints: [MenuUsageBarPoint] {
+        self.chart.points.enumerated().map { index, point in
+            let summary = Self.hoverSummary(point: point, unit: self.chart.unit)
+            return .init(
+                id: String(index), value: point.value, hoverSummary: summary, accessibilityValue: summary)
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -121,15 +135,36 @@ private struct ProviderDetailChartContent: View {
             .frame(height: 58)
             .accessibilityElement(children: .combine)
             .accessibilityLabel(self.accessibilityLabel)
+            if self.chart.kind == .bars, !self.chart.points.isEmpty {
+                Text(self.barPoints.first { $0.id == self.selection.wrappedValue }?.hoverSummary
+                    ?? L("Hover a bar for details"))
+                    .font(.caption2)
+                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .frame(height: 16, alignment: .leading)
+            }
         }
     }
 
     private var bars: some View {
         MenuUsageBarStrip(
-            points: self.chart.points.enumerated().map { index, point in
-                .init(id: String(index), value: point.value)
-            },
-            baseColor: self.color)
+            points: self.barPoints,
+            baseColor: self.color,
+            selection: self.selection)
+    }
+
+    static func hoverSummary(point: ProviderDetailSection.Chart.Point, unit: String?) -> String {
+        let value: String
+        if let unit, ["token", "tokens"].contains(unit.lowercased()) {
+            let count = Int(exactly: point.value.rounded())
+            value = count.map(UsageFormatter.tokenCountString)
+                ?? String(format: "%.0fB", point.value / 1_000_000_000)
+        } else {
+            value = point.value.formatted(.number.precision(.fractionLength(0...2)))
+        }
+        let suffix = unit.map { " \($0)" } ?? ""
+        return "\(point.label): \(value)\(suffix)"
     }
 
     private var line: some View {
@@ -169,8 +204,8 @@ private struct ProviderDetailChartContent: View {
 
     private var accessibilityLabel: String {
         let title = self.chart.title.map { "\($0): " } ?? ""
-        let unit = self.chart.unit.map { " \($0)" } ?? ""
-        let points = self.chart.points.map { "\($0.label) \($0.value)\(unit)" }.joined(separator: ", ")
+        let points = self.chart.points.map { Self.hoverSummary(point: $0, unit: self.chart.unit) }
+            .joined(separator: ", ")
         return title + points
     }
 }

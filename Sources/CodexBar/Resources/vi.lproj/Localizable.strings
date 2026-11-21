@@ -2853,3 +2853,23 @@
 "Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program trả về phản hồi không nhận dạng được. Hãy cập nhật CodexBar rồi thử lại.";
 "Google session expired or invalid." = "Phiên Google đã hết hạn hoặc không hợp lệ.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Không tìm thấy cookie phiên Google Developer Program. Đăng nhập tại me.developers.google.com/benefits hoặc dán tiêu đề Cookie.";
+
+"Enterprise" = "Enterprise";
+"Personal credits" = "Tín dụng cá nhân";
+"Standard remaining" = "Standard còn lại";
+"Select remaining" = "Select còn lại";
+"Remaining credits" = "Tín dụng còn lại";
+"Notion Credits" = "Tín dụng Notion";
+"Notion did not provide usable personal AI allowances for this workspace. Check AI usage for the selected workspace in Notion, then refresh CodexBar again." = "Notion không cung cấp hạn mức AI cá nhân khả dụng cho không gian làm việc này. Hãy kiểm tra mức sử dụng AI của không gian làm việc đã chọn trong Notion, rồi làm mới CodexBar lần nữa.";
+"Select" = "Select";
+"TrustedRouter" = "TrustedRouter";
+"Show TrustedRouter usage" = "Hiển thị mức sử dụng TrustedRouter";
+"TrustedRouter is rate limiting requests. Try again later." = "TrustedRouter đang giới hạn tần suất yêu cầu. Hãy thử lại sau.";
+"TrustedRouter request failed. Try refreshing later." = "Yêu cầu TrustedRouter không thành công. Hãy thử làm mới sau.";
+"TrustedRouter returned an unrecognized response. Update CodexBar and try again." = "TrustedRouter trả về phản hồi không nhận dạng được. Hãy cập nhật CodexBar rồi thử lại.";
+"MiMo returned an unrecognized response. Update CodexBar and try again." = "MiMo trả về phản hồi không nhận dạng được. Hãy cập nhật CodexBar rồi thử lại.";
+"China mainland" = "Trung Quốc đại lục";
+"Singapore" = "Singapore";
+"MiMo is rate limiting requests. Try again later." = "MiMo đang giới hạn tần suất yêu cầu. Hãy thử lại sau.";
+"MiMo request failed. Try refreshing later." = "Yêu cầu MiMo không thành công. Hãy thử làm mới sau.";
+"Skip cost refresh" = "Bỏ qua làm mới chi phí";

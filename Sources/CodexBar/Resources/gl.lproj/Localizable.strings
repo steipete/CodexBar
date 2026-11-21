@@ -2851,3 +2851,23 @@
 "Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program devolveu unha resposta descoñecida. Actualiza CodexBar e téntao de novo.";
 "Google session expired or invalid." = "A sesión de Google caducou ou non é válida.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Non se atoparon cookies de sesión de Google Developer Program. Inicia sesión en me.developers.google.com/benefits ou pega unha cabeceira Cookie.";
+
+"Enterprise" = "Enterprise";
+"Personal credits" = "Créditos persoais";
+"Standard remaining" = "Standard restante";
+"Select remaining" = "Select restante";
+"Remaining credits" = "Créditos restantes";
+"Notion Credits" = "Créditos de Notion";
+"Notion did not provide usable personal AI allowances for this workspace. Check AI usage for the selected workspace in Notion, then refresh CodexBar again." = "Notion non proporcionou cotas persoais de IA utilizables para este espazo de traballo. Comproba o uso de IA do espazo seleccionado en Notion e volve actualizar CodexBar.";
+"Select" = "Select";
+"TrustedRouter" = "TrustedRouter";
+"Show TrustedRouter usage" = "Mostrar o uso de TrustedRouter";
+"TrustedRouter is rate limiting requests. Try again later." = "TrustedRouter está a limitar as solicitudes. Téntao de novo máis tarde.";
+"TrustedRouter request failed. Try refreshing later." = "Fallou a solicitude a TrustedRouter. Tenta actualizar máis tarde.";
+"TrustedRouter returned an unrecognized response. Update CodexBar and try again." = "TrustedRouter devolveu unha resposta descoñecida. Actualiza CodexBar e téntao de novo.";
+"MiMo returned an unrecognized response. Update CodexBar and try again." = "MiMo devolveu unha resposta descoñecida. Actualiza CodexBar e téntao de novo.";
+"China mainland" = "China continental";
+"Singapore" = "Singapur";
+"MiMo is rate limiting requests. Try again later." = "MiMo está a limitar as solicitudes. Téntao de novo máis tarde.";
+"MiMo request failed. Try refreshing later." = "Fallou a solicitude a MiMo. Tenta actualizar máis tarde.";
+"Skip cost refresh" = "Omitir a actualización do custo";

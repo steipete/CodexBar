@@ -498,3 +498,29 @@ struct CostUsageDecodingTests {
         try #require(Calendar.current.date(from: DateComponents(year: year, month: month, day: day, hour: 12)))
     }
 }
+
+extension CostUsageDecodingTests {
+    @Test
+    func `legacy totals preserve their wire contract without reading modern fields`() throws {
+        let json = """
+        {"daily": [], "totals": {
+          "totalInputTokens": 11, "totalOutputTokens": 2,
+          "totalCacheReadTokens": 3, "totalCacheCreationTokens": 4,
+          "totalTokens": 13, "totalCost": 1.25,
+          "totalCostUSD": "ignored", "reasoningTokens": "ignored"
+        }}
+        """
+        let report = try JSONDecoder().decode(CostUsageDailyReport.self, from: Data(json.utf8))
+        let totals = try #require(report.summary)
+        #expect(totals.totalInputTokens == 11)
+        #expect(totals.totalOutputTokens == 2)
+        #expect(totals.cacheReadTokens == 3)
+        #expect(totals.cacheCreationTokens == 4)
+        #expect(totals.totalTokens == 13)
+        #expect(totals.totalCostUSD == 1.25)
+        #expect(totals.reasoningTokens == nil)
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(CostUsageDailyReport.self, from: Data(#"{"daily":[],"totals":null}"#.utf8))
+        }
+    }
+}

@@ -25,7 +25,8 @@ so the plugin stores the ID only after a successful subscription response. On HT
 the lazy module that preloads settings, and reads the new ID from that module's chunk. A redirect to `auth.muse.ai` or a
 403 means that session expired, and the plugin tries the next browser session before reporting it.
 
-Discovery fetches at most 96 page chunks and 32 settings chunks, in batches of at most eight, within the host's
+Discovery recognizes both `_next/static/chunks/` and `_next/static/immutable/chunks/`, including the lazy settings
+loader. Discovery fetches at most 96 page chunks and 32 settings chunks, in batches of at most eight, within the host's
 fetch deadline. Static chunks receive no session cookies. After a stale ID, the plugin discovers and retries once;
 if the replacement action also fails, it clears the stale ID and reports that the subscription action changed.
 Website changes beyond the supported loader format produce a clear parse error rather than an unbounded scan.

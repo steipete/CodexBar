@@ -24,6 +24,8 @@ local Amp CLI, then an Amp access token, and finally browser cookies.
 - **Time-to-full reset**: Legacy dollar-based Amp Free output estimates when hourly replenishment reaches full.
 - **Individual credits**: Shows the remaining paid balance shared by agent and orb usage when Amp reports one.
 - **Workspace credits**: Shows each workspace's remaining paid credit balance separately.
+- **Enterprise workspaces**: Recognizes `usage paid by your enterprise` even when Amp reports no balance or quota.
+  The workspace appears as Enterprise without inventing a dollar amount, usage percentage, or cost history.
 - **CLI-first fetch**: Uses `amp usage` when the Amp CLI is installed and signed in.
 - **Access token support**: Uses `AMP_API_KEY` or the access token saved in CodexBar settings.
 - **Browser cookie fallback**: Reads the legacy settings-page payload when the CLI and access token are unavailable.

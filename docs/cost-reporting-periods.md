@@ -54,6 +54,8 @@ is selected. No additional history store is created.
 
 ## History windows
 
+Long model breakdowns in cost-history submenus use a scrollable list whose scrollbar stays aligned with the menu edge.
+
 Usage & Spend captures daily/hourly summaries and conversation/project details without retaining exact quota-window events or an unused native accounting alternative. This lets obsolete quota payloads be released after their source publication is replaced or cleared. The source publication and regular menu quota data keep their own lifetimes; dashboard totals, Overview, and stale last-known details are unchanged.
 
 The menu's **History window** supports rolling days, **Month to date**, and **All**. Usage & Spend uses the same period model and keeps its own range selection. Existing saved day counts retain their rolling windows; the dashboard's former All selection migrates to All available history.
@@ -65,6 +67,8 @@ Usage & Spend groups ranges longer than 45 reporting days by week, and ranges lo
 Chart summaries describe **recorded spend**, not an authoritative bill. A priced day alongside an unpriced day keeps the source and period totals unavailable. Missing hours remain distinct from recorded zero, incomplete sources retain their lower-bound marker, and an empty daily chart shows no usage only when coverage proves zero spend for the selected sources and interval. Aggregates that cannot be represented remain unavailable; valid individual records stay in the accounting model.
 
 Month to date starts at midnight on the first day of the current month and includes today. It uses the pinned cost-bucketing time zone from Settings, falling back to the current local zone. Calendar arithmetic handles leap years and 23/25-hour daylight-saving days. Local log scans reuse Gregorian calendars and the latest day interval for up to eight time zones; crossing a day boundary or changing zones resolves the day again without changing stored cost-cache identities. Each operation resolves its window again, and cache identities include the selection, dates, and time zone.
+
+Codex cached reports project retained history onto the requested period before building daily, hourly, and quota-window entries. A shorter selection preserves the wider cached history while reporting only its own tokens and spend.
 
 Menu cost and token charts retain one slot for every calendar day in the selected window, for every provider. A missing day is zero only after the history scan covers that window; incomplete scans and recorded unpriced costs remain unknown. OpenAI and Mistral keep their fixed UTC billing-day calendars; local history follows the selected bucket time zone.
 
