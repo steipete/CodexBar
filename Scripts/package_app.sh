@@ -192,6 +192,93 @@ path.write_text(text)
 PY
 }
 
+BUNDLE_ID="com.steipete.codexbar"
+FEED_URL="https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml"
+AUTO_CHECKS=true
+if [[ "$LOWER_CONF" == "debug" ]]; then
+  BUNDLE_ID="com.steipete.codexbar.debug"
+  FEED_URL=""
+  AUTO_CHECKS=false
+fi
+if [[ "$SIGNING_MODE" == "adhoc" ]]; then
+  FEED_URL=""
+  AUTO_CHECKS=false
+fi
+WIDGET_BUNDLE_ID="${BUNDLE_ID}.widget"
+resolve_package_signing_identity
+APP_GROUP_ID="${APP_TEAM_ID}.${BUNDLE_ID}"
+ENTITLEMENTS_DIR="$ROOT/.build/entitlements"
+APP_ENTITLEMENTS="${ENTITLEMENTS_DIR}/CodexBar.entitlements"
+WIDGET_ENTITLEMENTS="${ENTITLEMENTS_DIR}/CodexBarWidget.entitlements"
+mkdir -p "$ENTITLEMENTS_DIR"
+if [[ "$ALLOW_LLDB" == "1" && "$LOWER_CONF" != "debug" ]]; then
+  echo "ERROR: CODEXBAR_ALLOW_LLDB requires debug configuration" >&2
+  exit 1
+fi
+# iCloud sync (CloudKit) requires restricted entitlements authorized by an embedded
+# Developer ID provisioning profile. Only upstream-team identity-signed release builds of the primary
+# bundle ID carry them; other teams and adhoc/debug builds run with sync unavailable.
+PROVISIONING_PROFILE_SOURCE="$ROOT/Scripts/profiles/CodexBar-DeveloperID.provisionprofile"
+EMBED_PROVISIONING_PROFILE=0
+ICLOUD_ENTITLEMENT_KEYS=""
+if [[ "$SIGNING_MODE" == "identity" && "$LOWER_CONF" == "release" && "$BUNDLE_ID" == "com.steipete.codexbar" && "$APP_TEAM_ID" == "Y5PE65HELJ" ]]; then
+  if [[ ! -f "$PROVISIONING_PROFILE_SOURCE" ]]; then
+    echo "ERROR: Missing $PROVISIONING_PROFILE_SOURCE (enable Push Notifications and regenerate the Developer ID profile for this app)" >&2
+    exit 1
+  fi
+  python3 "$ROOT/Scripts/validate_cloudkit_profile.py" "$PROVISIONING_PROFILE_SOURCE" "$APP_GROUP_ID"
+  EMBED_PROVISIONING_PROFILE=1
+  ICLOUD_ENTITLEMENT_KEYS=$(cat <<ICLOUD
+    <key>com.apple.application-identifier</key>
+    <string>${APP_TEAM_ID}.${BUNDLE_ID}</string>
+    <key>com.apple.developer.team-identifier</key>
+    <string>${APP_TEAM_ID}</string>
+    <key>com.apple.developer.aps-environment</key>
+    <string>production</string>
+    <key>com.apple.developer.icloud-services</key>
+    <array>
+        <string>CloudKit</string>
+    </array>
+    <key>com.apple.developer.icloud-container-identifiers</key>
+    <array>
+        <string>iCloud.${BUNDLE_ID}</string>
+    </array>
+    <key>com.apple.developer.icloud-container-environment</key>
+    <string>Production</string>
+ICLOUD
+)
+fi
+cat > "$APP_ENTITLEMENTS" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>${APP_GROUP_ID}</string>
+    </array>
+${ICLOUD_ENTITLEMENT_KEYS}
+    $(if [[ "$ALLOW_LLDB" == "1" ]]; then echo "    <key>com.apple.security.get-task-allow</key><true/>"; fi)
+</dict>
+</plist>
+PLIST
+cat > "$WIDGET_ENTITLEMENTS" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>${APP_GROUP_ID}</string>
+    </array>
+</dict>
+</plist>
+PLIST
+BUILD_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+
 KEYBOARD_SHORTCUTS_UTIL="$ROOT/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Utilities.swift"
 if [[ ! -f "$KEYBOARD_SHORTCUTS_UTIL" ]]; then
   swift build "${BUILD_ARGS[@]}" -c "$CONF" --arch "${ARCH_LIST[0]}"
@@ -274,90 +361,6 @@ ICON_TARGET="$ROOT/Icon.icns"
 if [[ -f "$ICON_SOURCE" ]]; then
   iconutil --convert icns --output "$ICON_TARGET" "$ICON_SOURCE"
 fi
-
-BUNDLE_ID="com.steipete.codexbar"
-FEED_URL="https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml"
-AUTO_CHECKS=true
-if [[ "$LOWER_CONF" == "debug" ]]; then
-  BUNDLE_ID="com.steipete.codexbar.debug"
-  FEED_URL=""
-  AUTO_CHECKS=false
-fi
-if [[ "$SIGNING_MODE" == "adhoc" ]]; then
-  FEED_URL=""
-  AUTO_CHECKS=false
-fi
-WIDGET_BUNDLE_ID="${BUNDLE_ID}.widget"
-resolve_package_signing_identity
-APP_GROUP_ID="${APP_TEAM_ID}.${BUNDLE_ID}"
-ENTITLEMENTS_DIR="$ROOT/.build/entitlements"
-APP_ENTITLEMENTS="${ENTITLEMENTS_DIR}/CodexBar.entitlements"
-WIDGET_ENTITLEMENTS="${ENTITLEMENTS_DIR}/CodexBarWidget.entitlements"
-mkdir -p "$ENTITLEMENTS_DIR"
-if [[ "$ALLOW_LLDB" == "1" && "$LOWER_CONF" != "debug" ]]; then
-  echo "ERROR: CODEXBAR_ALLOW_LLDB requires debug configuration" >&2
-  exit 1
-fi
-# iCloud sync (CloudKit) requires restricted entitlements authorized by an embedded
-# Developer ID provisioning profile. Only upstream-team identity-signed release builds of the primary
-# bundle ID carry them; other teams and adhoc/debug builds run with sync unavailable.
-PROVISIONING_PROFILE_SOURCE="$ROOT/Scripts/profiles/CodexBar-DeveloperID.provisionprofile"
-EMBED_PROVISIONING_PROFILE=0
-ICLOUD_ENTITLEMENT_KEYS=""
-if [[ "$SIGNING_MODE" == "identity" && "$LOWER_CONF" == "release" && "$BUNDLE_ID" == "com.steipete.codexbar" && "$APP_TEAM_ID" == "Y5PE65HELJ" ]]; then
-  if [[ ! -f "$PROVISIONING_PROFILE_SOURCE" ]]; then
-    echo "ERROR: Missing $PROVISIONING_PROFILE_SOURCE (required for iCloud entitlements in release builds)" >&2
-    exit 1
-  fi
-  EMBED_PROVISIONING_PROFILE=1
-  ICLOUD_ENTITLEMENT_KEYS=$(cat <<ICLOUD
-    <key>com.apple.application-identifier</key>
-    <string>${APP_TEAM_ID}.${BUNDLE_ID}</string>
-    <key>com.apple.developer.team-identifier</key>
-    <string>${APP_TEAM_ID}</string>
-    <key>com.apple.developer.icloud-services</key>
-    <array>
-        <string>CloudKit</string>
-    </array>
-    <key>com.apple.developer.icloud-container-identifiers</key>
-    <array>
-        <string>iCloud.${BUNDLE_ID}</string>
-    </array>
-    <key>com.apple.developer.icloud-container-environment</key>
-    <string>Production</string>
-ICLOUD
-)
-fi
-cat > "$APP_ENTITLEMENTS" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>com.apple.security.application-groups</key>
-    <array>
-        <string>${APP_GROUP_ID}</string>
-    </array>
-${ICLOUD_ENTITLEMENT_KEYS}
-    $(if [[ "$ALLOW_LLDB" == "1" ]]; then echo "    <key>com.apple.security.get-task-allow</key><true/>"; fi)
-</dict>
-</plist>
-PLIST
-cat > "$WIDGET_ENTITLEMENTS" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>com.apple.security.app-sandbox</key>
-    <true/>
-    <key>com.apple.security.application-groups</key>
-    <array>
-        <string>${APP_GROUP_ID}</string>
-    </array>
-</dict>
-</plist>
-PLIST
-BUILD_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
