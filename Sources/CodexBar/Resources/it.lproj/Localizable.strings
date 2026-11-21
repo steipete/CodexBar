@@ -2856,3 +2856,5 @@
 "Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program ha restituito una risposta sconosciuta. Aggiorna CodexBar e riprova.";
 "Google session expired or invalid." = "La sessione Google è scaduta o non è valida.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Nessun cookie di sessione Google Developer Program trovato. Accedi a me.developers.google.com/benefits oppure incolla un’intestazione Cookie.";
+
+"Enterprise" = "Enterprise";

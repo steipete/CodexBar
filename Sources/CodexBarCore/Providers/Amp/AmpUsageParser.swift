@@ -164,80 +164,7 @@ enum AmpUsageParser {
             updatedAt: now,
             freeResetDescription: resolvedFreeUsage?.resetDescription,
             subscription: subscriptionUsage,
-            enterpriseWorkspaces: enterpriseWorkspaces,
-            recentUsage: self.parseRecentUsage(text))
-    }
-
-    /// Totals from `amp usage --details`. Absent from the plain usage display.
-    static func parseRecentUsage(displayText: String) -> AmpRecentUsage? {
-        self.parseRecentUsage(TextParsing.stripANSICodes(displayText).replacingOccurrences(of: "**", with: ""))
-    }
-
-    private static func parseRecentUsage(_ text: String) -> AmpRecentUsage? {
-        let cost = self.captures(in: text, pattern: #"(?im)^\s*Total recorded cost:\s*\$([0-9][0-9,]*(?:\.[0-9]+)?)"#)?
-            .first.flatMap(self.number(from:))
-        let tokens = self.captures(in: text, pattern: #"(?im)^\s*Total tokens:\s*([0-9][0-9,]*)\s*$"#)?
-            .first.flatMap { Int($0.replacingOccurrences(of: ",", with: "")) }
-        let daily = self.parseDailyRecordedCost(text)
-        guard cost != nil || tokens != nil || !daily.isEmpty else { return nil }
-        return AmpRecentUsage(
-            days: self.rangeDays(text),
-            recordedCost: cost,
-            tokens: tokens,
-            daily: daily,
-            models: self.parseModels(text))
-    }
-
-    /// Rows of the `## Models` table: uncached input, cache read, cache write, output, tokens, recorded cost.
-    private static func parseModels(_ text: String) -> [AmpModelUsage] {
-        guard let section = self.section(named: "## Models", in: text) else { return [] }
-        let count = #"\s*([0-9][0-9,]*)\s*\|"#
-        let rowPattern = #"(?m)^\s*\|\s*([^|\r\n]+?)\s*\|"# + String(repeating: count, count: 5) +
-            #"\s*\$([0-9][0-9,]*(?:\.[0-9]+)?)\s*\|\s*$"#
-        return self.allCaptures(in: section, pattern: rowPattern).compactMap { row in
-            let counts = row.dropFirst().prefix(5).compactMap { Int($0.replacingOccurrences(of: ",", with: "")) }
-            guard row.count == 7, counts.count == 5, let name = self.nonEmpty(row[0]),
-                  let cost = self.number(from: row[6])
-            else { return nil }
-            return AmpModelUsage(
-                name: name,
-                inputTokens: counts[0],
-                cacheReadTokens: counts[1],
-                cacheWriteTokens: counts[2],
-                outputTokens: counts[3],
-                totalTokens: counts[4],
-                cost: cost)
-        }
-    }
-
-    private static func section(named heading: String, in text: String) -> String? {
-        guard let header = text.range(of: heading, options: .caseInsensitive) else { return nil }
-        let body = text[header.upperBound...]
-        return body.range(of: "\n#").map { String(body[..<$0.lowerBound]) } ?? String(body)
-    }
-
-    private static func rangeDays(_ text: String) -> Int? {
-        let trailing = #"(?im)^\s*Range:.*\btrailing\s+([0-9]+)\s+days?\b"#
-        if let days = self.captures(in: text, pattern: trailing)?.first.flatMap({ Int($0) }) {
-            return days
-        }
-        guard let range = self.captures(in: text, pattern: #"(?im)^\s*Range:\s*(\S+)\s+to\s+(\S+)"#) else { return nil }
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        guard let start = formatter.date(from: range[0]), let end = formatter.date(from: range[1]), end > start
-        else { return nil }
-        return max(1, Int((end.timeIntervalSince(start) / 86400).rounded()))
-    }
-
-    /// Rows of the `## Daily Recorded Cost` table; the last dollar column is the day's total.
-    private static func parseDailyRecordedCost(_ text: String) -> [AmpDailyRecordedCost] {
-        guard let section = self.section(named: "## Daily Recorded Cost", in: text) else { return [] }
-        let rowPattern = #"(?m)^\s*\|\s*(\d{4}-\d{2}-\d{2})\s*\|.*\|\s*\$([0-9][0-9,]*(?:\.[0-9]+)?)\s*\|\s*$"#
-        var seen: Set<String> = []
-        return self.allCaptures(in: section, pattern: rowPattern).compactMap { row in
-            guard row.count == 2, let cost = self.number(from: row[1]), seen.insert(row[0]).inserted else { return nil }
-            return AmpDailyRecordedCost(date: row[0], cost: cost)
-        }
+            enterpriseWorkspaces: enterpriseWorkspaces)
     }
 
     private static func tierPeriod(in text: String) -> (start: Date, end: Date)? {
@@ -303,8 +230,8 @@ enum AmpUsageParser {
     }
 
     private static func extractObject(named token: String, in text: String) -> String? {
-        guard let tokenRange = text.range(of: token) else { return nil }
-        guard let braceIndex = text[tokenRange.upperBound...].firstIndex(of: "{") else { return nil }
+        guard let tokenRange = text.range(of: token),
+              let braceIndex = text[tokenRange.upperBound...].firstIndex(of: "{") else { return nil }
 
         var depth = 0
         var inString = false

@@ -758,6 +758,7 @@ struct LocalizationLanguageCatalogTests {
             "Cookie: llama_dev_sess=...",
             "Cookie: …",
             "Cursor",
+            "Enterprise",
             "Flash",
             "Flash Lite",
             "Gateway URL",

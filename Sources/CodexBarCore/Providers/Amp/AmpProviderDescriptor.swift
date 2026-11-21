@@ -40,12 +40,8 @@ public enum AmpProviderDescriptor {
                     ProviderColor(hex: 0xF34E3F),
                 ]),
             tokenCost: ProviderTokenCostConfig(
-                supportsTokenCost: true,
-                noDataMessage: { "Amp reports recorded cost history only for enterprise workspaces via the CLI." },
-                isUsageUnavailable: { $0.costUsage == nil },
-                menuHintLines: [.estimate],
-                estimateDisclaimer: "Recorded cost reported by Amp",
-                historyTitleStyle: .compact),
+                supportsTokenCost: false,
+                noDataMessage: { "Amp cost summary is not supported." }),
             pace: ProviderPaceCapability(resetWindowPace: .custom { window, _ in
                 window.windowMinutes != nil && window.resetDescription?.hasPrefix("renews in ") == true
             }),
@@ -60,9 +56,7 @@ public enum AmpProviderDescriptor {
                 extraRateWindowSelector: { snapshot in
                     (snapshot.extraRateWindows ?? []).filter { $0.id == "amp-free" }
                 },
-                menuCard: ProviderMenuCardPresentation(
-                    creditsVisibility: .hiddenWhenUsageSnapshotPresent,
-                    supportsInlineTokenCostDashboard: true)),
+                menuCard: ProviderMenuCardPresentation(creditsVisibility: .hiddenWhenUsageSnapshotPresent)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api, .web, .cli],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
@@ -110,10 +104,9 @@ struct AmpCLIFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        let calendar = context.costUsageBucketCalendar
-        let snapshot = try await AmpCLIProbe(calendar: calendar).fetch(environment: context.env)
+        let snapshot = try await AmpCLIProbe().fetch(environment: context.env)
         return self.makeResult(
-            usage: snapshot.toUsageSnapshot(now: snapshot.updatedAt, calendar: calendar),
+            usage: snapshot.toUsageSnapshot(now: snapshot.updatedAt),
             sourceLabel: "cli")
     }
 
@@ -144,7 +137,7 @@ struct AmpAPIFetchStrategy: ProviderFetchStrategy {
         let snapshot = try await AmpUsageFetcher(browserDetection: context.browserDetection)
             .fetch(apiToken: token, logger: logger)
         return self.makeResult(
-            usage: snapshot.toUsageSnapshot(now: snapshot.updatedAt, calendar: context.costUsageBucketCalendar),
+            usage: snapshot.toUsageSnapshot(now: snapshot.updatedAt),
             sourceLabel: "api")
     }
 
@@ -178,7 +171,7 @@ struct AmpStatusFetchStrategy: ProviderFetchStrategy {
             : nil
         let snap = try await fetcher.fetch(cookieHeaderOverride: manual, logger: logger)
         return self.makeResult(
-            usage: snap.toUsageSnapshot(now: snap.updatedAt, calendar: context.costUsageBucketCalendar),
+            usage: snap.toUsageSnapshot(now: snap.updatedAt),
             sourceLabel: "web")
     }
 

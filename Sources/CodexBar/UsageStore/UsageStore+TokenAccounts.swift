@@ -964,7 +964,6 @@ extension UsageStore {
                     originalConfigRevision: contextConfigRevision)
             },
             costUsageHistoryDays: self.settings.costUsageHistoryDays,
-            costUsageBucketCalendar: self.settings.costUsageBucketCalendar,
             claudeOwnerCLIRecoveryOnly: claudeOwnerCLIRecoveryOnly,
             persistsCLISessions: true,
             persistentCLISessionIdleWindow: ProviderRegistry.persistentCLISessionIdleWindow(
