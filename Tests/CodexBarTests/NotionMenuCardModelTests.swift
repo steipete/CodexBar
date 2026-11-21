@@ -32,7 +32,8 @@ struct NotionMenuCardModelTests {
 
     private static func model(
         weeklyPace: UsagePace?,
-        snapshot: UsageSnapshot = Self.snapshot(),
+        snapshot: UsageSnapshot? = Self.snapshot(),
+        lastError: String? = nil,
         showOptional: Bool = true,
         now: Date = Self.now,
         hidePersonalInfo: Bool = false) throws -> UsageMenuCardView.Model
@@ -49,7 +50,7 @@ struct NotionMenuCardModelTests {
             tokenError: nil,
             account: AccountInfo(email: nil, plan: nil),
             isRefreshing: false,
-            lastError: nil,
+            lastError: lastError,
             usageBarsShowUsed: true,
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
@@ -310,10 +311,20 @@ struct NotionMenuCardModelTests {
             }
         }
         guard let directory else { return }
+        let before = try Self.model(
+            weeklyPace: nil,
+            snapshot: nil,
+            lastError: "Notion AI usage allowance is not tracked for this workspace.",
+            now: now,
+            hidePersonalInfo: true)
         let renderer = ImageRenderer(content: VStack(alignment: .leading, spacing: 16) {
             Text("Notion AI · captured-response preview").font(.headline)
             Text("Fixture session; no live account access").font(.caption)
             HStack(alignment: .top, spacing: 20) {
+                VStack(alignment: .leading) {
+                    Text("Before").font(.subheadline)
+                    UsageMenuCardView(model: before, width: 360)
+                }
                 VStack(alignment: .leading) {
                     Text("Optional usage on").font(.subheadline)
                     UsageMenuCardView(model: previews[0], width: 360)
@@ -330,5 +341,24 @@ struct NotionMenuCardModelTests {
         let bitmap = try NSBitmapImageRep(cgImage: #require(renderer.cgImage))
         try #require(bitmap.representation(using: .png, properties: [:])).write(
             to: directory.appendingPathComponent("notion-three-credit-pools.png"))
+    }
+}
+
+@MainActor
+struct NotionLocalizationTests {
+    @Test
+    func `personal credit labels and units localize without changing amounts`() throws {
+        let section = try ProviderDetailSection(title: "Personal credits", rows: [
+            .init(label: "Standard remaining", value: "1,365.33 credits", secondaryValue: "134.67 / 1,500 used"),
+        ])
+        let localized = CodexBarLocalizationOverride.$appLanguage.withValue("it") {
+            UsageMenuCardView.Model.localizedProviderDetails([section], provider: .notion)
+        }
+        let row = try #require(localized.first?.rows.first)
+        #expect(localized.first?.title == "Crediti personali")
+        #expect(row.label == "Standard rimanente")
+        #expect(row.value == "1,365.33 crediti")
+        #expect(row.secondaryValue != "134.67 / 1,500 used")
+        #expect(row.secondaryValue?.contains("134.67 / 1,500") == true)
     }
 }

@@ -2851,3 +2851,11 @@
 "Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program devolveu unha resposta descoñecida. Actualiza CodexBar e téntao de novo.";
 "Google session expired or invalid." = "A sesión de Google caducou ou non é válida.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Non se atoparon cookies de sesión de Google Developer Program. Inicia sesión en me.developers.google.com/benefits ou pega unha cabeceira Cookie.";
+
+"Personal credits" = "Créditos persoais";
+"Standard remaining" = "Standard restante";
+"Select remaining" = "Select restante";
+"Remaining credits" = "Créditos restantes";
+"Notion Credits" = "Créditos de Notion";
+"Notion did not provide usable personal AI allowances for this workspace. Check AI usage for the selected workspace in Notion, then refresh CodexBar again." = "Notion non proporcionou cotas persoais de IA utilizables para este espazo de traballo. Comproba o uso de IA do espazo seleccionado en Notion e volve actualizar CodexBar.";
+"Select" = "Select";

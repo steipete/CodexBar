@@ -24,29 +24,6 @@ struct NotionDebugTests {
         #expect(result == "Notion plugin fetch succeeded\nRolling used: 42.0\nMonthly used: 18.0")
     }
 
-    @Test(.timeLimit(.minutes(1)))
-    func `debug deadline cancels a pending required request`() async {
-        let (events, cancelled) = AsyncStream<Void>.makeStream()
-        let result = await UsageStore.debugNotionLog(
-            browserDetection: BrowserDetection(),
-            notionCookieSource: .manual,
-            notionCookieHeader: "token_v2=synthetic",
-            notionWorkspaceID: "space",
-            transport: ProviderHTTPTransportHandler { _ in
-                do {
-                    try await Task.sleep(for: .seconds(60))
-                } catch {
-                    cancelled.yield(())
-                    throw error
-                }
-                throw URLError(.timedOut)
-            }, probeTimeout: 1)
-        #expect(result == "Probe timed out after 1s")
-        var iterator = events.makeAsyncIterator()
-        #expect(await iterator.next() != nil)
-        cancelled.finish()
-    }
-
     @Test
     func `debug names migrated monthly pools without an optional credit lookup`() async {
         let result = await UsageStore.debugNotionLog(

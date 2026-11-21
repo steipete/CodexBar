@@ -1806,11 +1806,10 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared renderer maps provider-owned presentation data into the generic UI model."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/Menu/MenuCardView+ProviderDetailLocalization.swift",
-            anchor: "guard provider == .deepseek || provider == .zai || provider == .kiro || " +
-                "provider == .grok || provider == .kimi",
-            expectedProviderIDs: ["deepseek", "grok", "kimi", "kiro", "zai"],
-            expectedReferenceCount: 5,
-            expectedReferenceFingerprint: ["deepseek@0", "grok@0", "kimi@0", "kiro@0", "zai@0"],
+            anchor: "guard provider == .deepseek || provider == .zai || provider == .kiro ||",
+            expectedProviderIDs: ["deepseek", "grok", "kimi", "kiro", "notion", "zai"],
+            expectedReferenceCount: 6,
+            expectedReferenceFingerprint: ["deepseek@0", "kiro@0", "zai@0", "grok@1", "kimi@1", "notion@1"],
             reason: "This exact shared renderer maps provider-owned presentation data into the generic UI model."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/Menu/MenuCardView+ProviderDetailLocalization.swift",
@@ -1822,9 +1821,9 @@ struct ProviderArchitectureGatekeeperTests {
         AllowedProviderConstruct(
             path: "Sources/CodexBar/Menu/MenuCardView+ProviderDetailLocalization.swift",
             anchor: "case .deepseek:",
-            expectedProviderIDs: ["deepseek", "grok", "kimi", "kiro", "zai"],
-            expectedReferenceCount: 5,
-            expectedReferenceFingerprint: ["deepseek@0", "zai@2", "kiro@4", "grok@6", "kimi@8"],
+            expectedProviderIDs: ["deepseek", "grok", "kimi", "kiro", "notion", "zai"],
+            expectedReferenceCount: 6,
+            expectedReferenceFingerprint: ["deepseek@0", "zai@2", "kiro@4", "grok@6", "notion@8", "kimi@10"],
             reason: "This exact shared renderer maps provider-owned presentation data into the generic UI model."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/Menu/MenuCardView.swift",

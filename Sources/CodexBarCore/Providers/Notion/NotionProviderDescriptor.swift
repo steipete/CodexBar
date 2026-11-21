@@ -190,6 +190,9 @@ extension NotionProviderDescriptor {
                     settings: [
                         "WORKSPACE_ID": settings?.workspaceID ?? "",
                         "OPTIONAL_USAGE": String(context.includeOptionalUsage),
+                        "UNAVAILABLE_MESSAGE": UsageFormatter.localized(
+                            "Notion did not provide usable personal AI allowances for this workspace. " +
+                                "Check AI usage for the selected workspace in Notion, then refresh CodexBar again."),
                     ],
                     secrets: ["HEADERS": String(data: encoded, encoding: .utf8) ?? "{}"])
             }, isEnabled: { _ in true })

@@ -2830,3 +2830,11 @@
 "Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program 傳回了無法辨識的回應。請更新 CodexBar 後再試。";
 "Google session expired or invalid." = "Google 工作階段已過期或無效。";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "找不到 Google Developer Program 工作階段 Cookie。請在 me.developers.google.com/benefits 登入或貼上 Cookie 標頭。";
+
+"Personal credits" = "個人額度";
+"Standard remaining" = "Standard 剩餘額度";
+"Select remaining" = "Select 剩餘額度";
+"Remaining credits" = "剩餘額度";
+"Notion Credits" = "Notion 額度";
+"Notion did not provide usable personal AI allowances for this workspace. Check AI usage for the selected workspace in Notion, then refresh CodexBar again." = "Notion 未提供此工作區可用的個人 AI 額度。請在 Notion 中檢查所選工作區的 AI 用量，然後重新整理 CodexBar。";
+"Select" = "Select";

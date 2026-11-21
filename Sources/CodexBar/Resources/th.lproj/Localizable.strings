@@ -2854,3 +2854,11 @@
 "Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program ส่งการตอบกลับที่ไม่รู้จัก โปรดอัปเดต CodexBar แล้วลองอีกครั้ง";
 "Google session expired or invalid." = "เซสชัน Google หมดอายุหรือไม่ถูกต้อง";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "ไม่พบคุกกี้เซสชันของ Google Developer Program ลงชื่อเข้าใช้ที่ me.developers.google.com/benefits หรือวางส่วนหัว Cookie";
+
+"Personal credits" = "เครดิตส่วนบุคคล";
+"Standard remaining" = "Standard คงเหลือ";
+"Select remaining" = "Select คงเหลือ";
+"Remaining credits" = "เครดิตคงเหลือ";
+"Notion Credits" = "เครดิต Notion";
+"Notion did not provide usable personal AI allowances for this workspace. Check AI usage for the selected workspace in Notion, then refresh CodexBar again." = "Notion ไม่ได้ส่งโควตา AI ส่วนบุคคลที่ใช้ได้สำหรับพื้นที่ทำงานนี้ โปรดตรวจสอบการใช้ AI ของพื้นที่ทำงานที่เลือกใน Notion แล้วรีเฟรช CodexBar อีกครั้ง";
+"Select" = "Select";

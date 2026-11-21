@@ -2851,3 +2851,11 @@
 "Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program returnerade ett okänt svar. Uppdatera CodexBar och försök igen.";
 "Google session expired or invalid." = "Google-sessionen har gått ut eller är ogiltig.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Inga sessionskakor för Google Developer Program hittades. Logga in på me.developers.google.com/benefits eller klistra in ett Cookie-huvud.";
+
+"Personal credits" = "Personliga krediter";
+"Standard remaining" = "Standard kvar";
+"Select remaining" = "Select kvar";
+"Remaining credits" = "Återstående krediter";
+"Notion Credits" = "Notion-krediter";
+"Notion did not provide usable personal AI allowances for this workspace. Check AI usage for the selected workspace in Notion, then refresh CodexBar again." = "Notion tillhandahöll inga användbara personliga AI-kvoter för den här arbetsytan. Kontrollera AI-användningen för den valda arbetsytan i Notion och uppdatera sedan CodexBar igen.";
+"Select" = "Select";

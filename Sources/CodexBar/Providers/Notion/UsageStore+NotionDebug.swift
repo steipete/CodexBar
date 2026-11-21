@@ -7,11 +7,10 @@ extension UsageStore {
         notionCookieSource: ProviderCookieSource,
         notionCookieHeader: String,
         notionWorkspaceID: String,
-        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
-        probeTimeout: TimeInterval = 20) async -> String
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async -> String
     {
         // This bounded diagnostic reports only allowances; optional credits cannot delay it.
-        await runWithTimeout(seconds: probeTimeout) {
+        await runWithTimeout(seconds: 15) {
             let context = ProviderFetchContext(
                 runtime: .app,
                 sourceMode: .web,

@@ -3,7 +3,8 @@ defineProvider({
   name: "Notion AI",
   settings: [
     { key: "WORKSPACE_ID", title: "Workspace ID", type: "plain" },
-    { key: "OPTIONAL_USAGE", title: "Optional usage", type: "plain" },
+    { key: "OPTIONAL_USAGE", title: "Usage", type: "plain" },
+    { key: "UNAVAILABLE_MESSAGE", title: "Notion AI", type: "plain" },
     { key: "HEADERS", title: "Captured headers", type: "secure" },
   ],
   endpoints: ["https://app.notion.com"],
@@ -226,7 +227,8 @@ defineProvider({
               );
             if (!primary && !secondary)
               throw ctx.fail.apiFailure(
-                "Notion did not provide usable personal AI allowances for this workspace. Check AI usage for the selected workspace in Notion, then refresh CodexBar again.",
+                ctx.settings.get("UNAVAILABLE_MESSAGE") ||
+                  "Notion did not provide usable personal AI allowances for this workspace. Check AI usage for the selected workspace in Notion, then refresh CodexBar again.",
               );
           }
           if (usage.window == null && usage.billingPeriodWindow == null)
