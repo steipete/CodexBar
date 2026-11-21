@@ -7,6 +7,9 @@ public enum OpenAIAPIProviderDescriptor {
         apiKeyDebugLabel: OpenAIAPISettingsReader.apiKeyEnvironmentKey,
         additionalProjections: [
             .workspaceID(OpenAIAPISettingsReader.projectIDEnvironmentKey),
+            .init(
+                key: "OPENAI_ORGANIZATION_ID",
+                value: { SettingsValue.cleaned($0.pluginSettings?["OPENAI_ORGANIZATION_ID"]) }),
             .init(key: "OPENAI_LIVE_MINUTES", value: { $0.pluginSettings?["OPENAI_LIVE_MINUTES"] }),
         ],
         resolve: OpenAIAPISettingsReader.apiKey,
@@ -17,7 +20,8 @@ public enum OpenAIAPIProviderDescriptor {
             injection: .environment(key: OpenAIAPISettingsReader.adminAPIKeyEnvironmentKey),
             requiresManualCookieSource: false,
             cookieName: nil,
-            environmentKeysToScrub: [OpenAIAPISettingsReader.projectIDEnvironmentKey]))
+            environmentKeysToScrub: [OpenAIAPISettingsReader.projectIDEnvironmentKey]
+                + OpenAIAPISettingsReader.organizationIDEnvironmentKeys))
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
@@ -132,6 +136,8 @@ public enum OpenAIAPIProviderDescriptor {
                     "OPENAI_ALLOW_BALANCE_FALLBACK": credential.allowsLegacyBalanceFallback ? "1" : "0",
                 ]
                 settings[OpenAIAPISettingsReader.projectIDEnvironmentKey] = credential.projectID
+                settings["OPENAI_ORGANIZATION_ID"] = SettingsValue.first(
+                    in: context.env, keys: OpenAIAPISettingsReader.organizationIDEnvironmentKeys)
                 return .init(
                     settings: settings,
                     secrets: [OpenAIAPISettingsReader.apiKeyEnvironmentKey: credential.apiKey])
@@ -142,23 +148,14 @@ public enum OpenAIAPIProviderDescriptor {
 struct OpenAIAPIUsageCredential: Equatable {
     let apiKey: String
     let projectID: String?
-    let usesAdminKey: Bool
+    let allowsLegacyBalanceFallback: Bool
 
     init?(environment: [String: String]) {
-        if let adminKey = OpenAIAPISettingsReader.adminAPIKey(environment: environment) {
-            self.apiKey = adminKey
-            self.usesAdminKey = true
-        } else if let apiKey = OpenAIAPISettingsReader.apiKey(environment: environment) {
-            self.apiKey = apiKey
-            self.usesAdminKey = false
-        } else {
-            return nil
-        }
+        guard let apiKey = OpenAIAPISettingsReader.apiKey(environment: environment) else { return nil }
+        self.apiKey = apiKey
         self.projectID = OpenAIAPISettingsReader.projectID(environment: environment)
-    }
-
-    var allowsLegacyBalanceFallback: Bool {
-        self.projectID == nil || !self.usesAdminKey
+        self.allowsLegacyBalanceFallback = self.projectID == nil
+            || OpenAIAPISettingsReader.adminAPIKey(environment: environment) == nil
     }
 }
 

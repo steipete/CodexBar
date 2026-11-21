@@ -5,6 +5,7 @@ extension CodexBarCLI {
     static func serveUsageOutput(
         selection: ProviderSelection,
         context: ServeUsageContext,
+        collectsDashboardAccounts: Bool = false,
         fetchUsage: @escaping ServeUsageFetcher = CodexBarCLI
             .fetchServeProviderUsage) async throws -> UsageCommandOutput
     {
@@ -17,6 +18,8 @@ extension CodexBarCLI {
             selection: TokenAccountCLISelection(label: nil, index: nil, allAccounts: true),
             config: context.config,
             verbose: false)
+        let usesClaudeSwap = collectsDashboardAccounts && context.includeAllAccounts
+            && Self.dashboardClaudeSwapIsEligible(config: context.config)
         let browserDetection = BrowserDetection()
         let command = UsageCommandContext(
             format: .json,
@@ -44,7 +47,8 @@ extension CodexBarCLI {
             configFingerprint: Self.serveUsageOperationFingerprint(
                 configFingerprint: context.configFingerprint,
                 includeAllCodexAccounts: context.includeAllCodexAccounts,
-                includeAllAccounts: context.includeAllAccounts),
+                includeAllAccounts: context.includeAllAccounts,
+                usesClaudeSwap: usesClaudeSwap),
             deadline: context.providerDeadline,
             operations: context.providerOperations,
             forceRefresh: context.forceRefresh)
@@ -53,7 +57,10 @@ extension CodexBarCLI {
                 await fetchUsage(
                     provider,
                     Self.serveIncludesConfiguredAccounts(
-                        provider: provider, config: context.config, allAccounts: context.includeAllAccounts)
+                        provider: provider,
+                        config: context.config,
+                        allAccounts: context.includeAllAccounts,
+                        usesClaudeSwap: usesClaudeSwap)
                         ? allTokenContext : tokenContext,
                     command,
                     context.includeAllAccounts ? publish : nil)
@@ -64,10 +71,12 @@ extension CodexBarCLI {
     static func serveUsageOperationFingerprint(
         configFingerprint: String,
         includeAllCodexAccounts: Bool,
-        includeAllAccounts: Bool = false) -> String
+        includeAllAccounts: Bool = false,
+        usesClaudeSwap: Bool = false) -> String
     {
         "\(configFingerprint):codex-accounts=\(includeAllCodexAccounts ? "all" : "selected")"
             + (includeAllAccounts ? ":token-accounts=all" : "")
+            + (usesClaudeSwap ? ":claude-swap" : "")
     }
 
     typealias ServeUsageFetcher = @Sendable (
@@ -84,11 +93,14 @@ extension CodexBarCLI {
     }
 
     static func serveIncludesConfiguredAccounts(
-        provider: UsageProvider, config: CodexBarConfig, allAccounts: Bool) -> Bool
+        provider: UsageProvider,
+        config: CodexBarConfig,
+        allAccounts: Bool,
+        usesClaudeSwap: Bool = false) -> Bool
     {
         guard allAccounts else { return false }
         // Provider-specific by design: Claude-swap supplies account rows; keep normal provider-level usage only.
-        if provider == .claude, dashboardClaudeSwapIsEligible(config: config) { return false }
+        if provider == .claude, usesClaudeSwap { return false }
         return TokenAccountSupportCatalog.support(for: provider) != nil
             && config.providerConfig(for: provider.instanceID)?.tokenAccounts?.accounts.isEmpty == false
     }

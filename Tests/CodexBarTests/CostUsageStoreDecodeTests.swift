@@ -60,6 +60,10 @@ extension CostUsageStoreReadWorkTests {
         rows.append(.init(path: path, rowIndex: rows.count, payload: Data("invalid JSON".utf8)))
         #expect(await fixture.store.replaceUsageRows(path: path, rows: rows))
 
+        var unreadable = try #require(await fixture.store.readSnapshot().files.first { $0.path != path })
+        unreadable.scanState.detailsPayload = Data("invalid JSON".utf8)
+        #expect(await fixture.store.upsertFile(unreadable))
+
         let snapshot = await fixture.store.readSnapshot(loadTokenSnapshots: false)
         let expected = CostUsageStore.decodeCodexCache(from: snapshot, recorder: nil, tokenSnapshotsLoaded: false)
         let baseline = try #require(await fixture.store.codexBaselineProjectionForTesting())
@@ -204,6 +208,7 @@ extension CostUsageStoreReadWorkTests {
         print("[stream-work] baseline=\(baseline) decoded=\(work.usageRowDecodeAttempts) "
             + "materialized=\(work.materializedUsageRows) payloadBytes=\(work.usagePayloadBytes)")
         #expect(work.usageRowDecodeAttempts == fixture.rowCount)
+        #expect(work.fileDetailsDecodeAttempts == fixture.fileCount)
         #expect(work.materializedUsageRows == 0)
     }
 }
