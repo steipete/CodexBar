@@ -6,7 +6,7 @@
 
 - Providers: new TrustedRouter key limits and spend, MiMo Token Plan quotas, Notion AI personal allowances, Google Developer Program credits, and DeepSeek Platform spend. Grok prepaid credits reach the menu bar, OpenAI API snapshots carry the legacy credit balance, Helmcode shows billing-period credit usage, and Amp enterprise workspaces load with their recorded cost.
 - Cost: Claude and Pi cost by session and project, Codex Ultrafast and Fast pricing, filled-in Claude model prices, and a Models view in Usage & Spend.
-- Quieter and lighter: about 85% less background CPU from Usage & Spend refreshes in a local profile, no more ~100 MB Codex cost-cache rewrites per save, cancelled refreshes stop early, and Claude OAuth and Muse Code avoid repeated background Keychain prompts.
+- Less repeated work: Usage & Spend stops reloading on every refresh tick (about 85% less background CPU at a 1-minute interval in a local profile), Codex cost-cache saves no longer rewrite ~100 MB, cancelled refreshes stop early, and Claude OAuth and Muse Code avoid repeated background Keychain prompts.
 - Claude accounts, CLI and server: claude-swap Overview, Plan Usage, tabs and shared cost follow the presented account, `codexbar serve` honors `allAccounts`, `dashboard --no-cost` skips cost work, and unknown `--provider` values are rejected.
 
 ### Added
@@ -78,7 +78,7 @@
 - Alibaba: read Team CLI seat quotas, retain browser fallback for unavailable credits, and recognize mainland Qwen aliases. (#5008) Thanks @yinjialu!
 - Share Stats: replace faint provider markers with recognizable provider icons in light and dark cards. (#5011) Thanks @Chipagosfinest!
 - Claude: finish the CLI `/usage` read as soon as a weekly-only plan's quota is drawn, instead of waiting out the 20-second probe timeout (#5066, #5070). Thanks @mjaverto!
-- Usage & Spend: stop reloading the shared dashboard, and rescanning Codex history, on every refresh tick when Grok, OpenAI API, OpenRouter, Mistral, xAI, or OpenCode Go is enabled; unchanged spend no longer counts as a new source revision, cutting background CPU by about 85% at a 1-minute refresh interval in a local profile (#5071).
+- Usage & Spend: stop reloading the shared dashboard, and rescanning Codex history, on every refresh tick when Grok, OpenAI API, OpenRouter, Mistral, xAI, DeepSeek, or OpenCode Go is enabled, including when DeepSeek or xAI report no spend analytics; unchanged spend no longer counts as a new source revision, cutting background CPU by about 85% at a 1-minute refresh interval in a local profile (#5071, #5141).
 - OpenCode Go: Auto waits at most 5 seconds for a large local history before returning remote quota, without showing partial history; without remote quota it still returns the local estimate, and the scan keeps warming the cache for a later refresh (#5060, #5062). Thanks @harjothkhara and @faresahmedbaianat-hash!
 
 ### Changed
