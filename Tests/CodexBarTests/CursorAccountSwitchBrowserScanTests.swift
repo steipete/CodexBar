@@ -43,6 +43,7 @@ struct CursorAccountSwitchBrowserScanTests {
 
     @Test(arguments: [
         ("at.studio.AsideBrowser", Browser.aside),
+        ("com.google.Chrome.dev", .chromeDev),
         ("com.operasoftware.Opera", .opera),
         ("com.operasoftware.OperaNeon", .operaNeon),
         ("com.brave.Browser.origin", .braveOrigin),

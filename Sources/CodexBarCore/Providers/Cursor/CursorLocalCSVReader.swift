@@ -9,19 +9,7 @@ enum CursorLocalCSVReader {
     #endif
 
     static func cachedCSVPaths(home: URL? = nil) -> [URL] {
-        #if DEBUG
-        if home == nil, let cacheHomeForTesting {
-            return self.cachedCSVPaths(home: cacheHomeForTesting)
-        }
-        #endif
-        let base: URL = if let home {
-            home.appendingPathComponent(".config/tokscale/cursor-cache", isDirectory: true)
-        } else if let dir = ProcessInfo.processInfo.environment["TOKSCALE_CONFIG_DIR"] {
-            URL(fileURLWithPath: dir).appendingPathComponent("cursor-cache", isDirectory: true)
-        } else {
-            FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent(".config/tokscale/cursor-cache", isDirectory: true)
-        }
+        let base = self.cacheDirectory(home: home)
         guard let contents = try? FileManager.default.contentsOfDirectory(
             at: base, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
         else { return [] }
@@ -30,6 +18,22 @@ enum CursorLocalCSVReader {
             return n.hasPrefix("usage") && n.hasSuffix(".csv") && !$0.path.contains("/archive/") && !n
                 .hasPrefix("usage.backup")
         }.sorted { $0.lastPathComponent < $1.lastPathComponent }
+    }
+
+    static func cacheDirectory(home: URL? = nil) -> URL {
+        #if DEBUG
+        if home == nil, let cacheHomeForTesting {
+            return self.cacheDirectory(home: cacheHomeForTesting)
+        }
+        #endif
+        return if let home {
+            home.appendingPathComponent(".config/tokscale/cursor-cache", isDirectory: true)
+        } else if let dir = ProcessInfo.processInfo.environment["TOKSCALE_CONFIG_DIR"] {
+            URL(fileURLWithPath: dir).appendingPathComponent("cursor-cache", isDirectory: true)
+        } else {
+            FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent(".config/tokscale/cursor-cache", isDirectory: true)
+        }
     }
 
     struct Row: Sendable {

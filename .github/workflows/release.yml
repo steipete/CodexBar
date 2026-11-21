@@ -99,8 +99,8 @@ jobs:
       - name: Install checksum-pinned Sparkle signing tool
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --location https://github.com/sparkle-project/Sparkle/releases/download/2.10.0/Sparkle-2.10.0.tar.xz -o "$RUNNER_TEMP/sparkle.tar.xz"
-          printf '%s  %s\n' c2bf58aa8387266ac179357b1415d6f2635f044da8be41042af32425dae6da0c "$RUNNER_TEMP/sparkle.tar.xz" | shasum -a 256 -c -
+          curl --fail --silent --show-error --location https://github.com/sparkle-project/Sparkle/releases/download/2.10.1/Sparkle-2.10.1.tar.xz -o "$RUNNER_TEMP/sparkle.tar.xz"
+          printf '%s  %s\n' 1a856d2a9edb8e628de88121d7be04cf0e2167f8641650b78fca00b14244cf27 "$RUNNER_TEMP/sparkle.tar.xz" | shasum -a 256 -c -
           mkdir "$RUNNER_TEMP/sparkle-bin"
           tar -xf "$RUNNER_TEMP/sparkle.tar.xz" -C "$RUNNER_TEMP/sparkle-bin" ./bin/sign_update
       - name: Import Developer ID into an ephemeral keychain

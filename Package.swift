@@ -8,7 +8,7 @@ let useLocalSweetCookieKit =
 let sweetCookieKitDependency: Package.Dependency =
     useLocalSweetCookieKit && FileManager.default.fileExists(atPath: sweetCookieKitPath)
     ? .package(path: sweetCookieKitPath)
-    : .package(url: "https://github.com/steipete/SweetCookieKit", from: "0.5.11")
+    : .package(url: "https://github.com/steipete/SweetCookieKit", from: "0.6.0")
 
 let sqlite3LibDir = ProcessInfo.processInfo.environment["CODEXBAR_SQLITE3_LIB_DIR"]?
     .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -45,9 +45,9 @@ let package = Package(
     }(),
     dependencies: [
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.10.1"),
-        .package(url: "https://github.com/steipete/Commander", from: "0.3.0"),
-        .package(url: "https://github.com/apple/swift-crypto.git", "4.5.2"..<"6.0.0"),
-        .package(url: "https://github.com/apple/swift-log", from: "1.16.2"),
+        .package(url: "https://github.com/steipete/Commander", from: "0.3.1"),
+        .package(url: "https://github.com/apple/swift-crypto.git", from: "5.1.2"),
+        .package(url: "https://github.com/apple/swift-log", from: "1.17.2"),
         .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", from: "3.1.0"),
         .package(url: "https://github.com/zats/Vortex", revision: "ef5392088d4aeb255c4eee83157dbdafcd31bf07"),
         sweetCookieKitDependency,

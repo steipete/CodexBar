@@ -459,6 +459,8 @@ and a three-letter uppercase currency. Dates are JavaScript `Date` values or ISO
 always scoped to the manifest's instance ID. Data confidence defaults to `unknown`. Details allow at most 8 sections, 24 rows per section, 120 chart points,
 and 120 characters per detail string. Wrong types and limit violations fail the whole fetch instead of truncating it.
 
+Detail bar charts show the hovered point’s label, formatted value, and unit. Units named `token` or `tokens` use the shared compact token formatter.
+
 Standard windows (`primary`, `secondary`, and `tertiary`) may include an optional `title`. Generic menu cards and
 `plugins fetch` text output use it instead of Primary, Secondary, or Tertiary. Titles are trimmed, limited to 256 UTF-8
 bytes, and must be strings; omitted, null, or blank titles use the default label. JSON snapshots retain the title.

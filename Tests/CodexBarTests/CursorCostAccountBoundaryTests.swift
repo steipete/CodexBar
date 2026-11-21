@@ -6,7 +6,7 @@ import Testing
 @Suite(.serialized)
 struct CursorCostAccountBoundaryTests {
     @Test
-    func `a rejected nonblank manual cost credential cannot publish ambient CSV history`() async throws {
+    func `a rejected nonblank manual cost credential cannot publish ambient local history`() async throws {
         // The shared production transport deliberately permits URLProtocol stubs in test processes.
         try #require(TestProcessSafety.isRunning)
         let registered = URLProtocol.registerClass(CursorCostManual401Protocol.self)
@@ -24,6 +24,7 @@ struct CursorCostAccountBoundaryTests {
         Date,Model,Input (w/ Cache Write),Input (w/o Cache Write),Cache Read,Output Tokens,Total Tokens,Cost,Cost to you
         2026-08-20T10:00:00.000Z,synthetic-model,1200,800,400,300,1500,42,0
         """.write(to: csvURL, atomically: true, encoding: .utf8)
+        try Self.writeOwnedJSON(to: cache)
         #expect(CursorLocalCSVReader.parseFile(at: csvURL).first?.cost == 42)
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
@@ -51,7 +52,7 @@ struct CursorCostAccountBoundaryTests {
     }
 
     @Test(arguments: ["", " \t\n "])
-    func `explicitly blank manual cost credentials cannot publish ambient CSV history`(
+    func `explicitly blank manual cost credentials cannot publish ambient local history`(
         manualHeader: String) async throws
     {
         let root = FileManager.default.temporaryDirectory
@@ -65,6 +66,7 @@ struct CursorCostAccountBoundaryTests {
         Date,Model,Input (w/ Cache Write),Input (w/o Cache Write),Cache Read,Output Tokens,Total Tokens,Cost,Cost to you
         2026-08-20T10:00:00.000Z,synthetic-model,1200,800,400,300,1500,42,0
         """.write(to: csvURL, atomically: true, encoding: .utf8)
+        try Self.writeOwnedJSON(to: cache)
         let rows = CursorLocalCSVReader.parseFile(at: csvURL)
         #expect(rows.count == 1)
         #expect(rows.first?.cost == 42)
@@ -92,6 +94,118 @@ struct CursorCostAccountBoundaryTests {
                 // The selected source remains authoritative even when local history is available.
             } catch {
                 Issue.record("Expected noSessionCookie, received \(error)")
+            }
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func `automatic cost fallback uses canonical JSON without counting CSV migration copies`(
+        partial: Bool) async throws
+    {
+        let cache = try CursorJSONTestFixtures.Cache()
+        defer { cache.remove() }
+        try Self.writeCSV(to: cache.directory)
+        var rows: [Any] = [CursorJSONTestFixtures.event()]
+        if partial { rows.append(42) }
+        try cache.write(CursorJSONTestFixtures.document(rows))
+        try cache.write(
+            CursorJSONTestFixtures.document([CursorJSONTestFixtures.event(input: 9000)]),
+            name: "usage.account-foreign.json")
+        let snapshot = try await Self.automaticSnapshot(in: cache)
+        #expect(snapshot.last30DaysTokens == 135)
+        #expect(snapshot.last30DaysCostUSD == 0.125)
+        #expect(snapshot.meteredCostUSD == (partial ? nil : 0))
+        #expect(snapshot.historyScanIsPartial == partial)
+        #expect(snapshot.historyCoverageIsEstablished == !partial)
+        #expect(snapshot.credentialScopeFingerprint == nil)
+        #expect(CursorCostManual401Protocol.requestCount == 1)
+    }
+
+    @Test(arguments: ["metadata", "malformed", "empty", "stale"])
+    func `unavailable canonical JSON cannot borrow CSV history`(state: String) async throws {
+        let cache = try CursorJSONTestFixtures.Cache()
+        defer { cache.remove() }
+        try Self.writeCSV(to: cache.directory)
+        var document = CursorJSONTestFixtures.document([CursorJSONTestFixtures.event()])
+        switch state {
+        case "metadata": document["_tokscale"] = ["version": 1, "accountId": "another-account"]
+        case "empty": document["usageEventsDisplay"] = []
+        case "stale":
+            document = CursorJSONTestFixtures.document([
+                CursorJSONTestFixtures.event(timestamp: "2025-11-13T10:00:00Z"),
+            ])
+        default: break
+        }
+        try cache.write(document)
+        if state == "malformed" {
+            try Data("{".utf8).write(to: cache.directory.appendingPathComponent("usage.json"))
+        }
+        do {
+            _ = try await Self.automaticSnapshot(in: cache)
+            Issue.record("Unavailable canonical cache must not publish the CSV's unrelated spend")
+        } catch CursorStatusProbeError.notLoggedIn {
+        } catch {
+            Issue.record("Expected the original synthetic authentication error, received \(error)")
+        }
+    }
+
+    @Test
+    func `automatic fallback retains CSV only history without reading inactive JSON accounts`() async throws {
+        let cache = try CursorJSONTestFixtures.Cache()
+        defer { cache.remove() }
+        try Self.writeCSV(to: cache.directory)
+        try cache.write(
+            CursorJSONTestFixtures.document([CursorJSONTestFixtures.event()]),
+            name: "usage.account-foreign.json")
+        let snapshot = try await Self.automaticSnapshot(in: cache)
+        #expect(snapshot.last30DaysCostUSD == 42)
+        #expect(snapshot.meteredCostUSD == nil)
+    }
+
+    private static func writeOwnedJSON(to cache: URL) throws {
+        let document = CursorJSONTestFixtures.document([
+            CursorJSONTestFixtures.event(timestamp: "2026-08-20T10:00:00Z"),
+        ])
+        try JSONSerialization.data(withJSONObject: document).write(to: cache.appendingPathComponent("usage.json"))
+    }
+
+    private static func writeCSV(to cache: URL) throws {
+        try """
+        Date,Model,Input (w/ Cache Write),Input (w/o Cache Write),Cache Read,Output Tokens,Total Tokens,Cost
+        2026-11-13T10:00:00Z,synthetic-model,105,100,10,20,135,42
+        """.write(to: cache.appendingPathComponent("usage.csv"), atomically: true, encoding: .utf8)
+    }
+
+    private static func automaticSnapshot(in cache: CursorJSONTestFixtures
+        .Cache) async throws -> CostUsageTokenSnapshot
+    {
+        try #require(TestProcessSafety.isRunning)
+        let registered = URLProtocol.registerClass(CursorCostManual401Protocol.self)
+        try #require(registered)
+        defer { URLProtocol.unregisterClass(CursorCostManual401Protocol.self) }
+        CursorCostManual401Protocol.resetCount()
+        return try await KeychainCacheStore.withServiceOverrideForTesting("cursor-json-boundary-\(UUID())") {
+            try await KeychainCacheStore.withImplicitTestStoreForTesting {
+                try await CookieHeaderCache
+                    .withLegacyBaseURLOverrideForTesting(cache.home.appendingPathComponent("legacy")) {
+                        try #require(CookieHeaderCache.storeResult(
+                            provider: .cursor,
+                            cookieHeader: CursorCostManual401Protocol.cookieHeader,
+                            sourceLabel: "Synthetic selected browser",
+                            authenticationFailurePolicy: .stopFallback))
+                        defer { CookieHeaderCache.clear(provider: .cursor) }
+                        // The pinned synthetic browser skips app-auth discovery and stops before browser imports.
+                        return try await CursorLocalCSVReader.$cacheHomeForTesting.withValue(cache.home) {
+                            try await CostUsageFetcher.loadTokenSnapshot(
+                                provider: .cursor,
+                                environment: [:],
+                                now: CursorJSONTestFixtures.now,
+                                historyDays: 30,
+                                allowPricingRefresh: false,
+                                includePiSessions: false,
+                                scannerOptions: .init(calendar: CursorJSONTestFixtures.calendar))
+                        }
+                    }
             }
         }
     }

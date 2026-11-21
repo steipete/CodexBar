@@ -14,6 +14,8 @@
 #include <QJsonDocument>
 #include <QLocalSocket>
 #include <QRegularExpression>
+#include <QPainterPath>
+#include <QScreen>
 #include <QSaveFile>
 #include <QStandardPaths>
 #include <QUuid>
@@ -56,6 +58,23 @@ DesktopController::DesktopController(const QString &cliOverride, QObject *parent
 DesktopController::~DesktopController() {
     m_usage.disconnect(this); m_cost.disconnect(this);
     stop(m_usage); stop(m_cost); stop(m_catalog);
+}
+
+void DesktopController::fitQuickView(QWindow *window, bool compact) {
+    if (!window || !window->screen() || QGuiApplication::platformName() != QStringLiteral("xcb")) return;
+    QRegion mask;
+    if (compact) {
+        QPainterPath outline;
+        const auto radius = window->height() / 2.0;
+        outline.addRoundedRect(QRectF(QPointF(), window->size()), radius, radius);
+        mask = QRegion(outline.toFillPolygon().toPolygon());
+    }
+    window->setMask(mask);
+    const auto bounds = window->screen()->availableGeometry();
+    const auto frame = window->frameGeometry();
+    const auto x = std::clamp(frame.x(), bounds.x(), std::max(bounds.x(), bounds.right() - frame.width() + 1));
+    const auto y = std::clamp(frame.y(), bounds.y(), std::max(bounds.y(), bounds.bottom() - frame.height() + 1));
+    if (frame.topLeft() != QPoint(x, y)) window->setFramePosition({x, y});
 }
 
 QJSValue DesktopController::call(const QJSValue &model, const QString &function, const QJSValueList &args) const {
