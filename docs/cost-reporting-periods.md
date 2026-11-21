@@ -54,6 +54,8 @@ is selected. No additional history store is created.
 
 ## History windows
 
+Long model breakdowns in cost-history submenus use a scrollable list whose scrollbar stays aligned with the menu edge.
+
 Usage & Spend captures daily/hourly summaries and conversation/project details without retaining exact quota-window events or an unused native accounting alternative. This lets obsolete quota payloads be released after their source publication is replaced or cleared. The source publication and regular menu quota data keep their own lifetimes; dashboard totals, Overview, and stale last-known details are unchanged.
 
 The menu's **History window** supports rolling days, **Month to date**, and **All**. Usage & Spend uses the same period model and keeps its own range selection. Existing saved day counts retain their rolling windows; the dashboard's former All selection migrates to All available history.

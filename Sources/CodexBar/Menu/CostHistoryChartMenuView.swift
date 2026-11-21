@@ -238,7 +238,6 @@ struct CostHistoryChartMenuView: View {
                             Text(L("Refreshing"))
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
-                                .accessibilityLabel(L("Refreshing"))
                         }
                         Spacer(minLength: 0)
                         if availableMetrics.count > 1 {
