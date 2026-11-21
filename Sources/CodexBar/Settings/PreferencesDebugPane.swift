@@ -179,8 +179,9 @@ struct DebugPane: View {
                     caption: L("fetch_strategy_caption"))
                 {
                     Picker(L("Provider"), selection: self.$currentFetchProvider) {
-                        ForEach(UsageProvider.allCases, id: \.self) { provider in
-                            Text(provider.rawValue.capitalized).tag(provider)
+                        ForEach(Self.fetchStrategyProviders, id: \.self) { provider in
+                            Text(ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName)
+                                .tag(provider)
                         }
                     }
                     .pickerStyle(.menu)
@@ -429,19 +430,29 @@ struct DebugPane: View {
         CodexBarLog.fileLogURL.path
     }
 
-    private static let probeLogProviders = Self.providers { $0.probeLogOrder }
-    private static let notificationSimulationProviders = Self.providers { $0.notificationSimulationOrder }
+    static let fetchStrategyProviders = Self.sortedByDisplayName(UsageProvider.allCases)
+    static let probeLogProviders = Self.providers { $0.probeLogOrder }
+    static let notificationSimulationProviders = Self.providers { $0.notificationSimulationOrder }
     #if DEBUG
-    private static let errorSimulationProviders = Self.providers { $0.errorSimulationOrder }
+    static let errorSimulationProviders = Self.providers { $0.errorSimulationOrder }
     #endif
 
     private static func providers(order: (ProviderDebugPaneCapabilities) -> Int?) -> [UsageProvider] {
-        ProviderDescriptorRegistry.all.compactMap { descriptor -> (UsageProvider, Int)? in
-            guard let rank = order(descriptor.metadata.debugPane) else { return nil }
-            return (descriptor.id, rank)
+        let participating = ProviderDescriptorRegistry.all.compactMap { descriptor -> UsageProvider? in
+            order(descriptor.metadata.debugPane) == nil ? nil : descriptor.id
         }
-        .sorted { $0.1 < $1.1 }
-        .map(\.0)
+        return Self.sortedByDisplayName(participating)
+    }
+
+    /// Sorts providers by user-visible display name (locale-aware, case-insensitive) for the provider pickers.
+    static func sortedByDisplayName(_ providers: [UsageProvider]) -> [UsageProvider] {
+        func name(_ provider: UsageProvider) -> String {
+            ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
+        }
+        return providers.sorted { lhs, rhs in
+            let comparison = name(lhs).localizedStandardCompare(name(rhs))
+            return comparison == .orderedSame ? lhs.rawValue < rhs.rawValue : comparison == .orderedAscending
+        }
     }
 
     private var animationPatternBinding: Binding<LoadingPattern?> {
