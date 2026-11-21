@@ -69,6 +69,8 @@ update("README.md", (text) =>
 update("docs/providers.md", (text) =>
   section(text.replace(/currently registers \d+ provider IDs/u, `currently registers ${count} provider IDs`), [
     "",
+    "Additional providers, generated from each provider's documentation:",
+    "",
     "| Provider | Source |",
     "|---|---|",
     ...entries.map((entry) => `| [${entry.name}](${entry.file}) | ${entry.source} |`),
