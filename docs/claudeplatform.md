@@ -85,7 +85,7 @@ The menu card shows:
 - **Purchased credit**: the soonest-expiring purchased grant that still has credit (or, when all are exhausted, the
   soonest one), in the same format.
 - **Other credit grants**: other unexpired grants, including exhausted subscription grants, with amounts and expiry.
-  Above 24 entries, the list shows the first 23 in expiry order and a count of the remaining entries.
+  The list shows at most 24 entries in expiry order; the reported total wallet balance is unchanged.
 - **Prepaid credits**: the total balance, which the menu bar **Balance** element also shows.
 - **Billing**: **This month (UTC)** with month-to-date spend, or **Spend: Unavailable**.
 

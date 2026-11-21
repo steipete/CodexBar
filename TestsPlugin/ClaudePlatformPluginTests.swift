@@ -209,9 +209,6 @@ struct ClaudePlatformPluginTests {
         #expect(others.rows.count == 24)
         if otherGrantCount == 24 {
             #expect(Set(others.rows.map(\.label)) == Set((1...24).map { "Promotional credit \($0)" }))
-        } else {
-            #expect(others.rows.last?.label == "Additional credit grants")
-            #expect(others.rows.last?.value == "\(otherGrantCount - 23) not shown")
         }
     }
 
