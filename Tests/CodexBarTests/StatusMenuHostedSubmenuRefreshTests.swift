@@ -432,16 +432,12 @@ struct StatusMenuHostedSubmenuRefreshTests {
 
     @Test
     func `plan usage submenu follows the presented claude swap account`() async throws {
-        let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
-        StatusItemController.menuCardRenderingEnabled = true
-        defer { StatusItemController.menuCardRenderingEnabled = previousMenuCardRendering }
-
         let settings = Self.makeSettings()
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.multiAccountMenuLayout = .segmented
         Self.enableOnlyClaude(settings)
-        let fetcher = UsageFetcher()
+        let fetcher = UsageFetcher(environment: [:])
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
         store.planUtilizationHistoryLoaded = true
         // Ambient history that stopped refreshing, including a retired model-scoped weekly series.
@@ -465,16 +461,18 @@ struct StatusMenuHostedSubmenuRefreshTests {
         let controller = StatusItemController(
             store: store,
             settings: settings,
-            account: fetcher.loadAccountInfo(),
+            account: AccountInfo(email: nil, plan: nil),
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
-            statusBar: .system)
+            statusBar: .system,
+            menuCardRenderingEnabled: true,
+            menuRefreshEnabled: true)
         defer { controller.releaseStatusItemsForTesting() }
 
         func chartSeries(_ submenu: NSMenu) throws -> [PlanUtilizationHistoryChartMenuView.VisibleSeries] {
             let hosting = try #require(
                 submenu.items.last?.view as? NSHostingView<PlanUtilizationHistoryChartMenuView>)
-            return hosting.rootView._visibleSeriesForTesting
+            return hosting.rootView.visibleSeries
         }
         func sessionPercents(_ series: [PlanUtilizationHistoryChartMenuView.VisibleSeries]) -> [Double]? {
             series.first { $0.selection.name == .session }?.history.entries.map(\.usedPercent)
@@ -502,10 +500,6 @@ struct StatusMenuHostedSubmenuRefreshTests {
 
     @Test
     func `plan usage submenu keeps the ambient source when a fleet card owns the claude menu`() async throws {
-        let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
-        StatusItemController.menuCardRenderingEnabled = true
-        defer { StatusItemController.menuCardRenderingEnabled = previousMenuCardRendering }
-
         let settings = Self.makeSettings()
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
@@ -514,7 +508,7 @@ struct StatusMenuHostedSubmenuRefreshTests {
         settings.iCloudSyncSnapshotsEnabled = true
         settings.iCloudSyncShowFleetAccounts = true
         Self.enableOnlyClaude(settings)
-        let fetcher = UsageFetcher()
+        let fetcher = UsageFetcher(environment: [:])
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
         store.planUtilizationHistoryLoaded = true
         let ambientKey = "ambient-account"
@@ -530,10 +524,12 @@ struct StatusMenuHostedSubmenuRefreshTests {
         let controller = StatusItemController(
             store: store,
             settings: settings,
-            account: fetcher.loadAccountInfo(),
+            account: AccountInfo(email: nil, plan: nil),
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
-            statusBar: .system)
+            statusBar: .system,
+            menuCardRenderingEnabled: true,
+            menuRefreshEnabled: true)
         defer { controller.releaseStatusItemsForTesting() }
         let remoteAt = Date(timeIntervalSince1970: 1_800_000_000)
         controller.cloudSyncState.fleetSnapshots["remote-claude"] = AccountSnapshotSyncPayload(
@@ -551,7 +547,7 @@ struct StatusMenuHostedSubmenuRefreshTests {
         func sessionPercents(_ submenu: NSMenu) throws -> [Double]? {
             let hosting = try #require(
                 submenu.items.last?.view as? NSHostingView<PlanUtilizationHistoryChartMenuView>)
-            return hosting.rootView._visibleSeriesForTesting
+            return hosting.rootView.visibleSeries
                 .first { $0.selection.name == .session }?.history.entries.map(\.usedPercent)
         }
 

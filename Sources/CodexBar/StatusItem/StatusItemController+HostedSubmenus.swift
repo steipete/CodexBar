@@ -379,16 +379,11 @@ extension StatusItemController {
         }
 
         let chartView = UsageBreakdownChartMenuView(breakdown: breakdown, width: width)
-        let hosting = MenuHostingView(rootView: chartView.codexBarLocalized())
-        hosting.frame = NSRect(
-            origin: .zero,
-            size: NSSize(width: width, height: self.hostedSubviewFittingHeight(for: hosting, width: width)))
-
-        let chartItem = NSMenuItem()
-        chartItem.view = hosting
-        chartItem.isEnabled = true
-        chartItem.representedObject = Self.usageBreakdownChartID
-        submenu.addItem(chartItem)
+        self.appendHistoryChart(
+            chartView.codexBarLocalized(),
+            to: submenu,
+            id: Self.usageBreakdownChartID,
+            width: width)
         return true
     }
 
@@ -406,16 +401,11 @@ extension StatusItemController {
         }
 
         let chartView = CreditsHistoryChartMenuView(breakdown: breakdown, width: width)
-        let hosting = MenuHostingView(rootView: chartView.codexBarLocalized())
-        hosting.frame = NSRect(
-            origin: .zero,
-            size: NSSize(width: width, height: self.hostedSubviewFittingHeight(for: hosting, width: width)))
-
-        let chartItem = NSMenuItem()
-        chartItem.view = hosting
-        chartItem.isEnabled = true
-        chartItem.representedObject = Self.creditsHistoryChartID
-        submenu.addItem(chartItem)
+        self.appendHistoryChart(
+            chartView.codexBarLocalized(),
+            to: submenu,
+            id: Self.creditsHistoryChartID,
+            width: width)
         return true
     }
 

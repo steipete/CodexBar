@@ -39,13 +39,9 @@ extension UsageStore {
     /// `isStale` tracks provider errors rather than measurement age, so serving
     /// last-known numbers on the bar would present them as current.
     func claudeSwapMenuBarSnapshotOverride(for instanceID: ProviderInstanceID) -> UsageSnapshot? {
-        guard instanceID == UsageProvider.claude.instanceID else { return nil }
-        guard ClaudeSwapMenuPrecedence.prefersClaudeSwap(
-            provider: .claude,
-            accountCount: self.claudeSwapAccountSnapshots.count,
-            showSingleAccount: self.settings.claudeSwapShowSingleAccount)
-        else { return nil }
-        guard let active = self.claudeSwapAccountSnapshots.first(where: \.isActive),
+        guard instanceID == UsageProvider.claude.instanceID,
+              let display = self.claudeSwapMenuDisplay(for: .claude, inspectedAccountID: nil),
+              let active = display.accounts.first(where: \.isActive),
               !active.usesLastKnownUsage
         else { return nil }
         return active.snapshot

@@ -2,12 +2,6 @@ import AppKit
 import CodexBarCore
 import SwiftUI
 
-private final class UsageHistoryMenuHostingView<Content: View>: NSHostingView<Content> {
-    override var allowsVibrancy: Bool {
-        true
-    }
-}
-
 extension StatusItemController {
     @discardableResult
     func addUsageHistoryMenuItemIfNeeded(to menu: NSMenu, provider: UsageProvider, width: CGFloat) -> Bool {
@@ -23,13 +17,8 @@ extension StatusItemController {
     func makeUsageHistorySubmenu(provider: UsageProvider, width: CGFloat? = nil) -> NSMenu? {
         guard self.store.supportsPlanUtilizationHistory(for: provider) else { return nil }
         guard !self.store.shouldHidePlanUtilizationMenuItem(for: provider) else { return nil }
-        if let width {
-            return self.makeHostedSubviewPlaceholderMenu(
-                chartID: Self.usageHistoryChartID,
-                provider: provider,
-                width: width)
-        }
-        return self.makeHostedSubviewPlaceholderMenu(chartID: Self.usageHistoryChartID, provider: provider)
+        return self.makeHostedSubviewPlaceholderMenu(
+            chartID: Self.usageHistoryChartID, provider: provider, width: width)
     }
 
     func appendUsageHistoryChartItem(
@@ -37,9 +26,7 @@ extension StatusItemController {
         provider: UsageProvider,
         width: CGFloat) -> Bool
     {
-        let source = self.usageHistorySource(for: provider)
-        let histories = source.selection.histories
-        let snapshot = source.snapshot
+        let (selection, snapshot) = self.usageHistorySource(for: provider)
 
         if !self.menuCardRenderingEnabledForController {
             let chartItem = NSMenuItem()
@@ -54,20 +41,20 @@ extension StatusItemController {
         if provider == .codex || provider == .claude || provider == .kiro {
             let burndownView = QuotaBurndownChartMenuView(
                 provider: provider,
-                histories: histories,
+                histories: selection.histories,
                 width: width)
             if burndownView.hasSeries {
-                self.appendUsageHistoryChart(burndownView, to: submenu, provider: provider, width: width)
+                self.appendHistoryChart(burndownView, to: submenu, provider: provider, width: width)
                 submenu.addItem(.separator())
             }
         }
 
         let chartView = PlanUtilizationHistoryChartMenuView(
             provider: provider,
-            histories: histories,
+            histories: selection.histories,
             snapshot: snapshot,
             width: width)
-        self.appendUsageHistoryChart(chartView, to: submenu, provider: provider, width: width)
+        self.appendHistoryChart(chartView, to: submenu, provider: provider, width: width)
         return true
     }
 
@@ -90,13 +77,14 @@ extension StatusItemController {
             self.store.snapshot(for: provider.instanceID))
     }
 
-    private func appendUsageHistoryChart(
+    func appendHistoryChart(
         _ chartView: some View,
         to submenu: NSMenu,
-        provider: UsageProvider,
+        id: String = StatusItemController.usageHistoryChartID,
+        provider: UsageProvider? = nil,
         width: CGFloat)
     {
-        let hosting = UsageHistoryMenuHostingView(rootView: chartView)
+        let hosting = MenuHostingView(rootView: chartView)
         hosting.frame = NSRect(
             origin: .zero,
             size: NSSize(width: width, height: self.hostedSubviewFittingHeight(for: hosting, width: width)))
@@ -104,8 +92,8 @@ extension StatusItemController {
         let chartItem = NSMenuItem()
         chartItem.view = hosting
         chartItem.isEnabled = true
-        chartItem.representedObject = Self.usageHistoryChartID
-        chartItem.toolTip = provider.rawValue
+        chartItem.representedObject = id
+        chartItem.toolTip = provider?.rawValue
         submenu.addItem(chartItem)
     }
 }
