@@ -929,7 +929,7 @@ extension UsageStore {
     }
 
     func tokenCostIsAccountAgnostic(for provider: UsageProvider) -> Bool {
-        // Provider-specific by design: only Codex's explicit ambient scope spans local accounts.
-        provider == .codex && self.tokenCostScope(for: provider).signature == "codex:ambient"
+        // Provider-specific by design: combined Claude history and ambient Codex history span accounts.
+        ["codex:ambient", UsageProvider.claude.rawValue].contains(self.tokenCostScope(for: provider).signature)
     }
 }
