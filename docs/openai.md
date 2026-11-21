@@ -79,7 +79,7 @@ matching project isolation. With no organization setting, the balance endpoint u
 - Daily Admin API data renders inline Today/7d/configured-window KPIs plus a compact spend chart.
 - The inline usage card opens a hosted chart submenu with daily spend, token, and request trends plus selected-day detail.
 - Top model and top spend labels come from the configured completion/cost buckets when the Admin API returns them.
-- Legacy balance data keeps the older available/used credit summary and does not show organization graphs.
+- Legacy balance data keeps the older available/used credit summary and does not show organization graphs. The already reported available amount is also exported as `usage.providerCost.balance` in API snapshots; this aggregate does not identify subscription grants or add another authentication source.
 - Project-scoped Admin API data labels the account as `Admin API: <project>` and the organization line as
   `Project: <project>`.
 

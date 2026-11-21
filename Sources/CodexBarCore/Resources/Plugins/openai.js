@@ -403,7 +403,13 @@ defineProvider({
           resetDescription: `${usd(available)} available`,
         };
         if (resetsAt) primary.resetsAt = resetsAt;
-        const cost = { used: Math.max(0, used), limit: Math.max(0, granted), currency: "USD", period: "API credits" };
+        const cost = {
+          used: Math.max(0, used),
+          limit: Math.max(0, granted),
+          balance: available,
+          currency: "USD",
+          period: "API credits",
+        };
         if (resetsAt) cost.resetsAt = resetsAt;
         return {
           usage: { primary, cost, identity: { loginMethod: `API balance: ${usd(available)}` } },
