@@ -168,7 +168,6 @@ extension CostUsageStore {
             recorder: recorder)
         let rows = try Self.readDecodedCodexUsageRows(
             database,
-            files: snapshot.files,
             home: self.home,
             recorder: recorder)
         return (snapshot, rows)

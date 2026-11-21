@@ -225,6 +225,7 @@ a second identifier is an error. For an option value beginning with a dash, use 
   - Force enhanced mode elsewhere with `CODEXBAR_CARDS_ENHANCED=1`.
   - Exit code is non-zero when any provider fetch fails.
 - `codexbar dashboard` prints one dashboard-v1 JSON snapshot and exits.
+  - `--no-cost` skips cost collection entirely for quota-only consumers. Usage windows and account collection keep their normal behavior; cost fields remain unavailable. Without this flag, cost collection and the overall `--timeout` deadline are unchanged.
   - Honors enabled providers in stable order, carries configured display sort keys, and defaults to full account identity; `--identity redacted` hides email local parts.
   - Provider failures remain row-level errors alongside healthy rows; a valid partial snapshot exits `0`.
   - Claude's unavailable per-model breakdown adds `providers[].warnings: ["model-breakdown-unavailable"]` while retaining session and all-model weekly quotas. This optional schema-v1 field carries fixed codes only, never provider notice text, in every identity mode. It is omitted after recovery and from shell rows; an account with no model-specific limit does not receive the warning.
@@ -248,6 +249,7 @@ a second identifier is an error. For an option value beginning with a dash, use 
   - On a **non-loopback** host the token gates **all data routes** — `/usage`, `/cost`, and `/dashboard/v1/snapshot` all require `Authorization: Bearer YOUR_TOKEN`, so account data is never exposed to the network unauthenticated. The static web UI at `/` and `/health` are always open. On the default loopback bind, `/usage` and `/cost` stay unauthenticated.
   - `--allow-plain-http` is the explicit acknowledgment that the bearer token crosses the network **in cleartext on every request** when serving on a non-loopback host. `serve` refuses to start on a non-loopback host without it.
   - Provider config is reloaded for each usage/cost request; cache entries are keyed by the loaded config so provider toggles and source changes do not require restarting `serve`.
+  - Add `allAccounts=true` to `/usage` to collect all configured token accounts, matching `usage --all-accounts`. `1` and `yes` are also accepted, case-insensitively. Single-account and all-account responses use separate caches; omitting the query keeps the existing account selection.
   - Forced refreshes also prune expired response variants, so repeated configuration changes do not retain obsolete snapshots indefinitely.
   - Transient refresh failures fall back to the last good response for up to ten refresh intervals (minimum five minutes) so polling clients do not flicker between data and errors; disabled when `--refresh-interval 0`.
   - After a cached usage or cost response expires, `serve` returns the last-good response immediately while rebuilding it in the background. Dashboard snapshots wait for a rebuild after their normal refresh interval, including when returning to a previously cached used/remaining mode; request deadlines and last-good fallback on failure still apply. `--refresh-interval 0` keeps every request blocking.

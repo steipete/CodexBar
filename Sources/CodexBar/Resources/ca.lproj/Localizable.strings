@@ -2854,3 +2854,5 @@
 "Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program ha retornat una resposta desconeguda. Actualitza CodexBar i torna-ho a provar.";
 "Google session expired or invalid." = "La sessió de Google ha caducat o no és vàlida.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "No s'han trobat galetes de sessió de Google Developer Program. Inicia sessió a me.developers.google.com/benefits o enganxa una capçalera Cookie.";
+
+"Skip cost refresh" = "Omet l’actualització dels costos";

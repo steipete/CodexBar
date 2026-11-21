@@ -2854,3 +2854,5 @@
 "Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program mengembalikan respons yang tidak dikenali. Perbarui CodexBar dan coba lagi.";
 "Google session expired or invalid." = "Sesi Google telah kedaluwarsa atau tidak valid.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Cookie sesi Google Developer Program tidak ditemukan. Masuk di me.developers.google.com/benefits atau tempel header Cookie.";
+
+"Skip cost refresh" = "Lewati pembaruan biaya";

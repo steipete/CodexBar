@@ -41,24 +41,16 @@ extension CostUsageStore {
     /// Decodes usage rows as SQLite returns them, so raw payloads never accumulate alongside decoded rows.
     static func readDecodedCodexUsageRows(
         _ database: OpaquePointer,
-        files: [CostUsageStoreFile],
         home: String,
         recorder: CostUsageStoreReadWorkRecorder?) throws -> DecodedCodexUsageRows
     {
         var decoded = DecodedCodexUsageRows()
         let decoder = JSONDecoder()
         let rowStrings = CostUsageRowStringPool()
-        let readablePaths = Set(files.compactMap { file -> String? in
-            guard let data = file.scanState.detailsPayload,
-                  (try? decoder.decode(StoredFileDetails.self, from: data)) != nil
-            else { return nil }
-            return file.path
-        })
         var decodeAttempts = 0
         defer { recorder?.recordUsageRowDecodes(count: decodeAttempts) }
         try self.forEachUsageRow(database, path: nil, home: home, recorder: recorder, nativeOnly: true) { stored in
             decoded.rowCounts[stored.path, default: 0] += 1
-            guard readablePaths.contains(stored.path) else { return }
             decodeAttempts += 1
             if var row = try? decoder.decode(CostUsageScanner.CodexUsageRow.self, from: stored.payload) {
                 row.turnID = row.turnID.map(rowStrings.intern)
@@ -463,9 +455,10 @@ extension CostUsageStore {
             // Codex JSONL — they restore through the adapter's own checkpoint payload,
             // never through the Codex details/resume decoders.
             guard !file.belongsToOpenCodeLocalHistory,
-                  let detailsData = file.scanState.detailsPayload,
-                  let details = try? decoder.decode(StoredFileDetails.self, from: detailsData)
+                  let detailsData = file.scanState.detailsPayload
             else { continue }
+            recorder?.recordFileDetailsDecode()
+            guard let details = try? decoder.decode(StoredFileDetails.self, from: detailsData) else { continue }
             let aggregates = (aggregatesByPath[file.path] ?? []).map(\.aggregate)
             let rows: [CostUsageScanner.CodexUsageRow]
             if let decodedUsageRows {

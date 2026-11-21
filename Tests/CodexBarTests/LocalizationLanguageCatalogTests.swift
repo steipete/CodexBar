@@ -21,6 +21,7 @@ struct LocalizationLanguageCatalogTests {
         let english = try #require(NSDictionary(contentsOf: resources
                 .appendingPathComponent("en.lproj/Localizable.strings")) as? [String: String])
         let keys = [
+            "Skip cost refresh",
             "%@ accounts",
             "All accounts",
             "By model and reasoning effort",
