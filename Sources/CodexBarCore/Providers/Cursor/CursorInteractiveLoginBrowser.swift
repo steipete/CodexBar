@@ -44,6 +44,7 @@ extension CursorStatusProbe {
         "com.google.chrome": .chrome,
         "com.google.chrome.beta": .chromeBeta,
         "com.google.chrome.canary": .chromeCanary,
+        "com.google.chrome.dev": .chromeDev,
         "com.microsoft.edgemac": .edge,
         "com.microsoft.edgemac.beta": .edgeBeta,
         "com.microsoft.edgemac.canary": .edgeCanary,

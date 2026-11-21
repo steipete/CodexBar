@@ -33,6 +33,10 @@ allowance. ACL preflight metadata cannot authorize additional prompts. Automatic
 browsers once a provider accepts a session; missing or rejected sessions advance to the next browser in the
 provider's existing order. Explicit browser/profile selections keep their own scope.
 
+Chrome Dev participates in the shared browser order after Chrome Beta and Canary. It reads profiles from
+`Google/Chrome Dev` and uses Chrome's existing `Chrome Safe Storage` item. Selecting Chrome explicitly continues
+to select only Chrome; it does not include Chrome Dev.
+
 A denied browser prompt suppresses Chromium-family interactive retries for six hours, including repeated Refresh
 clicks in the menu or provider settings. Only `codexbar cookie refresh --allow-keychain-prompt` explicitly overrides
 that cooldown. An acknowledged Claude repair has its own user-action policy.
