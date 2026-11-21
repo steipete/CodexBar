@@ -17,8 +17,8 @@ script. Settings-derived origins include the private-network HTTP policy for LLM
 
 `converted` means the bundled conversion is present behind `CODEXBAR_JS_PROVIDERS=1`. `cut-over` means the script is
 authoritative on its supported engines; each row states whether a Linux native core remains. Totals count only the
-69 audit rows below, excluding the separately listed plugin-first additions. The registry now contains 114 providers:
-69 audit rows, 36 additional plugin-first rows, and 9 providers not yet classified in this matrix (CodeRabbit,
+69 audit rows below, excluding the separately listed plugin-first additions. The registry now contains 115 providers:
+69 audit rows, 37 additional plugin-first rows, and 9 providers not yet classified in this matrix (CodeRabbit,
 Hugging Face, IBM Bob, Muse, Nous, Pi, Replicate, TypeSafe, and v0).
 
 `needs-cookie-import` now means **additional cookie/session capability**, not absence of cookie import. The current
@@ -57,9 +57,9 @@ Abacus, Muse, LongCat, Replicate, and TypeSafe unchanged.
 | `needs-pty/webview/native` | 8 |
 | `needs-host-extension` | 4 |
 | **Audit total** | **69** |
-| Additional plugin-first providers | 36 |
+| Additional plugin-first providers | 37 |
 | Registered providers not yet classified here | 9 |
-| **Registry total** | **114** |
+| **Registry total** | **115** |
 
 ## Matrix
 
@@ -179,5 +179,6 @@ Abacus, Muse, LongCat, Replicate, and TypeSafe unchanged.
 | siliconflow | `cut-over` | QuickJS + JavaScriptCore | Read-only balance on both engines; explicit China Web uses request-scoped console sessions, Auto/API uses the configured key. No inferred quota or reset. |
 | tripo | `cut-over` | QuickJS + JavaScriptCore | Fixed-origin bearer GET for available and frozen credits, without inferred quotas or dollar conversions, on both engines. |
 | googledeveloper | `cut-over` | QuickJS + JavaScriptCore | Opaque Google session cookies, a benefits-page token, and one batchexecute form POST per signed-in account for the current monthly grant on both engines. |
+| trustedrouter | `cut-over` | QuickJS + JavaScriptCore | Fixed-origin bearer GET of the current key's microdollar limit and spend, without inferred quotas or reset dates, on both engines. |
 
 <!-- End generated provider additions -->

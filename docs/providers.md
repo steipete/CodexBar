@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 114 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 115 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -194,6 +194,7 @@ complete when the available scan window covers fewer days.
 | [SiliconFlow](siliconflow.md) | API key in Auto/API; explicit Web for the China (CNY) console balance. International API balances use USD. |
 | [Tripo](tripo.md) | API key for available and reserved account credits from the official account balance endpoint. |
 | [Google Developer Program](googledeveloper.md) | Browser or manual me.developers.google.com session cookies for the current monthly Gen AI & Cloud credit of Google AI Pro and Ultra. |
+| [TrustedRouter](trustedrouter.md) | API key for the key's remaining limit and daily, weekly, monthly, and total spend. |
 
 <!-- End generated provider additions -->
 

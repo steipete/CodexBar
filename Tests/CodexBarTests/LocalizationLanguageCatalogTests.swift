@@ -772,6 +772,7 @@ struct LocalizationLanguageCatalogTests {
             "Token",
             "Trae CN",
             "Tripo",
+            "TrustedRouter",
             "User-Agent",
             "Web",
             "Zed cookie",

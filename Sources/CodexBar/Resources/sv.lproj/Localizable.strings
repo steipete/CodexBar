@@ -2822,6 +2822,12 @@
 "Tripo request failed. Try refreshing later." = "Tripo-förfrågan misslyckades. Försök uppdatera senare.";
 "Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo returnerade ett okänt svar. Uppdatera CodexBar och försök igen.";
 
+"TrustedRouter" = "TrustedRouter";
+"Show TrustedRouter usage" = "Visa TrustedRouter-användning";
+"TrustedRouter is rate limiting requests. Try again later." = "TrustedRouter begränsar antalet förfrågningar. Försök igen senare.";
+"TrustedRouter request failed. Try refreshing later." = "TrustedRouter-förfrågan misslyckades. Försök uppdatera senare.";
+"TrustedRouter returned an unrecognized response. Update CodexBar and try again." = "TrustedRouter returnerade ett okänt svar. Uppdatera CodexBar och försök igen.";
+
 /* Provider setup guidance. */
 "Authorize GitHub's device code to save a Copilot token account." = "Godkänn GitHubs enhetskod för att spara ett Copilot-tokenkonto.";
 "Supply a GitHub token accepted by the Copilot usage API." = "Ange en GitHub-token som accepteras av Copilots användnings-API.";
