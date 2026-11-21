@@ -39,13 +39,9 @@ extension UsageStore {
     /// `isStale` tracks provider errors rather than measurement age, so serving
     /// last-known numbers on the bar would present them as current.
     func claudeSwapMenuBarSnapshotOverride(for instanceID: ProviderInstanceID) -> UsageSnapshot? {
-        guard instanceID == UsageProvider.claude.instanceID else { return nil }
-        guard ClaudeSwapMenuPrecedence.prefersClaudeSwap(
-            provider: .claude,
-            accountCount: self.claudeSwapAccountSnapshots.count,
-            showSingleAccount: self.settings.claudeSwapShowSingleAccount)
-        else { return nil }
-        guard let active = self.claudeSwapAccountSnapshots.first(where: \.isActive),
+        guard instanceID == UsageProvider.claude.instanceID,
+              let display = self.claudeSwapMenuDisplay(for: .claude, inspectedAccountID: nil),
+              let active = display.accounts.first(where: \.isActive),
               !active.usesLastKnownUsage
         else { return nil }
         return active.snapshot
@@ -162,6 +158,26 @@ extension UsageStore {
         self.planUtilizationHistory[instanceID] = buckets
         self.planUtilizationHistoryRevision &+= 1
         await self.planUtilizationPersistenceCoordinator.enqueue(self.planUtilizationHistory)
+    }
+
+    /// The claude-swap presentation that owns the Claude menu, or nil when ambient Claude usage is shown.
+    func claudeSwapMenuDisplay(
+        for provider: UsageProvider,
+        inspectedAccountID: ProviderAccountIdentity?) -> ClaudeSwapAccountMenuDisplay?
+    {
+        guard ClaudeSwapMenuPrecedence.prefersClaudeSwap(
+            provider: provider,
+            accountCount: self.claudeSwapAccountSnapshots.count,
+            showSingleAccount: self.settings.claudeSwapShowSingleAccount)
+        else {
+            return nil
+        }
+        return ClaudeSwapAccountMenuDisplay(
+            accounts: self.claudeSwapAccountSnapshots,
+            layout: self.settings.multiAccountMenuLayout,
+            switchingAccountID: self.claudeSwapTransientState.switchingAccountID,
+            errorAccountID: self.claudeSwapTransientState.lastErrorAccountID,
+            inspectedAccountID: inspectedAccountID)
     }
 
     func claudeSwapPlanUtilizationHistorySelection(

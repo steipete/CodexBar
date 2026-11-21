@@ -315,12 +315,12 @@ extension StatusItemController {
     }
 
     private func usageHistoryRenderSignature(for provider: UsageProvider) -> String {
-        let snapshot = self.store.snapshot(for: provider.instanceID)
-        let selection = self.store.planUtilizationHistorySelection(for: provider)
+        let (selection, snapshot) = self.usageHistorySource(for: provider)
         return [
             "\(self.store.planUtilizationHistoryRevision)",
             "\(Int(Date().timeIntervalSince1970 / 60))",
-            selection.accountKey ?? "unscoped",
+            selection.cacheIdentity,
+            snapshot == nil ? "0" : "1",
             snapshot?.primary == nil ? "0" : "1",
             snapshot?.secondary == nil ? "0" : "1",
             snapshot?.tertiary == nil ? "0" : "1",
@@ -379,16 +379,11 @@ extension StatusItemController {
         }
 
         let chartView = UsageBreakdownChartMenuView(breakdown: breakdown, width: width)
-        let hosting = MenuHostingView(rootView: chartView.codexBarLocalized())
-        hosting.frame = NSRect(
-            origin: .zero,
-            size: NSSize(width: width, height: self.hostedSubviewFittingHeight(for: hosting, width: width)))
-
-        let chartItem = NSMenuItem()
-        chartItem.view = hosting
-        chartItem.isEnabled = true
-        chartItem.representedObject = Self.usageBreakdownChartID
-        submenu.addItem(chartItem)
+        self.appendHistoryChart(
+            chartView.codexBarLocalized(),
+            to: submenu,
+            id: Self.usageBreakdownChartID,
+            width: width)
         return true
     }
 
@@ -406,16 +401,11 @@ extension StatusItemController {
         }
 
         let chartView = CreditsHistoryChartMenuView(breakdown: breakdown, width: width)
-        let hosting = MenuHostingView(rootView: chartView.codexBarLocalized())
-        hosting.frame = NSRect(
-            origin: .zero,
-            size: NSSize(width: width, height: self.hostedSubviewFittingHeight(for: hosting, width: width)))
-
-        let chartItem = NSMenuItem()
-        chartItem.view = hosting
-        chartItem.isEnabled = true
-        chartItem.representedObject = Self.creditsHistoryChartID
-        submenu.addItem(chartItem)
+        self.appendHistoryChart(
+            chartView.codexBarLocalized(),
+            to: submenu,
+            id: Self.creditsHistoryChartID,
+            width: width)
         return true
     }
 
