@@ -157,6 +157,8 @@ This cleanup applies to the reusable PTY session, not the separate one-shot usag
 
 ## Keychain prompt policy (Claude OAuth)
 
+The OAuth cache lock lives in the user application-support directory under `CodexBar/claude-oauth-cache.lock` (`~/Library/Application Support` on macOS). It is independent of config-file overrides so app and CLI processes still coordinate access to the same credentials. Existing legacy lock files are left untouched.
+
 If CodexBar reports that its Claude OAuth cache is temporarily unavailable in macOS Keychain, check
 that the login keychain is unlocked in Keychain Access, then retry Refresh. This guidance does not
 change the existing prompt policy or switch to another credential source.

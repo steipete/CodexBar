@@ -9,6 +9,8 @@ read_when:
 
 # Antigravity provider
 
+The CLI launch lock lives in the user application-support directory under `CodexBar/antigravity/agy-session.lock` (`~/Library/Application Support` on macOS). Config-file overrides do not split this lock. Existing credential and session-record paths, and legacy lock files, are unchanged.
+
 For Google individual, AI Pro, and Ultra accounts blocked by the June 2026 Gemini CLI OAuth
 shutdown, Antigravity is the replacement path for Gemini quota tracking in CodexBar. Launch
 the Antigravity app or run `agy`, sign in, then refresh. See `docs/gemini.md` for the Gemini
