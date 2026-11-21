@@ -2852,3 +2852,5 @@
 "Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program から認識できない応答が返されました。CodexBar を更新して、もう一度お試しください。";
 "Google session expired or invalid." = "Googleのセッションが期限切れか無効です。";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Google Developer ProgramのセッションCookieが見つかりません。me.developers.google.com/benefits にサインインするか、Cookieヘッダーを貼り付けてください。";
+
+"Skip cost refresh" = "コストの更新をスキップ";

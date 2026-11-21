@@ -2857,3 +2857,5 @@
 "Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program returned an unrecognized response. Update CodexBar and try again.";
 "Google session expired or invalid." = "Google session expired or invalid.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header.";
+
+"Skip cost refresh" = "Skip cost refresh";

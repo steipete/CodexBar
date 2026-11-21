@@ -225,6 +225,7 @@ a second identifier is an error. For an option value beginning with a dash, use 
   - Force enhanced mode elsewhere with `CODEXBAR_CARDS_ENHANCED=1`.
   - Exit code is non-zero when any provider fetch fails.
 - `codexbar dashboard` prints one dashboard-v1 JSON snapshot and exits.
+  - `--no-cost` skips cost collection entirely for quota-only consumers. Usage windows and account collection keep their normal behavior; cost fields remain unavailable. Without this flag, cost collection and the overall `--timeout` deadline are unchanged.
   - Honors enabled providers in stable order, carries configured display sort keys, and defaults to full account identity; `--identity redacted` hides email local parts.
   - Provider failures remain row-level errors alongside healthy rows; a valid partial snapshot exits `0`.
   - Claude's unavailable per-model breakdown adds `providers[].warnings: ["model-breakdown-unavailable"]` while retaining session and all-model weekly quotas. This optional schema-v1 field carries fixed codes only, never provider notice text, in every identity mode. It is omitted after recovery and from shell rows; an account with no model-specific limit does not receive the warning.
