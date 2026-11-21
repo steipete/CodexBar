@@ -1123,13 +1123,20 @@ extension CostUsageStore {
             aggregate.requestCount += 1
             let isPriority = row.pricingMode == "priority"
             let total = Int64(max(0, row.input) + max(0, row.output))
-            if isPriority {
+            let isUltrafast = row.pricingMode == "ultrafast"
+            if isUltrafast {
+                aggregate.ultrafastTokens += total
+            } else if isPriority {
                 aggregate.priorityTokens += total
             } else {
                 aggregate.standardTokens += total
             }
             if let cost = row.knownCostNanos {
                 aggregate.authoritativeCostNanos += cost
+            } else if isUltrafast {
+                aggregate.ultrafastInputTokens += Int64(row.input)
+                aggregate.ultrafastCachedTokens += Int64(row.cached)
+                aggregate.ultrafastOutputTokens += Int64(row.output)
             } else if isPriority {
                 aggregate.priorityInputTokens += Int64(row.input)
                 aggregate.priorityCachedTokens += Int64(row.cached)
@@ -1181,6 +1188,10 @@ extension CostUsageStore {
                 value.priorityOutputTokens += aggregate.priorityOutputTokens
                 value.standardTokens += aggregate.standardTokens
                 value.priorityTokens += aggregate.priorityTokens
+                value.ultrafastInputTokens += aggregate.ultrafastInputTokens
+                value.ultrafastCachedTokens += aggregate.ultrafastCachedTokens
+                value.ultrafastOutputTokens += aggregate.ultrafastOutputTokens
+                value.ultrafastTokens += aggregate.ultrafastTokens
                 values[key] = value
             }
         }
@@ -1225,6 +1236,11 @@ extension CostUsageStore {
                 cached: aggregate.priorityCachedTokens,
                 output: aggregate.priorityOutputTokens,
                 mode: "priority")
+            append(
+                input: aggregate.ultrafastInputTokens,
+                cached: aggregate.ultrafastCachedTokens,
+                output: aggregate.ultrafastOutputTokens,
+                mode: "ultrafast")
             if aggregate.authoritativeCostNanos != 0 {
                 rows.append(CostUsageScanner.CodexUsageRow(
                     day: aggregate.day,

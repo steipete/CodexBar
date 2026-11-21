@@ -27,6 +27,10 @@ extension CostUsageScanner {
             modelsDevCacheRoot: modelsDevCacheRoot,
             customPricing: overlay,
             pricingResolver: pricingResolver)
+        if row.pricingMode == "ultrafast" {
+            return CostUsagePricing.codexAPIUltrafastMultiplier(model: pricedModel, date: pricingDate)
+                .flatMap { multiplier in baseCost.map { $0 * multiplier } }
+        }
         guard isPriority else { return baseCost }
         guard let priorityCost = CostUsagePricing.codexPriorityCostUSD(
             model: pricedModel,
@@ -84,9 +88,9 @@ extension CostUsageScanner {
 
     /// The model whose rates price `row`, as the custom overlay and catalogs look it up.
     static func codexPricedModel(for row: CodexUsageRow, priorityTurns: [String: CodexPriorityTurnMetadata]) -> String {
-        row.turnID.flatMap { priorityTurns[$0] }.map { self.codexPriorityPricingModel(for: row, priorityMetadata: $0) }
-            ?? row.pricingModel
-            ?? row.model
+        guard row.pricingMode != "ultrafast" else { return row.pricingModel ?? row.model }
+        return row.turnID.flatMap { priorityTurns[$0] }
+            .map { self.codexPriorityPricingModel(for: row, priorityMetadata: $0) } ?? row.pricingModel ?? row.model
     }
 
     static func codexPriorityPricingModel(

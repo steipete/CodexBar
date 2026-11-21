@@ -164,6 +164,10 @@ enum CostUsagePricing {
         "gpt-6.1-terra": Self.longContextPricing(input: 1e-6, cached: 5e-8, write: 1.25e-6, output: (5e-6, 7.5e-6)),
         "gpt-6-sol": Self.longContextPricing(input: 2e-6, cached: 2e-7, write: 2.5e-6, output: (1e-5, 1.5e-5)),
         "gpt-6-luna": Self.longContextPricing(input: 1e-7, cached: 1e-8, write: 1.25e-7, output: (5e-7, 7.5e-7)),
+        "gpt-6.2-astra": Self.longContextPricing(
+            input: 8e-6, cached: 4e-7, write: 1e-5, output: (4e-5, 6e-5)),
+        "gpt-6.2-sol": Self.longContextPricing(
+            input: 2e-6, cached: 1e-7, write: 2.5e-6, output: (1e-5, 1.5e-5)),
         // GPT-5.6 Sol/Terra/Luna (OpenAI pricing page + model cards).
         // Long context: prompts with >272K input tokens are 2x input / 1.5x output for the full
         // request. Cache writes: 1.25x uncached input. API Fast support and multipliers are applied
@@ -192,6 +196,7 @@ enum CostUsagePricing {
         var parts = [
             "priorityInputTokenLimit=\(self.codexPriorityInputTokenLimit)",
             "fastPricingDefinition=api-fast-usd-v1",
+            "ultrafastPricingDefinition=api-ultrafast-usd-v1-2027-03-01-pacific",
         ]
         for model in self.codex.keys.sorted() {
             guard let pricing = self.codex[model] else { continue }
@@ -694,15 +699,25 @@ enum CostUsagePricing {
     static func codexAPIFastMultiplier(model: String) -> Double? {
         switch self.normalizeCodexModel(model) {
         case "gpt-5.4", "gpt-5.4-mini", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna": 2
-        case "gpt-6-astra", "gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-luna": 2
+        case "gpt-6-astra", "gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-luna", "gpt-6.2-astra", "gpt-6.2-sol": 2
         case "gpt-5.5": 2.5
+        default: nil
+        }
+    }
+
+    /// Published API rates, including the promotion ending at midnight Pacific on March 1, 2027.
+    static func codexAPIUltrafastMultiplier(model: String, date: Date?) -> Double? {
+        switch self.normalizeCodexModel(model) {
+        case "gpt-6-astra", "gpt-6.1-sol": 6
+        case "gpt-6.2-astra", "gpt-6.2-sol":
+            date.map { $0.timeIntervalSince1970 < 1_803_888_000 ? 3 : 6 }
         default: nil
         }
     }
 
     private static func codexAPIFastAllowsLongContext(model: String) -> Bool {
         switch self.normalizeCodexModel(model) {
-        case "gpt-6-astra", "gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-luna": true
+        case "gpt-6-astra", "gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-luna", "gpt-6.2-astra", "gpt-6.2-sol": true
         default: false
         }
     }

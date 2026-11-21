@@ -478,19 +478,32 @@ Every participating CLI must support schema 2. This opt-in mode does not change 
     input/output/cached-input tokens, with full-request long-context rates above 272K input tokens.
     Rates follow the [model card](https://developers.openai.com/api/docs/models/gpt-6.1-sol) and
     [Fast pricing table](https://developers.openai.com/api/docs/pricing?latest-pricing=fast).
+  - Native `service_tier: "ultrafast"` requests use published Ultrafast rates for GPT-6 Astra and GPT-6.1 Sol
+    (6× Standard), and GPT-6.2 Astra and GPT-6.2 Sol (3× before March 1, 2027 midnight Pacific,
+    6× from `2027-03-01T08:00:00Z`). The request timestamp selects the promotional rate, including
+    long-context pricing above 272K input tokens. GPT-6.2 Fast estimates use 2× Standard.
+    Rates follow the [OpenAI pricing table](https://developers.openai.com/api/docs/pricing).
+    Ultrafast contributes to total and per-model costs without being labeled Standard or Fast; a separate
+    menu split and schema-2 identified-request tier are not supplied. Schema 2 keeps those requests unpriced.
+    Unknown Ultrafast rates stay unavailable. Aggregate-only history without request timestamps or ownership
+    cannot establish the applicable price and stays unpriced rather than falling back to Standard.
+    Parser revision 15 reparses readable native history through the existing scan budget; the SQLite upgrade
+    preserves rows and checkpoints, including retained archives. Stored native Ultrafast evidence survives reopening
+    and takes precedence over turn-level Priority trace metadata. Already-compressed logs parsed before tier support
+    cannot be reclassified without original native tier evidence; their saved accounting is retained.
   - Valid JSON whitespace between event fields is accepted during initial scans and appended-session refreshes.
     Older cached files are reparsed once through the normal scan budget; compatible stores retain their rows and
     checkpoints until each file is refreshed.
   - Native Codex logs parse `event_msg` token_count entries and `turn_context` model markers; when both are present,
     `turn_context` is authoritative for the model bucket.
   - Native session `thread_settings_applied.thread_settings.service_tier` evidence applies to the following
-    `task_started` turn and subsequent turns until another settings event replaces it, using the existing published
-    Fast multipliers. A resumed `turn_context` refreshes the tier for subsequent requests without changing earlier
+    `task_started` turn and subsequent turns until another settings event replaces it, using the published
+    tier rates. A resumed `turn_context` refreshes the tier for subsequent requests without changing earlier
     requests in the same turn. The effective tier survives incremental scans and SQLite reopening. Parser revision 14
     refreshes older rows through bounded reparsing; compatible stores retain token history and checkpoints while
     stale retained report totals are discarded.
     Without a known tier, or after an unknown tier is applied, pricing retains the Standard fallback;
-    subagents do not inherit a parent tier. Live or saved Priority trace evidence remains authoritative, including
+    subagents do not inherit a parent tier. Live or saved Priority trace evidence remains authoritative unless a request carries native Ultrafast evidence, including
     after trace pruning.
   - Direct forks preserve the inherited origin of cumulative counters when resolving parent snapshots, including
     intermediate sessions that are empty at the child's fork time. Repeated inherited snapshots contribute no

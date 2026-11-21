@@ -956,6 +956,7 @@ extension CostUsageStoreTests {
 
 extension CostUsageStoreTests {
     private static let testedPredecessorParserHashes = [
+        "0e253ad335df6daa", // Preserve rows and checkpoints when adopting native Ultrafast pricing.
         "51f8655d53d65b3d", // Current main before Terra and Luna Fast repricing.
         "ad011f05e9ab733a", // Released in 0.84.0; retain history while recalculating Fast prices.
         "2dc85fe95af0aa95", // Preserve project-accumulation caches when combined with linked-root discovery.
