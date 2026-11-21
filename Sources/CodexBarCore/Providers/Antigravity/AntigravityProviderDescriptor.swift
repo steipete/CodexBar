@@ -494,13 +494,7 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         try await self.fetch(
             context,
             warmDependencies: Self.liveWarmAgyDependencies(),
-            spawnFetch: { binary, idleWindow, resetAfterFetch, expectedAccountEmail in
-                try await self.fetchBySpawning(
-                    binary: binary,
-                    idleWindow: idleWindow,
-                    resetAfterFetch: resetAfterFetch,
-                    expectedAccountEmail: expectedAccountEmail)
-            })
+            spawnFetch: self.fetchBySpawning)
     }
 
     func fetch(

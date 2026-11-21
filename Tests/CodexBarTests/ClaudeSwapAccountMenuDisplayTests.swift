@@ -45,6 +45,24 @@ struct ClaudeSwapAccountMenuDisplayTests {
     }
 
     @Test
+    func `segmented tabs stay in numeric slot order when the active account changes`() throws {
+        for activeSlot in ["2", "10"] {
+            let active = self.account(activeSlot, active: true)
+            let inactive = self.account(activeSlot == "2" ? "10" : "2")
+            let display = self.display([active, inactive])
+            let view = ClaudeSwapAccountSwitcherView(
+                display: display, hidePersonalInfo: true, width: 320, onSelect: { _ in })
+            let stack = try #require(view.subviews.first as? NSStackView)
+            let row = try #require(stack.arrangedSubviews.first as? NSStackView)
+            let buttons = row.arrangedSubviews.compactMap { $0 as? NSButton }
+            #expect(buttons.map(\.title) == ["Account 2", "Account 10"])
+            #expect(buttons.map(\.state) == (activeSlot == "2" ? [.on, .off] : [.off, .on]))
+            #expect(display.accounts.first?.id == active.id)
+            #expect(display.displayedAccount?.id == active.id)
+        }
+    }
+
+    @Test
     func `pending and failed activation retain the requested account details`() {
         let active = self.account("2", active: true)
         let target = self.account("7")

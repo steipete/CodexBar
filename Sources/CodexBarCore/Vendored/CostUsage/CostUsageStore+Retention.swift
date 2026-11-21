@@ -475,13 +475,16 @@ extension CostUsageStore {
             request_count, authoritative_cost_nanos,
             standard_input_tokens, standard_cached_tokens, standard_output_tokens,
             priority_input_tokens, priority_cached_tokens, priority_output_tokens,
-            standard_tokens, priority_tokens
+            standard_tokens, priority_tokens,
+            ultrafast_input_tokens, ultrafast_cached_tokens, ultrafast_output_tokens, ultrafast_tokens
         )
         SELECT f.home, day, model, SUM(input_tokens), SUM(cached_tokens), SUM(output_tokens),
                SUM(reasoning_tokens), SUM(request_count), SUM(authoritative_cost_nanos),
                SUM(standard_input_tokens), SUM(standard_cached_tokens), SUM(standard_output_tokens),
                SUM(priority_input_tokens), SUM(priority_cached_tokens), SUM(priority_output_tokens),
-               SUM(standard_tokens), SUM(priority_tokens)
+               SUM(standard_tokens), SUM(priority_tokens),
+               SUM(ultrafast_input_tokens), SUM(ultrafast_cached_tokens), SUM(ultrafast_output_tokens),
+               SUM(ultrafast_tokens)
         FROM file_day_aggregates a JOIN files f ON f.id = a.file_id
         WHERE f.home = ?
         GROUP BY day, model
