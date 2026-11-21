@@ -2827,12 +2827,6 @@
 "Tripo request failed. Try refreshing later." = "فشل طلب Tripo. حاول التحديث لاحقًا.";
 "Tripo returned an unrecognized response. Update CodexBar and try again." = "أعاد Tripo استجابة غير معروفة. حدّث CodexBar وحاول مجددًا.";
 
-"TrustedRouter" = "TrustedRouter";
-"Show TrustedRouter usage" = "إظهار استخدام TrustedRouter";
-"TrustedRouter is rate limiting requests. Try again later." = "يفرض TrustedRouter حدًا على عدد الطلبات. حاول لاحقًا.";
-"TrustedRouter request failed. Try refreshing later." = "فشل طلب TrustedRouter. حاول التحديث لاحقًا.";
-"TrustedRouter returned an unrecognized response. Update CodexBar and try again." = "أعاد TrustedRouter استجابة غير معروفة. حدّث CodexBar وحاول مجددًا.";
-
 /* Provider setup guidance. */
 "Authorize GitHub's device code to save a Copilot token account." = "وافق على رمز جهاز GitHub لحفظ حساب رمز Copilot.";
 "Supply a GitHub token accepted by the Copilot usage API." = "أدخل رمز GitHub الذي تقبله واجهة API لاستخدام Copilot.";
@@ -2863,7 +2857,18 @@
 "Google session expired or invalid." = "انتهت صلاحية جلسة Google أو أنها غير صالحة.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "لم يتم العثور على ملفات تعريف ارتباط لجلسة Google Developer Program. سجّل الدخول في me.developers.google.com/benefits أو الصق ترويسة Cookie.";
 
-/* MiMo Token Plan API. */
+"Personal credits" = "الأرصدة الشخصية";
+"Standard remaining" = "رصيد Standard المتبقي";
+"Select remaining" = "رصيد Select المتبقي";
+"Remaining credits" = "الأرصدة المتبقية";
+"Notion Credits" = "أرصدة Notion";
+"Notion did not provide usable personal AI allowances for this workspace. Check AI usage for the selected workspace in Notion, then refresh CodexBar again." = "لم يوفر Notion حصص ذكاء اصطناعي شخصية قابلة للاستخدام لمساحة العمل هذه. تحقق من استخدام الذكاء الاصطناعي لمساحة العمل المحددة في Notion، ثم حدّث CodexBar مجددًا.";
+"Select" = "Select";
+"TrustedRouter" = "TrustedRouter";
+"Show TrustedRouter usage" = "إظهار استخدام TrustedRouter";
+"TrustedRouter is rate limiting requests. Try again later." = "يفرض TrustedRouter حدًا على عدد الطلبات. حاول لاحقًا.";
+"TrustedRouter request failed. Try refreshing later." = "فشل طلب TrustedRouter. حاول التحديث لاحقًا.";
+"TrustedRouter returned an unrecognized response. Update CodexBar and try again." = "أعاد TrustedRouter استجابة غير معروفة. حدّث CodexBar وحاول مجددًا.";
 "MiMo returned an unrecognized response. Update CodexBar and try again." = "أعاد MiMo استجابة غير معروفة. حدّث CodexBar وحاول مجددًا.";
 "China mainland" = "بر الصين الرئيسي";
 "Singapore" = "سنغافورة";

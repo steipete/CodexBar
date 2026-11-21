@@ -2801,12 +2801,6 @@
 "Tripo request failed. Try refreshing later." = "Tripo 請求失敗。請稍後嘗試重新整理。";
 "Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo 傳回了無法辨識的回應。請更新 CodexBar 後再試。";
 
-"TrustedRouter" = "TrustedRouter";
-"Show TrustedRouter usage" = "顯示 TrustedRouter 用量";
-"TrustedRouter is rate limiting requests. Try again later." = "TrustedRouter 正在限制請求頻率。請稍後再試。";
-"TrustedRouter request failed. Try refreshing later." = "TrustedRouter 請求失敗。請稍後嘗試重新整理。";
-"TrustedRouter returned an unrecognized response. Update CodexBar and try again." = "TrustedRouter 傳回了無法辨識的回應。請更新 CodexBar 後再試。";
-
 /* Provider setup guidance. */
 "Authorize GitHub's device code to save a Copilot token account." = "授權 GitHub 裝置代碼以儲存 Copilot 權杖帳號。";
 "Supply a GitHub token accepted by the Copilot usage API." = "提供 Copilot 用量 API 接受的 GitHub 權杖。";
@@ -2837,7 +2831,18 @@
 "Google session expired or invalid." = "Google 工作階段已過期或無效。";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "找不到 Google Developer Program 工作階段 Cookie。請在 me.developers.google.com/benefits 登入或貼上 Cookie 標頭。";
 
-/* MiMo Token Plan API. */
+"Personal credits" = "個人額度";
+"Standard remaining" = "Standard 剩餘額度";
+"Select remaining" = "Select 剩餘額度";
+"Remaining credits" = "剩餘額度";
+"Notion Credits" = "Notion 額度";
+"Notion did not provide usable personal AI allowances for this workspace. Check AI usage for the selected workspace in Notion, then refresh CodexBar again." = "Notion 未提供此工作區可用的個人 AI 額度。請在 Notion 中檢查所選工作區的 AI 用量，然後重新整理 CodexBar。";
+"Select" = "Select";
+"TrustedRouter" = "TrustedRouter";
+"Show TrustedRouter usage" = "顯示 TrustedRouter 用量";
+"TrustedRouter is rate limiting requests. Try again later." = "TrustedRouter 正在限制請求頻率。請稍後再試。";
+"TrustedRouter request failed. Try refreshing later." = "TrustedRouter 請求失敗。請稍後嘗試重新整理。";
+"TrustedRouter returned an unrecognized response. Update CodexBar and try again." = "TrustedRouter 傳回了無法辨識的回應。請更新 CodexBar 後再試。";
 "MiMo returned an unrecognized response. Update CodexBar and try again." = "MiMo 傳回了無法辨識的回應。請更新 CodexBar 後再試。";
 "China mainland" = "中國大陸";
 "Singapore" = "新加坡";

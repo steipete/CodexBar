@@ -2825,12 +2825,6 @@
 "Tripo request failed. Try refreshing later." = "Permintaan Tripo gagal. Coba segarkan lagi nanti.";
 "Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo mengembalikan respons yang tidak dikenali. Perbarui CodexBar dan coba lagi.";
 
-"TrustedRouter" = "TrustedRouter";
-"Show TrustedRouter usage" = "Tampilkan penggunaan TrustedRouter";
-"TrustedRouter is rate limiting requests. Try again later." = "TrustedRouter membatasi frekuensi permintaan. Coba lagi nanti.";
-"TrustedRouter request failed. Try refreshing later." = "Permintaan TrustedRouter gagal. Coba segarkan lagi nanti.";
-"TrustedRouter returned an unrecognized response. Update CodexBar and try again." = "TrustedRouter mengembalikan respons yang tidak dikenali. Perbarui CodexBar dan coba lagi.";
-
 /* Provider setup guidance. */
 "Authorize GitHub's device code to save a Copilot token account." = "Otorisasi kode perangkat GitHub untuk menyimpan akun token Copilot.";
 "Supply a GitHub token accepted by the Copilot usage API." = "Berikan token GitHub yang diterima API penggunaan Copilot.";
@@ -2861,7 +2855,18 @@
 "Google session expired or invalid." = "Sesi Google telah kedaluwarsa atau tidak valid.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Cookie sesi Google Developer Program tidak ditemukan. Masuk di me.developers.google.com/benefits atau tempel header Cookie.";
 
-/* MiMo Token Plan API. */
+"Personal credits" = "Kredit pribadi";
+"Standard remaining" = "Sisa Standard";
+"Select remaining" = "Sisa Select";
+"Remaining credits" = "Sisa kredit";
+"Notion Credits" = "Kredit Notion";
+"Notion did not provide usable personal AI allowances for this workspace. Check AI usage for the selected workspace in Notion, then refresh CodexBar again." = "Notion tidak menyediakan kuota AI pribadi yang dapat digunakan untuk ruang kerja ini. Periksa penggunaan AI untuk ruang kerja yang dipilih di Notion, lalu segarkan CodexBar kembali.";
+"Select" = "Select";
+"TrustedRouter" = "TrustedRouter";
+"Show TrustedRouter usage" = "Tampilkan penggunaan TrustedRouter";
+"TrustedRouter is rate limiting requests. Try again later." = "TrustedRouter membatasi frekuensi permintaan. Coba lagi nanti.";
+"TrustedRouter request failed. Try refreshing later." = "Permintaan TrustedRouter gagal. Coba segarkan lagi nanti.";
+"TrustedRouter returned an unrecognized response. Update CodexBar and try again." = "TrustedRouter mengembalikan respons yang tidak dikenali. Perbarui CodexBar dan coba lagi.";
 "MiMo returned an unrecognized response. Update CodexBar and try again." = "MiMo mengembalikan respons yang tidak dikenali. Perbarui CodexBar dan coba lagi.";
 "China mainland" = "Tiongkok daratan";
 "Singapore" = "Singapura";

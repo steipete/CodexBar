@@ -2826,12 +2826,6 @@
 "Tripo request failed. Try refreshing later." = "Tripo isteği başarısız oldu. Daha sonra yeniden yenileyin.";
 "Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo tanınmayan bir yanıt döndürdü. CodexBar’ı güncelleyip tekrar deneyin.";
 
-"TrustedRouter" = "TrustedRouter";
-"Show TrustedRouter usage" = "TrustedRouter kullanımını göster";
-"TrustedRouter is rate limiting requests. Try again later." = "TrustedRouter istek sıklığını sınırlıyor. Daha sonra tekrar deneyin.";
-"TrustedRouter request failed. Try refreshing later." = "TrustedRouter isteği başarısız oldu. Daha sonra yeniden yenileyin.";
-"TrustedRouter returned an unrecognized response. Update CodexBar and try again." = "TrustedRouter tanınmayan bir yanıt döndürdü. CodexBar’ı güncelleyip tekrar deneyin.";
-
 /* Provider setup guidance. */
 "Authorize GitHub's device code to save a Copilot token account." = "Bir Copilot belirteç hesabı kaydetmek için GitHub cihaz kodunu onaylayın.";
 "Supply a GitHub token accepted by the Copilot usage API." = "Copilot kullanım API’sinin kabul ettiği bir GitHub belirteci sağlayın.";
@@ -2862,7 +2856,18 @@
 "Google session expired or invalid." = "Google oturumunun süresi doldu veya oturum geçersiz.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Google Developer Program oturum çerezleri bulunamadı. me.developers.google.com/benefits adresinde oturum açın veya bir Cookie başlığı yapıştırın.";
 
-/* MiMo Token Plan API. */
+"Personal credits" = "Kişisel krediler";
+"Standard remaining" = "Kalan Standard";
+"Select remaining" = "Kalan Select";
+"Remaining credits" = "Kalan krediler";
+"Notion Credits" = "Notion kredileri";
+"Notion did not provide usable personal AI allowances for this workspace. Check AI usage for the selected workspace in Notion, then refresh CodexBar again." = "Notion bu çalışma alanı için kullanılabilir kişisel yapay zekâ kotaları sağlamadı. Notion’da seçili çalışma alanının yapay zekâ kullanımını kontrol edin, ardından CodexBar’ı yeniden yenileyin.";
+"Select" = "Select";
+"TrustedRouter" = "TrustedRouter";
+"Show TrustedRouter usage" = "TrustedRouter kullanımını göster";
+"TrustedRouter is rate limiting requests. Try again later." = "TrustedRouter istek sıklığını sınırlıyor. Daha sonra tekrar deneyin.";
+"TrustedRouter request failed. Try refreshing later." = "TrustedRouter isteği başarısız oldu. Daha sonra yeniden yenileyin.";
+"TrustedRouter returned an unrecognized response. Update CodexBar and try again." = "TrustedRouter tanınmayan bir yanıt döndürdü. CodexBar’ı güncelleyip tekrar deneyin.";
 "MiMo returned an unrecognized response. Update CodexBar and try again." = "MiMo tanınmayan bir yanıt döndürdü. CodexBar’ı güncelleyip tekrar deneyin.";
 "China mainland" = "Çin ana karası";
 "Singapore" = "Singapur";

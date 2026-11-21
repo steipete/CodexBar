@@ -766,6 +766,7 @@ struct LocalizationLanguageCatalogTests {
             "OpenDesign",
             "Output",
             "Pro",
+            "Select",
             "SiliconFlow",
             "Singapore",
             "SuperGrok OAuth",

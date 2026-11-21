@@ -4,6 +4,7 @@
 
 ### Added
 
+- Notion AI: show personal Standard and Select monthly allowances alongside the separate workspace Notion Credits balance, preserving legacy windows and optional-usage visibility (#2888, #4919).
 - TrustedRouter: show the API key's remaining limit and daily, weekly, monthly, and total spend through the official key endpoint (#5119).
 - Usage & Spend: include community plugins' existing cost usage in statistics and sharing without extra dashboard fetches or mixed provider identities (#5084). Thanks @tangwz!
 - Google Developer Program: show the current monthly Gen AI & Cloud credit of Google AI Pro and Ultra from the benefits page, using the signed-in browser session and finding the Google account that holds the credit (#5033, #5035). Thanks @fcakyon!

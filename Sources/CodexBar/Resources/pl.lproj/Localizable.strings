@@ -2826,12 +2826,6 @@
 "Tripo request failed. Try refreshing later." = "Żądanie Tripo nie powiodło się. Spróbuj odświeżyć później.";
 "Tripo returned an unrecognized response. Update CodexBar and try again." = "Tripo zwrócił nierozpoznaną odpowiedź. Zaktualizuj CodexBar i spróbuj ponownie.";
 
-"TrustedRouter" = "TrustedRouter";
-"Show TrustedRouter usage" = "Pokaż użycie TrustedRouter";
-"TrustedRouter is rate limiting requests. Try again later." = "TrustedRouter ogranicza częstotliwość żądań. Spróbuj ponownie później.";
-"TrustedRouter request failed. Try refreshing later." = "Żądanie TrustedRouter nie powiodło się. Spróbuj odświeżyć później.";
-"TrustedRouter returned an unrecognized response. Update CodexBar and try again." = "TrustedRouter zwrócił nierozpoznaną odpowiedź. Zaktualizuj CodexBar i spróbuj ponownie.";
-
 /* Provider setup guidance. */
 "Authorize GitHub's device code to save a Copilot token account." = "Zatwierdź kod urządzenia GitHub, aby zapisać konto z tokenem Copilot.";
 "Supply a GitHub token accepted by the Copilot usage API." = "Podaj token GitHub akceptowany przez API użycia Copilot.";
@@ -2862,7 +2856,18 @@
 "Google session expired or invalid." = "Sesja Google wygasła lub jest nieprawidłowa.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Nie znaleziono plików cookie sesji Google Developer Program. Zaloguj się na me.developers.google.com/benefits lub wklej nagłówek Cookie.";
 
-/* MiMo Token Plan API. */
+"Personal credits" = "Kredyty osobiste";
+"Standard remaining" = "Pozostałe Standard";
+"Select remaining" = "Pozostałe Select";
+"Remaining credits" = "Pozostałe kredyty";
+"Notion Credits" = "Kredyty Notion";
+"Notion did not provide usable personal AI allowances for this workspace. Check AI usage for the selected workspace in Notion, then refresh CodexBar again." = "Notion nie udostępnił użytecznych osobistych limitów AI dla tego obszaru roboczego. Sprawdź użycie AI w wybranym obszarze roboczym w Notion, a następnie ponownie odśwież CodexBar.";
+"Select" = "Select";
+"TrustedRouter" = "TrustedRouter";
+"Show TrustedRouter usage" = "Pokaż użycie TrustedRouter";
+"TrustedRouter is rate limiting requests. Try again later." = "TrustedRouter ogranicza częstotliwość żądań. Spróbuj ponownie później.";
+"TrustedRouter request failed. Try refreshing later." = "Żądanie TrustedRouter nie powiodło się. Spróbuj odświeżyć później.";
+"TrustedRouter returned an unrecognized response. Update CodexBar and try again." = "TrustedRouter zwrócił nierozpoznaną odpowiedź. Zaktualizuj CodexBar i spróbuj ponownie.";
 "MiMo returned an unrecognized response. Update CodexBar and try again." = "MiMo zwrócił nierozpoznaną odpowiedź. Zaktualizuj CodexBar i spróbuj ponownie.";
 "China mainland" = "Chiny kontynentalne";
 "Singapore" = "Singapur";
