@@ -4,6 +4,7 @@ public enum OpenAIAPISettingsReader {
     public static let adminAPIKeyEnvironmentKey = "OPENAI_ADMIN_KEY"
     public static let apiKeyEnvironmentKey = "OPENAI_API_KEY"
     public static let projectIDEnvironmentKey = "OPENAI_PROJECT_ID"
+    public static let organizationIDEnvironmentKeys = ["OPENAI_ORGANIZATION_ID", "OPENAI_ORG_ID"]
     public static let apiKeyEnvironmentKeys = [
         Self.adminAPIKeyEnvironmentKey,
         Self.apiKeyEnvironmentKey,

@@ -509,7 +509,7 @@ The accepted multi-account design in
 - Slots excluded from claude-swap's automatic rotation are marked `(disabled)` but remain valid explicit switch
   targets. The active account label is emphasized.
 - Display: when claude-swap reports more than one account, its accounts replace ambient/token-account Claude cards.
-  The app honors **Menu → Multi-account layout**: Segmented shows account buttons and one active account card;
+  The app honors **Menu → Multi-account layout**: Segmented keeps account buttons in numeric slot order and shows one active account card;
   pending or failed switches show the requested account's details while the active marker stays source-owned.
   Expired or otherwise unavailable accounts remain inspectable without activation; selecting the active account
   returns to its card. If the adapter reports no active account, the menu says so instead of selecting the first row.
@@ -538,6 +538,9 @@ The accepted multi-account design in
   a pending switch, an inspected account, a failed switch, or the active account, in that order. It retains the
   provider's combined local costs and uses the ambient card when no adapter account is presented. Expanded
   **Show all accounts** rows keep their account-specific usage without borrowing those combined costs.
+- The **Plan Usage** submenu charts the same presented adapter account's recorded history, so it matches the card
+  rather than ambient Claude history. With no presented account, or while an iCloud Fleet card stands in for this
+  Mac's usage, it uses ambient Claude history.
 - Session forecasts use each account's own recorded usage. History keys hash the normalized email and organization
   UUID from the existing list response, so moving slots preserves history and the same email in different workspaces
   stays separate. Empty organization UUIDs identify personal accounts; an email change starts a new history.

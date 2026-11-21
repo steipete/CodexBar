@@ -637,13 +637,13 @@ struct UsageStorePlanUtilizationTests {
 
     @Test
     func `chart empty state shows series specific message`() {
-        let text = PlanUtilizationHistoryChartMenuView._emptyStateTextForTesting(title: "Session")
+        let text = PlanUtilizationHistoryChartMenuView.emptyStateText(title: "Session")
         #expect(text == "No session utilization data yet.")
     }
 
     @Test
     func `chart empty state shows series specific message when not refreshing`() {
-        let text = PlanUtilizationHistoryChartMenuView._emptyStateTextForTesting(title: "Weekly")
+        let text = PlanUtilizationHistoryChartMenuView.emptyStateText(title: "Weekly")
         #expect(text == "No weekly utilization data yet.")
     }
 
