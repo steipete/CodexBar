@@ -143,7 +143,7 @@ struct CLIServeRouterTests {
             try CLIServeRouter.route(
                 method: "GET",
                 path: "/usage",
-                queryItems: ["provider": "claude"]) == .usage(provider: "claude"))
+                queryItems: ["provider": "claude"]) == .usage(provider: "claude", allAccounts: false))
         #expect(
             try CLIServeRouter.route(
                 method: "GET",

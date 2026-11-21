@@ -5,7 +5,7 @@ import Testing
 
 struct DashboardClaudeSwapCollectionTests {
     @Test(arguments: [false, true], [false, true])
-    func `serving queries only selected Claude credentials when the account adapter is authoritative`(
+    func `dashboard queries only selected Claude credentials when the account adapter is authoritative`(
         adapterEnabled: Bool, expanded: Bool) async throws
     {
         let accounts = self.accounts
@@ -28,6 +28,7 @@ struct DashboardClaudeSwapCollectionTests {
         let output = try await CodexBarCLI.serveUsageOutput(
             selection: .custom([.claude]),
             context: context,
+            collectsDashboardAccounts: true,
             fetchUsage: { provider, tokenContext, command, publish in
                 let loadCredentials: @Sendable ([String: String], Bool, Bool) async throws -> ClaudeOAuthCredentials =
                     { environment, _, _ in
@@ -81,8 +82,11 @@ struct DashboardClaudeSwapCollectionTests {
     @Test
     func `adapter preference does not suppress other providers or disabled adapter configurations`() {
         let configured = self.config(adapterEnabled: true)
-        #expect(!CodexBarCLI.serveIncludesConfiguredAccounts(provider: .claude, config: configured, allAccounts: true))
-        #expect(CodexBarCLI.serveIncludesConfiguredAccounts(provider: .ibmbob, config: configured, allAccounts: true))
+        #expect(CodexBarCLI.serveIncludesConfiguredAccounts(provider: .claude, config: configured, allAccounts: true))
+        #expect(!CodexBarCLI.serveIncludesConfiguredAccounts(
+            provider: .claude, config: configured, allAccounts: true, usesClaudeSwap: true))
+        #expect(CodexBarCLI.serveIncludesConfiguredAccounts(
+            provider: .ibmbob, config: configured, allAccounts: true, usesClaudeSwap: true))
         var disabled = configured
         disabled.providers[0].enabled = false
         #expect(CodexBarCLI.serveIncludesConfiguredAccounts(provider: .claude, config: disabled, allAccounts: true))
