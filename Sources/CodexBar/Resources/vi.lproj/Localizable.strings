@@ -2860,3 +2860,4 @@
 "Singapore" = "Singapore";
 "MiMo is rate limiting requests. Try again later." = "MiMo đang giới hạn tần suất yêu cầu. Hãy thử lại sau.";
 "MiMo request failed. Try refreshing later." = "Yêu cầu MiMo không thành công. Hãy thử làm mới sau.";
+"Skip cost refresh" = "Bỏ qua làm mới chi phí";

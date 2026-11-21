@@ -2860,3 +2860,4 @@
 "Singapore" = "Сингапур";
 "MiMo is rate limiting requests. Try again later." = "MiMo ограничивает частоту запросов. Повторите попытку позже.";
 "MiMo request failed. Try refreshing later." = "Запрос к MiMo не выполнен. Попробуйте обновить позже.";
+"Skip cost refresh" = "Пропустить обновление стоимости";

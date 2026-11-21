@@ -2862,3 +2862,4 @@
 "Singapore" = "Singapur";
 "MiMo is rate limiting requests. Try again later." = "MiMo istek sıklığını sınırlıyor. Daha sonra tekrar deneyin.";
 "MiMo request failed. Try refreshing later." = "MiMo isteği başarısız oldu. Daha sonra yeniden yenileyin.";
+"Skip cost refresh" = "Maliyet yenilemeyi atla";

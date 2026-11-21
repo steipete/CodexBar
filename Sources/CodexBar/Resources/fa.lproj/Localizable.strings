@@ -2863,3 +2863,4 @@
 "Singapore" = "سنگاپور";
 "MiMo is rate limiting requests. Try again later." = "MiMo تعداد درخواست‌ها را محدود کرده است. بعداً دوباره امتحان کنید.";
 "MiMo request failed. Try refreshing later." = "درخواست MiMo ناموفق بود. بعداً دوباره تازه‌سازی کنید.";
+"Skip cost refresh" = "رد کردن به‌روزرسانی هزینه";

@@ -2863,3 +2863,4 @@
 "Singapore" = "Singapore";
 "MiMo is rate limiting requests. Try again later." = "MiMo sta limitando la frequenza delle richieste. Riprova più tardi.";
 "MiMo request failed. Try refreshing later." = "La richiesta a MiMo non è riuscita. Riprova ad aggiornare più tardi.";
+"Skip cost refresh" = "Salta l’aggiornamento dei costi";

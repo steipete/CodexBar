@@ -2837,3 +2837,4 @@
 "Singapore" = "新加坡";
 "MiMo is rate limiting requests. Try again later." = "MiMo 正在限制請求頻率。請稍後再試。";
 "MiMo request failed. Try refreshing later." = "MiMo 請求失敗。請稍後嘗試重新整理。";
+"Skip cost refresh" = "略過費用重新整理";

@@ -2851,3 +2851,4 @@
 "Singapore" = "新加坡";
 "MiMo is rate limiting requests. Try again later." = "MiMo 正在限制请求频率。请稍后重试。";
 "MiMo request failed. Try refreshing later." = "MiMo 请求失败。请稍后尝试刷新。";
+"Skip cost refresh" = "跳过费用刷新";
