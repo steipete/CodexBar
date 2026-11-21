@@ -20,6 +20,9 @@ struct GoogleDeveloperPluginTests {
      [13,21,22,26],null,true,"Remaining balance: $87.50","Expiring on: Nov 7, 2027"]
     """
     private static let unappliedCredit = "[19,2,null,null,null,null,null,null,[1],[null,null,0,2]]"
+    /// A monthly credit that is granted but not claimed yet, because no Cloud billing account exists: Google sends the
+    /// granted amount with a null remaining amount and an empty billing account.
+    private static let grantedUnclaimedCredit = Self.credit(billing: #"[["USD",100],null,"",5,2]"#)
 
     private static func benefits(_ entries: String...) -> String {
         "[[\(entries.joined(separator: ","))]]"
@@ -95,6 +98,21 @@ struct GoogleDeveloperPluginTests {
         #expect(status.secondaryValue == "me.developers.google.com/benefits")
         #expect(usage.identity?.accountEmail == Self.email)
         #expect(await fixture.requests == ["GET 1/0", "POST 1/0", "GET 1/1", "POST 1/1", "GET 1/2"])
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `a granted credit with no remaining amount or billing account is not applied`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let fixture = Fixture([[Account(benefits: Self.benefits(Self.otherBenefit, Self.grantedUnclaimedCredit))]])
+        let usage = try await Self.fetch(engine, fixture: fixture)
+        #expect(usage.primary == nil)
+        #expect(usage.providerCost == nil)
+        let status = try #require(usage.detailRow(label: "Status"))
+        #expect(status.value == "Not applied")
+        #expect(status.secondaryValue == "me.developers.google.com/benefits")
+        #expect(usage.identity?.accountEmail == Self.email)
+        #expect(await fixture.requests == ["GET 1/0", "POST 1/0", "GET 1/1"])
     }
 
     @Test(

@@ -123,12 +123,17 @@ defineProvider({
           .find((benefit) => benefit[0] === 19);
         if (!credit) continue;
         const offer = array(credit[9] ?? []);
-        // A credit that is not applied to a billing account yet has no money fields.
+        // A credit that is not applied to a billing account yet has no billing details, or has a granted amount with no
+        // remaining amount.
         if (offer[6] === null || offer[6] === undefined) {
           unapplied ??= email;
           continue;
         }
         const billing = array(offer[6]);
+        if (billing[1] === null || billing[1] === undefined) {
+          unapplied ??= email;
+          continue;
+        }
         const granted = money(billing[0]);
         const remaining = money(billing[1]);
         if (granted.amount <= 0) return invalid();

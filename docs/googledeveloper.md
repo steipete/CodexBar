@@ -63,7 +63,8 @@ The menu card shows:
 
 Other states:
 
-- A credit that is not applied to a billing account yet shows **Status: Not applied** with a pointer to
+- A credit that is not applied to a billing account yet (Google sends either no billing details, or a granted amount
+  with no remaining amount and an empty billing account) shows **Status: Not applied** with a pointer to
   me.developers.google.com/benefits, where its **Apply** button links it to a billing account. This is not an error.
 - When no signed-in account has the credit, the error points to the Google Developer Program benefits page to check eligibility.
 - HTTP 429 reports a rate limit and HTTP 5xx reports the service as unavailable, keeping the session.
