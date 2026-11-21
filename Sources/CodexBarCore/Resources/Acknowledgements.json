@@ -103,7 +103,7 @@
       }
     ],
     "identity": "commander",
-    "revision": "3f5a3cb1f19ce7ca79fdc2111a09dfb3da200c1c"
+    "revision": "e8572b84fae01c250d2d54396825a1adf052cb51"
   },
   {
     "name": "KeyboardShortcuts",
@@ -272,7 +272,7 @@
       }
     ],
     "identity": "sweetcookiekit",
-    "revision": "f9cb835e3e537817f9269023483ce794567ccc8b"
+    "revision": "5b09b844b656713a8fb8fdaa89c94566938e8c7f"
   },
   {
     "name": "swift-asn1",
@@ -294,7 +294,7 @@
       }
     ],
     "identity": "swift-asn1",
-    "revision": "3b6410f7dee09eb33cdd26260c5fd47fda19b0e2"
+    "revision": "917b472dbe53ba699cbb0495f9a95a084bc6364d"
   },
   {
     "name": "swift-crypto",
@@ -316,7 +316,7 @@
       }
     ],
     "identity": "swift-crypto",
-    "revision": "c2cbadd7263439d8015189668f96ff5b5be565ce"
+    "revision": "3280a5f72874d2f73bf25551bbb64f524c76d834"
   },
   {
     "name": "swift-log",
@@ -338,7 +338,7 @@
       }
     ],
     "identity": "swift-log",
-    "revision": "c9c6bb9d275ec0d95c3ad16391f3f045dc623104"
+    "revision": "c7413d967b97aae67c46452bf7645bdb7b200e8e"
   },
   {
     "name": "ts-interface-checker",
@@ -419,6 +419,6 @@
         "text": "/*\n ---------------------------------------------------------------------------\n Copyright (c) 1998-2008, Brian Gladman, Worcester, UK. All rights reserved.\n\n LICENSE TERMS\n\n The redistribution and use of this software (with or without changes)\n is allowed without the payment of fees or royalties provided that:\n\n  1. source code distributions include the above copyright notice, this\n     list of conditions and the following disclaimer;\n\n  2. binary distributions include the above copyright notice, this list\n     of conditions and the following disclaimer in their documentation;\n\n  3. the name of the copyright holder is not used to endorse products\n     built using this software without specific written permission.\n\n DISCLAIMER\n\n This software is provided 'as is' with no explicit or implied warranties\n in respect of its properties, including, but not limited to, correctness\n and/or fitness for purpose.\n ---------------------------------------------------------------------------\n Issue Date: 20/12/2007\n Changes for ARM 9/9/2010\n*/"
       }
     ],
-    "revision": "c2cbadd7263439d8015189668f96ff5b5be565ce"
+    "revision": "3280a5f72874d2f73bf25551bbb64f524c76d834"
   }
 ]
