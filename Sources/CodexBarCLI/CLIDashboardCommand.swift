@@ -109,7 +109,8 @@ struct DashboardSnapshotProducer: Sendable {
             collectUsage: { providers in
                 try await CodexBarCLI.serveUsageOutput(
                     selection: .custom(providers),
-                    context: context.usage)
+                    context: context.usage,
+                    collectsDashboardAccounts: true)
             },
             collectCost: { providers, config in
                 let costFetcher = CostUsageFetcher()
