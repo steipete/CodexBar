@@ -7,6 +7,7 @@ extension StatusItemController {
         captureMenu: NSMenu,
         context: MenuCardContext)
     {
+        defer { self.addAccountAgnosticCostMenuSection(to: menu, context: context) }
         let accounts = self.store.claudeSwapAccountSnapshots
         guard let display = self.store.claudeSwapMenuDisplay(
             for: .claude, inspectedAccountID: self.claudeSwapInspectedAccountID)

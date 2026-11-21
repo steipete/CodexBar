@@ -17,6 +17,7 @@
 
 ### Fixed
 
+- Claude: show the combined local cost history once below claude-swap account cards, as Codex does for its shared spend; Claude accounts mapped to their own config directory keep per-account cost.
 - Providers: stop cancelled refreshes before loading or attempting another browser-session candidate (#5085). Thanks @Lucenx9!
 - Plugins: align community-provider card headers with built-in cards and give refresh an explicit accessibility label (#5086). Thanks @tangwz!
 - Menu bar: preserve the full-size leading provider icon beside both text rows in high-contrast custom layouts (#5041). Thanks @deinspanjer and @nunoh!
