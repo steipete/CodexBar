@@ -34,6 +34,15 @@ CodexBar requests:
 - `GET https://qoder.com/api/v2/me/usages/big_model_credits`
 - `GET https://qoder.com.cn/api/v2/me/usages/big_model_credits`
 
+When the merged member quota is empty (the captured Teams shape), CodexBar also requests:
+
+- `GET https://qoder.com/sash/api/v2/me/usage`
+- `GET https://qoder.com.cn/sash/api/v2/me/usage`
+
+The supplemental response supplies the organization resource package as the secondary `Balance` window for the captured
+Teams `userType`. Non-empty member summaries do not request it and keep the existing summary without organization-package
+enrichment; a failed or malformed supplemental response keeps the member snapshot.
+
 The selected site controls the `Origin` and `Referer` headers. Automatic mode imports Qoder cookies in the shared browser order
 and caches valid cookie headers. Invalid cached sessions are skipped so a fresh browser cookie can be retried.
 The bundled JavaScript provider performs HTTP requests and quota parsing on both QuickJS and JavaScriptCore. Browser
@@ -43,8 +52,11 @@ for the source label and usage-dashboard action.
 ## Display
 
 - Shows used credits, total credits, and usage percentage.
+- Shows an empty-member Teams organization resource package as the secondary `Balance` window.
+- Marks a zero-capacity plan as exhausted; a positive organization balance wins over stale used/capacity counters.
+- `isQuotaExceeded` marks the organization balance exhausted only when no remaining counter is available or it is zero.
 - Merges `totalQuota` with `sharedQuota` when Qoder returns both.
-- Uses `nextResetAt` when the API includes a reset timestamp.
+- Uses the supplemental `refreshAt` / `expiresAt` for the plan reset; otherwise uses `nextResetAt`.
 - Token-cost history is not supported.
 
 ## CLI Usage

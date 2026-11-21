@@ -6,6 +6,7 @@ defineProvider({
   capabilities: ["browser-cookies", "http-status"],
   cookieDomains: ["qoder.com", "qoder.com.cn"],
   async fetchUsage(ctx) {
+    const startedAt = ctx.date.nowMillis();
     const manual = ctx.browser.availability("qoder.com") === "manual";
     const fail = (message) => {
       throw ctx.fail.parseFailure(`Could not parse Qoder usage: ${message}`);
@@ -16,6 +17,18 @@ defineProvider({
     const object = (value) => {
       if (!value || typeof value !== "object" || Array.isArray(value)) fail("invalid quota object");
       return value;
+    };
+    const format = (value) => ctx.format.number(value, { maximumFractionDigits: Number.isInteger(value) ? 0 : 2 });
+    const clamp = (value) => Math.max(0, Math.min(100, value));
+    const parseDate = (value) => {
+      try {
+        if (typeof value === "number")
+          return value > 10000000000 ? ctx.date.unixMillis(value) : ctx.date.unixSeconds(value);
+        if (typeof value === "string") return ctx.date.iso(value);
+      } catch (error) {
+        void error;
+      }
+      return undefined;
     };
     const quota = (summary) => {
       object(summary);
@@ -29,7 +42,25 @@ defineProvider({
       if (used < 0 || total < 0 || remaining < 0) fail("quota values must be nonnegative");
       return { used, total, remaining, provided };
     };
-    const parse = (body, source) => {
+    const presentationQuota = (value) => {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+      const used = value.used;
+      const total = value.total ?? value.cap ?? value.limitValue ?? value.limit_value;
+      const remainingValue = value.remaining ?? value.remainingValue ?? value.remaining_value;
+      if (typeof used !== "number" || !Number.isFinite(used)) return null;
+      if (typeof total !== "number" || !Number.isFinite(total)) return null;
+      let remaining;
+      if (remainingValue == null) {
+        remaining = undefined;
+      } else if (typeof remainingValue === "number" && Number.isFinite(remainingValue)) {
+        remaining = remainingValue;
+      } else {
+        return null;
+      }
+      if (used < 0 || total < 0 || (remaining != null && remaining < 0)) return null;
+      return { used, total, remaining };
+    };
+    const parseMember = (body, source) => {
       let root;
       try {
         root = JSON.parse(body);
@@ -49,26 +80,66 @@ defineProvider({
       const remaining = base.remaining + (shared?.remaining ?? 0);
       const provided = shared ? null : base.provided;
       if (total === 0 && (used !== 0 || remaining !== 0)) fail("zero total quota must have zero usage and remaining");
-      const percentage = provided ?? (total > 0 ? (used / total) * 100 : 100);
+      const percentage = total === 0 ? 100 : (provided ?? (used / total) * 100);
       number(percentage);
-      const reset = field(root, "nextResetAt", "next_reset_at");
-      let resetsAt;
+      const resetsAt = parseDate(field(root, "nextResetAt", "next_reset_at"));
+      return {
+        snapshot: {
+          primary: {
+            usedPercent: clamp(percentage),
+            resetsAt,
+            resetDescription: `${format(used)} / ${format(total)} credits`,
+          },
+          identity: { loginMethod: source },
+        },
+        planTotal: total,
+      };
+    };
+    const parseOrganization = (body, member) => {
+      let root;
       try {
-        if (typeof reset === "number")
-          resetsAt = reset > 10000000000 ? ctx.date.unixMillis(reset) : ctx.date.unixSeconds(reset);
-        else if (typeof reset === "string") resetsAt = ctx.date.iso(reset);
+        root = JSON.parse(body);
       } catch (error) {
         void error;
+        return null;
       }
-      const format = (value) => ctx.format.number(value, { maximumFractionDigits: Number.isInteger(value) ? 0 : 2 });
-      return {
-        primary: {
-          usedPercent: Math.max(0, Math.min(100, percentage)),
-          resetsAt,
-          resetDescription: `${format(used)} / ${format(total)} credits`,
-        },
-        identity: { loginMethod: source },
+      if (!root || typeof root !== "object" || Array.isArray(root)) return null;
+      if (root.displayMode !== "qoder") return null;
+      const usage = root.qoderUsage;
+      if (!usage || typeof usage !== "object" || Array.isArray(usage)) return null;
+      if (usage.usageType != null && usage.usageType !== "credits") return null;
+      if (usage.userType !== "teams") return null;
+      const orgValue = usage.orgResourcePackage;
+      if (!orgValue || typeof orgValue !== "object" || Array.isArray(orgValue)) return null;
+      if (orgValue.available === false) return null;
+      const org = presentationQuota(orgValue);
+      if (org == null || org.total <= 0) return null;
+
+      let usedPercent;
+      if (org.remaining != null && org.remaining > 0) {
+        usedPercent = (1 - org.remaining / org.total) * 100;
+      } else if (org.remaining === 0 || usage.isQuotaExceeded === true) {
+        usedPercent = 100;
+      } else {
+        usedPercent = (org.used / org.total) * 100;
+      }
+      const refresh = parseDate(usage.refreshAt) ?? parseDate(usage.expiresAt) ?? member.snapshot.primary.resetsAt;
+      let displayUsed;
+      if (org.remaining != null) {
+        displayUsed = Math.max(0, org.total - org.remaining);
+      } else if (usage.isQuotaExceeded !== true) {
+        displayUsed = org.used;
+      }
+      const secondary = { usedPercent: clamp(usedPercent) };
+      if (displayUsed !== undefined) {
+        secondary.resetDescription = `${format(displayUsed)} / ${format(org.total)} credits`;
+      }
+      const snapshot = {
+        primary: { ...member.snapshot.primary, resetsAt: refresh },
+        secondary,
+        identity: member.snapshot.identity,
       };
+      return snapshot;
     };
     let rejected = false;
     let terminalError;
@@ -88,21 +159,23 @@ defineProvider({
         for await (const session of ctx.browser.sessions(domain)) yield { domain, session };
       }
     }
+    const timeoutSeconds = Number(ctx.settings.get("REQUEST_TIMEOUT") || 15);
     for await (const { domain, session } of candidates()) {
       try {
+        const headers = {
+          Cookie: session.header,
+          Accept: "application/json, text/plain, */*",
+          "Accept-Language": "en-US,en;q=0.9",
+          "User-Agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+          Origin: session.origin,
+          Referer: `${session.origin}/account/usage`,
+          "X-Requested-With": "XMLHttpRequest",
+          "Bx-V": "2.5.35",
+        };
         const response = await ctx.http.get(`${session.origin}/api/v2/me/usages/big_model_credits`, {
-          timeoutSeconds: Number(ctx.settings.get("REQUEST_TIMEOUT") || 15),
-          headers: {
-            Cookie: session.header,
-            Accept: "application/json, text/plain, */*",
-            "Accept-Language": "en-US,en;q=0.9",
-            "User-Agent":
-              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
-            Origin: session.origin,
-            Referer: `${session.origin}/account/usage`,
-            "X-Requested-With": "XMLHttpRequest",
-            "Bx-V": "2.5.35",
-          },
+          timeoutSeconds,
+          headers,
         });
         if (response.status === 401 || response.status === 403) {
           rejected = true;
@@ -114,7 +187,25 @@ defineProvider({
         if (response.status < 200 || response.status >= 300)
           throw ctx.fail.apiFailure(`Qoder API returned HTTP ${response.status}.`);
         const source = session.source.endsWith(` / ${domain}`) ? session.source : `${session.source} / ${domain}`;
-        return parse(response.bodyText, source);
+        const member = parseMember(response.bodyText, source);
+        if (member.planTotal > 0) return member.snapshot;
+
+        // The supplemental request is only for the captured empty-member Teams shape.
+        // Keep four seconds of the runtime deadline for returning the member snapshot.
+        if (Date.now() - startedAt > 16000) return member.snapshot;
+        try {
+          const presentationResponse = await ctx.http.get(`${session.origin}/sash/api/v2/me/usage`, {
+            timeoutSeconds: Math.min(timeoutSeconds, 3),
+            headers,
+          });
+          if (presentationResponse.status >= 200 && presentationResponse.status < 300) {
+            const presentation = parseOrganization(presentationResponse.bodyText, member);
+            if (presentation != null) return presentation;
+          }
+        } catch (error) {
+          if (error.transportClass === "cancelled") throw error;
+        }
+        return member.snapshot;
       } catch (error) {
         if (error.transportClass === "cancelled" || manual) throw error;
         terminalError = error;

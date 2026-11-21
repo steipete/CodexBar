@@ -1427,7 +1427,9 @@ extension UsageMenuCardView.Model {
            let detail = weekly.resetDescription,
            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
-            weeklyDetailText = detail
+            weeklyDetailText = input.provider == .qoder
+                ? UsageMenuCardView.Model.localizedQoderCreditDetail(detail)
+                : detail
             if weekly.resetsAt == nil {
                 weeklyResetText = nil
             }
