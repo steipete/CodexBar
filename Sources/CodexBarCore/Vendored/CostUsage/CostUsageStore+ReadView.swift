@@ -236,6 +236,56 @@ struct CostUsageStoreReadView: Sendable {
     }
 }
 
+extension CostUsageCodexPreviousReport {
+    /// Project a validated wider report onto the requested window without changing the stored report.
+    func report(in range: CostUsageScanner.CostUsageDayRange) -> CostUsageDailyReport {
+        if self.scanSinceKey == range.sinceKey, self.scanUntilKey == range.untilKey {
+            return self.report
+        }
+
+        func containsDay(_ day: String) -> Bool {
+            CostUsageScanner.CostUsageDayRange.isInRange(dayKey: day, since: range.sinceKey, until: range.untilKey)
+        }
+
+        var dayKeys = CostUsageLocalDayKeyMemo(calendar: range.calendar)
+        func containsTimestamp(_ unixMs: Int64) -> Bool {
+            let date = Date(timeIntervalSince1970: Double(unixMs) / 1000)
+            return containsDay(dayKeys.key(for: date, calendar: range.calendar))
+        }
+
+        let entries = self.data.compactMap { containsDay($0.date) ? $0.dailyReportValue : nil }
+        let hourly = (self.hourly ?? []).compactMap { containsTimestamp($0.hourUnixMs) ? $0.hourlyValue : nil }
+        let quotaSlices = (self.quotaSlices ?? []).compactMap {
+            containsTimestamp($0.timestampUnixMs) ? $0.timedValue : nil
+        }
+        return CostUsageDailyReport(
+            data: entries,
+            summary: Self.windowSummary(for: entries),
+            hourly: hourly,
+            quotaSlices: quotaSlices)
+    }
+
+    private static func windowSummary(for entries: [CostUsageDailyReport.Entry]) -> CostUsageDailyReport.Summary? {
+        guard !entries.isEmpty else { return nil }
+        let summary = CostUsageDailyReport.summary(for: entries)
+        // A billed Codex day supplies these counts unless they overflow. An unmetered-only
+        // day has no model usage and can coexist with known subtotals from other days.
+        let billedDays = entries.filter { $0.modelsUsed?.isEmpty == false }
+        func completeCount(_ count: Int?, _ key: KeyPath<CostUsageDailyReport.Entry, Int?>) -> Int? {
+            billedDays.allSatisfy { $0[keyPath: key] != nil } ? count : nil
+        }
+
+        return CostUsageDailyReport.Summary(
+            totalInputTokens: completeCount(summary.totalInputTokens, \.inputTokens),
+            totalOutputTokens: completeCount(summary.totalOutputTokens, \.outputTokens),
+            cacheReadTokens: summary.cacheReadTokens,
+            cacheCreationTokens: summary.cacheCreationTokens,
+            reasoningTokens: summary.reasoningTokens,
+            totalTokens: completeCount(summary.totalTokens, \.totalTokens),
+            totalCostUSD: summary.totalCostUSD)
+    }
+}
+
 enum CostUsageStoreReadPurpose: Sendable {
     case status
     /// Scoped token totals and coverage only; no per-event history for detailed reports.
@@ -305,7 +355,6 @@ extension CostUsageStore {
                 let usageRows = purpose == .report
                     ? try Self.readDecodedCodexUsageRows(
                         database,
-                        files: snapshot.files,
                         home: self.home,
                         recorder: recorder)
                     : nil

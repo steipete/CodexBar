@@ -382,3 +382,7 @@ from the included quota; the balance-only snapshot has neutral `used`/`limit` va
 does not infer a spending limit, consumed amount, or reset period.
 
 Unit contract: [official Grok billing source](https://github.com/xai-org/grok-build/blob/2bdd1d6a6369de0e8c68132ea4539e9abd9e14a8/crates/codegen/xai-grok-shell/src/extensions/billing.rs).
+
+The menu bar layout **Balance** element displays this reported prepaid wallet alongside the weekly quota.
+It follows **Show optional credits and extra usage**, including for a retained snapshot. Reported zero remains
+`$0.00`; missing balance stays unavailable. Automatic percentage text continues to show the subscription quota.

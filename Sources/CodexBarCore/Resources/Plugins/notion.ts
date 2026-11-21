@@ -3,6 +3,8 @@ defineProvider({
   name: "Notion AI",
   settings: [
     { key: "WORKSPACE_ID", title: "Workspace ID", type: "plain" },
+    { key: "OPTIONAL_USAGE", title: "Usage", type: "plain" },
+    { key: "UNAVAILABLE_MESSAGE", title: "Notion AI", type: "plain" },
     { key: "HEADERS", title: "Captured headers", type: "secure" },
   ],
   endpoints: ["https://app.notion.com"],
@@ -83,6 +85,61 @@ defineProvider({
         quotaUnit: "credits",
       };
     };
+    // November's personal pools coexist with a top-level legacy status of not_applicable.
+    // Treat each resolved billing-period bucket independently; never infer a missing allowance.
+    const personalAllowance = (
+      raw: unknown,
+      bucketID: string,
+      title: string,
+    ): { window: CodexBarRateWindow; remaining?: CodexBarDetailRow } | undefined => {
+      if (!Array.isArray(raw)) return undefined;
+      const matches = raw
+        .map(object)
+        .filter((entry) => entry?.bucketId === bucketID && entry.cadence === "billing_period");
+      const entry = matches.length === 1 ? matches[0] : undefined;
+      if (!entry || entry.state !== "resolved") return undefined;
+      const finite = (value: unknown): number | undefined =>
+        typeof value === "number" && Number.isFinite(value) ? value : undefined;
+      const used = finite(entry.used),
+        limit = finite(entry.limit);
+      if (used === undefined || used < 0 || limit === undefined || limit <= 0) return undefined;
+      const percent = (used / limit) * 100;
+      if (!Number.isFinite(percent)) return undefined;
+      const credits = object(entry.credits);
+      const creditUsed = finite(credits?.used),
+        creditLimit = finite(credits?.limit);
+      const hasCredits =
+        creditUsed !== undefined &&
+        creditUsed >= 0 &&
+        creditLimit !== undefined &&
+        creditLimit > 0 &&
+        Number.isFinite((creditUsed / creditLimit) * 100);
+      const start = finite(entry.periodStartMs),
+        end = finite(entry.periodEndMs);
+      const resetsAt =
+        end !== undefined && end > 0 && Number.isFinite(new Date(end).getTime()) ? new Date(end) : undefined;
+      const minutes = start !== undefined && start > 0 && end !== undefined ? (end - start) / 60000 : undefined;
+      const windowMinutes = minutes !== undefined && Number.isSafeInteger(minutes) && minutes > 0 ? minutes : undefined;
+      return {
+        window: {
+          title,
+          // The credit counts retain more precision than the rounded percentage-scale fields.
+          usedPercent: hasCredits ? (creditUsed / creditLimit) * 100 : percent,
+          windowMinutes,
+          resetsAt,
+          quotaLimit: hasCredits ? creditLimit : undefined,
+          quotaUnit: hasCredits ? "credits" : undefined,
+        },
+        remaining: hasCredits
+          ? {
+              label: `${title} remaining`,
+              value: `${ctx.format.number(Math.max(0, creditLimit - creditUsed))} credits`,
+              secondaryValue: `${ctx.format.number(creditUsed)} / ${ctx.format.number(creditLimit)} used`,
+              usageValue: creditUsed,
+            }
+          : undefined,
+      };
+    };
     for await (const session of ctx.browser.sessions(domain)) {
       const post = async (endpoint: string, body: Record<string, string>): Promise<ObjectValue> => {
         const response = await ctx.http.post(`https://${domain}/api/v3/${endpoint}`, {
@@ -146,22 +203,72 @@ defineProvider({
         }
         if (!workspace) throw ctx.fail.apiFailure("No Notion workspace found for this account.");
         const usage = await post("getCreditRateLimitStatus", { spaceId: workspace.id });
-        for (const field of ["status", "enforcement"]) {
-          if (usage[field] != null && typeof usage[field] !== "string") return invalid(`invalid ${field}`);
+        const standard = personalAllowance(usage.allowances, "auto", "Standard");
+        const select = personalAllowance(usage.allowances, "flex", "Select");
+        let primary: CodexBarRateWindow | undefined;
+        let secondary: CodexBarRateWindow | undefined;
+        if (standard || select) {
+          primary = standard?.window;
+          secondary = select?.window;
+        } else {
+          for (const field of ["status", "enforcement"]) {
+            if (usage[field] != null && typeof usage[field] !== "string") return invalid(`invalid ${field}`);
+          }
+          const resets = numeric(usage.resetsInSeconds);
+          primary = window(usage.window, true, resets);
+          secondary = window(usage.billingPeriodWindow, false, undefined);
+          if (text(usage.status)?.toLowerCase() === "not_applicable") {
+            const personalSchema =
+              Array.isArray(usage.allowances) &&
+              usage.allowances.some((entry) => ["auto", "flex"].includes(text(object(entry)?.bucketId) ?? ""));
+            if (!personalSchema)
+              throw ctx.fail.apiFailure(
+                "Notion AI usage allowance is not tracked for this workspace. Allowances apply to Business and Enterprise workspaces.",
+              );
+            if (!primary && !secondary)
+              throw ctx.fail.apiFailure(
+                ctx.settings.get("UNAVAILABLE_MESSAGE") ||
+                  "Notion did not provide usable personal AI allowances for this workspace. Check AI usage for the selected workspace in Notion, then refresh CodexBar again.",
+              );
+          }
+          if (usage.window == null && usage.billingPeriodWindow == null)
+            return invalid("getCreditRateLimitStatus returned no usage windows");
         }
-        const resets = numeric(usage.resetsInSeconds);
-        const primary = window(usage.window, true, resets);
-        const secondary = window(usage.billingPeriodWindow, false, undefined);
-        if (text(usage.status)?.toLowerCase() === "not_applicable")
-          throw ctx.fail.apiFailure(
-            "Notion AI usage allowance is not tracked for this workspace. Allowances apply to Business and Enterprise workspaces.",
-          );
-        if (usage.window == null && usage.billingPeriodWindow == null)
-          return invalid("getCreditRateLimitStatus returned no usage windows");
+        // Premium credits are a separate workspace balance, not an allowance window.
+        // Keep this request independent of session validation and required allowance parsing.
+        const details: CodexBarDetailSection[] = [];
+        const personalRows = [standard?.remaining, select?.remaining].filter(
+          (row): row is CodexBarDetailRow => row !== undefined,
+        );
+        if (personalRows.length) details.push({ title: "Personal credits", rows: personalRows });
+        if (ctx.settings.get("OPTIONAL_USAGE") !== "false") {
+          try {
+            const response = await ctx.http.post(`https://${domain}/api/v3/getAIUsageEligibilityV2`, {
+              body: { spaceId: workspace.id },
+              headers,
+              cookieSession: session.id,
+              timeoutSeconds: 3,
+            });
+            if (response.status === 200) {
+              const premium = object(object(JSON.parse(response.bodyText))?.premiumCredits);
+              const balance = premium?.totalCreditBalance;
+              if (typeof balance === "number" && Number.isFinite(balance)) {
+                details.push({
+                  title: "Notion Credits",
+                  rows: [{ label: "Remaining credits", value: ctx.format.number(balance) }],
+                });
+              }
+            }
+          } catch (error) {
+            if ((error as CodexBarHTTPError).transportClass === "cancelled") throw error;
+            // Missing, unsupported or malformed premium-credit data must not hide the allowances.
+          }
+        }
         const tier = text(workspace.subscription_tier)?.trim();
         const result = {
           primary,
           secondary,
+          details,
           empty: !primary && !secondary,
           identity: {
             email: text(user?.email),

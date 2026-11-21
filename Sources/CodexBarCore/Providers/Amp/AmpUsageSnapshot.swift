@@ -59,6 +59,7 @@ public struct AmpUsageSnapshot: Sendable {
     public let updatedAt: Date
     public let freeResetDescription: String?
     public let subscription: AmpSubscriptionUsage?
+    public let enterpriseWorkspaces: [String]
 
     public init(
         freeQuota: Double?,
@@ -71,7 +72,8 @@ public struct AmpUsageSnapshot: Sendable {
         accountOrganization: String? = nil,
         updatedAt: Date,
         freeResetDescription: String? = nil,
-        subscription: AmpSubscriptionUsage? = nil)
+        subscription: AmpSubscriptionUsage? = nil,
+        enterpriseWorkspaces: [String] = [])
     {
         self.freeQuota = freeQuota
         self.freeUsed = freeUsed
@@ -84,6 +86,7 @@ public struct AmpUsageSnapshot: Sendable {
         self.updatedAt = updatedAt
         self.freeResetDescription = freeResetDescription
         self.subscription = subscription
+        self.enterpriseWorkspaces = enterpriseWorkspaces
     }
 }
 
@@ -152,11 +155,12 @@ extension AmpUsageSnapshot {
             nil
         }
 
+        let fallbackPlan = primary != nil ? "Amp Free" : (self.enterpriseWorkspaces.isEmpty ? "Amp" : "Enterprise")
         let identity = ProviderIdentitySnapshot(
             providerID: .amp,
             accountEmail: self.accountEmail,
             accountOrganization: self.accountOrganization,
-            loginMethod: self.subscription?.plan ?? (primary == nil ? "Amp" : "Amp Free"))
+            loginMethod: self.subscription?.plan ?? fallbackPlan)
 
         var allowanceRows: [ProviderDetailSection.Row] = []
         if let remaining = self.subscription?.agentRemaining {
@@ -184,6 +188,9 @@ extension AmpUsageSnapshot {
         }
         detailRows.append(contentsOf: self.workspaceBalances.map {
             .makeRow(label: "Workspace \($0.name)", value: UsageFormatter.usdString($0.remaining))
+        })
+        detailRows.append(contentsOf: self.enterpriseWorkspaces.map {
+            .makeRow(label: "Workspace \($0)", value: "Enterprise")
         })
         if !detailRows.isEmpty {
             details.append(.makeSection(title: "Credits", rows: detailRows))

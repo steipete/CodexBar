@@ -286,7 +286,8 @@ extension CostUsageStore {
                request_count, authoritative_cost_nanos,
                standard_input_tokens, standard_cached_tokens, standard_output_tokens,
                priority_input_tokens, priority_cached_tokens, priority_output_tokens,
-               standard_tokens, priority_tokens
+               standard_tokens, priority_tokens,
+               ultrafast_input_tokens, ultrafast_cached_tokens, ultrafast_output_tokens, ultrafast_tokens
         FROM day_aggregates WHERE home = ?
         """
         if sinceDay != nil, untilDay != nil {
@@ -322,7 +323,11 @@ extension CostUsageStore {
                 priorityCachedTokens: sqlite3_column_int64(statement, 12),
                 priorityOutputTokens: sqlite3_column_int64(statement, 13),
                 standardTokens: sqlite3_column_int64(statement, 14),
-                priorityTokens: sqlite3_column_int64(statement, 15)))
+                priorityTokens: sqlite3_column_int64(statement, 15),
+                ultrafastInputTokens: sqlite3_column_int64(statement, 16),
+                ultrafastCachedTokens: sqlite3_column_int64(statement, 17),
+                ultrafastOutputTokens: sqlite3_column_int64(statement, 18),
+                ultrafastTokens: sqlite3_column_int64(statement, 19)))
             result = sqlite3_step(statement)
         }
         guard result == SQLITE_DONE else { throw StoreError.sqlite(result) }
@@ -343,7 +348,8 @@ extension CostUsageStore {
                a.reasoning_tokens, a.request_count, a.authoritative_cost_nanos,
                a.standard_input_tokens, a.standard_cached_tokens, a.standard_output_tokens,
                a.priority_input_tokens, a.priority_cached_tokens, a.priority_output_tokens,
-               a.standard_tokens, a.priority_tokens
+               a.standard_tokens, a.priority_tokens,
+               a.ultrafast_input_tokens, a.ultrafast_cached_tokens, a.ultrafast_output_tokens, a.ultrafast_tokens
         FROM files f CROSS JOIN file_day_aggregates a ON f.id = a.file_id
         WHERE f.path = ? AND a.day <= ?
         """
@@ -383,7 +389,11 @@ extension CostUsageStore {
                     priorityCachedTokens: sqlite3_column_int64(statement, 13),
                     priorityOutputTokens: sqlite3_column_int64(statement, 14),
                     standardTokens: sqlite3_column_int64(statement, 15),
-                    priorityTokens: sqlite3_column_int64(statement, 16))))
+                    priorityTokens: sqlite3_column_int64(statement, 16),
+                    ultrafastInputTokens: sqlite3_column_int64(statement, 17),
+                    ultrafastCachedTokens: sqlite3_column_int64(statement, 18),
+                    ultrafastOutputTokens: sqlite3_column_int64(statement, 19),
+                    ultrafastTokens: sqlite3_column_int64(statement, 20))))
             result = sqlite3_step(statement)
         }
         guard result == SQLITE_DONE else { throw StoreError.sqlite(result) }
@@ -458,7 +468,8 @@ extension CostUsageStore {
                a.reasoning_tokens, a.request_count, a.authoritative_cost_nanos,
                a.standard_input_tokens, a.standard_cached_tokens, a.standard_output_tokens,
                a.priority_input_tokens, a.priority_cached_tokens, a.priority_output_tokens,
-               a.standard_tokens, a.priority_tokens
+               a.standard_tokens, a.priority_tokens,
+               a.ultrafast_input_tokens, a.ultrafast_cached_tokens, a.ultrafast_output_tokens, a.ultrafast_tokens
         FROM files f CROSS JOIN file_day_aggregates a ON f.id = a.file_id
         """
         sql += self.fileScopeSQL(path: path, home: home)
@@ -496,7 +507,11 @@ extension CostUsageStore {
                     priorityCachedTokens: sqlite3_column_int64(statement, 13),
                     priorityOutputTokens: sqlite3_column_int64(statement, 14),
                     standardTokens: sqlite3_column_int64(statement, 15),
-                    priorityTokens: sqlite3_column_int64(statement, 16))))
+                    priorityTokens: sqlite3_column_int64(statement, 16),
+                    ultrafastInputTokens: sqlite3_column_int64(statement, 17),
+                    ultrafastCachedTokens: sqlite3_column_int64(statement, 18),
+                    ultrafastOutputTokens: sqlite3_column_int64(statement, 19),
+                    ultrafastTokens: sqlite3_column_int64(statement, 20))))
             result = sqlite3_step(statement)
         }
         guard result == SQLITE_DONE else { throw StoreError.sqlite(result) }

@@ -117,7 +117,7 @@ extension CostUsageScanner {
                 priorityGroups.insert(CodexDayModelKey(day: day, model: model))
             }
         }
-        for row in usage.codexRows ?? [] where row.pricingMode == "priority"
+        for row in usage.codexRows ?? [] where row.pricingMode == "priority" || row.pricingMode == "ultrafast"
             || row.turnID.flatMap({ priorityTurns[$0] }) != nil
         {
             priorityGroups.insert(CodexDayModelKey(day: row.day, model: row.model))

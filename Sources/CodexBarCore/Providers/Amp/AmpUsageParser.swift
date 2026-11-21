@@ -55,6 +55,10 @@ enum AmpUsageParser {
             else { return nil }
             return AmpWorkspaceBalance(name: name, remaining: remaining)
         }
+        // Enterprise workspaces report who pays instead of a balance; there is no dollar amount to meter.
+        let enterprisePattern = #"(?im)^\s*Workspace\s+(.+?):\s*usage\s+paid\s+by\s+your\s+enterprise\b"#
+        let enterpriseWorkspaces = self.allCaptures(in: text, pattern: enterprisePattern)
+            .compactMap { self.nonEmpty($0.first) }
         let freeUsage: FreeTierUsage? = {
             guard let free = self.captures(in: text, pattern: freePattern),
                   let remaining = self.number(from: free[0]),
@@ -143,7 +147,7 @@ enum AmpUsageParser {
                 resetDescription: resetDescription)
         }()
         guard resolvedFreeUsage != nil || subscriptionUsage != nil || individualCredits != nil ||
-            !workspaceBalances.isEmpty
+            !workspaceBalances.isEmpty || !enterpriseWorkspaces.isEmpty
         else {
             throw AmpUsageError.parseFailed("Missing Amp usage data.")
         }
@@ -159,7 +163,8 @@ enum AmpUsageParser {
             accountOrganization: self.nonEmpty(identity?[1]),
             updatedAt: now,
             freeResetDescription: resolvedFreeUsage?.resetDescription,
-            subscription: subscriptionUsage)
+            subscription: subscriptionUsage,
+            enterpriseWorkspaces: enterpriseWorkspaces)
     }
 
     private static func tierPeriod(in text: String) -> (start: Date, end: Date)? {
@@ -225,8 +230,8 @@ enum AmpUsageParser {
     }
 
     private static func extractObject(named token: String, in text: String) -> String? {
-        guard let tokenRange = text.range(of: token) else { return nil }
-        guard let braceIndex = text[tokenRange.upperBound...].firstIndex(of: "{") else { return nil }
+        guard let tokenRange = text.range(of: token),
+              let braceIndex = text[tokenRange.upperBound...].firstIndex(of: "{") else { return nil }
 
         var depth = 0
         var inString = false

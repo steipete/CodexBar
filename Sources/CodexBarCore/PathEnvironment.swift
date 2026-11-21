@@ -132,6 +132,10 @@ public enum BinaryLocator {
         if let override = env["ANTIGRAVITY_CLI_PATH"] {
             return fileManager.isExecutableFile(atPath: override) ? override : nil
         }
+        let bundledPaths = [
+            "/Applications/Gemini.app/Contents/Helpers/agy",
+            "\(home)/Applications/Gemini.app/Contents/Helpers/agy",
+        ]
         return self.resolveBinary(
             name: "agy",
             overrideKey: "ANTIGRAVITY_CLI_PATH",
@@ -145,7 +149,7 @@ public enum BinaryLocator {
                 "/usr/local/bin/agy",
             ],
             fileManager: fileManager,
-            home: home)
+            home: home) ?? bundledPaths.first(where: fileManager.isExecutableFile)
     }
 
     public static func resolveCodexBinary(

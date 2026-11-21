@@ -31,6 +31,8 @@ defineProvider({
   name: "Notion AI",
   settings: [
     { key: "WORKSPACE_ID", title: "Workspace ID", type: "plain" },
+    { key: "OPTIONAL_USAGE", title: "Usage", type: "plain" },
+    { key: "UNAVAILABLE_MESSAGE", title: "Notion AI", type: "plain" },
     { key: "HEADERS", title: "Captured headers", type: "secure" },
   ],
   endpoints: ["https://app.notion.com"],
@@ -135,6 +137,60 @@ defineProvider({
         quotaUnit: "credits",
       };
     };
+    // November's personal pools coexist with a top-level legacy status of not_applicable.
+    // Treat each resolved billing-period bucket independently; never infer a missing allowance.
+    const personalAllowance = (raw, bucketID, title) => {
+      if (!Array.isArray(raw)) return undefined;
+      const matches = raw
+        .map(object)
+        .filter(
+          (entry) =>
+            _optionalChain([entry, "optionalAccess", (_12) => _12.bucketId]) === bucketID &&
+            entry.cadence === "billing_period",
+        );
+      const entry = matches.length === 1 ? matches[0] : undefined;
+      if (!entry || entry.state !== "resolved") return undefined;
+      const finite = (value) => (typeof value === "number" && Number.isFinite(value) ? value : undefined);
+      const used = finite(entry.used),
+        limit = finite(entry.limit);
+      if (used === undefined || used < 0 || limit === undefined || limit <= 0) return undefined;
+      const percent = (used / limit) * 100;
+      if (!Number.isFinite(percent)) return undefined;
+      const credits = object(entry.credits);
+      const creditUsed = finite(_optionalChain([credits, "optionalAccess", (_13) => _13.used])),
+        creditLimit = finite(_optionalChain([credits, "optionalAccess", (_14) => _14.limit]));
+      const hasCredits =
+        creditUsed !== undefined &&
+        creditUsed >= 0 &&
+        creditLimit !== undefined &&
+        creditLimit > 0 &&
+        Number.isFinite((creditUsed / creditLimit) * 100);
+      const start = finite(entry.periodStartMs),
+        end = finite(entry.periodEndMs);
+      const resetsAt =
+        end !== undefined && end > 0 && Number.isFinite(new Date(end).getTime()) ? new Date(end) : undefined;
+      const minutes = start !== undefined && start > 0 && end !== undefined ? (end - start) / 60000 : undefined;
+      const windowMinutes = minutes !== undefined && Number.isSafeInteger(minutes) && minutes > 0 ? minutes : undefined;
+      return {
+        window: {
+          title,
+          // The credit counts retain more precision than the rounded percentage-scale fields.
+          usedPercent: hasCredits ? (creditUsed / creditLimit) * 100 : percent,
+          windowMinutes,
+          resetsAt,
+          quotaLimit: hasCredits ? creditLimit : undefined,
+          quotaUnit: hasCredits ? "credits" : undefined,
+        },
+        remaining: hasCredits
+          ? {
+              label: `${title} remaining`,
+              value: `${ctx.format.number(Math.max(0, creditLimit - creditUsed))} credits`,
+              secondaryValue: `${ctx.format.number(creditUsed)} / ${ctx.format.number(creditLimit)} used`,
+              usageValue: creditUsed,
+            }
+          : undefined,
+      };
+    };
     for await (const session of ctx.browser.sessions(domain)) {
       const post = async (endpoint, body) => {
         const response = await ctx.http.post(`https://${domain}/api/v3/${endpoint}`, {
@@ -168,9 +224,9 @@ defineProvider({
               _optionalChain([
                 unwrap,
                 "call",
-                (_12) => _12(table(spaces[id], "notion_user")[id]),
+                (_15) => _15(table(spaces[id], "notion_user")[id]),
                 "optionalAccess",
-                (_13) => _13.id,
+                (_16) => _16.id,
               ]) === id,
           );
           userID =
@@ -200,11 +256,11 @@ defineProvider({
                       _optionalChain([
                         text,
                         "call",
-                        (_14) => _14(space.subscription_tier),
+                        (_17) => _17(space.subscription_tier),
                         "optionalAccess",
-                        (_15) => _15.toLowerCase,
+                        (_18) => _18.toLowerCase,
                         "call",
-                        (_16) => _16(),
+                        (_19) => _19(),
                       ]),
                       () => "",
                     ),
@@ -224,43 +280,111 @@ defineProvider({
         }
         if (!workspace) throw ctx.fail.apiFailure("No Notion workspace found for this account.");
         const usage = await post("getCreditRateLimitStatus", { spaceId: workspace.id });
-        for (const field of ["status", "enforcement"]) {
-          if (usage[field] != null && typeof usage[field] !== "string") return invalid(`invalid ${field}`);
+        const standard = personalAllowance(usage.allowances, "auto", "Standard");
+        const select = personalAllowance(usage.allowances, "flex", "Select");
+        let primary;
+        let secondary;
+        if (standard || select) {
+          primary = _optionalChain([standard, "optionalAccess", (_20) => _20.window]);
+          secondary = _optionalChain([select, "optionalAccess", (_21) => _21.window]);
+        } else {
+          for (const field of ["status", "enforcement"]) {
+            if (usage[field] != null && typeof usage[field] !== "string") return invalid(`invalid ${field}`);
+          }
+          const resets = numeric(usage.resetsInSeconds);
+          primary = window(usage.window, true, resets);
+          secondary = window(usage.billingPeriodWindow, false, undefined);
+          if (
+            _optionalChain([
+              text,
+              "call",
+              (_22) => _22(usage.status),
+              "optionalAccess",
+              (_23) => _23.toLowerCase,
+              "call",
+              (_24) => _24(),
+            ]) === "not_applicable"
+          ) {
+            const personalSchema =
+              Array.isArray(usage.allowances) &&
+              usage.allowances.some((entry) =>
+                ["auto", "flex"].includes(
+                  _nullishCoalesce(
+                    text(
+                      _optionalChain([object, "call", (_25) => _25(entry), "optionalAccess", (_26) => _26.bucketId]),
+                    ),
+                    () => "",
+                  ),
+                ),
+              );
+            if (!personalSchema)
+              throw ctx.fail.apiFailure(
+                "Notion AI usage allowance is not tracked for this workspace. Allowances apply to Business and Enterprise workspaces.",
+              );
+            if (!primary && !secondary)
+              throw ctx.fail.apiFailure(
+                ctx.settings.get("UNAVAILABLE_MESSAGE") ||
+                  "Notion did not provide usable personal AI allowances for this workspace. Check AI usage for the selected workspace in Notion, then refresh CodexBar again.",
+              );
+          }
+          if (usage.window == null && usage.billingPeriodWindow == null)
+            return invalid("getCreditRateLimitStatus returned no usage windows");
         }
-        const resets = numeric(usage.resetsInSeconds);
-        const primary = window(usage.window, true, resets);
-        const secondary = window(usage.billingPeriodWindow, false, undefined);
-        if (
-          _optionalChain([
-            text,
-            "call",
-            (_17) => _17(usage.status),
-            "optionalAccess",
-            (_18) => _18.toLowerCase,
-            "call",
-            (_19) => _19(),
-          ]) === "not_applicable"
-        )
-          throw ctx.fail.apiFailure(
-            "Notion AI usage allowance is not tracked for this workspace. Allowances apply to Business and Enterprise workspaces.",
-          );
-        if (usage.window == null && usage.billingPeriodWindow == null)
-          return invalid("getCreditRateLimitStatus returned no usage windows");
+        // Premium credits are a separate workspace balance, not an allowance window.
+        // Keep this request independent of session validation and required allowance parsing.
+        const details = [];
+        const personalRows = [
+          _optionalChain([standard, "optionalAccess", (_27) => _27.remaining]),
+          _optionalChain([select, "optionalAccess", (_28) => _28.remaining]),
+        ].filter((row) => row !== undefined);
+        if (personalRows.length) details.push({ title: "Personal credits", rows: personalRows });
+        if (ctx.settings.get("OPTIONAL_USAGE") !== "false") {
+          try {
+            const response = await ctx.http.post(`https://${domain}/api/v3/getAIUsageEligibilityV2`, {
+              body: { spaceId: workspace.id },
+              headers,
+              cookieSession: session.id,
+              timeoutSeconds: 3,
+            });
+            if (response.status === 200) {
+              const premium = object(
+                _optionalChain([
+                  object,
+                  "call",
+                  (_29) => _29(JSON.parse(response.bodyText)),
+                  "optionalAccess",
+                  (_30) => _30.premiumCredits,
+                ]),
+              );
+              const balance = _optionalChain([premium, "optionalAccess", (_31) => _31.totalCreditBalance]);
+              if (typeof balance === "number" && Number.isFinite(balance)) {
+                details.push({
+                  title: "Notion Credits",
+                  rows: [{ label: "Remaining credits", value: ctx.format.number(balance) }],
+                });
+              }
+            }
+          } catch (error) {
+            if (error.transportClass === "cancelled") throw error;
+            // Missing, unsupported or malformed premium-credit data must not hide the allowances.
+          }
+        }
         const tier = _optionalChain([
           text,
           "call",
-          (_20) => _20(workspace.subscription_tier),
+          (_32) => _32(workspace.subscription_tier),
           "optionalAccess",
-          (_21) => _21.trim,
+          (_33) => _33.trim,
           "call",
-          (_22) => _22(),
+          (_34) => _34(),
         ]);
         const result = {
           primary,
           secondary,
+          details,
           empty: !primary && !secondary,
           identity: {
-            email: text(_optionalChain([user, "optionalAccess", (_23) => _23.email])),
+            email: text(_optionalChain([user, "optionalAccess", (_35) => _35.email])),
             accountID: userID,
             organization: text(workspace.name),
             loginMethod: tier ? tier[0].toUpperCase() + tier.slice(1) : undefined,

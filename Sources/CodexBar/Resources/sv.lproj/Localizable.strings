@@ -2851,3 +2851,23 @@
 "Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program returnerade ett okänt svar. Uppdatera CodexBar och försök igen.";
 "Google session expired or invalid." = "Google-sessionen har gått ut eller är ogiltig.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Inga sessionskakor för Google Developer Program hittades. Logga in på me.developers.google.com/benefits eller klistra in ett Cookie-huvud.";
+
+"Enterprise" = "Enterprise";
+"Personal credits" = "Personliga krediter";
+"Standard remaining" = "Standard kvar";
+"Select remaining" = "Select kvar";
+"Remaining credits" = "Återstående krediter";
+"Notion Credits" = "Notion-krediter";
+"Notion did not provide usable personal AI allowances for this workspace. Check AI usage for the selected workspace in Notion, then refresh CodexBar again." = "Notion tillhandahöll inga användbara personliga AI-kvoter för den här arbetsytan. Kontrollera AI-användningen för den valda arbetsytan i Notion och uppdatera sedan CodexBar igen.";
+"Select" = "Select";
+"TrustedRouter" = "TrustedRouter";
+"Show TrustedRouter usage" = "Visa TrustedRouter-användning";
+"TrustedRouter is rate limiting requests. Try again later." = "TrustedRouter begränsar antalet förfrågningar. Försök igen senare.";
+"TrustedRouter request failed. Try refreshing later." = "TrustedRouter-förfrågan misslyckades. Försök uppdatera senare.";
+"TrustedRouter returned an unrecognized response. Update CodexBar and try again." = "TrustedRouter returnerade ett okänt svar. Uppdatera CodexBar och försök igen.";
+"MiMo returned an unrecognized response. Update CodexBar and try again." = "MiMo returnerade ett okänt svar. Uppdatera CodexBar och försök igen.";
+"China mainland" = "Fastlandskina";
+"Singapore" = "Singapore";
+"MiMo is rate limiting requests. Try again later." = "MiMo begränsar antalet förfrågningar. Försök igen senare.";
+"MiMo request failed. Try refreshing later." = "MiMo-förfrågan misslyckades. Försök uppdatera senare.";
+"Skip cost refresh" = "Hoppa över kostnadsuppdatering";

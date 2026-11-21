@@ -10,7 +10,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-6e5aff?style=flat-square)](LICENSE)
 [![Site](https://img.shields.io/badge/site-codexbar.app-16d3b4?style=flat-square)](https://codexbar.app)
 
-<a href="https://codexbar.app"><img src="docs/social.png?v=eeb7fd14c1d1576a" alt="CodexBar — every AI coding limit in your menu bar. 114 providers." width="100%" /></a>
+<a href="https://codexbar.app"><img src="docs/social.png?v=b34db92095031795" alt="CodexBar — every AI coding limit in your menu bar. 115 providers." width="100%" /></a>
 
 Tiny macOS 14+ menu bar app that keeps **AI coding-provider limits visible** and shows when each window resets. See the [supported providers](#providers) below. One status item per provider, or Merge Icons mode with a provider switcher. No Dock icon, minimal UI, dynamic bar icons.
 
@@ -129,7 +129,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [Windsurf](docs/windsurf.md) — Browser localStorage session import or local SQLite cache for plan usage.
 - [Zed](docs/zed.md) — Zed editor Keychain session for plan, edit-prediction quota, billing cycle, and overdue invoices.
 - [Perplexity](docs/perplexity.md) — Account usage credits from Perplexity usage data.
-- [Xiaomi MiMo](docs/mimo.md) — Browser cookies for balance and token-plan usage.
+- [Xiaomi MiMo](docs/mimo.md) — Token Plan API keys for quota, or browser cookies for console balance and usage.
 - [Doubao](docs/doubao.md) — API key for Volcengine Ark request-limit probes.
 - [Sakana AI](docs/sakana.md) — Manual Cookie header for 5-hour and weekly quota windows.
 - [Abacus AI](docs/abacus.md) — Browser cookie auth for ChatLLM/RouteLLM compute credit tracking.
@@ -180,9 +180,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [Atlas Cloud](docs/atlascloud.md) — API key for the account's available USD balance.
 - [Vercel AI Gateway](docs/vercel.md) — API key for the team's USD balance and lifetime spend.
 - [xKiro](docs/xkiro.md) — API key for daily free-token usage, remaining allowance, and the midnight UTC reset.
-- Open to new providers: [provider authoring guide](docs/provider.md).
-
-<!-- Generated provider additions: Scripts/regenerate-provider-docs.mjs -->
+  <!-- Generated provider additions: Scripts/regenerate-provider-docs.mjs -->
 - [Langdock](docs/langdock.md) — Selected Edge, Chrome, or Safari profile → personal included session and weekly limits (`web`, macOS).
 - [Soniox](docs/soniox.md) — Organization API key for prepaid USD balance and monthly spend against the organization budget.
 - [X API](docs/xapi.md) — Browser or manual console.x.com cookies for prepaid and free credits, including negative balances.
@@ -209,7 +207,9 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [SiliconFlow](docs/siliconflow.md) — API key in Auto/API; explicit Web for the China (CNY) console balance. International API balances use USD.
 - [Tripo](docs/tripo.md) — API key for available and reserved account credits from the official account balance endpoint.
 - [Google Developer Program](docs/googledeveloper.md) — Browser or manual me.developers.google.com session cookies for the current monthly Gen AI & Cloud credit of Google AI Pro and Ultra.
+- [TrustedRouter](docs/trustedrouter.md) — API key for the key's remaining limit and daily, weekly, monthly, and total spend.
 <!-- End generated provider additions -->
+- Open to new providers: [provider authoring guide](docs/provider.md).
 
 ## Icon & Screenshot
 The menu bar icon is a tiny usage meter. Bar meaning is provider-specific, and errors/stale data can dim the icon or

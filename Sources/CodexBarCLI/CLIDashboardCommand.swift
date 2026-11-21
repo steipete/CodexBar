@@ -22,6 +22,9 @@ struct DashboardOptions: CommanderParsable {
     @Flag(name: .long("pretty"), help: "Pretty-print JSON output")
     var pretty: Bool = false
 
+    @Flag(name: .long("no-cost"), help: UsageFormatter.localized("Skip cost refresh"))
+    var noCost: Bool = false
+
     @Option(
         name: .long("timeout"),
         help: "Overall fetch timeout in seconds, 0...86400 (default 30; 0 disables)")
@@ -62,14 +65,17 @@ struct DashboardSnapshotProducer: Sendable {
         refreshInterval: TimeInterval,
         codexBarVersion: String?,
         identityMode: DashboardIdentityMode? = nil,
-        providers requestedProviders: [UsageProvider]? = nil) async throws -> DashboardSnapshotResult
+        providers requestedProviders: [UsageProvider]? = nil,
+        includeCost: Bool = true) async throws -> DashboardSnapshotResult
     {
         let selection = requestedProviders.map(ProviderSelection.custom) ?? CodexBarCLI.defaultProviderSelection(
             enabled: config.enabledProviders().compactMap(\.firstPartyProvider))
         let usageOutput = try await self.collectUsage(selection.asList)
-        let costPayloads = await self.collectCost(
-            CodexBarCLI.costProviders(from: selection),
-            config)
+        let costPayloads: [CostPayload] = if includeCost {
+            await self.collectCost(CodexBarCLI.costProviders(from: selection), config)
+        } else {
+            []
+        }
         var accountCollections: [UsageProvider: DashboardAccountsInput] = [:]
         for provider in selection.asList {
             if let collection = await self.collectAccounts(config, provider) {
@@ -103,7 +109,8 @@ struct DashboardSnapshotProducer: Sendable {
             collectUsage: { providers in
                 try await CodexBarCLI.serveUsageOutput(
                     selection: .custom(providers),
-                    context: context.usage)
+                    context: context.usage,
+                    collectsDashboardAccounts: true)
             },
             collectCost: { providers, config in
                 let costFetcher = CostUsageFetcher()
@@ -255,7 +262,8 @@ extension CodexBarCLI {
                 config: context.config,
                 refreshInterval: context.usage.refreshInterval,
                 codexBarVersion: context.codexBarVersion,
-                identityMode: identityMode)
+                identityMode: identityMode,
+                includeCost: !values.flags.contains("noCost"))
         } catch {
             await Self.shutdownDashboardRuntime(
                 providerOperations: providerOperations,
