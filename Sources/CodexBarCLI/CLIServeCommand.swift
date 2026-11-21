@@ -88,7 +88,8 @@ enum CLIServeRouter {
         case "/usage":
             return .usage(
                 provider: normalizedProvider,
-                allAccounts: Self.parseBooleanQueryFlag(queryItems["allAccounts"]))
+                allAccounts: ["true", "1", "yes"].contains(
+                    queryItems["allAccounts"]?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""))
         case "/cost":
             return .cost(provider: normalizedProvider)
         case "/dashboard/v1/snapshot":
@@ -99,15 +100,6 @@ enum CLIServeRouter {
         default:
             throw CLIServeRouteError.notFound
         }
-    }
-
-    private static func parseBooleanQueryFlag(_ rawValue: String?) -> Bool {
-        guard let trimmed = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
-              !trimmed.isEmpty
-        else {
-            return false
-        }
-        return trimmed == "true" || trimmed == "1" || trimmed == "yes"
     }
 }
 
