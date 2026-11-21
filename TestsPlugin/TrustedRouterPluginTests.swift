@@ -1,9 +1,9 @@
 import Foundation
+import Testing
+@testable import CodexBarCore
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import Testing
-@testable import CodexBarCore
 
 struct TrustedRouterPluginTests {
     /// Redacted `GET /v1/key` sample from the public TrustedRouter response documentation.
@@ -56,7 +56,8 @@ struct TrustedRouterPluginTests {
         #expect(exhausted.detailRow(label: "Remaining")?.value == "$0.00")
         let zero = try await Self.fetch(engine, body: Self.key(limit: "0", remaining: "0"))
         #expect(zero.primary == nil)
-        #expect(zero.detailRow(label: "Remaining") == nil)
+        #expect(zero.detailRow(label: "Remaining")?.value == "$0.00")
+        #expect(zero.detailRow(label: "Limit")?.value == "$0.00")
     }
 
     @Test(arguments: BundledPluginTestSupport.engines)
@@ -67,6 +68,9 @@ struct TrustedRouterPluginTests {
             "not-json", "[]", "{}", #"{"data":[]}"#,
             #"{"data":{"usage":3.25,"usage_daily":0.4,"usage_weekly":1.1,"usage_monthly":3.25}}"#,
             Self.key(limit: "10000000", remaining: "null"),
+            Self.key(limit: "null", remaining: "null").replacingOccurrences(
+                of: "\"limit_microdollars\":null,",
+                with: ""),
             Self.key(limit: "null", remaining: "6600000"),
             Self.key(limit: "\"10000000\"", remaining: "6600000"),
             Self.key(limit: "10000000", remaining: "-1"),

@@ -39,8 +39,7 @@ defineProvider({
     // Money fields are integer microdollars (1 USD = 1,000,000); the float dollar fields are display copies.
     const dollars = (value: unknown): number =>
       typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value / 1000000 : fail();
-    const optionalDollars = (value: unknown): number | undefined =>
-      value === null || value === undefined ? undefined : dollars(value);
+    const optionalDollars = (value: unknown): number | undefined => (value === null ? undefined : dollars(value));
     const usage = dollars(data.usage_microdollars);
     const daily = dollars(data.usage_daily_microdollars);
     const weekly = dollars(data.usage_weekly_microdollars);
@@ -48,16 +47,17 @@ defineProvider({
     const limit = optionalDollars(data.limit_microdollars);
     const remaining = optionalDollars(data.limit_remaining_microdollars);
     if ((limit === undefined) !== (remaining === undefined)) return fail();
-    const keyLimit = limit !== undefined && remaining !== undefined && limit > 0 ? { limit, remaining } : undefined;
+    const keyLimit = limit !== undefined && remaining !== undefined ? { limit, remaining } : undefined;
     // The remaining amount already excludes in-flight reservations, so it is not recomputed from usage.
     const spent = keyLimit ? Math.max(0, keyLimit.limit - keyLimit.remaining) : 0;
     return {
-      primary: keyLimit
-        ? {
-            usedPercent: ctx.pct(spent, keyLimit.limit),
-            resetDescription: `${ctx.format.usd(spent)} / ${ctx.format.usd(keyLimit.limit)}`,
-          }
-        : undefined,
+      primary:
+        keyLimit && keyLimit.limit > 0
+          ? {
+              usedPercent: ctx.pct(spent, keyLimit.limit),
+              resetDescription: `${ctx.format.usd(spent)} / ${ctx.format.usd(keyLimit.limit)}`,
+            }
+          : undefined,
       details: [
         {
           title: "Usage",

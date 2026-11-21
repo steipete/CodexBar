@@ -1,4 +1,6 @@
+import AppKit
 import Foundation
+import SwiftUI
 import Testing
 @testable import CodexBar
 @testable import CodexBarCLI
@@ -54,25 +56,28 @@ struct TrustedRouterProviderTests {
             secondary: nil,
             details: [ProviderDetailSection(title: "Usage", rows: [.init(label: "Remaining", value: "$6.60")])],
             updatedAt: now)
-        let model = try UsageMenuCardView.Model.make(.init(
-            provider: .trustedrouter,
-            metadata: #require(ProviderDefaults.metadata[.trustedrouter]),
-            snapshot: snapshot,
-            credits: nil,
-            creditsError: nil,
-            dashboardError: nil,
-            tokenSnapshot: nil,
-            tokenError: nil,
-            account: AccountInfo(email: nil, plan: nil),
-            isRefreshing: false,
-            lastError: nil,
-            usageBarsShowUsed: true,
-            resetTimeDisplayStyle: .countdown,
-            tokenCostUsageEnabled: false,
-            showOptionalCreditsAndExtraUsage: true,
-            hidePersonalInfo: false,
-            paceVisible: true,
-            now: now))
+        func card(_ value: UsageSnapshot?) throws -> UsageMenuCardView.Model {
+            try UsageMenuCardView.Model.make(.init(
+                provider: .trustedrouter,
+                metadata: #require(ProviderDefaults.metadata[.trustedrouter]),
+                snapshot: value,
+                credits: nil,
+                creditsError: nil,
+                dashboardError: nil,
+                tokenSnapshot: nil,
+                tokenError: nil,
+                account: AccountInfo(email: nil, plan: nil),
+                isRefreshing: false,
+                lastError: nil,
+                usageBarsShowUsed: true,
+                resetTimeDisplayStyle: .countdown,
+                tokenCostUsageEnabled: false,
+                showOptionalCreditsAndExtraUsage: true,
+                hidePersonalInfo: false,
+                paceVisible: true,
+                now: now))
+        }
+        let model = try card(snapshot)
         #expect(model.metrics.count == 1)
         #expect(model.metrics.first?.title == "Limit")
         #expect(model.metrics.first?.percent == 34)
@@ -89,5 +94,17 @@ struct TrustedRouterProviderTests {
             now: now)
         #expect(text.contains("$3.40 / $10.00"))
         #expect(!text.contains("Resets $"))
+        guard let directory = ProcessInfo.processInfo.environment["CODEXBAR_TRUSTEDROUTER_PROOF_DIR"] else { return }
+        for after in [false, true] {
+            let preview = try card(after ? snapshot : nil)
+            let renderer = ImageRenderer(content: UsageMenuCardView(model: preview, width: 380)
+                .environment(\.locale, Locale(identifier: "en_US_POSIX"))
+                .environment(\.colorScheme, .light).background(Color.white))
+            renderer.scale = 2
+            let bitmap = try NSBitmapImageRep(cgImage: #require(renderer.cgImage))
+            try #require(bitmap.representation(using: .png, properties: [:])).write(
+                to: URL(fileURLWithPath: directory)
+                    .appendingPathComponent(after ? "trustedrouter-after.png" : "trustedrouter-before.png"))
+        }
     }
 }

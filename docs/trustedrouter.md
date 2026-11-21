@@ -41,3 +41,12 @@ it has not been verified against a live TrustedRouter account.
 
 The monochrome icon uses the route mark from TrustedRouter's [site favicon](https://trustedrouter.com/static/favicon.svg);
 the original accent is `#A9CDB9`.
+
+## Operator and response contract
+
+TrustedRouter is operated by Lore Hex Corp, founded by Joseph Perla, as identified on its
+[About page](https://trustedrouter.com/about). The [public response serializer](https://github.com/Lore-Hex/quill-router/blob/main/src/trusted_router/serialization.py)
+defines the integer microdollar fields consumed by this plugin. A reported zero-dollar key limit remains
+visible as Limit and Remaining amounts, without a percentage gauge. An explicit `null` limit means unlimited;
+missing monetary fields are rejected. Daily, weekly, and monthly spend follows the key's BYOK-in-limit policy;
+lifetime usage is credits-only, so these values need not add up to the same total.
