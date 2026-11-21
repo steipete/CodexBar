@@ -5,6 +5,7 @@
 ### Added
 
 - Notion AI: show personal Standard and Select monthly allowances alongside the separate workspace Notion Credits balance, preserving legacy windows and optional-usage visibility (#2888, #4919).
+- TrustedRouter: show the API key's remaining limit and daily, weekly, monthly, and total spend through the official key endpoint (#5119).
 - Usage & Spend: include community plugins' existing cost usage in statistics and sharing without extra dashboard fetches or mixed provider identities (#5084). Thanks @tangwz!
 - Google Developer Program: show the current monthly Gen AI & Cloud credit of Google AI Pro and Ultra from the benefits page, using the signed-in browser session and finding the Google account that holds the credit (#5033, #5035). Thanks @fcakyon!
 - Pi: group local cost by session and project in the cost-history menu, Usage & Spend, and `codexbar cost --group-by session|project`, with JSON project totals and a one-time history rebuild (#4930, #5025). Thanks @oryband!
@@ -18,6 +19,7 @@
 
 ### Fixed
 
+- Claude: show the combined local cost history once below claude-swap account cards, as Codex does for its shared spend; Claude accounts mapped to their own config directory keep per-account cost.
 - Providers: stop cancelled refreshes before loading or attempting another browser-session candidate (#5085). Thanks @Lucenx9!
 - Plugins: align community-provider card headers with built-in cards and give refresh an explicit accessibility label (#5086). Thanks @tangwz!
 - Menu bar: preserve the full-size leading provider icon beside both text rows in high-contrast custom layouts (#5041). Thanks @deinspanjer and @nunoh!

@@ -2863,3 +2863,14 @@
 "Notion Credits" = "Notion kredileri";
 "Notion did not provide usable personal AI allowances for this workspace. Check AI usage for the selected workspace in Notion, then refresh CodexBar again." = "Notion bu çalışma alanı için kullanılabilir kişisel yapay zekâ kotaları sağlamadı. Notion’da seçili çalışma alanının yapay zekâ kullanımını kontrol edin, ardından CodexBar’ı yeniden yenileyin.";
 "Select" = "Select";
+"TrustedRouter" = "TrustedRouter";
+"Show TrustedRouter usage" = "TrustedRouter kullanımını göster";
+"TrustedRouter is rate limiting requests. Try again later." = "TrustedRouter istek sıklığını sınırlıyor. Daha sonra tekrar deneyin.";
+"TrustedRouter request failed. Try refreshing later." = "TrustedRouter isteği başarısız oldu. Daha sonra yeniden yenileyin.";
+"TrustedRouter returned an unrecognized response. Update CodexBar and try again." = "TrustedRouter tanınmayan bir yanıt döndürdü. CodexBar’ı güncelleyip tekrar deneyin.";
+"MiMo returned an unrecognized response. Update CodexBar and try again." = "MiMo tanınmayan bir yanıt döndürdü. CodexBar’ı güncelleyip tekrar deneyin.";
+"China mainland" = "Çin ana karası";
+"Singapore" = "Singapur";
+"MiMo is rate limiting requests. Try again later." = "MiMo istek sıklığını sınırlıyor. Daha sonra tekrar deneyin.";
+"MiMo request failed. Try refreshing later." = "MiMo isteği başarısız oldu. Daha sonra yeniden yenileyin.";
+"Skip cost refresh" = "Maliyet yenilemeyi atla";

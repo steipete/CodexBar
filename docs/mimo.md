@@ -1,5 +1,5 @@
 ---
-summary: "Xiaomi MiMo provider notes: cookie auth, balance endpoint, and setup."
+summary: "Xiaomi MiMo provider notes: Token Plan API keys, console cookies, quota, and balances."
 read_when:
   - Adding or modifying the Xiaomi MiMo provider
   - Debugging MiMo cookie import or balance fetching
@@ -8,9 +8,11 @@ read_when:
 
 # Xiaomi MiMo Provider
 
-The Xiaomi MiMo provider tracks your current balance from the Xiaomi MiMo console.
+The Xiaomi MiMo provider tracks console balances and Token Plan quota. Token Plan API keys work on macOS and Linux without browser access.
 
 ## Features
+
+- **Token Plan API keys**: Read quota from the official China or Singapore endpoint without browser access.
 
 - **Balance display**: Shows total balance plus paid and granted components when MiMo returns them.
 - **Token plan usage**: Shows current token-plan credits while retaining balance as a second metric.
@@ -33,6 +35,24 @@ Automatic refresh validates each browser's sessions before reading the next brow
 traversal; missing or rejected sessions continue in the order above.
 
 Safari cookie import may require granting CodexBar Full Disk Access in **System Settings → Privacy & Security**.
+
+### Token Plan API key
+
+Choose **Usage source → API** and paste the dedicated `tp-` key in **API key**. Set **API region** to
+**China mainland** (`cn`, the default) or **Singapore** (`sgp`) to match the base URL shown in your Token Plan console.
+The key and region use the existing shared provider config (`apiKey` and `region`). For the CLI, use
+`codexbar config set-api-key --provider mimo --stdin`, or supply `MIMO_API_KEY` and `MIMO_TOKEN_PLAN_REGION`.
+
+The bundled `mimo.ts` plugin reads `GET https://token-plan-{cn|sgp}.xiaomimimo.com/v1/platform/token_plan`
+with bearer authentication. It maps the reported credit counts and UTC billing-period end without treating quota
+credits as money. An inference API key for the ordinary console API is not a Token Plan key.
+
+Auto uses the API when a key is configured; API failures remain visible and never switch to a browser account.
+Auto without a key retains the console/local fallback. Explicit Web retains the console source, including its
+separate cash balance. API data contains no cash wallet balance. No browser cookies or Keychain reads are needed
+for the API request. Missing dates remain unavailable; malformed counts and inconsistent remaining quota fail.
+
+Contract: [Xiaomi Query Token Plan Credits](https://mimo.mi.com/docs/en-US/api/asset/credits-get).
 
 ### Manual cookie import (optional)
 

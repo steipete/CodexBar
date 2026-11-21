@@ -2828,3 +2828,14 @@
 "Notion Credits" = "Notion 크레딧";
 "Notion did not provide usable personal AI allowances for this workspace. Check AI usage for the selected workspace in Notion, then refresh CodexBar again." = "Notion에서 이 워크스페이스의 사용 가능한 개인 AI 할당량을 제공하지 않았습니다. Notion에서 선택한 워크스페이스의 AI 사용량을 확인한 후 CodexBar를 다시 새로 고치세요.";
 "Select" = "Select";
+"TrustedRouter" = "TrustedRouter";
+"Show TrustedRouter usage" = "TrustedRouter 사용량 표시";
+"TrustedRouter is rate limiting requests. Try again later." = "TrustedRouter가 요청 빈도를 제한하고 있습니다. 나중에 다시 시도하세요.";
+"TrustedRouter request failed. Try refreshing later." = "TrustedRouter 요청에 실패했습니다. 나중에 다시 새로 고침하세요.";
+"TrustedRouter returned an unrecognized response. Update CodexBar and try again." = "TrustedRouter가 알 수 없는 응답을 반환했습니다. CodexBar를 업데이트하고 다시 시도하세요.";
+"MiMo returned an unrecognized response. Update CodexBar and try again." = "MiMo가 알 수 없는 응답을 반환했습니다. CodexBar를 업데이트하고 다시 시도하세요.";
+"China mainland" = "중국 본토";
+"Singapore" = "싱가포르";
+"MiMo is rate limiting requests. Try again later." = "MiMo가 요청 빈도를 제한하고 있습니다. 나중에 다시 시도하세요.";
+"MiMo request failed. Try refreshing later." = "MiMo 요청에 실패했습니다. 나중에 다시 새로 고침하세요.";
+"Skip cost refresh" = "비용 새로 고침 건너뛰기";

@@ -174,6 +174,44 @@ struct ClaudePlatformPluginTests {
         #expect(others.rows.map(\.label) == ["API credit (Pro)"])
     }
 
+    @Test(arguments: [24, 25, 200], BundledPluginTestSupport.engines)
+    func `many grants keep the wallet readable`(
+        otherGrantCount: Int,
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let subscription = Self.grant(
+            name: "Subscription credit",
+            program: "subscription_api_credit",
+            remaining: 15000,
+            granted: 20000,
+            expires: "2026-11-12T00:00:00Z")
+        let otherGrants = (1...otherGrantCount).reversed().map { index in
+            Self.grant(
+                name: "Promotional credit \(index)",
+                program: "promo",
+                remaining: 100,
+                granted: 200,
+                expires: index == 1 ? "2026-10-20T00:00:00Z" : nil)
+        }
+        let credits = Self.credits(
+            amount: 17500 + otherGrantCount * 100,
+            promo: ([subscription] + otherGrants).joined(separator: ","),
+            tranches: Self.grant(name: nil, program: "api_credits", remaining: 2500, granted: 5000, expires: nil))
+        let usage = try await Self.fetch(engine, fixture: Fixture(credits: credits))
+
+        #expect(usage.providerCost?.balance == 175 + Double(otherGrantCount))
+        #expect(usage.primary?.usedPercent == 25)
+        #expect(usage.secondary?.usedPercent == 50)
+        #expect(usage.detailRow(label: "This month (UTC)")?.value == "$43.21")
+
+        let others = try #require(usage.details.first { $0.title == "Other credit grants" })
+        #expect(others.rows.first?.label == "Promotional credit 1")
+        #expect(others.rows.count == 24)
+        if otherGrantCount == 24 {
+            #expect(Set(others.rows.map(\.label)) == Set((1...24).map { "Promotional credit \($0)" }))
+        }
+    }
+
     @Test(arguments: BundledPluginTestSupport.engines)
     func `amounts use the reported credit exponent`(engine: ProviderPluginEngineKind) async throws {
         let credits = Self.credits(

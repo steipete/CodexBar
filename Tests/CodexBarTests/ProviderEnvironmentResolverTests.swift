@@ -28,22 +28,25 @@ struct ProviderEnvironmentResolverTests {
     }
 
     @Test
-    func `OpenAI account removes project scoping from saved config`() {
+    func `OpenAI account removes project and organization scoping from saved config`() {
         let account = Self.account(token: "sk-admin-account")
+        var config = ProviderConfig(id: .openai, apiKey: "saved-token", workspaceID: "saved-project")
+        config.pluginSettings = ["OPENAI_ORGANIZATION_ID": "org-saved"]
         let environment = ProviderEnvironmentResolver.resolve(
             base: [
                 OpenAIAPISettingsReader.adminAPIKeyEnvironmentKey: "ambient-token",
                 OpenAIAPISettingsReader.projectIDEnvironmentKey: "ambient-project",
+                "OPENAI_ORGANIZATION_ID": "org-environment",
+                "OPENAI_ORG_ID": "org-alias",
             ],
             provider: .openai,
-            config: ProviderConfig(
-                id: .openai,
-                apiKey: "saved-token",
-                workspaceID: "saved-project"),
+            config: config,
             selectedAccount: account)
 
         #expect(environment[OpenAIAPISettingsReader.adminAPIKeyEnvironmentKey] == "sk-admin-account")
         #expect(environment[OpenAIAPISettingsReader.projectIDEnvironmentKey] == nil)
+        #expect(environment["OPENAI_ORGANIZATION_ID"] == nil)
+        #expect(environment["OPENAI_ORG_ID"] == nil)
     }
 
     @Test

@@ -156,9 +156,9 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        // Tripo and Google Developer Program extend the audited palette without changing existing provider colors.
-        #expect(widgetFingerprint == 14_281_859_890_132_692_949)
-        #expect(burnDownFingerprint == 4_767_200_688_375_901_465)
+        // TrustedRouter extends the audited palette without changing existing provider colors.
+        #expect(widgetFingerprint == 1_688_303_607_022_776_362)
+        #expect(burnDownFingerprint == 7_370_152_328_349_125_313)
     }
 
     @Test
@@ -204,7 +204,7 @@ struct ProviderArchitectureGatekeeperTests {
             .perplexity,
             .warp, .kilo, .mistral, .deepseek, .deepinfra, .qoder, .chutes, .longcat, .litellm, .bifrost, .manus,
             .mimo, .neuralwatt, .abacus, .v0, .llmman, .aixy, .raycast, .workbuddy, .claudeplatform, .abliteration,
-            .googledeveloper,
+            .googledeveloper, .trustedrouter,
         ])
         #if os(macOS)
         // Antigravity and Muse use bounded local usage readers.

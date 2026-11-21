@@ -1,9 +1,9 @@
 import Foundation
+import Testing
+@testable import CodexBarCore
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import Testing
-@testable import CodexBarCore
 
 /// Plugin-engine coverage for the bundled muse.ai subscription script.
 struct MuseAIPluginTests {
@@ -78,6 +78,26 @@ struct MuseAIPluginTests {
         #expect(result.requests.contains("GET /_next/static/chunks/settings.js"))
         #expect(!result.requests.contains("GET /_next/static/chunks/other.js"))
         #expect(result.requests.last == "POST / \(Self.actionID)")
+        #expect(result.storedID == Self.actionID)
+    }
+
+    @Test(arguments: [nil, 400, 404, 409], BundledPluginTestSupport.engines)
+    func `immutable chunk paths discover the subscription action`(
+        staleStatus: Int?,
+        engine: ProviderPluginEngineKind) async throws
+    {
+        var chunks: [String: String] = [:]
+        for (path, body) in Self.chunks {
+            chunks[path.replacing("static/chunks/", with: "static/immutable/chunks/")] =
+                body.replacing("static/chunks/", with: "static/immutable/chunks/")
+        }
+        let result = try await Self.fetch(
+            engine: engine,
+            storedID: staleStatus == nil ? nil : "40aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            action: Self.free, staleStatus: staleStatus ?? 404, chunks: chunks)
+        #expect(result.snapshot.primary?.usedPercent == 28)
+        #expect(result.requests.contains("GET /_next/static/immutable/chunks/settings.js"))
+        #expect(!result.requests.contains("GET /_next/static/immutable/chunks/other.js"))
         #expect(result.storedID == Self.actionID)
     }
 
