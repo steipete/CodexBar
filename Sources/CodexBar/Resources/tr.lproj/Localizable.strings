@@ -2855,3 +2855,23 @@
 "Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program tanınmayan bir yanıt döndürdü. CodexBar’ı güncelleyip tekrar deneyin.";
 "Google session expired or invalid." = "Google oturumunun süresi doldu veya oturum geçersiz.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Google Developer Program oturum çerezleri bulunamadı. me.developers.google.com/benefits adresinde oturum açın veya bir Cookie başlığı yapıştırın.";
+
+"Enterprise" = "Enterprise";
+"Personal credits" = "Kişisel krediler";
+"Standard remaining" = "Kalan Standard";
+"Select remaining" = "Kalan Select";
+"Remaining credits" = "Kalan krediler";
+"Notion Credits" = "Notion kredileri";
+"Notion did not provide usable personal AI allowances for this workspace. Check AI usage for the selected workspace in Notion, then refresh CodexBar again." = "Notion bu çalışma alanı için kullanılabilir kişisel yapay zekâ kotaları sağlamadı. Notion’da seçili çalışma alanının yapay zekâ kullanımını kontrol edin, ardından CodexBar’ı yeniden yenileyin.";
+"Select" = "Select";
+"TrustedRouter" = "TrustedRouter";
+"Show TrustedRouter usage" = "TrustedRouter kullanımını göster";
+"TrustedRouter is rate limiting requests. Try again later." = "TrustedRouter istek sıklığını sınırlıyor. Daha sonra tekrar deneyin.";
+"TrustedRouter request failed. Try refreshing later." = "TrustedRouter isteği başarısız oldu. Daha sonra yeniden yenileyin.";
+"TrustedRouter returned an unrecognized response. Update CodexBar and try again." = "TrustedRouter tanınmayan bir yanıt döndürdü. CodexBar’ı güncelleyip tekrar deneyin.";
+"MiMo returned an unrecognized response. Update CodexBar and try again." = "MiMo tanınmayan bir yanıt döndürdü. CodexBar’ı güncelleyip tekrar deneyin.";
+"China mainland" = "Çin ana karası";
+"Singapore" = "Singapur";
+"MiMo is rate limiting requests. Try again later." = "MiMo istek sıklığını sınırlıyor. Daha sonra tekrar deneyin.";
+"MiMo request failed. Try refreshing later." = "MiMo isteği başarısız oldu. Daha sonra yeniden yenileyin.";
+"Skip cost refresh" = "Maliyet yenilemeyi atla";

@@ -50,14 +50,16 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
         bundledPlugin name: String,
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         timeout: TimeInterval = ProviderPluginRuntime.defaultTimeout,
-        contextOptions: ProviderPluginContextOptions) throws
+        contextOptions: ProviderPluginContextOptions,
+        engine: ProviderPluginEngineKind = .automatic) throws
     {
         try self.init(
             bundledPlugin: name,
             resourceBundle: CodexBarCoreResources.bundle,
             transport: transport,
             timeout: timeout,
-            contextOptions: contextOptions)
+            contextOptions: contextOptions,
+            engine: engine)
     }
 
     convenience init(
@@ -65,7 +67,8 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
         resourceBundle: Bundle?,
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         timeout: TimeInterval = ProviderPluginRuntime.defaultTimeout,
-        contextOptions: ProviderPluginContextOptions = .production) throws
+        contextOptions: ProviderPluginContextOptions = .production,
+        engine: ProviderPluginEngineKind = .automatic) throws
     {
         guard let resourceBundle else {
             throw ProviderPluginError.load(CodexBarCoreResources.missingBundleMessage)
@@ -80,7 +83,8 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
             resourceBundle: resourceBundle,
             transport: transport,
             timeout: timeout,
-            contextOptions: contextOptions)
+            contextOptions: contextOptions,
+            engine: engine)
     }
 
     public convenience init(

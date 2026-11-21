@@ -2857,3 +2857,23 @@
 "Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program returned an unrecognized response. Update CodexBar and try again.";
 "Google session expired or invalid." = "Google session expired or invalid.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header.";
+
+"Enterprise" = "Enterprise";
+"Personal credits" = "Personal credits";
+"Standard remaining" = "Standard remaining";
+"Select remaining" = "Select remaining";
+"Remaining credits" = "Remaining credits";
+"Notion Credits" = "Notion Credits";
+"Notion did not provide usable personal AI allowances for this workspace. Check AI usage for the selected workspace in Notion, then refresh CodexBar again." = "Notion did not provide usable personal AI allowances for this workspace. Check AI usage for the selected workspace in Notion, then refresh CodexBar again.";
+"Select" = "Select";
+"TrustedRouter" = "TrustedRouter";
+"Show TrustedRouter usage" = "Show TrustedRouter usage";
+"TrustedRouter is rate limiting requests. Try again later." = "TrustedRouter is rate limiting requests. Try again later.";
+"TrustedRouter request failed. Try refreshing later." = "TrustedRouter request failed. Try refreshing later.";
+"TrustedRouter returned an unrecognized response. Update CodexBar and try again." = "TrustedRouter returned an unrecognized response. Update CodexBar and try again.";
+"MiMo returned an unrecognized response. Update CodexBar and try again." = "MiMo returned an unrecognized response. Update CodexBar and try again.";
+"China mainland" = "China mainland";
+"Singapore" = "Singapore";
+"MiMo is rate limiting requests. Try again later." = "MiMo is rate limiting requests. Try again later.";
+"MiMo request failed. Try refreshing later." = "MiMo request failed. Try refreshing later.";
+"Skip cost refresh" = "Skip cost refresh";

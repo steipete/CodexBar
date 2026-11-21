@@ -20,10 +20,11 @@ final class CLIEntryTests: XCTestCase {
     func test_dashboardCommandIsRegisteredAndParsesOptions() throws {
         let program = Program(descriptors: CodexBarCLI.commandDescriptors())
         let invocation = try program.resolve(
-            arguments: ["dashboard", "--pretty", "--timeout", "45", "--output", "/tmp/snapshot.json"])
+            arguments: ["dashboard", "--pretty", "--timeout", "45", "--output", "/tmp/snapshot.json", "--no-cost"])
 
         XCTAssertEqual(invocation.path, ["dashboard"])
         XCTAssertTrue(invocation.parsedValues.flags.contains("pretty"))
+        XCTAssertTrue(invocation.parsedValues.flags.contains("noCost"))
         XCTAssertEqual(invocation.parsedValues.options["timeout"], ["45"])
         XCTAssertEqual(invocation.parsedValues.options["output"], ["/tmp/snapshot.json"])
     }

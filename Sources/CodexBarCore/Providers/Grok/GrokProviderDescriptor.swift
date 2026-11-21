@@ -109,7 +109,8 @@ public enum GrokProviderDescriptor {
                         tertiary: metadata.opusLabel ?? "Sonnet",
                         showsTertiary: metadata.supportsOpus)
                 },
-                iconDecorations: [.grok]),
+                iconDecorations: [.grok],
+                menuBarBalanceUsesPrepaidCost: true),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .cli, .oauth, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),

@@ -7,13 +7,11 @@ extension StatusItemController {
         captureMenu: NSMenu,
         context: MenuCardContext)
     {
+        defer { self.addAccountAgnosticCostMenuSection(to: menu, context: context) }
         let accounts = self.store.claudeSwapAccountSnapshots
-        let display = ClaudeSwapAccountMenuDisplay(
-            accounts: accounts,
-            layout: self.settings.multiAccountMenuLayout,
-            switchingAccountID: self.store.claudeSwapTransientState.switchingAccountID,
-            errorAccountID: self.store.claudeSwapTransientState.lastErrorAccountID,
-            inspectedAccountID: self.claudeSwapInspectedAccountID)
+        guard let display = self.store.claudeSwapMenuDisplay(
+            for: .claude, inspectedAccountID: self.claudeSwapInspectedAccountID)
+        else { return }
         // tcr picks the account for each request, so it never switches and never reports an active account.
         // Keyed on the rows being drawn, not the setting, so a list read before a source change keeps its wording.
         let readsFromTcr = accounts.contains { ClaudeSwapAccountSource(identitySource: $0.id.source) == .tcr }

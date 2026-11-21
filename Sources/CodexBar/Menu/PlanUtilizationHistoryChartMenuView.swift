@@ -64,7 +64,7 @@ struct PlanUtilizationHistoryChartMenuView: View {
     }
 
     private let provider: UsageProvider
-    private let visibleSeries: [VisibleSeries]
+    let visibleSeries: [VisibleSeries]
     private let modelsBySeriesID: [String: Model]
     private let emptyModel: Model
     private let width: CGFloat
@@ -660,7 +660,7 @@ struct PlanUtilizationHistoryChartMenuView: View {
         }
     }
 
-    private nonisolated static func emptyStateText(title: String?) -> String {
+    nonisolated static func emptyStateText(title: String?) -> String {
         if let title {
             return String(format: L("No %@ utilization data yet."), title.lowercased())
         }
@@ -725,9 +725,6 @@ struct PlanUtilizationHistoryChartMenuView: View {
         return self.detailLine(point: model.points.last, windowMinutes: selectedSeries?.history.windowMinutes ?? 0)
     }
 
-    nonisolated static func _emptyStateTextForTesting(title: String?) -> String {
-        self.emptyStateText(title: title)
-    }
     #endif
 
     private func xValue(for index: Int) -> PlottableValue<Double> {

@@ -30,6 +30,39 @@ struct CLIProviderWindowLabelTests {
         #expect(Self.payload(providerID: "v0", usage: nil).rateWindowLabels == nil)
     }
 
+    @Test
+    func `Notion exports named personal pools and keeps absent pools absent`() throws {
+        for standardAvailable in [true, false] {
+            let primary = standardAvailable ? RateWindow(
+                usedPercent: 8.98,
+                windowMinutes: 44640,
+                resetsAt: Date(timeIntervalSince1970: 1_795_874_400),
+                resetDescription: nil,
+                quotaLimit: 1500,
+                quotaUnit: "credits",
+                title: "Standard") : nil
+            let select = RateWindow(
+                usedPercent: 0,
+                windowMinutes: 44640,
+                resetsAt: Date(timeIntervalSince1970: 1_795_874_400),
+                resetDescription: nil,
+                quotaLimit: 500,
+                quotaUnit: "credits",
+                title: "Select")
+            let snapshot = UsageSnapshot(primary: primary, secondary: select, updatedAt: .distantPast)
+            let data = try JSONEncoder().encode(Self.payload(providerID: "notion", usage: snapshot))
+            let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            let labels = try #require(object["rateWindowLabels"] as? [String: String])
+            #expect(labels ==
+                (standardAvailable ? ["primary": "Standard", "secondary": "Select"] : ["secondary": "Select"]))
+            let usage = try #require(object["usage"] as? [String: Any])
+            let secondary = try #require(usage["secondary"] as? [String: Any])
+            #expect(secondary["title"] as? String == "Select")
+            #expect(secondary["quotaLimit"] as? Double == 500)
+            #expect(secondary["windowMinutes"] as? Int == 44640)
+        }
+    }
+
     private static func payload(providerID: String, usage: UsageSnapshot?) -> ProviderPayload {
         ProviderPayload(
             providerID: providerID,
