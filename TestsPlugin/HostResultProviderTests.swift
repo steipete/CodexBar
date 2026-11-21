@@ -111,21 +111,49 @@ struct HostResultProviderTests {
         #expect((result.diagnostic != nil) == (outcome == .failed || outcome == .stale))
     }
 
-    @Test(arguments: ProviderPluginTransportTests.engines)
-    func `OpenAI billing fallback retains balance and source`(engine: ProviderPluginEngineKind) async throws {
+    @Test(arguments: ProviderPluginTransportTests.engines, [nil, "org-fixture"])
+    func `OpenAI billing fallback scopes only balance requests to the chosen organization`(
+        engine: ProviderPluginEngineKind,
+        organizationID: String?) async throws
+    {
         let transport = ResultFixtureTransport([
             .init("/v1/organization/costs", "{}", 403),
             .init(
                 "/v1/dashboard/billing/credit_grants",
                 #"{"total_granted":100,"total_used":25,"total_available":75,"grants":{"data":[{"expires_at":1800000000},{"expires_at":1}]}}"#),
         ])
+        var settings = ["OPENAI_ALLOW_BALANCE_FALLBACK": "1"]
+        settings["OPENAI_ORGANIZATION_ID"] = organizationID
         let result = try await Self.runtime("openai", transport: transport, engine: engine).fetchResult(
-            settings: ["OPENAI_ALLOW_BALANCE_FALLBACK": "1"], secrets: ["OPENAI_API_KEY": "fixture-key"], now: Self.now)
+            settings: settings, secrets: ["OPENAI_API_KEY": "fixture-key"], now: Self.now)
+        #expect(await transport.requests.allSatisfy { request in
+            let expected = request.url?.path == "/v1/dashboard/billing/credit_grants" ? organizationID : nil
+            return request.value(forHTTPHeaderField: "OpenAI-Organization") == expected
+        })
         #expect(result.sourceLabel == "billing-api" && result.usage.openAIAPIUsage == nil)
         #expect(result.usage.providerCost?.used == 25 && result.usage.primary?.usedPercent == 25)
         #expect(result.usage.identity?.loginMethod == "API balance: $75.00")
         #expect(result.usage.primary?.resetsAt == Date(timeIntervalSince1970: 1_800_000_000))
         #expect(result.usage.details.isEmpty)
+    }
+
+    @Test
+    func `OpenAI organization setting resolves config and SDK environment aliases`() {
+        let key = "OPENAI_ORGANIZATION_ID"
+        let strategy = OpenAIAPIProviderDescriptor.scriptStrategy()
+        for organization in [[key: " org-fixture ", "OPENAI_ORG_ID": "org-other"], ["OPENAI_ORG_ID": "org-fixture"]] {
+            let environment = organization.merging(["OPENAI_API_KEY": "fixture-key"]) { _, value in value }
+            #expect(strategy.resolveValues(Self.context(environment: environment))?.settings[key] == "org-fixture")
+        }
+        var config = ProviderConfig(id: .openai, apiKey: "fixture-key")
+        config.pluginSettings = [key: "org-config"]
+        let environment = ProviderEnvironmentResolver.resolve(
+            base: [key: "org-environment"], provider: .openai, config: config, selectedAccount: nil)
+        #expect(strategy.resolveValues(Self.context(environment: environment))?.settings[key] == "org-config")
+        config.pluginSettings = [key: " "]
+        let blankConfig = ProviderEnvironmentResolver.resolve(
+            base: [key: "org-environment"], provider: .openai, config: config, selectedAccount: nil)
+        #expect(strategy.resolveValues(Self.context(environment: blankConfig))?.settings[key] == "org-environment")
     }
 
     @Test(arguments: ProviderPluginTransportTests.engines)
