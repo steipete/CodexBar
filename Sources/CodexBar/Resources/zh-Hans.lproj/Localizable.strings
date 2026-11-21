@@ -2844,3 +2844,11 @@
 "Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program 返回了无法识别的响应。请更新 CodexBar 后重试。";
 "Google session expired or invalid." = "Google 会话已过期或无效。";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "未找到 Google Developer Program 会话 Cookie。请在 me.developers.google.com/benefits 登录或粘贴 Cookie 请求头。";
+
+/* MiMo Token Plan API. */
+"MiMo returned an unrecognized response. Update CodexBar and try again." = "MiMo 返回了无法识别的响应。请更新 CodexBar 后重试。";
+"China mainland" = "中国大陆";
+"Singapore" = "新加坡";
+"MiMo is rate limiting requests. Try again later." = "MiMo 正在限制请求频率。请稍后重试。";
+"MiMo request failed. Try refreshing later." = "MiMo 请求失败。请稍后尝试刷新。";
+"Skip cost refresh" = "跳过费用刷新";

@@ -17,9 +17,10 @@ extension StatusItemController {
             ($0.representedObject as? String) == "usageHistorySubmenu"
         }) else { return }
 
+        let movableItems = menu.items.prefix { ($0.representedObject as? String) != "sharedCodexCostScope" }
         let rowIDs = ["menuCardCost", "menuCardStorage"]
         let rowsToMove = rowIDs.compactMap { rowID in
-            menu.items.first { ($0.representedObject as? String) == rowID }
+            movableItems.first { ($0.representedObject as? String) == rowID }
         }
         guard !rowsToMove.isEmpty else { return }
 
@@ -31,17 +32,10 @@ extension StatusItemController {
         for (offset, item) in rowsToMove.enumerated() {
             menu.insertItem(item, at: min(usageHistoryIndex + 1 + offset, menu.items.count))
         }
-        self.collapseAdjacentSeparators(in: menu)
-    }
-
-    private func collapseAdjacentSeparators(in menu: NSMenu) {
-        var index = 1
-        while index < menu.items.count {
-            if menu.items[index - 1].isSeparatorItem, menu.items[index].isSeparatorItem {
-                menu.removeItem(at: index)
-            } else {
-                index += 1
-            }
+        for index in menu.items.indices.dropFirst().reversed()
+            where menu.items[index - 1].isSeparatorItem && menu.items[index].isSeparatorItem
+        {
+            menu.removeItem(at: index)
         }
     }
 }

@@ -2857,3 +2857,11 @@
 "Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program returned an unrecognized response. Update CodexBar and try again.";
 "Google session expired or invalid." = "Google session expired or invalid.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header.";
+
+/* MiMo Token Plan API. */
+"MiMo returned an unrecognized response. Update CodexBar and try again." = "MiMo returned an unrecognized response. Update CodexBar and try again.";
+"China mainland" = "China mainland";
+"Singapore" = "Singapore";
+"MiMo is rate limiting requests. Try again later." = "MiMo is rate limiting requests. Try again later.";
+"MiMo request failed. Try refreshing later." = "MiMo request failed. Try refreshing later.";
+"Skip cost refresh" = "Skip cost refresh";

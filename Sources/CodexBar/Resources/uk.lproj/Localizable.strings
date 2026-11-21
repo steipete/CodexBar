@@ -2853,3 +2853,11 @@
 "Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program повернув невідому відповідь. Оновіть CodexBar і спробуйте знову.";
 "Google session expired or invalid." = "Термін дії сеансу Google минув або сеанс недійсний.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Файли cookie сеансу Google Developer Program не знайдено. Увійдіть на me.developers.google.com/benefits або вставте заголовок Cookie.";
+
+/* MiMo Token Plan API. */
+"MiMo returned an unrecognized response. Update CodexBar and try again." = "MiMo повернув невідому відповідь. Оновіть CodexBar і спробуйте знову.";
+"China mainland" = "Материковий Китай";
+"Singapore" = "Сінгапур";
+"MiMo is rate limiting requests. Try again later." = "MiMo обмежує частоту запитів. Спробуйте пізніше.";
+"MiMo request failed. Try refreshing later." = "Запит до MiMo не виконано. Спробуйте оновити пізніше.";
+"Skip cost refresh" = "Пропустити оновлення вартості";

@@ -129,7 +129,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [Windsurf](docs/windsurf.md) — Browser localStorage session import or local SQLite cache for plan usage.
 - [Zed](docs/zed.md) — Zed editor Keychain session for plan, edit-prediction quota, billing cycle, and overdue invoices.
 - [Perplexity](docs/perplexity.md) — Account usage credits from Perplexity usage data.
-- [Xiaomi MiMo](docs/mimo.md) — Browser cookies for balance and token-plan usage.
+- [Xiaomi MiMo](docs/mimo.md) — Token Plan API keys for quota, or browser cookies for console balance and usage.
 - [Doubao](docs/doubao.md) — API key for Volcengine Ark request-limit probes.
 - [Sakana AI](docs/sakana.md) — Manual Cookie header for 5-hour and weekly quota windows.
 - [Abacus AI](docs/abacus.md) — Browser cookie auth for ChatLLM/RouteLLM compute credit tracking.

@@ -51,7 +51,7 @@ enum CLIServeRoute: Equatable {
     case providerIcon(name: String)
     case health
     case accounts(id: String?)
-    case usage(provider: String?)
+    case usage(provider: String?, allAccounts: Bool = false)
     case cost(provider: String?)
     case dashboardSnapshot(provider: String?, detail: String?)
 }
@@ -86,7 +86,10 @@ enum CLIServeRouter {
             guard !id.isEmpty, !id.contains("/") else { throw CLIServeRouteError.notFound }
             return .accounts(id: id)
         case "/usage":
-            return .usage(provider: normalizedProvider)
+            return .usage(
+                provider: normalizedProvider,
+                allAccounts: ["true", "1", "yes"].contains(
+                    queryItems["allAccounts"]?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""))
         case "/cost":
             return .cost(provider: normalizedProvider)
         case "/dashboard/v1/snapshot":
@@ -893,7 +896,7 @@ extension CodexBarCLI {
             return Self.serveHealthResponse(version: runtime.healthVersion)
         case let .accounts(id):
             return Self.serveAccountsRoute(request, id: id, runtime: runtime)
-        case let .usage(provider):
+        case let .usage(provider, allAccounts):
             // On non-loopback binds every data route requires the bearer token,
             // checked before any cache access so unauthenticated requests can
             // neither warm nor read account data.
@@ -905,6 +908,7 @@ extension CodexBarCLI {
             do {
                 snapshot = try Self.loadServeConfigSnapshot(configStore: runtime.configStore)
                 operationKey = try Self.serveOperationKey(kind: "usage", provider: provider)
+                    + (allAccounts ? ":all-accounts" : "")
             } catch {
                 let status: CLIHTTPStatus = error is CLIServeArgumentError ? .badRequest : .internalServerError
                 return Self.addingNoStore(Self.serveError(status: status, message: error.localizedDescription))
@@ -928,6 +932,7 @@ extension CodexBarCLI {
                             providerTimeout: providerTimeout,
                             providerDeadline: providerDeadline,
                             providerOperations: runtime.providerOperations,
+                            includeAllAccounts: allAccounts,
                             forceRefresh: request.queryItems["refresh"] == "1"))
                 }))
         case let .cost(provider):

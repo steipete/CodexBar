@@ -704,6 +704,16 @@ struct CostUsagePerformanceGateTests {
         #expect(offsets.last == metadata.size)
         #expect(report?.summary?.totalTokens == baseline.summary?.totalTokens)
         #expect(report?.data.map(\.totalTokens) == baseline.data.map(\.totalTokens))
+
+        // A completed oversized file must survive ordinary warm refreshes.
+        for _ in 0..<3 {
+            let warm = Self.report(day: day, now: day, options: options)
+            let cached = try #require(CostUsageStoreAccess.read(
+                cacheRoot: env.cacheRoot, home: env.codexStoreHome).files.values.first)
+            #expect(cached.codexScanComplete == true)
+            #expect(cached.parsedBytes == metadata.size)
+            #expect(warm.summary?.totalTokens == baseline.summary?.totalTokens)
+        }
     }
 
     @Test
@@ -1189,6 +1199,13 @@ struct CostUsagePerformanceGateTests {
         #expect(sawPartialRecord)
         #expect(zip(offsets, offsets.dropFirst()).allSatisfy { $0 < $1 })
         #expect(report?.summary?.totalTokens == baseline.summary?.totalTokens)
+        for _ in 0..<3 {
+            let warm = Self.report(day: day, now: day, options: options)
+            let cached = try #require(CostUsageStoreAccess.read(
+                cacheRoot: env.cacheRoot, home: env.codexStoreHome).files.values.first)
+            #expect(cached.codexScanComplete == true)
+            #expect(warm.summary?.totalTokens == baseline.summary?.totalTokens)
+        }
     }
 
     @Test
