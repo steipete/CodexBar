@@ -8,8 +8,19 @@ read_when:
 
 # Notion AI Provider
 
-The Notion AI provider tracks the **Rolling** (6-hour) and **Monthly** (billing period) usage allowance
-windows that Notion shows in **Settings → Notion AI → Usage**.
+The Notion AI provider tracks three independent credit pools for the selected workspace:
+
+- **Standard**: the current user's monthly credits for everyday Auto usage.
+- **Select**: the current user's monthly credits for selected models and applicable Custom Agent usage.
+- **Notion Credits**: the separate workspace balance reported by the premium-credit endpoint.
+
+When usable Standard/Select allowances are absent, the provider retains the legacy **Rolling** (6-hour)
+and **Monthly** (billing period) windows. Selection depends on the response shape, never a migration date.
+
+Notion Credits appear in explicit **Balance** elements. Legacy menu-bar percentage, pace and reset-time
+modes continue to display the selected allowance, even when workspace credits are available. Standard and
+Select keep their own names in cards, layout lanes and CLI/structured output. Personal credit details
+remain visible when optional usage is disabled; the workspace balance follows the optional-usage preference.
 
 Notion begins enforcing the AI usage allowance on **August 3, 2026**. Before that date the same endpoint
 reports `"enforcement": "preview"` while still returning real usage numbers, so the gauges are accurate
@@ -17,12 +28,12 @@ either way.
 
 > **Unsupported integration:** CodexBar uses Notion's internal, cookie-authenticated `/api/v3` endpoints.
 > These endpoints are not a supported public API and may change or break without notice.
-
 ## Requirements
 
 The usage allowance only exists on **Business** and **Enterprise** workspaces. Free, Plus, and personal
-workspaces make the endpoint answer `{"status":"not_applicable"}`, and CodexBar surfaces that as a clear
-provider error rather than an empty gauge.
+workspaces can answer `{"status":"not_applicable"}` with no usable allowance. CodexBar surfaces that as a
+provider error rather than a fabricated zero. Migrated Business workspaces can also report this legacy
+status alongside resolved personal allowances; those allowances take precedence over the legacy status.
 
 ## Setup
 
@@ -81,14 +92,18 @@ only manual paths are the Settings fields above and `config.json`.
 
 ## Data Source
 
-CodexBar sends two POST requests per refresh, both to `https://app.notion.com`:
+CodexBar sends three POST requests per successful allowance refresh, all to `https://app.notion.com`:
 
 1. `/api/v3/getSpaces` — resolves the signed-in user (email, name) and the workspaces the account can see,
    including each workspace's `plan_type` and `subscription_tier`. This is what makes automatic workspace
    selection and the account identity line possible.
 2. `/api/v3/getCreditRateLimitStatus` with `{"spaceId": "<uuid>"}` — the allowance itself.
+3. `/api/v3/getAIUsageEligibilityV2` with the same `spaceId` and cookie session — an optional premium-credit
+   balance lookup with a three-second request deadline and no retries. HTTP errors (including 401/403),
+   network failures, invalid JSON, and absent or malformed balances omit this section while preserving
+   the allowance snapshot and validated session. Refresh cancellation still propagates.
 
-The rate-limit response looks like this:
+A legacy rate-limit response looks like this:
 
 ```json
 {
@@ -109,6 +124,55 @@ The rate-limit response looks like this:
 
 ## Mapping
 
+### Verified post-migration response
+
+On November 13, 2026, a read-only request using an existing saved session against a Business workspace
+returned the real response saved as
+`Tests/CodexBarTests/Fixtures/Providers/Notion/get-credit-rate-limit-status-migrated.json`.
+The fixture preserves the complete response structure and numeric values; it contains no account or
+workspace identifiers, personal information, cookies, tokens, or request headers. It is captured data,
+not a synthetic allowance contract. The parser is based on this observed response and the matching UI values.
+
+The same workspace's **Settings → Notion AI → Me** explicitly describes two per-seat monthly balances:
+
+| Pool | API entry | API credit usage / limit | Notion UI |
+| --- | --- | --- | --- |
+| Standard | `allowances[]`, `bucketId: "auto"` | `credits.used: 134.66869`, `credits.limit: 1500` | 134 used of 1,500; progress 8.98% |
+| Select | `allowances[]`, `bucketId: "flex"` | `credits.used: 0`, `credits.limit: 500` | 0 used of 500; progress 0% |
+
+Both entries have `cadence: "billing_period"`, `state: "resolved"`, `limit: 100` and a separate
+`credits` object in actual credit units. Their top-level `used` values (8.98 and 0) are percentage-scale
+values; they are not the raw credit counts. The rounded Standard percentage must not be used to
+reconstruct its exact credit usage. No allowance sizes should be hardcoded from this example.
+
+Both entries report `periodStartMs: 1793196000000` and `periodEndMs: 1795874400000`:
+October 28, 2026 at 14:00 UTC through November 28, 2026 at 14:00 UTC. The UI displays
+**Oct 28 – Nov 28, 2026**. These exact boundaries define a 31-day billing period, rather than a
+six-hour rolling window or a week. Only the observed resolved state is established by this capture;
+it does not establish the payloads for other subscription tiers, unresolved states, or missing credit fields.
+
+Crucially, the response's top-level `status` is **`not_applicable`** despite both new allowances being
+resolved. Legacy `window` and `billingPeriodWindow` are absent. The two `standard` entries are
+`not_exposed`, and the old six-hour windows inside `modelSelectionDecisions` are also `not_exposed`.
+Those nested windows do not create visible zero-usage Rolling bars. Each unique resolved `auto`/`flex`
+billing-period entry is handled independently. Unavailable, malformed, duplicate or zero-limit buckets
+are omitted. If neither personal bucket is usable, legacy parsing is retained. A missing credit count
+omits the absolute personal balance while preserving a valid percentage; it never invents a zero.
+
+When valid `credits.used` and `credits.limit` are supplied, the gauge uses their full-precision ratio,
+and the Personal credits section shows their remaining balance and raw usage. Percentage-scale values
+are a fallback for the gauge only. No workspace balance is derived from either personal allowance.
+
+The same session and workspace's separate `getAIUsageEligibilityV2` lookup reported
+`premiumCredits.totalCreditBalance: 300`. The existing **Notion credits** dashboard displayed
+**0 / 300 Notion credits** with **Resets Nov 28**; the personal AI settings displayed **0 credits used**
+under Purchased Notion credits. These are usage displays, not evidence of a zero remaining balance.
+Keep the authoritative balance of 300 separate from both personal balances and do not infer a reset
+date or percentage for that balance from the dashboard. No settings, purchases, AI runs, or Keychain
+operations were performed during validation.
+
+### Legacy mapping
+
 | CodexBar window | Notion field | Notes |
 | --- | --- | --- |
 | Rolling (primary) | `window.used` / `window.limit` | `window.window` (`6h`) sets the window length; `resetsInSeconds` sets the reset time. |
@@ -119,8 +183,32 @@ Usage is reported against the returned `limit` rather than assumed to be a perce
 non-100 limit keeps working. Over-quota values are preserved rather than clamped; display clamping happens
 downstream. The plugin declares `snapshotPolicy: {percent: "preserve-overage"}` to retain this behavior on both engines.
 
-Custom Agents and Workers are **not** covered by this allowance — Notion meters those with Notion credits
-(`getAIUsageEligibilityV2`), which this provider does not read.
+The Notion UI describes Select as covering selected models and Custom Agents, with Notion credits
+used after the included personal pools run out. The separate **Notion Credits** section displays only
+the finite numeric `premiumCredits.totalCreditBalance` as **Remaining credits**.
+An explicit zero remains visible; a missing balance is omitted. `basicCredits`, the top-level `usage` balance,
+and per-source limits are not fallbacks. The [redacted fixture in #2888](https://github.com/steipete/CodexBar/issues/2888)
+reports `monthlyAllocated.usageTotal = 560`, `limit = 300`, and both balance and overage as zero:
+subtracting usage from limit would give the wrong balance.
+
+No premium-credit percentage, reset date, usage total, or overage amount is inferred. Unlike Codex's native
+credits integration, this is a generic text detail section without a progress gauge or usage history.
+It follows the **Show optional credits and extra usage** preference. In **Menu Bar Layout**, add the existing
+**Balance** element to show the reported balance, including zero. Automatic percentages continue to select
+the allowance windows, independently of the credits balance. No new layout token or credential is needed.
+
+### Deadlines
+
+The required `getSpaces` and `getCreditRateLimitStatus` POSTs keep their 15-second HTTP deadlines.
+The optional premium POST keeps its three-second HTTP deadline and does not retry. The Notion strategy
+reserves five seconds above its existing `max(30, webTimeout * 2)` runtime budget: three for the optional
+lookup and two for scheduling and snapshot delivery. A 15-second caller configuration therefore gets
+35 seconds overall; ordinary app and CLI contexts use `webTimeout = 60` and get 125 seconds.
+Other providers retain their existing budgets. Explicit cancellation still interrupts the worker.
+
+The debug probe reports only the available allowances, using Standard/Select or Rolling/Monthly labels.
+It disables optional workspace usage and retains its separate
+15-second outer deadline, so a premium lookup cannot delay that diagnostic.
 
 ### Pace
 
@@ -131,7 +219,11 @@ not report that breakdown. Hiding pace hides the target as well.
 Both bars carry an expected-usage estimate on the card and in `codexbar usage`, reading `n% in deficit`
 when you are ahead of an even burn and `n% in reserve` when behind.
 
-The monthly estimate needs a window length, and Notion reports only `periodEndMs`. The snapshot
+Standard and Select carry the exact duration between the supplied `periodStartMs` and `periodEndMs`.
+Their reset timestamp is preserved exactly. Missing/invalid period boundaries omit pace rather than
+assuming a week or a month. A reported 30-day personal period is an actual duration, not the legacy sentinel.
+
+The legacy monthly estimate needs a window length, and Notion reports only `periodEndMs`. The snapshot
 therefore carries the shared monthly sentinel, which is what makes the provider's
 `ProviderPaceCapability` match; resolution then substitutes the real calendar month ending at the reset
 — not a flat 30 days, which would misstate expected usage in February and in any 31-day cycle.

@@ -85,7 +85,8 @@ extension CostUsageScanner {
                 var targets = replacements[match.path] ?? cache.files[match.path]?.codexRows ?? []
                 let target = targets[match.index]
                 if target.model == row.model, target.knownCostNanos == nil, target.unpricedTokens == nil,
-                   row.knownCostNanos != nil || row.unpricedTokens != nil || row.pricingMode == "priority"
+                   row.knownCostNanos != nil || row.unpricedTokens != nil
+                   || row.pricingMode == "priority" || row.pricingMode == "ultrafast"
                    || (row.pricingModel != nil && row.pricingModel != row.model)
                 {
                     targets[match.index].knownCostNanos = row.knownCostNanos

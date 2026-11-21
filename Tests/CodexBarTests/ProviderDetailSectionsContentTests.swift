@@ -40,6 +40,51 @@ struct ProviderDetailSectionsContentTests {
     }
 
     @Test
+    func `bar hover reports the original day with native compact token units`() throws {
+        for (value, expected) in [(0.0, "0"), (1_334_060, "1.3M"), (2_149_885_865, "2.1B")] {
+            let point = try ProviderDetailSection.Chart.Point(label: "2026-11-15", value: value)
+            #expect(ProviderDetailChartContent.hoverSummary(point: point, unit: "Token")
+                == "2026-11-15: \(expected) Token")
+        }
+        let maximum = try ProviderDetailSection.Chart.Point(label: "Max", value: Double(Int.max))
+        #expect(ProviderDetailChartContent.hoverSummary(point: maximum, unit: "tokens")
+            == "Max: 9223372037B tokens")
+    }
+
+    @Test
+    func `non-token charts preserve their own units and decimal values`() throws {
+        let point = try ProviderDetailSection.Chart.Point(label: "Monday", value: 12.5)
+        let value = point.value.formatted(.number.precision(.fractionLength(0...2)))
+        #expect(ProviderDetailChartContent.hoverSummary(point: point, unit: "credits")
+            == "Monday: \(value) credits")
+        #expect(ProviderDetailChartContent.hoverSummary(point: point, unit: nil) == "Monday: \(value)")
+    }
+
+    @Test
+    func `selected bar details render in a stable height and clear with selection`() throws {
+        let chart = try #require(Self.section(kind: .bars).chart)
+        var selected: String?
+        let selection = Binding(get: { selected }, set: { selected = $0 })
+        let view = ProviderDetailChartContent(chart: chart, color: .blue)
+            .environment(\.menuUsageBarSelection, selection)
+        let hosting = NSHostingView(rootView: view.environment(\.accessibilityEnabled, true))
+        _ = try #require(MenuLayoutScreenshotRenderTests.pngDataWithWindow(hosting: hosting))
+        let initialHeight = hosting.fittingSize.height
+        #expect(MenuLayoutScreenshotRenderTests.accessibilityText(hosting).contains(L("Hover a bar for details")))
+
+        selected = "1"
+        hosting.rootView = view.environment(\.accessibilityEnabled, true)
+        _ = try #require(MenuLayoutScreenshotRenderTests.pngDataWithWindow(hosting: hosting))
+        #expect(MenuLayoutScreenshotRenderTests.accessibilityText(hosting).contains("Tue: 24 tokens"))
+        #expect(hosting.fittingSize.height == initialHeight)
+
+        selected = nil
+        hosting.rootView = view.environment(\.accessibilityEnabled, true)
+        _ = try #require(MenuLayoutScreenshotRenderTests.pngDataWithWindow(hosting: hosting))
+        #expect(MenuLayoutScreenshotRenderTests.accessibilityText(hosting).contains(L("Hover a bar for details")))
+    }
+
+    @Test
     func `privacy redaction preserves detail severity and progress`() throws {
         let row = try ProviderDetailSection.Row(
             label: "Pool user@example.com",

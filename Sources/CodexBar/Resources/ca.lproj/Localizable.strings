@@ -2854,3 +2854,23 @@
 "Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program ha retornat una resposta desconeguda. Actualitza CodexBar i torna-ho a provar.";
 "Google session expired or invalid." = "La sessió de Google ha caducat o no és vàlida.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "No s'han trobat galetes de sessió de Google Developer Program. Inicia sessió a me.developers.google.com/benefits o enganxa una capçalera Cookie.";
+
+"Enterprise" = "Enterprise";
+"Personal credits" = "Crèdits personals";
+"Standard remaining" = "Standard restant";
+"Select remaining" = "Select restant";
+"Remaining credits" = "Crèdits restants";
+"Notion Credits" = "Crèdits de Notion";
+"Notion did not provide usable personal AI allowances for this workspace. Check AI usage for the selected workspace in Notion, then refresh CodexBar again." = "Notion no ha proporcionat quotes personals d'IA utilitzables per a aquest espai de treball. Comprova l'ús d'IA de l'espai seleccionat a Notion i torna a actualitzar CodexBar.";
+"Select" = "Select";
+"TrustedRouter" = "TrustedRouter";
+"Show TrustedRouter usage" = "Mostra l’ús de TrustedRouter";
+"TrustedRouter is rate limiting requests. Try again later." = "TrustedRouter limita la freqüència de les sol·licituds. Torna-ho a provar més tard.";
+"TrustedRouter request failed. Try refreshing later." = "La sol·licitud a TrustedRouter ha fallat. Torna a actualitzar més tard.";
+"TrustedRouter returned an unrecognized response. Update CodexBar and try again." = "TrustedRouter ha retornat una resposta desconeguda. Actualitza CodexBar i torna-ho a provar.";
+"MiMo returned an unrecognized response. Update CodexBar and try again." = "MiMo ha retornat una resposta desconeguda. Actualitza CodexBar i torna-ho a provar.";
+"China mainland" = "Xina continental";
+"Singapore" = "Singapur";
+"MiMo is rate limiting requests. Try again later." = "MiMo limita la freqüència de les sol·licituds. Torna-ho a provar més tard.";
+"MiMo request failed. Try refreshing later." = "La sol·licitud a MiMo ha fallat. Torna a actualitzar més tard.";
+"Skip cost refresh" = "Omet l’actualització dels costos";

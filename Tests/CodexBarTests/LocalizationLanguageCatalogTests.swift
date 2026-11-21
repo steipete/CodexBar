@@ -21,6 +21,7 @@ struct LocalizationLanguageCatalogTests {
         let english = try #require(NSDictionary(contentsOf: resources
                 .appendingPathComponent("en.lproj/Localizable.strings")) as? [String: String])
         let keys = [
+            "Skip cost refresh",
             "%@ accounts",
             "All accounts",
             "By model and reasoning effort",
@@ -674,15 +675,7 @@ struct LocalizationLanguageCatalogTests {
 
     @Test
     func `turkish localization matches English catalog and preserves format placeholders`() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let resourcesURL = root.appendingPathComponent("Sources/CodexBar/Resources")
-        let enURL = resourcesURL.appendingPathComponent("en.lproj/Localizable.strings")
-        let trURL = resourcesURL.appendingPathComponent("tr.lproj/Localizable.strings")
-        let english = try #require(NSDictionary(contentsOf: enURL) as? [String: String])
-        let turkish = try #require(NSDictionary(contentsOf: trURL) as? [String: String])
+        let (english, turkish) = try Self.catalogs(comparing: "tr")
 
         #expect(Set(turkish.keys) == Set(english.keys))
         #expect(turkish["language_turkish"] == "Türkçe")
@@ -716,15 +709,7 @@ struct LocalizationLanguageCatalogTests {
 
     @Test
     func `italian localization matches English catalog and includes current UI labels`() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let resourcesURL = root.appendingPathComponent("Sources/CodexBar/Resources")
-        let enURL = resourcesURL.appendingPathComponent("en.lproj/Localizable.strings")
-        let itURL = resourcesURL.appendingPathComponent("it.lproj/Localizable.strings")
-        let english = try #require(NSDictionary(contentsOf: enURL) as? [String: String])
-        let italian = try #require(NSDictionary(contentsOf: itURL) as? [String: String])
+        let (english, italian) = try Self.catalogs(comparing: "it")
 
         #expect(Set(italian.keys) == Set(english.keys))
         #expect(italian["Individual credits"] == "Crediti individuali")
@@ -758,6 +743,7 @@ struct LocalizationLanguageCatalogTests {
             "Cookie: llama_dev_sess=...",
             "Cookie: …",
             "Cursor",
+            "Enterprise",
             "Flash",
             "Flash Lite",
             "Gateway URL",
@@ -781,11 +767,14 @@ struct LocalizationLanguageCatalogTests {
             "OpenDesign",
             "Output",
             "Pro",
+            "Select",
             "SiliconFlow",
+            "Singapore",
             "SuperGrok OAuth",
             "Token",
             "Trae CN",
             "Tripo",
+            "TrustedRouter",
             "User-Agent",
             "Web",
             "Zed cookie",
@@ -969,6 +958,21 @@ extension LocalizationLanguageCatalogTests {
 
         #expect(rendered.contains("7일간"))
         #expect(rendered.contains("3개 서비스"))
+    }
+
+    private static func catalogs(
+        comparing languageCode: String) throws -> (english: [String: String], localized: [String: String])
+    {
+        let resourcesURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/CodexBar/Resources")
+        let enURL = resourcesURL.appendingPathComponent("en.lproj/Localizable.strings")
+        let localizedURL = resourcesURL.appendingPathComponent("\(languageCode).lproj/Localizable.strings")
+        let english = try #require(NSDictionary(contentsOf: enURL) as? [String: String])
+        let localized = try #require(NSDictionary(contentsOf: localizedURL) as? [String: String])
+        return (english, localized)
     }
 
     private static func withTemporaryDefaults(

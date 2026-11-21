@@ -154,6 +154,8 @@ do not infer required inputs from fetch modes or supported credential types. Dec
 provider-local IDs, supported platforms, required inputs, and localized hints. Optional enrichment belongs in
 `optionalCapabilities`. Declarations contain names only and must never resolve secrets, inspect authentication,
 import browser data, start login, or fetch usage. See [the CLI setup contract](cli.md#configuration).
+Set `presentation.legacyMenuBarShowsBalance` to `false` when legacy percentage, pace and reset-time modes
+must retain their allowance metric. Explicit Balance elements still use the reported balance.
 
 ## Fetch strategies
 

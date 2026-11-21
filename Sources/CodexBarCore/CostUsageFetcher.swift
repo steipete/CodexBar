@@ -549,7 +549,7 @@ public struct CostUsageFetcher: Sendable {
             }
 
             #if os(macOS)
-            // Provider-specific by design: Cursor retries failed web cost queries against local CSV history.
+            // Provider-specific by design: Cursor retries failed web cost queries against local cache history.
             if provider == .cursor {
                 remoteSnapshot = try await self.loadCursorTokenSnapshot(
                     now: now,
@@ -560,7 +560,7 @@ public struct CostUsageFetcher: Sendable {
             }
             #endif
         } catch {
-            // Local CSVs have no account identity and cannot replace an explicitly selected credential.
+            // Local caches cannot establish the identity of an explicitly selected credential.
             if provider != .cursor || cursorCookieHeaderOverride != nil {
                 throw error
             }
@@ -1000,7 +1000,7 @@ public struct CostUsageFetcher: Sendable {
                    let previous = view.previousReport(range: range, rootsFingerprint: rootsFingerprint)
                 {
                     staleSnapshotUpdatedAt = previous.updatedAt
-                    daily = view.mergingSource(into: previous.report, range: range)
+                    daily = view.mergingSource(into: previous.report(in: range), range: range)
                 } else {
                     let reports = view.reports(range: range, cacheRoot: options.scanOptions.cacheRoot, roots: roots)
                     daily = reports.daily
@@ -1494,7 +1494,7 @@ public struct CostUsageFetcher: Sendable {
                    range: range,
                    rootsFingerprint: rootsFingerprint)
             {
-                reports.append(cache.mergingSource(into: previous.report, range: range))
+                reports.append(cache.mergingSource(into: previous.report(in: range), range: range))
                 staleSnapshotUpdatedAt = previous.updatedAt
                 if let updatedAt = previous.updatedAt {
                     scanTimes.append(updatedAt)
@@ -1749,6 +1749,27 @@ public struct CostUsageFetcher: Sendable {
         historyDays: Int,
         calendar: Calendar = .current) async -> CostUsageTokenSnapshot?
     {
+        #if os(macOS)
+        let since = CostReportingPeriod.rolling(days: historyDays).bounds(now: now, calendar: calendar).lowerBound
+        switch CursorLocalJSONReader.load(since: since, until: now, calendar: calendar) {
+        case .absent:
+            break
+        case .unavailable:
+            return nil
+        case let .report(report):
+            guard !report.daily.data.isEmpty || report.meteredCostUSD != nil else { return nil }
+            return Self.tokenSnapshot(
+                from: report.daily,
+                now: now,
+                historyDays: historyDays,
+                calendar: calendar,
+                historyCoverageIsEstablished: report.isComplete,
+                historyScanIsPartial: !report.isComplete,
+                meteredCostUSD: report.meteredCostUSD,
+                costProvenance: Self.cursorCostProvenance(
+                    meteredCostUSD: report.meteredCostUSD, daily: report.daily.data))
+        }
+        #endif
         let allRows = CursorLocalCSVReader.cachedCSVPaths().flatMap { CursorLocalCSVReader.parseFile(at: $0) }
         guard !allRows.isEmpty else { return nil }
         let full = CursorLocalCSVReader.makeDailyReport(from: allRows, calendar: calendar)

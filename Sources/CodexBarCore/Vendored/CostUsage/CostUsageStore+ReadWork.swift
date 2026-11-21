@@ -19,6 +19,7 @@ struct CostUsageStoreReadWorkMetrics: Codable, Equatable, Sendable {
     var bufferedPayloadBytes = 0
     var cacheConversions = 0
     var usageRowDecodeAttempts = 0
+    var fileDetailsDecodeAttempts = 0
     var integrityChecks = 0
     var retryPresenceRows = 0
     var accumulatorRows = 0
@@ -107,6 +108,10 @@ final class CostUsageStoreReadWorkRecorder: @unchecked Sendable {
 
     func recordUsageRowDecodes(count: Int) {
         self.lock.withLock { self.metrics.usageRowDecodeAttempts += count }
+    }
+
+    func recordFileDetailsDecode() {
+        self.lock.withLock { self.metrics.fileDetailsDecodeAttempts += 1 }
     }
 
     func recordIntegrityCheck() {

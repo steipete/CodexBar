@@ -100,8 +100,14 @@ WorkBuddy uses this shared cookie host for its billing-only plugin. Its descript
 version because the website binds sessions to the browser User-Agent; cookie values stay opaque to the script.
 See [WorkBuddy](workbuddy.md) for the request contract, bounded optional reset lookup, and account coverage.
 
+[Xiaomi MiMo](mimo.md) reads Token Plan quota with a dedicated API key on the selected China or Singapore origin.
+The API plugin needs no browser access; the existing console and local sources remain available separately.
+
 [Tripo](tripo.md) reads available and reserved API credits with one fixed-origin bearer request. It keeps credits
 as credits, without inferred quota windows or dollar conversions.
+
+[TrustedRouter](trustedrouter.md) reads the current API key's microdollar limit and spend with one fixed-origin
+bearer request. Remaining is the API's reservation-aware amount, without inferred reset dates.
 
 [abliteration.ai](abliteration.md) uses a fixed-origin bearer request to read prepaid USD credits. It reuses the
 standard API-key field and classified errors, with no browser access or inferred reset schedule.
@@ -452,6 +458,8 @@ Percentages must be finite and are clamped to 0–100. Window minutes are positi
 and a three-letter uppercase currency. Dates are JavaScript `Date` values or ISO-8601 strings. Snapshot identity is
 always scoped to the manifest's instance ID. Data confidence defaults to `unknown`. Details allow at most 8 sections, 24 rows per section, 120 chart points,
 and 120 characters per detail string. Wrong types and limit violations fail the whole fetch instead of truncating it.
+
+Detail bar charts show the hovered point’s label, formatted value, and unit. Units named `token` or `tokens` use the shared compact token formatter.
 
 Standard windows (`primary`, `secondary`, and `tertiary`) may include an optional `title`. Generic menu cards and
 `plugins fetch` text output use it instead of Primary, Secondary, or Tertiary. Titles are trimmed, limited to 256 UTF-8

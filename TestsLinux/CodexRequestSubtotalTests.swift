@@ -484,7 +484,7 @@ struct CodexRequestSubtotalTests {
 
     @Test(arguments: [
         "default", "priority", "synthetic-unknown", "omitted", "null", "missing", "no-record",
-        "after-start-priority", "after-start-default", "after-start-ultrafast", "fresh-priority",
+        "after-start-priority", "after-start-default", "after-start-ultrafast", "fresh-priority", "ultrafast",
     ])
     func `native tiers retain standard priority and unknown evidence`(tier: String) throws {
         let settings = switch tier {
@@ -507,6 +507,18 @@ struct CodexRequestSubtotalTests {
         let expectedMode: String? = ["default", "omitted", "after-start-default"].contains(tier)
             ? "standard" : ["priority", "fresh-priority"].contains(tier) ? "priority" : nil
         #expect(ledger.records.first?.pricingMode == expectedMode)
+    }
+
+    @Test
+    func `schema two keeps native Ultrafast unpriced even with Priority traces`() throws {
+        let ledger = try Self.loadNative([
+            Self.nativeMetadata, Self.nativeSettings("ultrafast"), Self.nativeStart("turn"),
+            Self.nativeRequest(turn: "turn", model: "gpt-6.1-sol"),
+        ], trace: [(Self.end / 1000, CodexPrioritySQLiteTests.Fixture.traceBody(model: "gpt-6.1-sol"))])
+        #expect(ledger.records.first?.pricingMode == nil)
+        let subtotal = try Self.price([ledger])
+        #expect(subtotal.costUSD == nil && subtotal.unpricedRequestCount == 1)
+        #expect(subtotal.totalTokens == 110)
     }
 
     @Test

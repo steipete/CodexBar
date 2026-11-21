@@ -2856,3 +2856,23 @@
 "Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program پاسخی ناشناخته برگرداند. CodexBar را به‌روز کنید و دوباره امتحان کنید.";
 "Google session expired or invalid." = "نشست Google منقضی شده یا نامعتبر است.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "هیچ کوکی نشست Google Developer Program پیدا نشد. در me.developers.google.com/benefits وارد شوید یا یک سرآیند Cookie جای‌گذاری کنید.";
+
+"Enterprise" = "Enterprise";
+"Personal credits" = "اعتبارهای شخصی";
+"Standard remaining" = "Standard باقی‌مانده";
+"Select remaining" = "Select باقی‌مانده";
+"Remaining credits" = "اعتبارهای باقی‌مانده";
+"Notion Credits" = "اعتبارهای Notion";
+"Notion did not provide usable personal AI allowances for this workspace. Check AI usage for the selected workspace in Notion, then refresh CodexBar again." = "Notion سهمیه‌های شخصی هوش مصنوعی قابل استفاده‌ای برای این فضای کاری ارائه نکرد. مصرف هوش مصنوعی فضای کاری انتخاب‌شده را در Notion بررسی کنید، سپس CodexBar را دوباره تازه‌سازی کنید.";
+"Select" = "Select";
+"TrustedRouter" = "TrustedRouter";
+"Show TrustedRouter usage" = "نمایش مصرف TrustedRouter";
+"TrustedRouter is rate limiting requests. Try again later." = "TrustedRouter تعداد درخواست‌ها را محدود کرده است. بعداً دوباره امتحان کنید.";
+"TrustedRouter request failed. Try refreshing later." = "درخواست TrustedRouter ناموفق بود. بعداً دوباره تازه‌سازی کنید.";
+"TrustedRouter returned an unrecognized response. Update CodexBar and try again." = "TrustedRouter پاسخی ناشناخته برگرداند. CodexBar را به‌روز کنید و دوباره امتحان کنید.";
+"MiMo returned an unrecognized response. Update CodexBar and try again." = "MiMo پاسخی ناشناخته برگرداند. CodexBar را به‌روز کنید و دوباره امتحان کنید.";
+"China mainland" = "سرزمین اصلی چین";
+"Singapore" = "سنگاپور";
+"MiMo is rate limiting requests. Try again later." = "MiMo تعداد درخواست‌ها را محدود کرده است. بعداً دوباره امتحان کنید.";
+"MiMo request failed. Try refreshing later." = "درخواست MiMo ناموفق بود. بعداً دوباره تازه‌سازی کنید.";
+"Skip cost refresh" = "رد کردن به‌روزرسانی هزینه";

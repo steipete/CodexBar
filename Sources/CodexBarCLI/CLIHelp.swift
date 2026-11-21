@@ -199,7 +199,7 @@ extension CodexBarCLI {
         CodexBar \(version)
 
         Usage:
-          codexbar dashboard [--pretty] [--timeout <seconds>] [--output <path>]
+          codexbar dashboard [--pretty] [--timeout <seconds>] [--output <path>] [--no-cost]
                              [--identity <redacted|full>]
                              [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>]
                              [-v|--verbose]
@@ -211,6 +211,7 @@ extension CodexBarCLI {
           --identity redacted hides email local parts.
           Stdout contains only the JSON document; diagnostics are written to stderr.
           --timeout accepts 0...86400 seconds and defaults to 30; 0 disables the deadline.
+          --no-cost: \(UsageFormatter.localized("Skip cost refresh")).
           --output atomically writes the snapshot to a file (0644) instead of stdout;
           the parent directory must already exist (it is not created), and nothing is
           printed to stdout on success.

@@ -2853,3 +2853,23 @@
 "Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program вернул неизвестный ответ. Обновите CodexBar и повторите попытку.";
 "Google session expired or invalid." = "Срок действия сеанса Google истёк или сеанс недействителен.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Файлы cookie сеанса Google Developer Program не найдены. Войдите на me.developers.google.com/benefits или вставьте заголовок Cookie.";
+
+"Enterprise" = "Enterprise";
+"Personal credits" = "Личные кредиты";
+"Standard remaining" = "Остаток Standard";
+"Select remaining" = "Остаток Select";
+"Remaining credits" = "Оставшиеся кредиты";
+"Notion Credits" = "Кредиты Notion";
+"Notion did not provide usable personal AI allowances for this workspace. Check AI usage for the selected workspace in Notion, then refresh CodexBar again." = "Notion не предоставил доступные личные лимиты ИИ для этого рабочего пространства. Проверьте использование ИИ для выбранного рабочего пространства в Notion, затем обновите CodexBar ещё раз.";
+"Select" = "Select";
+"TrustedRouter" = "TrustedRouter";
+"Show TrustedRouter usage" = "Показывать использование TrustedRouter";
+"TrustedRouter is rate limiting requests. Try again later." = "TrustedRouter ограничивает частоту запросов. Повторите попытку позже.";
+"TrustedRouter request failed. Try refreshing later." = "Запрос к TrustedRouter не выполнен. Попробуйте обновить позже.";
+"TrustedRouter returned an unrecognized response. Update CodexBar and try again." = "TrustedRouter вернул неизвестный ответ. Обновите CodexBar и повторите попытку.";
+"MiMo returned an unrecognized response. Update CodexBar and try again." = "MiMo вернул неизвестный ответ. Обновите CodexBar и повторите попытку.";
+"China mainland" = "Материковый Китай";
+"Singapore" = "Сингапур";
+"MiMo is rate limiting requests. Try again later." = "MiMo ограничивает частоту запросов. Повторите попытку позже.";
+"MiMo request failed. Try refreshing later." = "Запрос к MiMo не выполнен. Попробуйте обновить позже.";
+"Skip cost refresh" = "Пропустить обновление стоимости";
