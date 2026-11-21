@@ -166,6 +166,8 @@ complete when the available scan window covers fewer days.
 | [Pi](pi.md) | Local Pi/OMP assistant transcripts → token history and API-rate cost estimates (`local`); no subscription quota. |
 <!-- Generated provider additions: Scripts/regenerate-provider-docs.mjs -->
 
+Additional providers, generated from each provider's documentation:
+
 | Provider | Source |
 |---|---|
 | [Langdock](langdock.md) | Selected Edge, Chrome, or Safari profile → personal included session and weekly limits (`web`, macOS). |
