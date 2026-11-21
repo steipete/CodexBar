@@ -155,6 +155,76 @@ struct MenuCardCodexAmbientCostTests {
     }
 
     @Test
+    func `claude swap costs stay shared after complete menu population`() throws {
+        let fixture = Self.makeFixture(seedAmbientCost: false)
+        enableTestProviders([.claude], settings: fixture.settings)
+        fixture.settings.mergeIcons = false
+        fixture.settings.selectedMenuProvider = .claude
+        fixture.settings.costSummaryDisplayStyle = .costSubmenu
+        let now = Date()
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 25, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            updatedAt: now)
+        fixture.store._setSnapshotForTesting(snapshot, provider: .claude)
+        fixture.store._setTokenSnapshotForTesting(
+            CostUsageTokenSnapshot(
+                sessionTokens: 123,
+                sessionCostUSD: 0.12,
+                last30DaysTokens: 456,
+                last30DaysCostUSD: 1.23,
+                daily: [],
+                updatedAt: now),
+            provider: .claude)
+        fixture.store.planUtilizationHistoryLoaded = true
+        fixture.store.planUtilizationHistory[.claude] = PlanUtilizationHistoryBuckets(unscoped: [
+            PlanUtilizationSeriesHistory(name: .session, windowMinutes: 300, entries: [
+                .init(capturedAt: now, usedPercent: 25, resetsAt: now.addingTimeInterval(3600)),
+            ]),
+        ])
+        let controller = StatusItemController(
+            store: fixture.store,
+            settings: fixture.settings,
+            account: AccountInfo(email: nil, plan: nil),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            menuCardRenderingEnabled: false,
+            menuRefreshEnabled: false)
+        defer { controller.releaseStatusItemsForTesting() }
+        // Segmented, stacked, and compact accounts all share this final population pass.
+        for (layout, count) in [(MultiAccountMenuLayout.segmented, 2), (.stacked, 2), (.stacked, 5)] {
+            fixture.settings.multiAccountMenuLayout = layout
+            fixture.store.claudeSwapAccountSnapshots = (1...count).map { slot in
+                ProviderAccountUsageSnapshot(
+                    id: ProviderAccountIdentity(source: "claude-swap", opaqueID: String(slot)),
+                    provider: .claude,
+                    displayLabel: "account\(slot)@example.com",
+                    isActive: slot == 1,
+                    canActivate: slot != 1,
+                    snapshot: snapshot,
+                    error: nil,
+                    sourceLabel: "claude-swap")
+            }
+            for account in fixture.store.claudeSwapAccountSnapshots {
+                let model = fixture.store.menuCardModel(
+                    for: .claude,
+                    context: ClaudeSwapAccountMenuDisplay.cardContext(
+                        for: account, planLabel: nil, adapterError: nil, switchError: nil))
+                #expect(model.tokenUsage == nil)
+                #expect(model.inlineUsageDashboard == nil)
+                #expect(model.email == account.displayLabel)
+            }
+            let menu = controller.makeMenu(for: .claude)
+            controller.populateMenu(menu, provider: .claude)
+            let ids = menu.items.compactMap { $0.representedObject as? String }
+            #expect(ids.filter { $0 == "menuCardCost" }.count == 1)
+            let heading = try #require(ids.firstIndex(of: "sharedCodexCostScope"))
+            #expect(ids[heading + 1] == "menuCardCost")
+            #expect(ids.contains("usageHistorySubmenu"))
+        }
+    }
+
+    @Test
     func `managed account history is not promoted to shared spend`() {
         let fixture = Self.makeFixture(seedAmbientCost: false)
         fixture.settings.codexLocalSessionCostLedgerEnabled = false
