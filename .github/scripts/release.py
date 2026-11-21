@@ -26,9 +26,10 @@ def api(path, method=None, **fields):
     args = ['gh', 'api', path]
     if method:
         args += ['--method', method]
-    for key, value in fields.items():
-        args += ['-f', f'{key}={value}']
-    return json.loads(run(*args))
+    if not fields:
+        return json.loads(run(*args))
+    # Bodies go on stdin: the base64 appcast outgrew Linux's 128 KiB per-argument limit in v0.85.0.
+    return json.loads(run(*args, '--input', '-', input=json.dumps(fields)))
 
 
 def deployment_targets(load_commands):

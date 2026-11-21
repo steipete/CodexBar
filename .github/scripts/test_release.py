@@ -238,6 +238,19 @@ Load command 11
         with patch.object(release, 'api', return_value={'workflow_runs': [old]}):
             self.assertEqual(release.require_ci(sha), 1)
 
+    def test_api_sends_request_fields_as_json_on_stdin(self):
+        content = 'A' * 200_000
+        with patch.object(release, 'run', return_value='{}') as run:
+            release.api('repos/o/r/contents/appcast.xml', method='PUT', content=content, sha='abc')
+        args, kwargs = run.call_args
+        self.assertEqual(args, ('gh', 'api', 'repos/o/r/contents/appcast.xml', '--method', 'PUT', '--input', '-'))
+        self.assertEqual(release.json.loads(kwargs['input']), {'content': content, 'sha': 'abc'})
+
+    def test_api_without_fields_sends_no_body(self):
+        with patch.object(release, 'run', return_value='{}') as run:
+            release.api('repos/o/r/branches/main')
+        run.assert_called_once_with('gh', 'api', 'repos/o/r/branches/main')
+
     def test_checksum_covers_every_asset_but_itself(self):
         (self.root / 'app.zip').write_bytes(b'app')
         (self.root / 'SHA256SUMS').write_text('old')
