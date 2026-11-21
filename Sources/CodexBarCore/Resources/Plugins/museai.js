@@ -36,7 +36,7 @@ defineProvider({
         },
       });
     const chunkPaths = (text) => [
-      ...new Set((text.match(/static\/chunks\/[\w~.-]+\.js/g) ?? []).map((p) => `/_next/${p}`)),
+      ...new Set((text.match(/static\/(?:immutable\/)?chunks\/[\w~.-]+\.js/g) ?? []).map((p) => `/_next/${p}`)),
     ];
     const fetchChunks = (paths) =>
       Promise.all(

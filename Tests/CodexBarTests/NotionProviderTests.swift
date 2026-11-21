@@ -83,4 +83,49 @@ struct NotionProviderTests {
 
         #expect(!descriptor.pace.usesInferredMonthlyDuration(window: rolling))
     }
+
+    @Test
+    func `personal pools use reported durations and never acquire a session or inferred month`() {
+        let descriptor = NotionProviderDescriptor.descriptor
+        for title in ["Standard", "Select"] {
+            let window = RateWindow(
+                usedPercent: 20,
+                windowMinutes: 43200,
+                resetsAt: Self.now.addingTimeInterval(86400),
+                resetDescription: nil,
+                title: title)
+            #expect(!descriptor.pace.usesInferredMonthlyDuration(window: window))
+            #expect(descriptor.pace.resolvedResetWindowForPace(window) == window)
+            #expect(descriptor.pace.resolvedKind(slot: .primary, window: window, now: Self.now) == .weekly)
+            #expect(!descriptor.pace.supportsSessionPace(window: window, now: Self.now))
+            let unknown = RateWindow(
+                usedPercent: 20,
+                windowMinutes: nil,
+                resetsAt: window.resetsAt,
+                resetDescription: nil,
+                title: title)
+            #expect(descriptor.pace.resolvedKind(slot: .primary, window: unknown, now: Self.now) == nil)
+        }
+    }
+
+    @Test
+    func `a single Select pool remains monthly and is available to semantic and icon selection`() {
+        let select = RateWindow(
+            usedPercent: 0,
+            windowMinutes: 44640,
+            resetsAt: Self.now.addingTimeInterval(86400),
+            resetDescription: nil,
+            title: "Select")
+        let snapshot = UsageSnapshot(primary: nil, secondary: select, updatedAt: Self.now)
+        let presentation = NotionProviderDescriptor.descriptor.presentation
+        #expect(presentation.semanticWindows(snapshot: snapshot).session == nil)
+        #expect(presentation.semanticWindows(snapshot: snapshot).weekly == select)
+        let icons = presentation.iconWindows(context: .init(
+            snapshot: snapshot, secondaryOverrideWindowID: nil, now: Self.now))
+        #expect(icons.primary == select)
+        #expect(icons.secondary == nil)
+        let labels = presentation.rateWindowLabels(
+            metadata: NotionProviderDescriptor.descriptor.metadata, snapshot: snapshot)
+        #expect(labels.secondary == "Select")
+    }
 }

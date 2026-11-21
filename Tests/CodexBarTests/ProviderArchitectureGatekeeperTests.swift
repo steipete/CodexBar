@@ -156,9 +156,9 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        // Tripo and Google Developer Program extend the audited palette without changing existing provider colors.
-        #expect(widgetFingerprint == 14_281_859_890_132_692_949)
-        #expect(burnDownFingerprint == 4_767_200_688_375_901_465)
+        // TrustedRouter extends the audited palette without changing existing provider colors.
+        #expect(widgetFingerprint == 1_688_303_607_022_776_362)
+        #expect(burnDownFingerprint == 7_370_152_328_349_125_313)
     }
 
     @Test
@@ -204,7 +204,7 @@ struct ProviderArchitectureGatekeeperTests {
             .perplexity,
             .warp, .kilo, .mistral, .deepseek, .deepinfra, .qoder, .chutes, .longcat, .litellm, .bifrost, .manus,
             .mimo, .neuralwatt, .abacus, .v0, .llmman, .aixy, .raycast, .workbuddy, .claudeplatform, .abliteration,
-            .googledeveloper,
+            .googledeveloper, .trustedrouter,
         ])
         #if os(macOS)
         // Antigravity and Muse use bounded local usage readers.
@@ -1806,11 +1806,10 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared renderer maps provider-owned presentation data into the generic UI model."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/Menu/MenuCardView+ProviderDetailLocalization.swift",
-            anchor: "guard provider == .deepseek || provider == .zai || provider == .kiro || " +
-                "provider == .grok || provider == .kimi",
-            expectedProviderIDs: ["deepseek", "grok", "kimi", "kiro", "zai"],
-            expectedReferenceCount: 5,
-            expectedReferenceFingerprint: ["deepseek@0", "grok@0", "kimi@0", "kiro@0", "zai@0"],
+            anchor: "guard provider == .deepseek || provider == .zai || provider == .kiro ||",
+            expectedProviderIDs: ["deepseek", "grok", "kimi", "kiro", "notion", "zai"],
+            expectedReferenceCount: 6,
+            expectedReferenceFingerprint: ["deepseek@0", "kiro@0", "zai@0", "grok@1", "kimi@1", "notion@1"],
             reason: "This exact shared renderer maps provider-owned presentation data into the generic UI model."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/Menu/MenuCardView+ProviderDetailLocalization.swift",
@@ -1822,9 +1821,9 @@ struct ProviderArchitectureGatekeeperTests {
         AllowedProviderConstruct(
             path: "Sources/CodexBar/Menu/MenuCardView+ProviderDetailLocalization.swift",
             anchor: "case .deepseek:",
-            expectedProviderIDs: ["deepseek", "grok", "kimi", "kiro", "zai"],
-            expectedReferenceCount: 5,
-            expectedReferenceFingerprint: ["deepseek@0", "zai@2", "kiro@4", "grok@6", "kimi@8"],
+            expectedProviderIDs: ["deepseek", "grok", "kimi", "kiro", "notion", "zai"],
+            expectedReferenceCount: 6,
+            expectedReferenceFingerprint: ["deepseek@0", "zai@2", "kiro@4", "grok@6", "notion@8", "kimi@10"],
             reason: "This exact shared renderer maps provider-owned presentation data into the generic UI model."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/Menu/MenuCardView.swift",
@@ -2333,8 +2332,8 @@ struct ProviderArchitectureGatekeeperTests {
                 "devpass@2",
                 "opencodego@2",
                 "mistral@3",
-                "kiro@9",
-                "cursor@17",
+                "kiro@13",
+                "cursor@21",
             ],
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(

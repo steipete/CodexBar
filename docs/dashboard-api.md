@@ -99,6 +99,10 @@ The flag is startup-only, with separate response-cache keys and provider-operati
 keep their existing identity policy. `/usage` retains its existing Codex enumeration; `/cost`, authentication and
 transport behavior are unchanged. No account creation, selection or credential-storage policy is added.
 
+For the raw `/usage` endpoint, `allAccounts=true` requests all configured token accounts without changing the active account. `1` and `yes` are also accepted, case-insensitively. Its single-account and all-account responses have separate cache keys. This query is independent of the dashboard startup flag above; requests without it keep their existing selection.
+
+An explicit raw all-account request uses configured Claude token accounts even when Claude-swap supplies the dashboard's account rows. The two collection modes do not share in-flight provider results; dashboard snapshots retain their existing Claude-swap behavior.
+
 ## Configuring the token
 
 ```bash

@@ -2844,3 +2844,23 @@
 "Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program 返回了无法识别的响应。请更新 CodexBar 后重试。";
 "Google session expired or invalid." = "Google 会话已过期或无效。";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "未找到 Google Developer Program 会话 Cookie。请在 me.developers.google.com/benefits 登录或粘贴 Cookie 请求头。";
+
+"Enterprise" = "Enterprise";
+"Personal credits" = "个人额度";
+"Standard remaining" = "Standard 剩余额度";
+"Select remaining" = "Select 剩余额度";
+"Remaining credits" = "剩余额度";
+"Notion Credits" = "Notion 额度";
+"Notion did not provide usable personal AI allowances for this workspace. Check AI usage for the selected workspace in Notion, then refresh CodexBar again." = "Notion 未提供此工作区可用的个人 AI 额度。请在 Notion 中检查所选工作区的 AI 用量，然后重新刷新 CodexBar。";
+"Select" = "Select";
+"TrustedRouter" = "TrustedRouter";
+"Show TrustedRouter usage" = "显示 TrustedRouter 用量";
+"TrustedRouter is rate limiting requests. Try again later." = "TrustedRouter 正在限制请求频率。请稍后重试。";
+"TrustedRouter request failed. Try refreshing later." = "TrustedRouter 请求失败。请稍后尝试刷新。";
+"TrustedRouter returned an unrecognized response. Update CodexBar and try again." = "TrustedRouter 返回了无法识别的响应。请更新 CodexBar 后重试。";
+"MiMo returned an unrecognized response. Update CodexBar and try again." = "MiMo 返回了无法识别的响应。请更新 CodexBar 后重试。";
+"China mainland" = "中国大陆";
+"Singapore" = "新加坡";
+"MiMo is rate limiting requests. Try again later." = "MiMo 正在限制请求频率。请稍后重试。";
+"MiMo request failed. Try refreshing later." = "MiMo 请求失败。请稍后尝试刷新。";
+"Skip cost refresh" = "跳过费用刷新";
