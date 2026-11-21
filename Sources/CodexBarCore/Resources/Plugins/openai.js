@@ -6,6 +6,7 @@ defineProvider({
   settings: [
     { key: "OPENAI_API_KEY", title: "API key", type: "secure" },
     { key: "OPENAI_PROJECT_ID", title: "Project ID", type: "plain" },
+    { key: "OPENAI_ORGANIZATION_ID", title: "Organization ID", type: "plain" },
     { key: "OPENAI_LIVE_MINUTES", title: "Tokens per minute", type: "plain" },
     { key: "OPENAI_HISTORY_DAYS", title: "History days", type: "plain" },
     { key: "OPENAI_ALLOW_BALANCE_FALLBACK", title: "Balance fallback", type: "plain" },
@@ -346,7 +347,10 @@ defineProvider({
     } catch (usageError) {
       if (ctx.settings.get("OPENAI_ALLOW_BALANCE_FALLBACK") !== "1") throw usageError;
       try {
-        const response = await ctx.http.get("https://api.openai.com/v1/dashboard/billing/credit_grants");
+        const organizationID = ctx.settings.get("OPENAI_ORGANIZATION_ID");
+        const response = await ctx.http.get("https://api.openai.com/v1/dashboard/billing/credit_grants", {
+          headers: organizationID ? { "OpenAI-Organization": organizationID } : {},
+        });
         if (response.status === 401)
           fail(
             "authentication-expired",
@@ -399,7 +403,13 @@ defineProvider({
           resetDescription: `${usd(available)} available`,
         };
         if (resetsAt) primary.resetsAt = resetsAt;
-        const cost = { used: Math.max(0, used), limit: Math.max(0, granted), currency: "USD", period: "API credits" };
+        const cost = {
+          used: Math.max(0, used),
+          limit: Math.max(0, granted),
+          balance: available,
+          currency: "USD",
+          period: "API credits",
+        };
         if (resetsAt) cost.resetsAt = resetsAt;
         return {
           usage: { primary, cost, identity: { loginMethod: `API balance: ${usd(available)}` } },

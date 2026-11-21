@@ -269,7 +269,14 @@ struct CostUsageCodexSessionTierTests {
         #expect(try abs(#require(migrated.summary?.totalCostUSD) - 0.00592) < 1e-12)
     }
 
-    private static func cost(serviceTier: String, usageKind: String) throws -> Double {
+    @Test
+    func `reported Ultrafast session tier uses the published sixfold rate`() throws {
+        let standard = try Self.cost(serviceTier: "default", usageKind: "ledger", model: "gpt-6.1-sol")
+        let ultrafast = try Self.cost(serviceTier: "ultrafast", usageKind: "ledger", model: "gpt-6.1-sol")
+        #expect(abs(ultrafast - standard * 6) < 1e-9)
+    }
+
+    private static func cost(serviceTier: String, usageKind: String, model: String = "gpt-5.4") throws -> Double {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
         let day = try env.makeLocalNoon(year: 2026, month: 9, day: 10)
@@ -279,10 +286,10 @@ struct CostUsageCodexSessionTierTests {
             ["type": "event_msg", "timestamp": timestamp, "payload": [
                 "type": "thread_settings_applied",
                 "thread_id": "tier-\(serviceTier)",
-                "thread_settings": ["model": "gpt-5.4", "service_tier": serviceTier],
+                "thread_settings": ["model": model, "service_tier": serviceTier],
             ]],
             ["type": "event_msg", "timestamp": timestamp, "payload": ["type": "task_started", "turn_id": "tier-turn"]],
-            ["type": "turn_context", "timestamp": timestamp, "payload": ["model": "gpt-5.4", "turn_id": "tier-turn"]],
+            ["type": "turn_context", "timestamp": timestamp, "payload": ["model": model, "turn_id": "tier-turn"]],
             ["type": "event_msg", "timestamp": timestamp, "payload": [
                 "type": "token_count", "turn_id": "tier-turn",
                 "info": ["last_token_usage": [
@@ -296,10 +303,10 @@ struct CostUsageCodexSessionTierTests {
         if usageKind == "ledger" {
             records[records.count - 1] = ["type": "token_usage_record", "timestamp": timestamp, "payload": [
                 "thread_id": "tier-\(serviceTier)", "response_id": "synthetic-response", "turn_id": "tier-turn",
-                "model": "gpt-5.4", "usage": usage, "thread_token_usage": usage,
+                "model": model, "usage": usage, "thread_token_usage": usage,
             ]]
         } else if usageKind == "bare" {
-            records[records.count - 1] = ["timestamp": timestamp, "model": "gpt-5.4", "usage": usage]
+            records[records.count - 1] = ["timestamp": timestamp, "model": model, "usage": usage]
         }
         _ = try env.writeCodexSessionFile(day: day, filename: "tier.jsonl", contents: env.jsonl(records))
         var options = CostUsageScanner.Options(

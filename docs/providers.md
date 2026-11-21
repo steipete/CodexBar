@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 114 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 115 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -123,7 +123,7 @@ complete when the available scan window covers fewer days.
 | Synthetic | API key from config/env → quota API (`api`). |
 | OpenRouter | API token (config, overrides env) → key quota and credits APIs; a management key enables account Activity on the official API (`api`). |
 | Perplexity | Browser cookies/manual cookie/env session token → credits API (`web`). |
-| Xiaomi MiMo | Browser cookies → balance/token plan endpoints (`web`). |
+| Xiaomi MiMo | Token Plan API key (`api`), or browser cookies → balance/token plan endpoints (`web`). |
 | Doubao | API key from config/env → Volcengine Ark chat-completions probe (`api`). |
 | Sakana AI | Manual Cookie header → billing page parser for 5-hour/weekly quota windows plus a best-effort pay-as-you-go credit balance (`web`). |
 | Abacus AI | Browser cookies → compute points + billing API (`web`). |
@@ -166,6 +166,8 @@ complete when the available scan window covers fewer days.
 | [Pi](pi.md) | Local Pi/OMP assistant transcripts → token history and API-rate cost estimates (`local`); no subscription quota. |
 <!-- Generated provider additions: Scripts/regenerate-provider-docs.mjs -->
 
+Additional providers, generated from each provider's documentation:
+
 | Provider | Source |
 |---|---|
 | [Langdock](langdock.md) | Selected Edge, Chrome, or Safari profile → personal included session and weekly limits (`web`, macOS). |
@@ -194,6 +196,7 @@ complete when the available scan window covers fewer days.
 | [SiliconFlow](siliconflow.md) | API key in Auto/API; explicit Web for the China (CNY) console balance. International API balances use USD. |
 | [Tripo](tripo.md) | API key for available and reserved account credits from the official account balance endpoint. |
 | [Google Developer Program](googledeveloper.md) | Browser or manual me.developers.google.com session cookies for the current monthly Gen AI & Cloud credit of Google AI Pro and Ultra. |
+| [TrustedRouter](trustedrouter.md) | API key for the key's remaining limit and daily, weekly, monthly, and total spend. |
 
 <!-- End generated provider additions -->
 
@@ -522,6 +525,7 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 - Details: `docs/perplexity.md`.
 
 ## Xiaomi MiMo
+- Dedicated Token Plan API keys read quota from the selected mainland China or Singapore endpoint on macOS and Linux.
 - Browser cookies from automatic import or manual `Cookie:` header for `platform.xiaomimimo.com` balance and token-plan endpoints.
 - Optional testing override via `MIMO_API_URL`; overrides must be HTTPS or bare hosts normalized to HTTPS, and invalid
   overrides fail closed instead of falling back to local MiMo usage accounting.

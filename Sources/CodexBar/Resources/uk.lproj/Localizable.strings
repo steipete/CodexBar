@@ -2853,3 +2853,23 @@
 "Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program повернув невідому відповідь. Оновіть CodexBar і спробуйте знову.";
 "Google session expired or invalid." = "Термін дії сеансу Google минув або сеанс недійсний.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Файли cookie сеансу Google Developer Program не знайдено. Увійдіть на me.developers.google.com/benefits або вставте заголовок Cookie.";
+
+"Enterprise" = "Enterprise";
+"Personal credits" = "Особисті кредити";
+"Standard remaining" = "Залишок Standard";
+"Select remaining" = "Залишок Select";
+"Remaining credits" = "Залишок кредитів";
+"Notion Credits" = "Кредити Notion";
+"Notion did not provide usable personal AI allowances for this workspace. Check AI usage for the selected workspace in Notion, then refresh CodexBar again." = "Notion не надав доступних особистих лімітів ШІ для цього робочого простору. Перевірте використання ШІ для вибраного робочого простору в Notion, а потім знову оновіть CodexBar.";
+"Select" = "Select";
+"TrustedRouter" = "TrustedRouter";
+"Show TrustedRouter usage" = "Показувати використання TrustedRouter";
+"TrustedRouter is rate limiting requests. Try again later." = "TrustedRouter обмежує частоту запитів. Спробуйте пізніше.";
+"TrustedRouter request failed. Try refreshing later." = "Запит до TrustedRouter не виконано. Спробуйте оновити пізніше.";
+"TrustedRouter returned an unrecognized response. Update CodexBar and try again." = "TrustedRouter повернув невідому відповідь. Оновіть CodexBar і спробуйте знову.";
+"MiMo returned an unrecognized response. Update CodexBar and try again." = "MiMo повернув невідому відповідь. Оновіть CodexBar і спробуйте знову.";
+"China mainland" = "Материковий Китай";
+"Singapore" = "Сінгапур";
+"MiMo is rate limiting requests. Try again later." = "MiMo обмежує частоту запитів. Спробуйте пізніше.";
+"MiMo request failed. Try refreshing later." = "Запит до MiMo не виконано. Спробуйте оновити пізніше.";
+"Skip cost refresh" = "Пропустити оновлення вартості";

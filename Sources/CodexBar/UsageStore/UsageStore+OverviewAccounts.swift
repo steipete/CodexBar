@@ -57,17 +57,7 @@ extension UsageStore {
         inspectedAccountID: ProviderAccountIdentity?) -> [MergedOverviewRow]
     {
         let allAccounts = self.settings.mergedOverviewAllAccounts
-        if ClaudeSwapMenuPrecedence.prefersClaudeSwap(
-            provider: provider,
-            accountCount: self.claudeSwapAccountSnapshots.count,
-            showSingleAccount: self.settings.claudeSwapShowSingleAccount)
-        {
-            let display = ClaudeSwapAccountMenuDisplay(
-                accounts: self.claudeSwapAccountSnapshots,
-                layout: self.settings.multiAccountMenuLayout,
-                switchingAccountID: self.claudeSwapTransientState.switchingAccountID,
-                errorAccountID: self.claudeSwapTransientState.lastErrorAccountID,
-                inspectedAccountID: inspectedAccountID)
+        if let display = self.claudeSwapMenuDisplay(for: provider, inspectedAccountID: inspectedAccountID) {
             let accounts = allAccounts ? display.accounts : display.displayedAccount.map { [$0] } ?? []
             return accounts.map { account in
                 // Provider-specific by design: claude-swap and tcr expose the same Claude account projection.

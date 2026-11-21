@@ -2852,3 +2852,23 @@
 "Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program から認識できない応答が返されました。CodexBar を更新して、もう一度お試しください。";
 "Google session expired or invalid." = "Googleのセッションが期限切れか無効です。";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Google Developer ProgramのセッションCookieが見つかりません。me.developers.google.com/benefits にサインインするか、Cookieヘッダーを貼り付けてください。";
+
+"Enterprise" = "Enterprise";
+"Personal credits" = "個人クレジット";
+"Standard remaining" = "Standard 残量";
+"Select remaining" = "Select 残量";
+"Remaining credits" = "残りのクレジット";
+"Notion Credits" = "Notion クレジット";
+"Notion did not provide usable personal AI allowances for this workspace. Check AI usage for the selected workspace in Notion, then refresh CodexBar again." = "Notion はこのワークスペースで利用できる個人 AI 利用枠を返しませんでした。Notion で選択したワークスペースの AI 使用量を確認してから、CodexBar を再度更新してください。";
+"Select" = "Select";
+"TrustedRouter" = "TrustedRouter";
+"Show TrustedRouter usage" = "TrustedRouter の使用状況を表示";
+"TrustedRouter is rate limiting requests. Try again later." = "TrustedRouter がリクエストの頻度を制限しています。後でもう一度お試しください。";
+"TrustedRouter request failed. Try refreshing later." = "TrustedRouter へのリクエストに失敗しました。後でもう一度更新してください。";
+"TrustedRouter returned an unrecognized response. Update CodexBar and try again." = "TrustedRouter から認識できない応答が返されました。CodexBar を更新して、もう一度お試しください。";
+"MiMo returned an unrecognized response. Update CodexBar and try again." = "MiMo から認識できない応答が返されました。CodexBar を更新して、もう一度お試しください。";
+"China mainland" = "中国本土";
+"Singapore" = "シンガポール";
+"MiMo is rate limiting requests. Try again later." = "MiMo がリクエストの頻度を制限しています。後でもう一度お試しください。";
+"MiMo request failed. Try refreshing later." = "MiMo へのリクエストに失敗しました。後でもう一度更新してください。";
+"Skip cost refresh" = "コストの更新をスキップ";

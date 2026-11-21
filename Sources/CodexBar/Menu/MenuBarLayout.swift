@@ -743,6 +743,17 @@ enum MenuBarLayoutSemanticWindowResolver {
 }
 
 enum MenuBarLayoutBalanceResolver {
+    static func legacyBalance(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot?,
+        showsOptionalCredits: Bool = true) -> String?
+    {
+        guard ProviderDescriptorRegistry.descriptor(for: provider).presentation.legacyMenuBarShowsBalance else {
+            return nil
+        }
+        return self.balance(provider: provider, snapshot: snapshot, showsOptionalCredits: showsOptionalCredits)
+    }
+
     static func balance(
         provider: UsageProvider,
         snapshot: UsageSnapshot?,
@@ -790,8 +801,15 @@ enum MenuBarLayoutBalanceResolver {
             if let prepaid, let balance = prepaid.balance {
                 return UsageFormatter.currencyString(balance, currencyCode: prepaid.currencyCode)
             }
+            let policy = descriptor.presentation.optionalDetails
+            let details = (snapshot?.details ?? []).filter { section in
+                showsOptionalCredits || (!policy.hidesAllWithoutOptionalUsage
+                    && section.title.map(policy.hiddenTitlesWithoutOptionalUsage.contains) != true)
+            }
             if self.ownsSnapshot(provider: provider, snapshot: snapshot),
-               let balance = labels.lazy.compactMap({ snapshot?.detailRow(label: $0)?.value }).first
+               let balance = labels.lazy.compactMap({ label in
+                   details.lazy.flatMap(\.rows).first { $0.label == label }?.value
+               }).first
             { return balance }
             guard descriptor.presentation.menuBarBalanceDetailLabels == nil else { return nil }
             guard descriptor.presentation.planRow.stripsBalancePrefix else { return nil }

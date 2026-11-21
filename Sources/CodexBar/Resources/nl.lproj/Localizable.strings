@@ -2849,3 +2849,23 @@
 "Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program heeft een onbekend antwoord teruggegeven. Werk CodexBar bij en probeer het opnieuw.";
 "Google session expired or invalid." = "De Google-sessie is verlopen of ongeldig.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Geen Google Developer Program-sessiecookies gevonden. Meld je aan op me.developers.google.com/benefits of plak een Cookie-header.";
+
+"Enterprise" = "Enterprise";
+"Personal credits" = "Persoonlijke credits";
+"Standard remaining" = "Standard resterend";
+"Select remaining" = "Select resterend";
+"Remaining credits" = "Resterende credits";
+"Notion Credits" = "Notion-credits";
+"Notion did not provide usable personal AI allowances for this workspace. Check AI usage for the selected workspace in Notion, then refresh CodexBar again." = "Notion heeft geen bruikbare persoonlijke AI-quota voor deze werkruimte geleverd. Controleer het AI-gebruik van de geselecteerde werkruimte in Notion en vernieuw CodexBar opnieuw.";
+"Select" = "Select";
+"TrustedRouter" = "TrustedRouter";
+"Show TrustedRouter usage" = "TrustedRouter-gebruik tonen";
+"TrustedRouter is rate limiting requests. Try again later." = "TrustedRouter beperkt het aantal verzoeken. Probeer het later opnieuw.";
+"TrustedRouter request failed. Try refreshing later." = "Het TrustedRouter-verzoek is mislukt. Probeer later opnieuw te vernieuwen.";
+"TrustedRouter returned an unrecognized response. Update CodexBar and try again." = "TrustedRouter heeft een onbekend antwoord teruggegeven. Werk CodexBar bij en probeer het opnieuw.";
+"MiMo returned an unrecognized response. Update CodexBar and try again." = "MiMo heeft een onbekend antwoord teruggegeven. Werk CodexBar bij en probeer het opnieuw.";
+"China mainland" = "Vasteland van China";
+"Singapore" = "Singapore";
+"MiMo is rate limiting requests. Try again later." = "MiMo beperkt het aantal verzoeken. Probeer het later opnieuw.";
+"MiMo request failed. Try refreshing later." = "Het MiMo-verzoek is mislukt. Probeer later opnieuw te vernieuwen.";
+"Skip cost refresh" = "Vernieuwen van kosten overslaan";

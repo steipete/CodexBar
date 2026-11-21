@@ -345,6 +345,8 @@ provider-toggle actions under test on the production setter; the fixture helper 
 
 ### Cost scanner CPU regressions
 
+Native cache loads decode each file's saved details once, at cache conversion, rather than decoding its request ledger again just to admit usage rows. The read-work counter guards this per-file decode count. Malformed details still exclude the file from the restored cache, and persisted row counts remain intact. Storage-only changes do not alter the parser hash or invalidate existing accounting.
+
 Cost marker searches compare exact UTF-8 bytes with bounded libc `memchr` and `memcmp` calls.
 Both buffers remain borrowed during the search, and candidate starts stop at the last position
 where the complete needle fits. Empty needles retain Foundation's `Data.range(of:)` behavior.
