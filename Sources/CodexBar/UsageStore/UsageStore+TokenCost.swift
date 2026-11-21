@@ -11,6 +11,7 @@ struct CurrentProviderConfigTokenPublication: Sendable, Equatable {
     let snapshot: CostUsageTokenSnapshot?
     let publicationRevision: UInt64
     let accounting: PiSnapshotAccounting?
+    var isUnavailable = false
 }
 
 struct TokenSnapshotPublication: Sendable, Equatable {
@@ -19,6 +20,7 @@ struct TokenSnapshotPublication: Sendable, Equatable {
     let providerConfigRevision: UInt64
     let scopeSignature: String
     let accounting: PiSnapshotAccounting?
+    var isUnavailable = false
 }
 
 extension UsageStore {
@@ -254,7 +256,8 @@ extension UsageStore {
         return CurrentProviderConfigTokenPublication(
             snapshot: publication.snapshot,
             publicationRevision: publication.publicationRevision,
-            accounting: publication.accounting)
+            accounting: publication.accounting,
+            isUnavailable: publication.isUnavailable)
     }
 
     func tokenSnapshotPublicationRevision(for provider: UsageProvider) -> UInt64 {
@@ -282,28 +285,17 @@ extension UsageStore {
     }
 
     func publishTokenSnapshot(
-        _ snapshot: CostUsageTokenSnapshot,
-        for provider: UsageProvider,
-        accounting: PiSnapshotAccounting? = nil)
-    {
-        if self.retainsEstablishedTokenHistory(snapshot, for: provider) { return }
-        self.publishTokenSnapshotState(snapshot, for: provider, accounting: accounting)
-    }
-
-    func publishConfirmedEmptyTokenSnapshot(
-        for provider: UsageProvider,
-        accounting: PiSnapshotAccounting? = nil)
-    {
-        self.publishTokenSnapshotState(nil, for: provider, accounting: accounting)
-    }
-
-    private func publishTokenSnapshotState(
         _ snapshot: CostUsageTokenSnapshot?,
         for provider: UsageProvider,
-        accounting: PiSnapshotAccounting?)
+        accounting: PiSnapshotAccounting? = nil,
+        isUnavailable: Bool = false)
     {
-        self.tokenSnapshotPublicationRevisions[provider.instanceID, default: 0] &+= 1
-        self.installCachedTokenSnapshot(snapshot, for: provider, accounting: accounting)
+        if let snapshot, self.retainsEstablishedTokenHistory(snapshot, for: provider) { return }
+        // A settled unavailable result is not evidence of recovered spend.
+        if !isUnavailable {
+            self.tokenSnapshotPublicationRevisions[provider.instanceID, default: 0] &+= 1
+        }
+        self.installCachedTokenSnapshot(snapshot, for: provider, accounting: accounting, isUnavailable: isUnavailable)
         self.synchronizeSharedSpendDashboardAfterTokenPublication(for: provider)
     }
 
@@ -320,14 +312,16 @@ extension UsageStore {
     func installCachedTokenSnapshot(
         _ snapshot: CostUsageTokenSnapshot?,
         for provider: UsageProvider,
-        accounting: PiSnapshotAccounting? = nil)
+        accounting: PiSnapshotAccounting? = nil,
+        isUnavailable: Bool = false)
     {
         self.tokenSnapshotPublications[provider.instanceID] = TokenSnapshotPublication(
             snapshot: snapshot?.reporting(self.settings.costReportingPeriod),
             publicationRevision: self.tokenSnapshotPublicationRevision(for: provider),
             providerConfigRevision: self.settings.providerConfigRevision(for: provider),
             scopeSignature: self.tokenSnapshotScopeSignature(for: provider),
-            accounting: accounting)
+            accounting: accounting,
+            isUnavailable: isUnavailable)
         self.warmQuotaProjection(for: snapshot)
     }
 
@@ -349,6 +343,8 @@ extension UsageStore {
         guard provider != .opencodego || snapshot.opencodegoUsage?.localHistoryPending != true else { return }
         if let tokenSnapshot = self.tokenSnapshot(fromProviderSnapshot: snapshot, provider: provider) {
             self.installCachedTokenSnapshot(tokenSnapshot, for: provider)
+        } else if ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.isUsageUnavailable(snapshot) {
+            self.installCachedTokenSnapshot(nil, for: provider, isUnavailable: true)
         } else {
             self.clearTokenSnapshot(for: provider)
         }
@@ -360,13 +356,12 @@ extension UsageStore {
         guard Self.tokenCostRequiresProviderSnapshot(provider) else { return }
         // A timed-out local scan is not evidence of empty history.
         guard provider != .opencodego || snapshot.opencodegoUsage?.localHistoryPending != true else { return }
-        if let tokenSnapshot = self.tokenSnapshot(fromProviderSnapshot: snapshot, provider: provider) {
-            self.publishTokenSnapshot(tokenSnapshot, for: provider)
-        } else if ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.isUsageUnavailable(snapshot) {
-            self.clearTokenSnapshot(for: provider)
-        } else {
-            self.publishConfirmedEmptyTokenSnapshot(for: provider)
-        }
+        let tokenSnapshot = self.tokenSnapshot(fromProviderSnapshot: snapshot, provider: provider)
+        self.publishTokenSnapshot(
+            tokenSnapshot,
+            for: provider,
+            isUnavailable: tokenSnapshot == nil && ProviderDescriptorRegistry.descriptor(for: provider)
+                .tokenCost.isUsageUnavailable(snapshot))
         self.tokenErrors[provider.instanceID] = nil
         self.tokenFailureGates[provider.instanceID]?.recordSuccess()
     }
@@ -871,7 +866,7 @@ extension UsageStore {
         self.startCodexCostCatchUpIfNeeded(afterRefreshing: context.provider)
 
         if try self.regularTokenSnapshotIsConfirmedEmpty(snapshot, for: context.provider) {
-            self.publishConfirmedEmptyTokenSnapshot(for: context.provider, accounting: result.accounting)
+            self.publishTokenSnapshot(nil, for: context.provider, accounting: result.accounting)
             self.tokenErrors[context.provider.instanceID] = Self.tokenCostNoDataMessage(for: context.provider)
             self.tokenFailureGates[context.provider.instanceID]?.recordSuccess()
             return

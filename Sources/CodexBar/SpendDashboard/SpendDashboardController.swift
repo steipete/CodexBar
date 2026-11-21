@@ -369,7 +369,7 @@ enum SpendDashboardSource {
             }
             let shouldRefresh = baseline.shouldRefresh
             let current = self.capturedTokenPublication(store: store, provider: provider)
-            guard let currentPublication = current.publication else {
+            guard let currentPublication = current.publication, !currentPublication.isUnavailable else {
                 unavailableSourceIDs.insert(provider.rawValue)
                 continue
             }
@@ -799,7 +799,7 @@ enum SpendDashboardSource {
                 } else {
                     store.tokenSnapshotPublicationForCurrentProviderConfig(for: provider)
                 }
-            guard let current else { return "\(provider.rawValue):unavailable" }
+            guard let current, !current.isUnavailable else { return "\(provider.rawValue):unavailable" }
             if UsageStore.tokenCostRequiresProviderSnapshot(provider) {
                 guard let snapshot = self.dashboardTokenSnapshot(
                     store: store, provider: provider, publication: current, piOwnsSource: false)

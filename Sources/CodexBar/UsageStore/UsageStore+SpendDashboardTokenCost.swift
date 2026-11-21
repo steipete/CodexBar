@@ -26,7 +26,8 @@ extension UsageStore {
         return CurrentProviderConfigTokenPublication(
             snapshot: publication.snapshot,
             publicationRevision: publication.publicationRevision,
-            accounting: publication.accounting)
+            accounting: publication.accounting,
+            isUnavailable: publication.isUnavailable)
     }
 
     func spendDashboardTokenSnapshotPublicationRevision(for provider: UsageProvider) -> UInt64 {
