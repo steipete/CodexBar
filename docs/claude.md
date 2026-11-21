@@ -157,6 +157,8 @@ This cleanup applies to the reusable PTY session, not the separate one-shot usag
 
 ## Keychain prompt policy (Claude OAuth)
 
+The OAuth cache lock lives in the user application-support directory under `CodexBar/claude-oauth-cache.lock` (`~/Library/Application Support` on macOS). It is independent of config-file overrides so app and CLI processes still coordinate access to the same credentials. Existing legacy lock files are left untouched.
+
 If CodexBar reports that its Claude OAuth cache is temporarily unavailable in macOS Keychain, check
 that the login keychain is unlocked in Keychain Access, then retry Refresh. This guidance does not
 change the existing prompt policy or switch to another credential source.
@@ -509,7 +511,7 @@ The accepted multi-account design in
 - Slots excluded from claude-swap's automatic rotation are marked `(disabled)` but remain valid explicit switch
   targets. The active account label is emphasized.
 - Display: when claude-swap reports more than one account, its accounts replace ambient/token-account Claude cards.
-  The app honors **Menu → Multi-account layout**: Segmented shows account buttons and one active account card;
+  The app honors **Menu → Multi-account layout**: Segmented keeps account buttons in numeric slot order and shows one active account card;
   pending or failed switches show the requested account's details while the active marker stays source-owned.
   Expired or otherwise unavailable accounts remain inspectable without activation; selecting the active account
   returns to its card. If the adapter reports no active account, the menu says so instead of selecting the first row.
@@ -531,10 +533,16 @@ The accepted multi-account design in
   `~/.config/codexbar/config.json`; legacy installs may use `~/.codexbar/config.json`). The option defaults off,
   zero accounts still use the ambient presentation, and account identity is `claude-swap:<slot>`, never the display
   email.
+- Cost: claude-swap slots share the combined local Claude history, which cannot be attributed to one slot.
+  The menu shows that history once in a **This Mac** section below the account cards or rows, in every
+  multi-account layout, instead of attaching it to an account.
 - With **Show all accounts in Overview** off, the single Claude Overview card follows the presented adapter slot:
   a pending switch, an inspected account, a failed switch, or the active account, in that order. It retains the
   provider's combined local costs and uses the ambient card when no adapter account is presented. Expanded
   **Show all accounts** rows keep their account-specific usage without borrowing those combined costs.
+- The **Plan Usage** submenu charts the same presented adapter account's recorded history, so it matches the card
+  rather than ambient Claude history. With no presented account, or while an iCloud Fleet card stands in for this
+  Mac's usage, it uses ambient Claude history.
 - Session forecasts use each account's own recorded usage. History keys hash the normalized email and organization
   UUID from the existing list response, so moving slots preserves history and the same email in different workspaces
   stays separate. Empty organization UUIDs identify personal accounts; an email change starts a new history.

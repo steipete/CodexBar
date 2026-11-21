@@ -355,7 +355,6 @@ extension CostUsageStore {
                 let usageRows = purpose == .report
                     ? try Self.readDecodedCodexUsageRows(
                         database,
-                        files: snapshot.files,
                         home: self.home,
                         recorder: recorder)
                     : nil

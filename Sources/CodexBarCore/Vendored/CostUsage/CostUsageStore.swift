@@ -116,12 +116,13 @@ actor CostUsageStore {
 
     static let log = CodexBarLog.logger(LogCategories.tokenCost)
     static let databaseFilename = "cost-usage.sqlite"
-    static let baseSchemaVersion = 4
+    static let baseSchemaVersion = 5
     static let schemaVersion = CostUsageStore.combinedSchemaVersion(
         base: CostUsageStore.baseSchemaVersion,
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "0e253ad335df6daa", // Preserve released rows and checkpoints while native tier evidence is reparsed.
         "51f8655d53d65b3d", // Current main before Terra and Luna Fast repricing.
         "ad011f05e9ab733a", // 0.84.0 rows and checkpoints survive Terra and Luna Fast repricing.
         "2dc85fe95af0aa95", // Preserve project-accumulation caches when combined with linked-root discovery.
@@ -721,6 +722,7 @@ extension CostUsageStore {
             base: Self.baseSchemaVersion,
             parserHash: storedHash)
         let versionMatches = actualVersion == Int64(predecessorVersion)
+            || actualVersion == Int64(Self.combinedSchemaVersion(base: 4, parserHash: storedHash))
             || actualVersion == Int64(Self.combinedSchemaVersion(base: 3, parserHash: storedHash))
         let knownParser = Self.compatiblePredecessorParserHashes.contains(storedHash)
             || storedHash == self.expectedParserHash
@@ -746,6 +748,23 @@ extension CostUsageStore {
     }
 
     private func adoptCompatiblePredecessor(_ database: OpaquePointer, storedHash: String) throws {
+        // Older stores retain every row and checkpoint; the parser's bounded revision upgrade owns rereading.
+        if try Self.scalarInt(
+            database,
+            "SELECT count(*) FROM pragma_table_info('file_day_aggregates') "
+                + "WHERE name = 'ultrafast_tokens'") == 0
+        {
+            for table in ["file_day_aggregates", "day_aggregates"] {
+                for column in [
+                    "ultrafast_input_tokens",
+                    "ultrafast_cached_tokens",
+                    "ultrafast_output_tokens",
+                    "ultrafast_tokens",
+                ] {
+                    try Self.execute(database, "ALTER TABLE \(table) ADD COLUMN \(column) INTEGER NOT NULL DEFAULT 0")
+                }
+            }
+        }
         if try Self.scalarInt(database, "PRAGMA user_version")
             == Int64(Self.combinedSchemaVersion(base: 3, parserHash: storedHash))
         {
@@ -883,6 +902,10 @@ extension CostUsageStore {
         priority_output_tokens INTEGER NOT NULL,
         standard_tokens INTEGER NOT NULL,
         priority_tokens INTEGER NOT NULL,
+        ultrafast_input_tokens INTEGER NOT NULL DEFAULT 0,
+        ultrafast_cached_tokens INTEGER NOT NULL DEFAULT 0,
+        ultrafast_output_tokens INTEGER NOT NULL DEFAULT 0,
+        ultrafast_tokens INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY(home, day, model)
     );
     CREATE INDEX day_aggregates_home_model_idx ON day_aggregates(home, model, day);
@@ -967,6 +990,10 @@ extension CostUsageStore {
         priority_output_tokens INTEGER NOT NULL,
         standard_tokens INTEGER NOT NULL,
         priority_tokens INTEGER NOT NULL,
+        ultrafast_input_tokens INTEGER NOT NULL DEFAULT 0,
+        ultrafast_cached_tokens INTEGER NOT NULL DEFAULT 0,
+        ultrafast_output_tokens INTEGER NOT NULL DEFAULT 0,
+        ultrafast_tokens INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY(file_id, day, model)
     );
     CREATE INDEX file_day_aggregates_day_idx ON file_day_aggregates(day);
