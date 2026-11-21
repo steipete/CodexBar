@@ -18,8 +18,8 @@ struct AntigravityWeeklyLayoutTests {
             data: fixture.data(provider: .antigravity, extraRateWindows: extras),
             icon: nil,
             options: fixture.options(showUsed: showUsed))
-        #expect(rendered.attributedTitle.string == (showUsed ? "Gemini weekly 20%\u{2009}Claude/GPT weekly 60%"
-                : "Gemini weekly 80%\u{2009}Claude/GPT weekly 40%"))
+        #expect(rendered.attributedTitle.string == (showUsed ? "G W 20%\u{2009}C/G W 60%"
+                : "G W 80%\u{2009}C/G W 40%"))
         #expect(rendered.accessibilityLabel == (showUsed
                 ? "Gemini weekly 20%, Claude/GPT weekly 60%" : "Gemini weekly 80%, Claude/GPT weekly 40%"))
         let missing = renderer.render(
@@ -29,8 +29,7 @@ struct AntigravityWeeklyLayoutTests {
             }),
             icon: nil,
             options: fixture.options(showUsed: showUsed))
-        #expect(missing.attributedTitle.string == (showUsed
-                ? "Gemini weekly –\u{2009}Claude/GPT weekly 60%" : "Gemini weekly –\u{2009}Claude/GPT weekly 40%"))
+        #expect(missing.attributedTitle.string == (showUsed ? "G W –\u{2009}C/G W 60%" : "G W –\u{2009}C/G W 40%"))
         let otherProvider = renderer.render(
             layout: MenuBarLayout(lines: [[.lanePercent(lane: .primary)] + tokens]),
             data: fixture.data(provider: .claude, extraRateWindows: extras),

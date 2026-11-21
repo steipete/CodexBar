@@ -276,20 +276,55 @@ struct MenuBarLayoutRendererTests {
 
     @Test
     func `named extras without short labels keep their full title`() {
-        let id = "antigravity-quota-summary-gemini-weekly"
+        let id = "org-credits"
         let output = MenuBarLayoutRenderer().render(
             layout: MenuBarLayout(lines: [[.extraPercent(id: id)]]),
             data: self.data(
-                provider: .antigravity,
+                provider: .perplexity,
                 extraRateWindows: [MenuBarLayoutRenderExtra(NamedRateWindow(
                     id: id,
-                    title: "Gemini weekly",
+                    title: "Organization",
                     window: RateWindow(usedPercent: 30, windowMinutes: nil, resetsAt: nil, resetDescription: nil)))]),
             icon: nil,
             options: self.options())
 
-        #expect(output.attributedTitle.string == "Gemini weekly 30%")
-        #expect(output.accessibilityLabel == "Gemini weekly 30%")
+        #expect(output.attributedTitle.string == "Organization 30%")
+        #expect(output.accessibilityLabel == "Organization 30%")
+    }
+
+    @Test
+    func `Antigravity weekly extras use compact labels and full accessibility titles`() {
+        let renderer = MenuBarLayoutRenderer()
+        let geminiID = "antigravity-quota-summary-gemini-weekly"
+        let thirdPartyID = "antigravity-quota-summary-3p-weekly"
+        let data = self.data(
+            provider: .antigravity,
+            extraRateWindows: [
+                MenuBarLayoutRenderExtra(NamedRateWindow(
+                    id: geminiID,
+                    title: "Gemini weekly",
+                    window: RateWindow(usedPercent: 30, windowMinutes: nil, resetsAt: nil, resetDescription: nil))),
+                MenuBarLayoutRenderExtra(NamedRateWindow(
+                    id: thirdPartyID,
+                    title: "Claude/GPT weekly",
+                    window: RateWindow(usedPercent: 45, windowMinutes: nil, resetsAt: nil, resetDescription: nil))),
+            ])
+
+        let gemini = renderer.render(
+            layout: MenuBarLayout(lines: [[.extraPercent(id: geminiID)]]),
+            data: data,
+            icon: nil,
+            options: self.options())
+        #expect(gemini.attributedTitle.string == "G W 30%")
+        #expect(gemini.accessibilityLabel == "Gemini weekly 30%")
+
+        let thirdParty = renderer.render(
+            layout: MenuBarLayout(lines: [[.extraPercent(id: thirdPartyID)]]),
+            data: data,
+            icon: nil,
+            options: self.options())
+        #expect(thirdParty.attributedTitle.string == "C/G W 45%")
+        #expect(thirdParty.accessibilityLabel == "Claude/GPT weekly 45%")
     }
 
     @Test

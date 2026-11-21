@@ -19,6 +19,10 @@ public enum AntigravityProviderDescriptor {
                 namedExtras: [
                     "antigravity-quota-summary-gemini-weekly": "Gemini weekly",
                     "antigravity-quota-summary-3p-weekly": "Claude/GPT weekly",
+                ],
+                namedExtraShortLabels: [
+                    "antigravity-quota-summary-gemini-weekly": "G W",
+                    "antigravity-quota-summary-3p-weekly": "C/G W",
                 ]),
             credentials: self.credentials,
             metadata: ProviderMetadata(
