@@ -187,7 +187,7 @@ defineProvider({
         if (otherGrants.length > 0) {
           details.push({
             title: "Other credit grants",
-            rows: otherGrants.map((grant) => ({
+            rows: otherGrants.slice(0, 24).map((grant) => ({
               label: grant.label,
               value: amounts(grant),
               secondaryValue: grant.expiresAt ? expiry(grant.expiresAt) : null,
