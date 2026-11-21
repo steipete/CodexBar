@@ -131,8 +131,9 @@ extension CostUsageStore {
             reasoning_tokens, request_count, authoritative_cost_nanos,
             standard_input_tokens, standard_cached_tokens, standard_output_tokens,
             priority_input_tokens, priority_cached_tokens, priority_output_tokens,
-            standard_tokens, priority_tokens
-        ) VALUES ((SELECT id FROM files WHERE path = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            standard_tokens, priority_tokens,
+            ultrafast_input_tokens, ultrafast_cached_tokens, ultrafast_output_tokens, ultrafast_tokens
+        ) VALUES ((SELECT id FROM files WHERE path = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(file_id, day, model) DO UPDATE SET
             input_tokens = excluded.input_tokens,
             cached_tokens = excluded.cached_tokens,
@@ -147,7 +148,11 @@ extension CostUsageStore {
             priority_cached_tokens = excluded.priority_cached_tokens,
             priority_output_tokens = excluded.priority_output_tokens,
             standard_tokens = excluded.standard_tokens,
-            priority_tokens = excluded.priority_tokens
+            priority_tokens = excluded.priority_tokens,
+            ultrafast_input_tokens = excluded.ultrafast_input_tokens,
+            ultrafast_cached_tokens = excluded.ultrafast_cached_tokens,
+            ultrafast_output_tokens = excluded.ultrafast_output_tokens,
+            ultrafast_tokens = excluded.ultrafast_tokens
         """)
         defer { sqlite3_finalize(insert) }
         for aggregate in aggregates {
@@ -236,7 +241,11 @@ extension CostUsageStore {
             priorityCachedTokens: -aggregate.priorityCachedTokens,
             priorityOutputTokens: -aggregate.priorityOutputTokens,
             standardTokens: -aggregate.standardTokens,
-            priorityTokens: -aggregate.priorityTokens)
+            priorityTokens: -aggregate.priorityTokens,
+            ultrafastInputTokens: -aggregate.ultrafastInputTokens,
+            ultrafastCachedTokens: -aggregate.ultrafastCachedTokens,
+            ultrafastOutputTokens: -aggregate.ultrafastOutputTokens,
+            ultrafastTokens: -aggregate.ultrafastTokens)
     }
 
     static func deleteUsageRowsByIndices(
@@ -280,9 +289,10 @@ extension CostUsageStore {
                     reasoning_tokens, request_count, authoritative_cost_nanos,
                     standard_input_tokens, standard_cached_tokens, standard_output_tokens,
                     priority_input_tokens, priority_cached_tokens, priority_output_tokens,
-                    standard_tokens, priority_tokens
+                    standard_tokens, priority_tokens,
+                    ultrafast_input_tokens, ultrafast_cached_tokens, ultrafast_output_tokens, ultrafast_tokens
                 ) VALUES ((SELECT id FROM files WHERE path = ? AND home = ?),
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """)
                 defer { sqlite3_finalize(insert) }
                 for aggregate in aggregates {
@@ -322,7 +332,8 @@ extension CostUsageStore {
             "input_tokens", "cached_tokens", "output_tokens", "reasoning_tokens", "request_count",
             "authoritative_cost_nanos", "standard_input_tokens", "standard_cached_tokens", "standard_output_tokens",
             "priority_input_tokens", "priority_cached_tokens", "priority_output_tokens", "standard_tokens",
-            "priority_tokens",
+            "priority_tokens", "ultrafast_input_tokens", "ultrafast_cached_tokens", "ultrafast_output_tokens",
+            "ultrafast_tokens",
         ]
         let table = path == nil ? "day_aggregates" : "file_day_aggregates"
         let keys = (path == nil ? ["home"] : ["file_id"]) + ["day", "model"]
@@ -423,8 +434,9 @@ extension CostUsageStore {
             request_count, authoritative_cost_nanos,
             standard_input_tokens, standard_cached_tokens, standard_output_tokens,
             priority_input_tokens, priority_cached_tokens, priority_output_tokens,
-            standard_tokens, priority_tokens, home
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            standard_tokens, priority_tokens,
+            ultrafast_input_tokens, ultrafast_cached_tokens, ultrafast_output_tokens, ultrafast_tokens, home
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """)
         defer { sqlite3_finalize(statement) }
         for aggregate in aggregates {
@@ -433,7 +445,7 @@ extension CostUsageStore {
             self.bind(aggregate.day, to: statement, at: 1)
             self.bind(aggregate.model, to: statement, at: 2)
             self.bindAggregateValues(aggregate, to: statement, startingAt: 3)
-            self.bind(home, to: statement, at: 17)
+            self.bind(home, to: statement, at: 21)
             try self.stepDone(statement, database: database)
         }
     }
@@ -720,6 +732,10 @@ extension CostUsageStore {
             aggregate.priorityOutputTokens,
             aggregate.standardTokens,
             aggregate.priorityTokens,
+            aggregate.ultrafastInputTokens,
+            aggregate.ultrafastCachedTokens,
+            aggregate.ultrafastOutputTokens,
+            aggregate.ultrafastTokens,
         ]
         for (offset, value) in values.enumerated() {
             sqlite3_bind_int64(statement, index + Int32(offset), value)

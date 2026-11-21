@@ -105,6 +105,10 @@ struct CostUsageStoreDayAggregate: Codable, Equatable, Sendable {
     var priorityOutputTokens: Int64
     var standardTokens: Int64
     var priorityTokens: Int64
+    var ultrafastInputTokens: Int64 = 0
+    var ultrafastCachedTokens: Int64 = 0
+    var ultrafastOutputTokens: Int64 = 0
+    var ultrafastTokens: Int64 = 0
 
     static func zero(day: String, model: String) -> Self {
         Self(

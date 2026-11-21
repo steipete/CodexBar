@@ -212,7 +212,7 @@ extension CostUsageScanner {
             guard row.knownCostNanos == nil, row.unpricedTokens == nil,
                   let key = CodexSourcePricingKey(row),
                   let model = row.pricingModel, !model.isEmpty,
-                  row.pricingMode == "standard" || row.pricingMode == "priority"
+                  row.pricingMode == "standard" || row.pricingMode == "priority" || row.pricingMode == "ultrafast"
             else { return nil }
             let evidence = CodexPricingEvidence(pricingModel: model, pricingMode: row.pricingMode)
             if let previous = pricing[key], previous != evidence { return nil }
@@ -251,7 +251,7 @@ extension CostUsageScanner {
             guard row.knownCostNanos == nil, row.unpricedTokens == nil,
                   let key = CodexSourcePricingKey(row),
                   let model = row.pricingModel, !model.isEmpty,
-                  row.pricingMode == "standard" || row.pricingMode == "priority"
+                  row.pricingMode == "standard" || row.pricingMode == "priority" || row.pricingMode == "ultrafast"
             else { continue }
             let evidence = CodexPricingEvidence(pricingModel: model, pricingMode: row.pricingMode)
             if let previous = pricing[key], previous != evidence {
