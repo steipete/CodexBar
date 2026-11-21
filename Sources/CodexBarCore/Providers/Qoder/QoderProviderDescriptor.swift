@@ -17,10 +17,21 @@ public enum QoderProviderDescriptor {
         confetti: [0x2ADB5C, 0x111113, 0xFFFFFF],
         noDataMessage: "Qoder cost summary is not supported.",
         presentation: ProviderUsagePresentation(
+            menuBarLayoutSecondaryLabel: "Balance",
+            automaticSelectionPrioritizesExhaustedWindow: false,
+            switcherUsesAutomaticMenuBarWindow: true,
+            menuBarWindowResolver: { context in
+                guard context.metric == .automatic else { return .unhandled }
+                let windows = [context.snapshot.primary, context.snapshot.secondary].compactMap(\.self)
+                return .resolved(windows.first { $0.remainingPercent > 0 } ?? windows.first)
+            },
             menuCard: ProviderMenuCardPresentation(
                 showsPrimaryBalanceDescription: true,
+                showsSecondaryBalanceDescription: true,
                 hidesPrimaryResetWithoutDate: true),
-            menu: ProviderMenuDescriptorPresentation(primaryDescriptionIsDetail: { _ in true })),
+            menu: ProviderMenuDescriptorPresentation(
+                primaryDescriptionIsDetail: { _ in true },
+                secondaryDescriptionMode: .resetOverride)),
         webSource: .init(
             settingsSection: .init(QoderProviderSettingsKey.self, cookieSettings: QoderProviderSettings.self),
             browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,

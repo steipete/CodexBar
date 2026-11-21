@@ -296,7 +296,9 @@ struct MenuDescriptor {
                     case .standard:
                         return nil
                     case .resetOverride:
-                        return detail
+                        return provider == .qoder
+                            ? UsageMenuCardView.Model.localizedQoderCreditDetail(detail)
+                            : detail
                     case .detailWhenResetDatePresent:
                         return weekly.resetsAt == nil ? detail : nil
                     }

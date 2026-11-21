@@ -100,7 +100,7 @@ enum QoderReferenceParser {
             guard used == 0, remaining == 0 else {
                 throw QoderUsageError.parseFailed("zero total quota must have zero usage and remaining")
             }
-            return provided ?? 100
+            return 100
         }
         return provided ?? (used / total) * 100
     }

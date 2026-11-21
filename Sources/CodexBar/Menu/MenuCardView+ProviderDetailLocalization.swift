@@ -2,6 +2,12 @@ import CodexBarCore
 import Foundation
 
 extension UsageMenuCardView.Model {
+    static func localizedQoderCreditDetail(_ value: String) -> String {
+        let suffix = " credits"
+        guard value.hasSuffix(suffix) else { return value }
+        return "\(value.dropLast(suffix.count)) \(L("credits"))"
+    }
+
     static func localizedProviderDetails(
         _ details: [ProviderDetailSection],
         provider: UsageProvider) -> [ProviderDetailSection]
