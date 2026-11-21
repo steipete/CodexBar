@@ -782,6 +782,7 @@ struct LocalizationLanguageCatalogTests {
             "Output",
             "Pro",
             "SiliconFlow",
+            "Singapore",
             "SuperGrok OAuth",
             "Token",
             "Trae CN",

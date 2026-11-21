@@ -1,6 +1,7 @@
 import AppKit
 import CodexBarCore
 import Foundation
+import SwiftUI
 
 struct MiMoProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .mimo
@@ -8,12 +9,30 @@ struct MiMoProviderImplementation: ProviderImplementation {
 
     @MainActor
     func presentation(context _: ProviderPresentationContext) -> ProviderPresentation {
-        ProviderPresentation { _ in "web" }
+        ProviderPresentation { context in context.store.sourceLabel(for: context.provider) }
+    }
+
+    @MainActor
+    func observeSettings(_ settings: SettingsStore) {
+        _ = settings[providerConfig: .mimo, field: .apiKey]
+        _ = settings[providerConfig: .mimo, field: .region]
+        _ = settings.miMoCookieSource
+        _ = settings.miMoCookieHeader
     }
 
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
         [
+            ProviderSettingsPickerDescriptor(
+                id: "mimo-api-region",
+                title: "API region",
+                subtitle: "",
+                binding: Binding(
+                    get: { context.settings.providerConfig(for: .mimo)?.sanitizedRegion ?? "cn" },
+                    set: { context.providerConfigBinding(.region).wrappedValue = $0 }),
+                options: [.init(id: "cn", title: "China mainland"), .init(id: "sgp", title: "Singapore")],
+                isVisible: nil,
+                onChange: nil),
             ProviderCookieSourceUI.picker(
                 id: "mimo-cookie-source",
                 context: context,
@@ -34,6 +53,18 @@ struct MiMoProviderImplementation: ProviderImplementation {
     @MainActor
     func settingsFields(context: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
         [
+            ProviderSettingsFieldDescriptor(
+                id: "mimo-api-key",
+                title: "API key",
+                subtitle: "Stored in the CodexBar config file.",
+                kind: .secure,
+                placeholder: "Paste API key…",
+                binding: context.providerConfigBinding(.apiKey),
+                actions: [.openURL(
+                    id: "mimo-open-token-plan",
+                    title: "Open Token Plan",
+                    url: URL(string: "https://mimo.mi.com/docs/en-US/api/asset/credits-get"))],
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "mimo-cookie",
                 title: "",

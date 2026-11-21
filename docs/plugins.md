@@ -100,6 +100,9 @@ WorkBuddy uses this shared cookie host for its billing-only plugin. Its descript
 version because the website binds sessions to the browser User-Agent; cookie values stay opaque to the script.
 See [WorkBuddy](workbuddy.md) for the request contract, bounded optional reset lookup, and account coverage.
 
+[Xiaomi MiMo](mimo.md) reads Token Plan quota with a dedicated API key on the selected China or Singapore origin.
+The API plugin needs no browser access; the existing console and local sources remain available separately.
+
 [Tripo](tripo.md) reads available and reserved API credits with one fixed-origin bearer request. It keeps credits
 as credits, without inferred quota windows or dollar conversions.
 

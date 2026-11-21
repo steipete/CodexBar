@@ -2852,3 +2852,10 @@
 "Google Developer Program returned an unrecognized response. Update CodexBar and try again." = "Google Developer Program から認識できない応答が返されました。CodexBar を更新して、もう一度お試しください。";
 "Google session expired or invalid." = "Googleのセッションが期限切れか無効です。";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Google Developer ProgramのセッションCookieが見つかりません。me.developers.google.com/benefits にサインインするか、Cookieヘッダーを貼り付けてください。";
+
+/* MiMo Token Plan API. */
+"MiMo returned an unrecognized response. Update CodexBar and try again." = "MiMo から認識できない応答が返されました。CodexBar を更新して、もう一度お試しください。";
+"China mainland" = "中国本土";
+"Singapore" = "シンガポール";
+"MiMo is rate limiting requests. Try again later." = "MiMo がリクエストの頻度を制限しています。後でもう一度お試しください。";
+"MiMo request failed. Try refreshing later." = "MiMo へのリクエストに失敗しました。後でもう一度更新してください。";
