@@ -82,7 +82,8 @@ struct DeepSeekCostProjectionTests {
         store.publishProviderDerivedTokenSnapshot(
             from: UsageSnapshot(primary: nil, secondary: nil, updatedAt: now),
             for: .deepseek)
-        #expect(store.tokenSnapshotPublicationForCurrentProviderConfig(for: .deepseek) == nil)
+        #expect(store.tokenSnapshotPublicationForCurrentProviderConfig(for: .deepseek)?.snapshot == nil)
+        #expect(store.tokenSnapshotPublicationForCurrentProviderConfig(for: .deepseek)?.isUnavailable == true)
 
         store._test_providerFetchOutcomeOverride = { _ in
             ProviderFetchOutcome(result: .success(ProviderFetchResult(
@@ -95,7 +96,8 @@ struct DeepSeekCostProjectionTests {
         }
         await store.refreshProvider(.deepseek, allowDisabled: true)
         #expect(store.snapshots[.deepseek]?.updatedAt == now)
-        #expect(store.tokenSnapshotPublicationForCurrentProviderConfig(for: .deepseek) == nil)
+        #expect(store.tokenSnapshotPublicationForCurrentProviderConfig(for: .deepseek)?.snapshot == nil)
+        #expect(store.tokenSnapshotPublicationForCurrentProviderConfig(for: .deepseek)?.isUnavailable == true)
     }
 
     @MainActor

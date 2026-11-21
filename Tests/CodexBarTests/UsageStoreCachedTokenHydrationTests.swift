@@ -332,7 +332,7 @@ struct UsageStoreCachedTokenHydrationTests {
 
         let hydration = store.hydrateCachedTokenSnapshots()
         await gate.waitForStart()
-        store.publishConfirmedEmptyTokenSnapshot(for: .codex)
+        store.publishTokenSnapshot(nil, for: .codex)
         let confirmedEmptyRevision = store.tokenSnapshotPublicationRevision(for: .codex)
         await gate.release()
         await hydration?.value
