@@ -20,7 +20,9 @@ To use the `agy` CLI source without keeping the desktop app open, install the CL
 run `agy` once and sign in. An explicit `ANTIGRAVITY_CLI_PATH` is authoritative: if it is empty,
 points to a missing file, or is not executable, CodexBar skips the CLI source instead of discovering another `agy`
 through PATH, installation directories, shell lookup, or aliases. Unset the variable to restore
-automatic discovery. Other providers retain their existing override behavior.
+automatic discovery. After existing CLI locations and shell lookups, CodexBar also checks the bundled `agy`
+helper in `/Applications/Gemini.app` and `~/Applications/Gemini.app`. An installed CLI still takes precedence.
+Other providers retain their existing override behavior.
 CodexBar keeps the signed-in `agy` local HTTPS server alive briefly
 after each refresh and stops it when idle, or reuses a signed-in `agy` you already have running
 without taking ownership of that process.

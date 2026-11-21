@@ -509,7 +509,7 @@ The accepted multi-account design in
 - Slots excluded from claude-swap's automatic rotation are marked `(disabled)` but remain valid explicit switch
   targets. The active account label is emphasized.
 - Display: when claude-swap reports more than one account, its accounts replace ambient/token-account Claude cards.
-  The app honors **Menu → Multi-account layout**: Segmented shows account buttons and one active account card;
+  The app honors **Menu → Multi-account layout**: Segmented keeps account buttons in numeric slot order and shows one active account card;
   pending or failed switches show the requested account's details while the active marker stays source-owned.
   Expired or otherwise unavailable accounts remain inspectable without activation; selecting the active account
   returns to its card. If the adapter reports no active account, the menu says so instead of selecting the first row.
