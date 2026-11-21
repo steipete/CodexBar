@@ -287,19 +287,22 @@ struct MenuBarLayoutProviderBalanceTests {
         #expect(combined.contains("$76.65"))
         #expect(MenuBarLayoutBalanceResolver.balanceAmountsUSD(provider: .claude, snapshot: snapshot).remaining
             == 76.65)
+    }
 
+    @Test(arguments: [UsageProvider.claude, .grok])
+    func `prepaid balances ignore another provider's wallet and spending without a wallet`(provider: UsageProvider) {
         let otherProvider = UsageSnapshot(
             primary: nil,
             secondary: nil,
-            providerCost: snapshot.providerCost,
+            providerCost: .init(used: 0, limit: 0, currencyCode: "USD", balance: 76.65, updatedAt: self.now),
             updatedAt: self.now,
             identity: ProviderIdentitySnapshot(
                 providerID: UsageProvider.codex.instanceID,
                 accountEmail: nil,
                 accountOrganization: nil,
                 loginMethod: nil))
-        #expect(MenuBarLayoutBalanceResolver.balance(provider: .claude, snapshot: otherProvider) == nil)
-        #expect(MenuBarLayoutBalanceResolver.balanceAmountsUSD(provider: .claude, snapshot: otherProvider).remaining
+        #expect(MenuBarLayoutBalanceResolver.balance(provider: provider, snapshot: otherProvider) == nil)
+        #expect(MenuBarLayoutBalanceResolver.balanceAmountsUSD(provider: provider, snapshot: otherProvider).remaining
             == nil)
 
         let withoutBalance = UsageSnapshot(
@@ -307,7 +310,7 @@ struct MenuBarLayoutProviderBalanceTests {
             secondary: nil,
             providerCost: ProviderCostSnapshot(used: 12, limit: 50, currencyCode: "USD", updatedAt: self.now),
             updatedAt: self.now)
-        #expect(MenuBarLayoutBalanceResolver.balance(provider: .claude, snapshot: withoutBalance) == nil)
+        #expect(MenuBarLayoutBalanceResolver.balance(provider: provider, snapshot: withoutBalance) == nil)
     }
 
     @Test
@@ -342,7 +345,7 @@ struct MenuBarLayoutProviderBalanceTests {
     }
 
     @Test(arguments: [
-        (UsageProvider.grok, "–"), (.opencode, "–"), (.huggingface, "–"), (.replicate, "–"),
+        (UsageProvider.opencode, "–"), (.huggingface, "–"), (.replicate, "–"),
         (.typesafe, "$4.98"), (.xapi, "$4.98"), (.openrouter, "$12.34"),
     ])
     func `existing provider balance output ignores unrelated prepaid cost`(provider: UsageProvider, expected: String)
@@ -372,7 +375,7 @@ struct MenuBarLayoutProviderBalanceTests {
         #expect(amounts.used == (provider == .openrouter ? 7.66 : nil))
     }
 
-    @Test(arguments: [UsageProvider.grok, .opencode, .codex])
+    @Test(arguments: [UsageProvider.opencode, .codex])
     func `undeclared providers keep their prepaid cost balance out of the balance token`(provider: UsageProvider) {
         let snapshot = UsageSnapshot(
             primary: nil,

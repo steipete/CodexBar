@@ -825,16 +825,15 @@ enum MenuBarLayoutBalanceResolver {
 
     /// Providers declaring `menuBarBalanceUsesPrepaidCost` get the Balance token without a case above. Like the
     /// provider's menu card, the amount follows the optional credits setting, even for a retained snapshot.
-    private static func prepaidBalanceCost(
+    static func prepaidBalanceCost(
         provider: UsageProvider,
         snapshot: UsageSnapshot?,
         showsOptionalCredits: Bool)
         -> ProviderCostSnapshot?
     {
-        guard showsOptionalCredits,
+        guard showsOptionalCredits, let cost = snapshot?.providerCost, cost.balance != nil,
               ProviderDescriptorRegistry.descriptor(for: provider).presentation.menuBarBalanceUsesPrepaidCost,
-              self.ownsSnapshot(provider: provider, snapshot: snapshot),
-              let cost = snapshot?.providerCost, cost.balance != nil
+              self.ownsSnapshot(provider: provider, snapshot: snapshot)
         else { return nil }
         return cost
     }

@@ -381,4 +381,8 @@ or malformed wallet remains absent instead of being reported as zero. This balan
 from the included quota; the balance-only snapshot has neutral `used`/`limit` values of zero and
 does not infer a spending limit, consumed amount, or reset period.
 
+On macOS, enable **Show optional credits, spending & billing details** to show purchased credits in a
+custom menu bar layout. Use **Balance** beside **Auto %** to see the wallet and weekly allowance
+together. When Grok reports only the wallet, **Auto %** and the automatic progress bar display its amount.
+
 Unit contract: [official Grok billing source](https://github.com/xai-org/grok-build/blob/2bdd1d6a6369de0e8c68132ea4539e9abd9e14a8/crates/codegen/xai-grok-shell/src/extensions/billing.rs).

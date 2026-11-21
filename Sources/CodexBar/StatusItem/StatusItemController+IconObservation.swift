@@ -190,14 +190,25 @@ extension StatusItemController {
     {
         let resolution = self.renderedMenuBarLayoutResolution(for: provider)
         guard !resolution.usesLegacyRendering else { return nil }
-        let showsBalance = resolution.layout
-            .flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
-            .contains(.balance)
+        let tokens = resolution.layout.flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
+        let showsBalance = tokens.contains(.balance)
             || self.referencedConditionalMetrics(resolution: resolution).contains(.balance)
-        guard showsBalance else { return nil }
+        let showsOptionalCredits = self.settings.showOptionalCreditsAndExtraUsage
+        guard showsBalance else {
+            // Auto percent and progress bars can display a prepaid wallet when no quota window is available.
+            guard tokens.contains(.percent(window: .automatic)) || tokens.contains(.progressBar(window: .automatic)),
+                  MenuBarLayoutBalanceResolver.prepaidBalanceCost(
+                      provider: provider, snapshot: snapshot, showsOptionalCredits: showsOptionalCredits) != nil
+            else { return nil }
+            let windows = self.menuBarLayoutWindows(provider: provider, snapshot: snapshot, now: Date())
+            return Self.menuBarLayoutAutomaticText(
+                provider: provider,
+                snapshot: snapshot,
+                automatic: MenuBarLayoutRenderWindow(windows.automatic),
+                showsOptionalCredits: showsOptionalCredits)
+        }
         // The rendered text only carries the remaining row. A `balance used` predicate reads the "Used"
         // row instead, which no display token surfaces, so sign both amounts exactly.
-        let showsOptionalCredits = self.settings.showOptionalCreditsAndExtraUsage
         let amounts = MenuBarLayoutBalanceResolver.balanceAmountsUSD(
             provider: provider,
             snapshot: snapshot,

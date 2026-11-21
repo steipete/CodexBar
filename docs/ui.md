@@ -180,9 +180,11 @@ Provider color falls back to monochrome while a menu is open, data is stale, sys
 
 Balance uses the same provider amount as the menu card: Codex credits, OpenRouter remaining credits, MiMo,
 DeepSeek, DeepInfra, Moonshot, Poe points, Hypercredits, LithosAI prepaid balance, Atlas Cloud and Vercel available balances, or OpenCode Go's
-Zen balance. DevPass shows remaining billing-cycle credits (a plan allowance); Mistral shows monthly API spend.
+Zen balance. Grok shows purchased Extra Usage Credits when optional billing details are enabled.
+DevPass shows remaining billing-cycle credits (a plan allowance); Mistral shows monthly API spend.
 An explicit Balance token remains available alongside quota percentages. Missing amounts render a dash;
-unrelated spend is never substituted. Conditional balance thresholds remain OpenRouter-only. Auto %
+unrelated spend is never substituted. For balance conditions, a visible prepaid USD wallet supplies the remaining amount.
+OpenRouter supplies remaining and used amounts from its credits data. Auto %
 uses the same provider-aware automatic-window resolution as the legacy menu bar metric setting. For balance-only
 providers, Auto % shows the available money, points, or API spend instead of inventing a quota percentage. Both the
 status item and editor preview preserve real quota percentages when a usable limit exists. When a reset token
