@@ -15,7 +15,7 @@ final class ClaudeSwapAccountSwitcherView: NSView {
         width: CGFloat,
         onSelect: @escaping (ProviderAccountIdentity) -> Void)
     {
-        self.accounts = display.accounts
+        self.accounts = display.accounts.sorted { (Int($0.id.opaqueID) ?? 0) < (Int($1.id.opaqueID) ?? 0) }
         self.onSelect = onSelect
         self.selectionPending = display.switchingAccountID != nil
         let rows = display.accounts.count > 3 ? 2 : 1

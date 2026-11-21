@@ -1000,7 +1000,7 @@ public struct CostUsageFetcher: Sendable {
                    let previous = view.previousReport(range: range, rootsFingerprint: rootsFingerprint)
                 {
                     staleSnapshotUpdatedAt = previous.updatedAt
-                    daily = view.mergingSource(into: previous.report, range: range)
+                    daily = view.mergingSource(into: previous.report(in: range), range: range)
                 } else {
                     let reports = view.reports(range: range, cacheRoot: options.scanOptions.cacheRoot, roots: roots)
                     daily = reports.daily
@@ -1494,7 +1494,7 @@ public struct CostUsageFetcher: Sendable {
                    range: range,
                    rootsFingerprint: rootsFingerprint)
             {
-                reports.append(cache.mergingSource(into: previous.report, range: range))
+                reports.append(cache.mergingSource(into: previous.report(in: range), range: range))
                 staleSnapshotUpdatedAt = previous.updatedAt
                 if let updatedAt = previous.updatedAt {
                     scanTimes.append(updatedAt)

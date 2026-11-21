@@ -244,6 +244,7 @@ struct SettingsStoreAdditionalTests {
             .museai: [.automatic, .primary],
             .soniox: [.automatic, .primary],
             .abliteration: [.automatic, .primary],
+            .trustedrouter: [.automatic, .primary],
             .coderabbit: [.automatic],
             .replicate: [.automatic],
             .lithosai: [.automatic],

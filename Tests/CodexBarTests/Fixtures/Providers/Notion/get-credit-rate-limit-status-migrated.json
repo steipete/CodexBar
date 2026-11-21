@@ -1,0 +1,50 @@
+{
+  "status": "not_applicable",
+  "allowances": [
+    { "bucketId": "standard", "cadence": "billing_period", "state": "not_exposed" },
+    {
+      "bucketId": "auto",
+      "cadence": "billing_period",
+      "state": "resolved",
+      "used": 8.98,
+      "limit": 100,
+      "periodStartMs": 1793196000000,
+      "periodEndMs": 1795874400000,
+      "enforcement": "enforced",
+      "credits": { "used": 134.66869, "limit": 1500 }
+    },
+    {
+      "bucketId": "flex",
+      "cadence": "billing_period",
+      "state": "resolved",
+      "used": 0,
+      "limit": 100,
+      "periodStartMs": 1793196000000,
+      "periodEndMs": 1795874400000,
+      "enforcement": "enforced",
+      "credits": { "used": 0, "limit": 500 }
+    },
+    { "bucketId": "standard", "cadence": "rolling", "state": "not_exposed" }
+  ],
+  "modelSelectionDecisions": {
+    "auto": {
+      "verdict": {
+        "window": { "creditType": "basic_ai_credits", "scope": "per_user", "window": "6h", "used": 0, "limit": 100 },
+        "windowExposure": "not_exposed",
+        "billingPeriodExposure": "not_exposed",
+        "status": "within_limit"
+      },
+      "allowanceExhausted": false
+    },
+    "flex": {
+      "verdict": {
+        "window": { "creditType": "basic_ai_credits", "scope": "per_user", "window": "6h", "used": 0, "limit": 100 },
+        "windowExposure": "not_exposed",
+        "billingPeriodExposure": "not_exposed",
+        "status": "within_limit"
+      },
+      "allowanceExhausted": false
+    }
+  },
+  "memberCreditLimitGrantsOverage": true
+}

@@ -318,7 +318,8 @@ public struct CodexRequestLedger: Codable, Sendable {
             || CostUsagePricing.isCodexUnattributedModel(selectedModel) ? nil : selectedModel
         let candidateMode = validatedTrace != nil || evidence.nativeTier == .priority ? "priority"
             : evidence.nativeTier == .standard ? "standard" : nil
-        let mode = trace.validationPending || mismatchedThread || evidence.nativeTier == .unknown ? nil : candidateMode
+        let mode = trace.validationPending || mismatchedThread
+            || evidence.nativeTier == .unknown || evidence.nativeTier == .ultrafast ? nil : candidateMode
         let included = CostUsageScanner.codexAutoReviewIsIncludedInPlan(
             model: model, timestampUnixMs: timestampUnixMs, hasCreatorAccount: evidence.hasCreatorAccount)
         return (billingModel, mode, included)

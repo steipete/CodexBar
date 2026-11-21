@@ -1246,14 +1246,12 @@ final class AntigravityFileCLISessionRecordStore: AntigravityCLISessionRecordSto
 }
 
 final class AntigravityFileCLISessionLaunchLock: AntigravityCLISessionLaunchLocking, @unchecked Sendable {
-    private let fileURL: URL
+    let fileURL: URL
     private let fileManager: FileManager
 
     init(
-        fileURL: URL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
-            .appendingPathComponent(".codexbar", isDirectory: true)
-            .appendingPathComponent("antigravity", isDirectory: true)
-            .appendingPathComponent("agy-session.lock"),
+        fileURL: URL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("CodexBar/antigravity/agy-session.lock"),
         fileManager: FileManager = .default)
     {
         self.fileURL = fileURL

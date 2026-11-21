@@ -6,9 +6,10 @@ extension UsageMenuCardView.Model {
         _ details: [ProviderDetailSection],
         provider: UsageProvider) -> [ProviderDetailSection]
     {
-        // Provider-specific by design: DeepSeek, z.ai, Kiro, Grok, and Kimi rewrite value phrasing.
+        // Provider-specific by design: DeepSeek, z.ai, Kiro, Grok, Kimi, and Notion rewrite value phrasing.
         // Other providers localize section titles and row labels through the shared catalog; values stay canonical.
-        guard provider == .deepseek || provider == .zai || provider == .kiro || provider == .grok || provider == .kimi
+        guard provider == .deepseek || provider == .zai || provider == .kiro ||
+            provider == .grok || provider == .kimi || provider == .notion
         else {
             return details.compactMap { section in
                 let rows = section.rows.compactMap { row in
@@ -113,7 +114,7 @@ extension UsageMenuCardView.Model {
         return L("Resets every 5 hours")
     }
 
-    /// Provider-specific by design: DeepSeek, z.ai, Kiro, Grok, and Kimi detail values carry provider-owned
+    /// Provider-specific by design: DeepSeek, z.ai, Kiro, Grok, Kimi, and Notion detail values carry provider-owned
     /// unit phrasing that localizes at the presentation boundary without touching other providers.
     private static func localizedProviderDetailValue(_ value: String, provider: UsageProvider) -> String {
         switch provider {
@@ -125,6 +126,8 @@ extension UsageMenuCardView.Model {
             self.localizedKiroCapPhrase(value)
         case .grok:
             self.localizedResetCreditValue(value)
+        case .notion:
+            self.localizedQuotaDetailValue(self.localizedKiroCapPhrase(value))
         case .kimi:
             self.localizedResetCreditValue(self.localizedQuotaDetailValue(value))
         default:

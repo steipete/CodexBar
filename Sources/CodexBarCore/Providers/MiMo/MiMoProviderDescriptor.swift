@@ -3,10 +3,48 @@ import Foundation
 public enum MiMoProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
 
+    static let apiKey: @Sendable ([String: String]) -> String? = { SettingsValue.cleaned($0["MIMO_API_KEY"]) }
+    static let diagnosticMessages = [
+        "Check your API key in Settings.",
+        "MiMo is rate limiting requests. Try again later.",
+        "MiMo request failed. Try refreshing later.",
+        "MiMo returned an unrecognized response. Update CodexBar and try again.",
+    ]
+
+    static func apiStrategy(transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) -> ScriptFetchStrategy {
+        ScriptFetchStrategy(
+            id: "mimo.api",
+            provider: .mimo,
+            bundledPlugin: "mimo",
+            secretKey: "MIMO_API_KEY",
+            sourceLabel: "api",
+            transport: transport,
+            resolveValues: { context in
+                guard let key = Self.apiKey(context.env) else { return nil }
+                let messages = Dictionary(uniqueKeysWithValues: Self.diagnosticMessages.map {
+                    ($0, UsageFormatter.localized($0))
+                })
+                let encoded = try? JSONEncoder().encode(messages)
+                return .init(
+                    settings: [
+                        "REGION": context.env["MIMO_TOKEN_PLAN_REGION"] ?? "cn",
+                        "MESSAGES": encoded.flatMap { String(data: $0, encoding: .utf8) } ?? "{}",
+                    ],
+                    secrets: ["MIMO_API_KEY": key])
+            }, isEnabled: { _ in true })
+    }
+
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .mimo,
             settingsSection: .init(MiMoProviderSettingsKey.self, cookieSettings: MiMoProviderSettings.self),
+            credentials: .apiKey(
+                environmentKey: "MIMO_API_KEY",
+                additionalProjections: [.region("MIMO_TOKEN_PLAN_REGION")],
+                resolve: self.apiKey,
+                usesRegion: true,
+                configValidator: ProviderCredentialAdapter.regionValidator(
+                    displayName: "Xiaomi MiMo", isValid: { ["cn", "sgp"].contains($0) })),
             metadata: ProviderMetadata(
                 id: .mimo,
                 displayName: "Xiaomi MiMo",
@@ -53,13 +91,17 @@ public enum MiMoProviderDescriptor {
                     return ProviderIdentityPresentation(badge: balance ?? display, plan: display)
                 },
                 menuCard: ProviderMenuCardPresentation(
+                    creditsVisibility: .hiddenWhenUsageSnapshotPresent,
                     showsPrimaryBalanceDescription: true,
                     hidesPrimaryResetWithoutDate: true),
                 menu: ProviderMenuDescriptorPresentation(primaryDescriptionIsDetail: { _ in true }),
                 planRow: ProviderPlanRowPresentation(stripsBalancePrefix: true)),
             fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .web],
+                sourceModes: [.auto, .api, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { context in
+                    if context.sourceMode == .api || (context.sourceMode == .auto && Self.apiKey(context.env) != nil) {
+                        return [Self.apiStrategy()]
+                    }
                     if context.sourceMode == .web {
                         return [MiMoWebFetchStrategy()]
                     }
@@ -89,10 +131,6 @@ struct MiMoWebFetchStrategy: ProviderFetchStrategy {
         return true
     }
 
-    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        try await self.fetchFromWeb(context)
-    }
-
     static func shouldFallbackToLocal(error: Error) -> Bool {
         if let settingsError = error as? MiMoSettingsError {
             switch settingsError {
@@ -109,7 +147,7 @@ struct MiMoWebFetchStrategy: ProviderFetchStrategy {
         }
     }
 
-    private func fetchFromWeb(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
         guard context.settings?.mimo?.cookieSource != .off else {
             throw MiMoSettingsError.missingCookie()
         }
@@ -122,13 +160,6 @@ struct MiMoWebFetchStrategy: ProviderFetchStrategy {
                 environment: context.env)
             return self.makeResult(usage: snapshot.toUsageSnapshot(), sourceLabel: "web")
         }
-        if let manualCookie = Self.resolveManualCookieHeader(context: context) {
-            let snapshot = try await MiMoUsageFetcher.fetchUsage(
-                cookieHeader: manualCookie,
-                environment: context.env)
-            return self.makeResult(usage: snapshot.toUsageSnapshot(), sourceLabel: "web")
-        }
-
         #if os(macOS)
         var lastError: Error?
 
