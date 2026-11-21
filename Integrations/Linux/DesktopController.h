@@ -8,6 +8,7 @@
 #include <QProcess>
 #include <QTimer>
 #include <QVariant>
+#include <QWindow>
 
 class DesktopController : public QObject {
     Q_OBJECT
@@ -49,6 +50,7 @@ public:
     Q_INVOKABLE void showWindow(const QString &page);
     Q_INVOKABLE bool saveSettings(const QVariantMap &changes);
     Q_INVOKABLE void copySummary();
+    Q_INVOKABLE void fitQuickView(QWindow *window, bool compact);
     QJsonObject snapshot() const;
 
 signals:

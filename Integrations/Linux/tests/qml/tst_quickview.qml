@@ -1,6 +1,7 @@
 import QtQuick
 import QtTest
 import "../../qml" as Desktop
+import "../../Shared/Usage.js" as Usage
 
 TestCase {
     id: testCase
@@ -22,6 +23,7 @@ TestCase {
         property string costError: ""
         signal changed()
         function refresh() {}
+        function fitQuickView(window, compact) {}
         function showWindow(page) {}
     }
     property var view: null
@@ -81,5 +83,59 @@ TestCase {
         desktop.settings = {showCosts: true, quotaDisplay: "used", resetDisplay: "countdown",
             showPace: true, warningColors: true, notifyThreshold: 10};
         tryCompare(fill, "width", fill.parent.width * 0.4);
+    }
+    function test_pinAndExpandPreservesSizeAndShowsLiveQuota() {
+        view.width = 510;
+        view.height = 550;
+        const flags = view.flags;
+        const pin = textItem(view.contentItem, "Pin compact");
+        verify(pin);
+        mouseClick(pin);
+        tryCompare(view, "height", 40);
+        verify(view.flags & Qt.WindowStaysOnTopHint);
+        verify(shown("Session") && shown("60% left"));
+        desktop.settings = Object.assign({}, desktop.settings, {quotaDisplay: "used"});
+        tryVerify(function() { return shown("40% used"); });
+        mouseClick(findChild(view.contentItem, "expandQuickView"));
+        tryCompare(view, "height", 550);
+        compare(view.width, 510);
+        compare(view.flags, flags);
+        verify(shown("Cost across accounts"));
+    }
+    function test_capsuleRefreshStatus() {
+        desktop.settings = Object.assign({}, desktop.settings, {refreshSeconds: 300});
+        view.setPinned(true);
+        verify(shown("✓"));
+        compare(view.refreshCadence, "Every 5 min");
+        view.capsuleNow = Date.parse("2029-12-29T20:00:00Z");
+        verify(shown("Resets in 2d 4h"));
+        view.capsuleNow = Date.parse("2030-01-01T00:00:00Z");
+        verify(shown("Reset due"));
+        desktop.busy = true;
+        verify(shown("↻"));
+        desktop.busy = false;
+        desktop.stale = true;
+        verify(shown("◷"));
+        desktop.error = "Synthetic refresh failure";
+        verify(shown("!"));
+        desktop.error = "";
+        desktop.stale = false;
+        desktop.settings = Object.assign({}, desktop.settings, {refreshSeconds: 90});
+        compare(view.refreshCadence, "Every 90 s");
+    }
+    function test_capsuleProviderWithoutQuotaWindows() {
+        const previousEntries = desktop.entries;
+        try {
+            desktop.entries = Usage.rows(JSON.stringify({provider: "vertexai", usage: {}}), false);
+            view.setPinned(true);
+            compare(view.capsuleStatus, "No usage");
+            verify(shown("…"));
+
+            desktop.entries = Usage.rows(JSON.stringify({provider: "vertexai", error: "Synthetic failure"}), false);
+            compare(view.capsuleStatus, "Refresh failed");
+            verify(shown("!"));
+        } finally {
+            desktop.entries = previousEntries;
+        }
     }
 }
