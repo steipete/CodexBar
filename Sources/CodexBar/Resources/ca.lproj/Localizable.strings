@@ -2855,4 +2855,10 @@
 "Google session expired or invalid." = "La sessió de Google ha caducat o no és vàlida.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "No s'han trobat galetes de sessió de Google Developer Program. Inicia sessió a me.developers.google.com/benefits o enganxa una capçalera Cookie.";
 
+/* MiMo Token Plan API. */
+"MiMo returned an unrecognized response. Update CodexBar and try again." = "MiMo ha retornat una resposta desconeguda. Actualitza CodexBar i torna-ho a provar.";
+"China mainland" = "Xina continental";
+"Singapore" = "Singapur";
+"MiMo is rate limiting requests. Try again later." = "MiMo limita la freqüència de les sol·licituds. Torna-ho a provar més tard.";
+"MiMo request failed. Try refreshing later." = "La sol·licitud a MiMo ha fallat. Torna a actualitzar més tard.";
 "Skip cost refresh" = "Omet l’actualització dels costos";

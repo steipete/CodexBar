@@ -2857,4 +2857,10 @@
 "Google session expired or invalid." = "انتهت صلاحية جلسة Google أو أنها غير صالحة.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "لم يتم العثور على ملفات تعريف ارتباط لجلسة Google Developer Program. سجّل الدخول في me.developers.google.com/benefits أو الصق ترويسة Cookie.";
 
+/* MiMo Token Plan API. */
+"MiMo returned an unrecognized response. Update CodexBar and try again." = "أعاد MiMo استجابة غير معروفة. حدّث CodexBar وحاول مجددًا.";
+"China mainland" = "بر الصين الرئيسي";
+"Singapore" = "سنغافورة";
+"MiMo is rate limiting requests. Try again later." = "يفرض MiMo حدًا على عدد الطلبات. حاول لاحقًا.";
+"MiMo request failed. Try refreshing later." = "فشل طلب MiMo. حاول التحديث لاحقًا.";
 "Skip cost refresh" = "تخطي تحديث التكلفة";

@@ -2854,4 +2854,10 @@
 "Google session expired or invalid." = "Phiên Google đã hết hạn hoặc không hợp lệ.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Không tìm thấy cookie phiên Google Developer Program. Đăng nhập tại me.developers.google.com/benefits hoặc dán tiêu đề Cookie.";
 
+/* MiMo Token Plan API. */
+"MiMo returned an unrecognized response. Update CodexBar and try again." = "MiMo trả về phản hồi không nhận dạng được. Hãy cập nhật CodexBar rồi thử lại.";
+"China mainland" = "Trung Quốc đại lục";
+"Singapore" = "Singapore";
+"MiMo is rate limiting requests. Try again later." = "MiMo đang giới hạn tần suất yêu cầu. Hãy thử lại sau.";
+"MiMo request failed. Try refreshing later." = "Yêu cầu MiMo không thành công. Hãy thử làm mới sau.";
 "Skip cost refresh" = "Bỏ qua làm mới chi phí";
