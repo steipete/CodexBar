@@ -417,6 +417,50 @@ struct StatusItemIconObservationSignatureTests {
     }
 
     @Test
+    func `stored automatic tokens redraw when a visible prepaid balance changes`() {
+        let automatic = MenuBarLayoutToken.percent(window: .automatic)
+        let rule = MenuBarLayoutConditional(
+            clauses: [.init(
+                combinator: nil,
+                predicate: .init(metric: .session, comparison: .greaterThan, threshold: 10))],
+            thenToken: .providerName,
+            elseToken: automatic)
+        let (settings, store, controller) = self.makeController(
+            suiteName: "StatusItemIconObservationSignatureTests-prepaid-auto",
+            menuBarLayout: MenuBarLayout(lines: [[automatic]]),
+            provider: .grok)
+        defer { controller.releaseStatusItemsForTesting() }
+        settings.menuBarLayoutConditionals = [rule]
+        let now = Date(timeIntervalSince1970: 1_795_176_000)
+        let weekly = RateWindow(usedPercent: 100, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)
+
+        func signature(balance: Double?, quota: RateWindow? = nil) -> String {
+            let snapshot = UsageSnapshot(
+                primary: quota,
+                secondary: nil,
+                providerCost: balance
+                    .map { .init(used: 0, limit: 0, currencyCode: "USD", balance: $0, updatedAt: now) },
+                updatedAt: now)
+            store._setSnapshotForTesting(snapshot, provider: .grok)
+            return controller.storeIconObservationSignature()
+        }
+
+        for token in [automatic, .progressBar(window: .automatic), .conditional(id: rule.id)] {
+            settings.setMenuBarLayout(MenuBarLayout(lines: [[token]]), for: nil)
+            settings.showOptionalCreditsAndExtraUsage = true
+            let visible = signature(balance: 17.61)
+            #expect(signature(balance: 12.34) != visible)
+            #expect(signature(balance: nil) != visible)
+            let withQuota = signature(balance: 17.61, quota: weekly)
+            #expect(signature(balance: 12.34, quota: weekly) == withQuota)
+
+            settings.showOptionalCreditsAndExtraUsage = false
+            let hidden = signature(balance: 17.61)
+            #expect(signature(balance: 12.34) == hidden)
+        }
+    }
+
+    @Test
     func `token cost publication enters the icon refresh path without a usage change`() async {
         let (_, store, controller) = self.makeController(
             suiteName: "StatusItemIconObservationSignatureTests-custom-cost-title",
