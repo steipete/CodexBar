@@ -238,7 +238,6 @@ struct CostHistoryChartMenuView: View {
                             Text(L("Refreshing"))
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
-                                .accessibilityLabel(L("Refreshing"))
                         }
                         Spacer(minLength: 0)
                         if availableMetrics.count > 1 {
@@ -311,6 +310,7 @@ struct CostHistoryChartMenuView: View {
                                     .frame(height: model.detailRowHeight, alignment: .leading)
                                 }
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .scrollIndicators(
                             Self.detailRowsNeedScrolling(itemCount: detail.rows.count) ? .visible : .hidden)
