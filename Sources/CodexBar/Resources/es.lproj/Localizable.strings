@@ -2851,6 +2851,7 @@
 "Google session expired or invalid." = "La sesión de Google ha caducado o no es válida.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "No se han encontrado cookies de sesión de Google Developer Program. Inicia sesión en me.developers.google.com/benefits o pega una cabecera Cookie.";
 
+"Enterprise" = "Enterprise";
 "Personal credits" = "Créditos personales";
 "Standard remaining" = "Standard restante";
 "Select remaining" = "Select restante";

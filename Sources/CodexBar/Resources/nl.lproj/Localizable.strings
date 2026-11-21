@@ -2850,6 +2850,7 @@
 "Google session expired or invalid." = "De Google-sessie is verlopen of ongeldig.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Geen Google Developer Program-sessiecookies gevonden. Meld je aan op me.developers.google.com/benefits of plak een Cookie-header.";
 
+"Enterprise" = "Enterprise";
 "Personal credits" = "Persoonlijke credits";
 "Standard remaining" = "Standard resterend";
 "Select remaining" = "Select resterend";

@@ -2853,6 +2853,7 @@
 "Google session expired or invalid." = "Googleのセッションが期限切れか無効です。";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Google Developer ProgramのセッションCookieが見つかりません。me.developers.google.com/benefits にサインインするか、Cookieヘッダーを貼り付けてください。";
 
+"Enterprise" = "Enterprise";
 "Personal credits" = "個人クレジット";
 "Standard remaining" = "Standard 残量";
 "Select remaining" = "Select 残量";

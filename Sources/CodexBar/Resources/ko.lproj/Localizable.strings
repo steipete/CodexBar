@@ -2821,6 +2821,7 @@
 "Google session expired or invalid." = "Google 세션이 만료되었거나 유효하지 않습니다.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Google Developer Program 세션 쿠키를 찾을 수 없습니다. me.developers.google.com/benefits 에 로그인하거나 Cookie 헤더를 붙여 넣으세요.";
 
+"Enterprise" = "Enterprise";
 "Personal credits" = "개인 크레딧";
 "Standard remaining" = "남은 Standard";
 "Select remaining" = "남은 Select";

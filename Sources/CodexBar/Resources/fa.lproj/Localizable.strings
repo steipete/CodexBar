@@ -2857,6 +2857,7 @@
 "Google session expired or invalid." = "نشست Google منقضی شده یا نامعتبر است.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "هیچ کوکی نشست Google Developer Program پیدا نشد. در me.developers.google.com/benefits وارد شوید یا یک سرآیند Cookie جای‌گذاری کنید.";
 
+"Enterprise" = "Enterprise";
 "Personal credits" = "اعتبارهای شخصی";
 "Standard remaining" = "Standard باقی‌مانده";
 "Select remaining" = "Select باقی‌مانده";

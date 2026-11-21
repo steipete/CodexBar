@@ -2854,6 +2854,7 @@
 "Google session expired or invalid." = "Срок действия сеанса Google истёк или сеанс недействителен.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Файлы cookie сеанса Google Developer Program не найдены. Войдите на me.developers.google.com/benefits или вставьте заголовок Cookie.";
 
+"Enterprise" = "Enterprise";
 "Personal credits" = "Личные кредиты";
 "Standard remaining" = "Остаток Standard";
 "Select remaining" = "Остаток Select";

@@ -2852,6 +2852,7 @@
 "Google session expired or invalid." = "Google-sessionen har gått ut eller är ogiltig.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Inga sessionskakor för Google Developer Program hittades. Logga in på me.developers.google.com/benefits eller klistra in ett Cookie-huvud.";
 
+"Enterprise" = "Enterprise";
 "Personal credits" = "Personliga krediter";
 "Standard remaining" = "Standard kvar";
 "Select remaining" = "Select kvar";

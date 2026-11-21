@@ -2831,6 +2831,7 @@
 "Google session expired or invalid." = "Google 工作階段已過期或無效。";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "找不到 Google Developer Program 工作階段 Cookie。請在 me.developers.google.com/benefits 登入或貼上 Cookie 標頭。";
 
+"Enterprise" = "Enterprise";
 "Personal credits" = "個人額度";
 "Standard remaining" = "Standard 剩餘額度";
 "Select remaining" = "Select 剩餘額度";

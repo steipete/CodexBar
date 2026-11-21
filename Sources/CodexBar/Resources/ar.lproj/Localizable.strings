@@ -2857,6 +2857,7 @@
 "Google session expired or invalid." = "انتهت صلاحية جلسة Google أو أنها غير صالحة.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "لم يتم العثور على ملفات تعريف ارتباط لجلسة Google Developer Program. سجّل الدخول في me.developers.google.com/benefits أو الصق ترويسة Cookie.";
 
+"Enterprise" = "Enterprise";
 "Personal credits" = "الأرصدة الشخصية";
 "Standard remaining" = "رصيد Standard المتبقي";
 "Select remaining" = "رصيد Select المتبقي";

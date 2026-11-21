@@ -2856,6 +2856,7 @@
 "Google session expired or invalid." = "Google oturumunun süresi doldu veya oturum geçersiz.";
 "No Google Developer Program session cookies found. Sign in at me.developers.google.com/benefits or paste a Cookie header." = "Google Developer Program oturum çerezleri bulunamadı. me.developers.google.com/benefits adresinde oturum açın veya bir Cookie başlığı yapıştırın.";
 
+"Enterprise" = "Enterprise";
 "Personal credits" = "Kişisel krediler";
 "Standard remaining" = "Kalan Standard";
 "Select remaining" = "Kalan Select";
