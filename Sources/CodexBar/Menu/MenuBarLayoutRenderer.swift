@@ -315,6 +315,7 @@ final class MenuBarLayoutRenderer {
     private static let missingValue = "–"
     private static let stackedBaselineOffset: CGFloat = -3 // Center multi-line NSStatusBarButton titles.
     private static let windowPrefixKey = NSAttributedString.Key("CodexBarWindowPrefix")
+    static let attachmentBaselineShiftKey = NSAttributedString.Key("CodexBarAttachmentBaselineShift")
     private static let singleLineBaselineOffset: CGFloat = -1 // Drop single-line titles slightly for optical centering.
 
     private struct TokenStyle {
@@ -492,8 +493,7 @@ final class MenuBarLayoutRenderer {
         // Optical baseline offset keeps the title vertically balanced in the status bar button.
         // A user-tunable nudge is layered on top so the layout can be fine-tuned per display.
         let baseBaselineOffset = isStacked ? Self.stackedBaselineOffset : Self.singleLineBaselineOffset
-        var appliedBaselineOffset = baseBaselineOffset + CGFloat(options.verticalAdjustment)
-        attributes[.baselineOffset] = appliedBaselineOffset
+        attributes[.baselineOffset] = baseBaselineOffset + CGFloat(options.verticalAdjustment)
         let result = NSMutableAttributedString()
         var accessibilityLines: [String] = []
 
@@ -522,8 +522,7 @@ final class MenuBarLayoutRenderer {
            renderedLines.joined().contains(.icon)
         {
             // Inline attachments need less baseline lowering to fit both rows in the 22pt status bar.
-            appliedBaselineOffset = Self.stackedBaselineOffset + 2 + CGFloat(options.verticalAdjustment)
-            attributes[.baselineOffset] = appliedBaselineOffset
+            attributes[.baselineOffset] = Self.stackedBaselineOffset + 2 + CGFloat(options.verticalAdjustment)
         }
 
         let automaticLabel = Self.automaticWindowLabel(data: data)
@@ -601,7 +600,6 @@ final class MenuBarLayoutRenderer {
                     $0,
                     title: result,
                     font: font,
-                    baselineShift: appliedBaselineOffset,
                     options: options)
             } ?? result,
             accessibilityLabel: accessibilityLabel,
@@ -611,7 +609,6 @@ final class MenuBarLayoutRenderer {
                 ? Self.statusImage(
                     title: result,
                     foregroundColor: foregroundColor,
-                    baselineShift: appliedBaselineOffset,
                     verticalAdjustment: options.verticalAdjustment)
                 : nil,
             verticalAdjustment: options.verticalAdjustment)
@@ -672,7 +669,7 @@ final class MenuBarLayoutRenderer {
             leadingIcon: nil,
             statusImage: highContrast
                 ? nil
-                : self.statusImage(title: title, foregroundColor: .labelColor, baselineShift: 0, verticalAdjustment: 0))
+                : self.statusImage(title: title, foregroundColor: .labelColor, verticalAdjustment: 0))
     }
 
     /// nil == resolved to .hidden (render nothing, no separator). A returned .conditional
@@ -1515,8 +1512,12 @@ extension MenuBarLayoutRenderer {
     /// vertically off-center from the surrounding text (especially stacked rows at -3pt).
     private static func attachmentText(_ attachment: NSTextAttachment, style: TokenStyle) -> NSAttributedString {
         let value = NSMutableAttributedString(attachment: attachment)
-        value.addAttributes(style.attributes, range: NSRange(location: 0, length: value.length))
-        value.removeAttribute(.baselineOffset, range: NSRange(location: 0, length: value.length))
+        let fullRange = NSRange(location: 0, length: value.length)
+        value.addAttributes(style.attributes, range: fullRange)
+        if let shift = (style.attributes[.baselineOffset] as? NSNumber)?.doubleValue, shift != 0 {
+            value.addAttribute(Self.attachmentBaselineShiftKey, value: CGFloat(shift), range: fullRange)
+        }
+        value.removeAttribute(.baselineOffset, range: fullRange)
         return value
     }
 

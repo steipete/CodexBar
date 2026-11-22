@@ -6,7 +6,6 @@ extension MenuBarLayoutRenderer {
     static func statusImage(
         title: NSAttributedString,
         foregroundColor: NSColor,
-        baselineShift: CGFloat? = nil,
         verticalAdjustment: Int = 0) -> NSImage?
     {
         guard title.length > 0 else { return nil }
@@ -22,10 +21,7 @@ extension MenuBarLayoutRenderer {
                   !CTFontGetSymbolicTraits(font as CTFont).contains(.traitColorGlyphs)
             else { return nil }
         }
-        let prepared = Self.prepareImageTitle(
-            title,
-            baselineShift: baselineShift,
-            verticalAdjustment: verticalAdjustment)
+        let prepared = Self.prepareImageTitle(title, verticalAdjustment: verticalAdjustment)
         let size = NSSize(width: max(1, ceil(prepared.bounds.width)), height: 22)
         // Drawing handlers preserve the destination scale; the template lets AppKit own highlight and inactive tinting.
         // Capture immutable content only: AppKit can call the handler away from the main thread.
@@ -43,13 +39,11 @@ extension MenuBarLayoutRenderer {
         _ icon: NSImage,
         title: NSAttributedString,
         font: NSFont,
-        baselineShift: CGFloat,
         options: MenuBarLayoutRenderOptions) -> NSAttributedString
     {
         let prepared = Self.prepareImageTitle(
             title,
             x: icon.size.width,
-            baselineShift: baselineShift,
             verticalAdjustment: options.verticalAdjustment)
         let size = NSSize(width: max(1, ceil(icon.size.width + prepared.bounds.width)), height: 22)
         let mark = Self.offsetLeadingIcon(
@@ -110,32 +104,31 @@ extension MenuBarLayoutRenderer {
         return offsetImage
     }
 
-    /// Removes `baselineOffset` from text runs (and undoes the matching y-shift baked into meter
-    /// attachments that omit `baselineOffset`) so image-backed titles center cleanly in the 22 pt
-    /// menu-bar canvas and apply only the user's `verticalAdjustment`.
+    /// Removes `baselineOffset` from all text runs and undoes each attachment run's recorded
+    /// baseline shift so image-backed titles center cleanly in the 22 pt menu-bar canvas and apply
+    /// only the user's `verticalAdjustment`, even when composed rows carry different baseline shifts.
     private static func prepareImageTitle(
         _ title: NSAttributedString,
         x: CGFloat = 0,
         canvasHeight: CGFloat = 22,
-        baselineShift: CGFloat? = nil,
         verticalAdjustment: Int = 0)
         -> (title: NSAttributedString, bounds: NSRect, rect: NSRect)
     {
-        let shift = baselineShift ?? Self.firstBaselineOffset(in: title)
+        let fullRange = NSRange(location: 0, length: title.length)
         let unshifted = NSMutableAttributedString(attributedString: title)
-        if shift != 0 {
-            // Meter runs put their shift in attachment bounds instead of baselineOffset. Normalize
-            // those as well before moving the complete title, otherwise meters move twice.
-            title.enumerateAttributes(in: NSRange(location: 0, length: title.length)) { attributes, range, _ in
-                guard attributes[.baselineOffset] == nil,
-                      let source = attributes[.attachment] as? NSTextAttachment else { return }
-                let attachment = NSTextAttachment()
-                attachment.image = source.image
-                attachment.bounds = source.bounds.offsetBy(dx: 0, dy: -shift)
-                unshifted.addAttribute(.attachment, value: attachment, range: range)
-            }
-            unshifted.removeAttribute(.baselineOffset, range: NSRange(location: 0, length: title.length))
+        // Meter/pace runs bake their shift into attachment bounds instead of baselineOffset.
+        // Normalize each run with its own recorded shift before moving the complete title.
+        title.enumerateAttributes(in: fullRange) { attributes, range, _ in
+            guard let shift = (attributes[Self.attachmentBaselineShiftKey] as? NSNumber)?.doubleValue,
+                  shift != 0,
+                  let source = attributes[.attachment] as? NSTextAttachment else { return }
+            let attachment = NSTextAttachment()
+            attachment.image = source.image
+            attachment.bounds = source.bounds.offsetBy(dx: 0, dy: -CGFloat(shift))
+            unshifted.addAttribute(.attachment, value: attachment, range: range)
         }
+        unshifted.removeAttribute(Self.attachmentBaselineShiftKey, range: fullRange)
+        unshifted.removeAttribute(.baselineOffset, range: fullRange)
         let immutableTitle = NSAttributedString(attributedString: unshifted)
         let bounds = immutableTitle.boundingRect(
             with: NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude),
@@ -146,16 +139,5 @@ extension MenuBarLayoutRenderer {
             width: bounds.width,
             height: bounds.height)
         return (immutableTitle, bounds, rect)
-    }
-
-    private static func firstBaselineOffset(in title: NSAttributedString) -> CGFloat {
-        var found: CGFloat = 0
-        title.enumerateAttribute(.baselineOffset, in: NSRange(location: 0, length: title.length)) { value, _, stop in
-            if let number = value as? NSNumber {
-                found = CGFloat(number.doubleValue)
-                stop.pointee = true
-            }
-        }
-        return found
     }
 }

@@ -86,6 +86,59 @@ struct MenuBarVerticalAlignmentTests {
         #expect(abs((lowered - raised) - 4.0) < 0.6)
     }
 
+    @Test
+    func `composed stacked rows normalize mixed baseline shifts when top row offset is zero`() throws {
+        let fixture = MenuBarLayoutRendererTests()
+        let renderer = MenuBarLayoutRenderer()
+        let icon = Self.makeTemplateIcon()
+        // At .large + verticalAdjustment +1, an icon-bearing top row gets baselineOffset == 0
+        // while a text-only bottom row without an icon gets baselineOffset == -2.
+        let topLayout = MenuBarLayout(lines: [[.icon, .percent(window: .automatic)]])
+        let bottomLayout = MenuBarLayout(lines: [[.percent(window: .automatic)]])
+
+        func compose(shift: Int) -> MenuBarLayoutRenderedTitle {
+            let options = fixture.options(size: .large, verticalAdjustment: shift, forceStackedStyle: true)
+            let top = renderer.render(layout: topLayout, data: fixture.data(), icon: icon, options: options)
+            let bottom = renderer.render(
+                layout: bottomLayout,
+                data: fixture.data(provider: .claude),
+                icon: nil,
+                options: options)
+            return MenuBarLayoutRenderer.composeStackedProviderRows(
+                top: top,
+                bottom: bottom,
+                topProviderName: "Codex",
+                bottomProviderName: "Claude")
+        }
+
+        let zero = compose(shift: 0)
+        let plusOne = compose(shift: 1)
+        let topOffset = plusOne.attributedTitle.attribute(.baselineOffset, at: 0, effectiveRange: nil) as? CGFloat
+        let bottomOffset = plusOne.attributedTitle.attribute(
+            .baselineOffset,
+            at: plusOne.attributedTitle.length - 1,
+            effectiveRange: nil) as? CGFloat
+        #expect(topOffset == 0)
+        #expect(bottomOffset == -2)
+
+        let zeroBitmap = try Self.statusBitmap(image: #require(zero.statusImage), scale: 2)
+        let plusOneBitmap = try Self.statusBitmap(image: #require(plusOne.statusImage), scale: 2)
+        // Moving verticalAdjustment from 0 to +1 should raise the entire composed image by 1 pt,
+        // without leaving the lower row 2 pt behind.
+        let zeroBounds = try Self.inkVerticalBounds(of: zeroBitmap)
+        let plusOneBounds = try Self.inkVerticalBounds(of: plusOneBitmap)
+        let zeroSpan = zeroBounds.maxY - zeroBounds.minY
+        let plusOneSpan = plusOneBounds.maxY - plusOneBounds.minY
+        #expect(
+            abs(plusOneSpan - zeroSpan) < 0.6,
+            "Mixed-row vertical span changed from \(zeroSpan) pt to \(plusOneSpan) pt")
+        let zeroCentroid = try Self.inkCentroidY(of: zeroBitmap)
+        let plusOneCentroid = try Self.inkCentroidY(of: plusOneBitmap)
+        #expect(
+            abs((zeroCentroid - plusOneCentroid) - 1.0) < 0.4,
+            "Mixed-row composed image shifted by \(zeroCentroid - plusOneCentroid) pt instead of 1.0 pt")
+    }
+
     @Test(arguments: [MenuBarLayoutSize.small, .regular, .large])
     func `high contrast spanning icon centers stacked text beside the icon`(size: MenuBarLayoutSize) throws {
         let fixture = MenuBarLayoutRendererTests()
