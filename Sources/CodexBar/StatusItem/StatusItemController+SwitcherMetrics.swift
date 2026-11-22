@@ -49,8 +49,17 @@ extension StatusItemController {
         for provider: UsageProvider,
         snapshot: UsageSnapshot?,
         showUsed: Bool,
-        preference: MenuBarMetricPreference = .automatic) -> Double?
+        preference: MenuBarMetricPreference = .automatic,
+        percentWindowPreference: MenuBarPercentWindowPreference? = nil) -> Double?
     {
+        // A named model-family allowance must not be replaced by another family's tighter quota.
+        if case let .extra(id) = percentWindowPreference {
+            guard let named = snapshot?.extraRateWindows?.first(where: { $0.id == id }),
+                  named.usageKnown, named.window.usedPercent.isFinite, !named.window.isSyntheticPlaceholder
+            else { return nil }
+            let used = min(100, max(0, named.window.usedPercent))
+            return showUsed ? used : 100 - used
+        }
         let metric = preference == .automatic || preference == .monthlyPlan
             ? MenuBarMetricWindowResolver.rateWindow(
                 preference: preference,

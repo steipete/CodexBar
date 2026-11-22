@@ -6,6 +6,31 @@ import Testing
 
 struct SwitcherExhaustedQuotaTests {
     @Test(arguments: [false, true])
+    func `named family switcher follows selected weekly allowance`(_ showUsed: Bool) {
+        let id = "antigravity-quota-summary-gemini-weekly"
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            tertiary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: id,
+                    title: "Gemini weekly",
+                    window: RateWindow(usedPercent: 6, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)),
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-3p-weekly",
+                    title: "Claude/GPT weekly",
+                    window: RateWindow(usedPercent: 84, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)),
+            ],
+            updatedAt: Date())
+        #expect(StatusItemController.switcherWeeklyMetricPercent(
+            for: .antigravity,
+            snapshot: snapshot,
+            showUsed: showUsed,
+            percentWindowPreference: .extra(id: id)) == (showUsed ? 6 : 94))
+    }
+
+    @Test(arguments: [false, true])
     func `automatic switcher shows exhausted rolling and monthly allowances`(_ showUsed: Bool) {
         let cases: [(Double, Double?, Double)] = [(20, 40, 100), (20, nil, 100), (100, 40, 30)]
         for (rolling, weekly, monthly) in cases {
