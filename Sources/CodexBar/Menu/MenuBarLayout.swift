@@ -717,8 +717,13 @@ enum MenuBarLayoutNamedExtra {
         let windows = provider == .cursor
             ? snapshot.map(CursorProviderDescriptor.menuBarExtras) ?? [] : snapshot?.extraRateWindows ?? []
         return windows.filter {
-            definitions[$0.id] != nil && $0.usageKnown && !$0.window.isSyntheticPlaceholder
+            (definitions[$0.id] != nil || Self.isDynamicAntigravityQuota(id: $0.id, provider: provider))
+                && $0.usageKnown && !$0.window.isSyntheticPlaceholder && $0.window.usedPercent.isFinite
         }
+    }
+
+    static func isDynamicAntigravityQuota(id: String, provider: UsageProvider?) -> Bool {
+        provider == .antigravity && id.hasPrefix("antigravity-quota-summary-")
     }
 
     static func availableTokens(provider: UsageProvider?, snapshot: UsageSnapshot?) -> [MenuBarLayoutToken] {

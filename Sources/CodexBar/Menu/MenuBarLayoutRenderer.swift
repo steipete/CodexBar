@@ -107,6 +107,11 @@ struct MenuBarLayoutRenderData: Hashable {
 
     func extraTitle(_ id: String) -> String? {
         guard let descriptor else { return self.extraRateWindows.first { $0.id == id }?.title }
+        if MenuBarLayoutNamedExtra.isDynamicAntigravityQuota(id: id, provider: self.provider.firstPartyProvider),
+           descriptor.menuBarMetrics.namedExtras[id] == nil
+        {
+            return self.extraRateWindows.first { $0.id == id }?.title
+        }
         return descriptor.menuBarMetrics.namedExtras[id].map { title in
             L(self.extraRateWindows.first { $0.id == id }?.title ?? title)
         }

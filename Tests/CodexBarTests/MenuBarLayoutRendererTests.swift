@@ -15,6 +15,59 @@ struct MenuBarLayoutRendererTests {
     let now = Date(timeIntervalSince1970: 1_752_768_000)
 
     @Test
+    func `dynamic Antigravity family renders its own remaining percentage`() {
+        let id = "antigravity-quota-summary-fictional-fable-weekly"
+        let named = NamedRateWindow(
+            id: id,
+            title: "Fictional Fable weekly",
+            window: RateWindow(usedPercent: 12, windowMinutes: 10080, resetsAt: nil, resetDescription: nil))
+        let snapshot = UsageSnapshot(primary: nil, secondary: nil, extraRateWindows: [named], updatedAt: self.now)
+        let windows = MenuBarLayoutNamedExtra.windows(provider: .antigravity, snapshot: snapshot)
+        #expect(windows.map(\.id) == [id])
+        let layout = MenuBarPercentWindowPreference.extra(id: id)
+            .applied(to: MenuBarLayout(lines: [[.percent(window: .automatic)]]))
+        let result = MenuBarLayoutRenderer().render(
+            layout: layout,
+            data: self.data(provider: .antigravity, extraRateWindows: windows.map(MenuBarLayoutRenderExtra.init)),
+            icon: nil,
+            options: self.options(showUsed: false))
+        #expect(result.attributedTitle.string == "Fictional Fable weekly 88%")
+        #expect(result.accessibilityLabel == "Fictional Fable weekly 88%")
+    }
+
+    @Test
+    func `dynamic Antigravity extras remain provider scoped and require usable usage`() {
+        let id = "antigravity-quota-summary-fictional-fable-weekly"
+        let ordinary = RateWindow(usedPercent: 12, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)
+        let valid = NamedRateWindow(id: id, title: "Fictional Fable weekly", window: ordinary)
+        let snapshot = UsageSnapshot(primary: nil, secondary: nil, extraRateWindows: [valid], updatedAt: self.now)
+        #expect(MenuBarLayoutNamedExtra.windows(provider: .codex, snapshot: snapshot).isEmpty)
+        #expect(self.data(provider: .codex, extraRateWindows: [MenuBarLayoutRenderExtra(valid)])
+            .extraTitle(id) == nil)
+        let unavailable = [
+            NamedRateWindow(id: id, title: "Fable", window: ordinary, usageKnown: false),
+            NamedRateWindow(id: "unregistered", title: "Other", window: ordinary),
+            NamedRateWindow(
+                id: id,
+                title: "Fable",
+                window: RateWindow(usedPercent: .nan, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)),
+            NamedRateWindow(
+                id: id,
+                title: "Fable",
+                window: RateWindow(
+                    usedPercent: 0,
+                    windowMinutes: 10080,
+                    resetsAt: nil,
+                    resetDescription: nil,
+                    isSyntheticPlaceholder: true)),
+        ]
+        for named in unavailable {
+            let invalid = UsageSnapshot(primary: nil, secondary: nil, extraRateWindows: [named], updatedAt: self.now)
+            #expect(MenuBarLayoutNamedExtra.windows(provider: .antigravity, snapshot: invalid).isEmpty)
+        }
+    }
+
+    @Test
     func `window label preference hides percentage prefixes without changing accessibility or cached defaults`() {
         let renderer = MenuBarLayoutRenderer()
         let layout = MenuBarLayout(lines: [[
