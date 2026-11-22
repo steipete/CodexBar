@@ -354,19 +354,17 @@ enum ProviderPluginHTTPResponse {
                 let sleep = BoundedTaskJoinTiming.sleep
                 let remaining = contextOptions.waitForHTTPDeadline == nil
                     ? ContinuousClock.now.duration(to: startedAt.advanced(by: budget)) : budget
-                let wait: @Sendable (Duration) async throws -> Void = { _ in
+                let wait: @Sendable (Duration) async throws -> Void = { duration in
                     if let wait = contextOptions.waitForHTTPDeadline {
                         try await wait(startedAt, budget)
                     } else {
-                        try await sleep(remaining)
+                        try await sleep(duration)
                     }
                 }
-                return try await BoundedTaskJoinTiming.$sleep.withValue(wait) {
-                    switch await BoundedTaskJoin(sourceTask: task).value(joinGrace: remaining) {
-                    case let .value(response): response
-                    case let .failure(error): throw error
-                    case .timedOut: throw URLError(.timedOut)
-                    }
+                return switch await BoundedTaskJoin(sourceTask: task).value(joinGrace: remaining, sleep: wait) {
+                case let .value(response): response
+                case let .failure(error): throw error
+                case .timedOut: throw URLError(.timedOut)
                 }
             } onCancel: {
                 cancellation.cancel()
@@ -375,9 +373,8 @@ enum ProviderPluginHTTPResponse {
                 DispatchQueue.global().async { task.cancel() }
             }
         }
-        return try await ProviderHTTPRetryTiming.$sleep.withValue(contextOptions.sleepBeforeRetry) {
-            try await bounded.response(for: request, retryPolicy: retryPolicy)
-        }
+        return try await bounded.response(
+            for: request, retryPolicy: retryPolicy, sleepBeforeRetry: contextOptions.sleepBeforeRetry)
     }
 
     private final class AdmissionCancellation: @unchecked Sendable {
