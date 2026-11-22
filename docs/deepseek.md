@@ -78,6 +78,17 @@ If no session is valid, the menu keeps the API-key balance when one exists; othe
 DeepSeek Platform in a Chromium-based browser. Authentication failures returned as top-level or nested DeepSeek codes
 `40002` and `40003` are treated as expired sessions.
 
+## Troubleshooting browser session access
+
+If CodexBar asks you to sign in to DeepSeek Platform even though you are signed in to
+`https://platform.deepseek.com` in a supported Chromium browser, macOS file access may prevent the app from reading the browser profile. On an affected Mac, granting CodexBar Full Disk Access resolved this issue:
+
+1. Open **System Settings → Privacy & Security → Full Disk Access**.
+2. Enable **CodexBar**, or add it from Applications if it is not listed.
+3. Quit and reopen CodexBar, then refresh DeepSeek.
+
+Full Disk Access grants broad access to files on your Mac. It is not necessarily required on every system; if it does not help, you can turn it off again. The CLI and menu bar app can have different macOS permissions, so a successful CLI fetch does not necessarily confirm that the app can read the same browser profile.
+
 ## Usage details
 
 - The menu card shows total balance with the paid vs. granted breakdown:
