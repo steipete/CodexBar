@@ -33,7 +33,20 @@ defineProvider({
         headers: { Accept: "application/json", Referer: `https://${domain}/usage` },
         retryPolicy: "transientIdempotent",
       });
+      // Cross-origin sign-in redirects are deliberately not followed with imported cookies.
+      // Reject this session so another signed-in browser profile can still supply usage.
+      const isRedirect = [301, 302, 303, 307, 308].includes(response.status);
+      if (isRedirect && /^https:\/\/(?:www\.)?google\.com\/sorry(?:\/|[?#]|$)/i.test(response.headers.location || "")) {
+        // A shared Google verification challenge is not evidence that this account is signed out.
+        // Keep its identity and stop; trying other accounts cannot satisfy the challenge.
+        throw ctx.fail.providerUnavailable(
+          "Google requires browser verification. Open gemini.google.com/usage in your signed-in browser, then refresh.",
+        );
+      }
+      const signInRedirect =
+        isRedirect && /^https:\/\/accounts\.google\.com(?:\/|$)/i.test(response.headers.location || "");
       if (
+        signInRedirect ||
         response.status === 401 ||
         response.status === 403 ||
         (response.status === 200 && response.bodyText.trimStart().startsWith("<"))

@@ -71,6 +71,46 @@ struct GeminiWebPluginTests {
     }
 
     @Test(arguments: BundledPluginTestSupport.engines)
+    func `Google sign in redirects allow the next browser candidate`(engine: ProviderPluginEngineKind) async throws {
+        let fixture = Fixture(
+            [(302, ""), (200, Self.usage)], redirectLocation: "https://accounts.google.com/ServiceLogin")
+        let usage = try await Self.fetch(engine, fixture: fixture)
+        #expect(usage.primary?.usedPercent == 24)
+        #expect(await fixture.requests == 2)
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `unrelated redirects do not change browser identity`(engine: ProviderPluginEngineKind) async {
+        let fixture = Fixture(
+            [(302, ""), (200, Self.usage)], redirectLocation: "https://unrelated.example/")
+        await #expect(throws: (any Error).self) { try await Self.fetch(engine, fixture: fixture) }
+        #expect(await fixture.requests == 1)
+        #expect(await fixture.sessions == 1)
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `Google verification redirects stop without rejecting the account`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let fixture = Fixture(
+            [(302, ""), (200, Self.usage)], redirectLocation: "https://www.google.com/sorry/index?private=query")
+        let runtime = try BundledPluginTestSupport.runtime("gemini-web", engine: engine, transport: fixture)
+        let rejected = Counter()
+        await #expect {
+            try await runtime.fetchUsage(
+                cookieSessionResolver: { _, _ in await fixture.nextSession() },
+                cookieSessionInvalidator: { _, _ in rejected.increment() })
+        } throws: { error in
+            guard let error = error as? ProviderFetchClassifiedError else { return false }
+            return error.kind == .providerUnavailable && error.message.contains("browser verification")
+                && !error.message.contains("private=query")
+        }
+        #expect(await fixture.requests == 1)
+        #expect(await fixture.sessions == 1)
+        #expect(rejected.value == 0)
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
     func `query drift stops browser traversal without echoing the response`(engine: ProviderPluginEngineKind) async {
         let fixture = Fixture([
             (200, #"[{"data":{},"errors":[{"message":"private-response"}]}]"#),
@@ -120,11 +160,13 @@ struct GeminiWebPluginTests {
 
     private actor Fixture: ProviderHTTPTransport {
         let responses: [(Int, String)]
+        let redirectLocation: String?
         var sessions = 0
         var requests = 0
 
-        init(_ responses: [(Int, String)]) {
+        init(_ responses: [(Int, String)], redirectLocation: String? = nil) {
             self.responses = responses
+            self.redirectLocation = redirectLocation
         }
 
         func nextSession() -> ProviderPluginCookieSession? {
@@ -154,8 +196,10 @@ struct GeminiWebPluginTests {
             #expect(actual == expected)
             let (code, body) = self.responses[min(self.requests, self.responses.count - 1)]
             self.requests += 1
+            var headers = ["Retry-After": "0"]
+            if code == 302, let redirectLocation { headers["Location"] = redirectLocation }
             return try (Data(body.utf8), #require(HTTPURLResponse(
-                url: url, statusCode: code, httpVersion: nil, headerFields: ["Retry-After": "0"])))
+                url: url, statusCode: code, httpVersion: nil, headerFields: headers)))
         }
     }
 }
