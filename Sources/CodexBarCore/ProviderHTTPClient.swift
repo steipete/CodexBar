@@ -118,7 +118,7 @@ public struct ProviderHTTPTransportHandler: ProviderHTTPTransport {
 }
 
 enum ProviderHTTPRetryTiming {
-    @TaskLocal static var sleep: @Sendable (TimeInterval) async throws -> Void = {
+    static let sleep: @Sendable (TimeInterval) async throws -> Void = {
         try await Task.sleep(nanoseconds: UInt64($0 * 1_000_000_000))
     }
 }
@@ -131,6 +131,14 @@ extension ProviderHTTPTransport {
     public func response(
         for request: URLRequest,
         retryPolicy: ProviderHTTPRetryPolicy) async throws -> ProviderHTTPResponse
+    {
+        try await self.response(for: request, retryPolicy: retryPolicy, sleepBeforeRetry: ProviderHTTPRetryTiming.sleep)
+    }
+
+    func response(
+        for request: URLRequest,
+        retryPolicy: ProviderHTTPRetryPolicy,
+        sleepBeforeRetry: @Sendable (TimeInterval) async throws -> Void) async throws -> ProviderHTTPResponse
     {
         var attempt = 0
 
@@ -148,13 +156,15 @@ extension ProviderHTTPTransport {
                 else {
                     return providerResponse
                 }
-                try await Self.sleepBeforeRetry(policy: retryPolicy, attempt: attempt, response: httpResponse)
+                try await Self.sleepBeforeRetry(
+                    policy: retryPolicy, attempt: attempt, response: httpResponse, sleep: sleepBeforeRetry)
                 attempt += 1
             } catch {
                 guard retryPolicy.shouldRetry(request: request, attempt: attempt, error: error) else {
                     throw error
                 }
-                try await Self.sleepBeforeRetry(policy: retryPolicy, attempt: attempt, response: nil)
+                try await Self.sleepBeforeRetry(
+                    policy: retryPolicy, attempt: attempt, response: nil, sleep: sleepBeforeRetry)
                 attempt += 1
             }
         }
@@ -163,11 +173,12 @@ extension ProviderHTTPTransport {
     private static func sleepBeforeRetry(
         policy: ProviderHTTPRetryPolicy,
         attempt: Int,
-        response: HTTPURLResponse?) async throws
+        response: HTTPURLResponse?,
+        sleep: @Sendable (TimeInterval) async throws -> Void) async throws
     {
         let delay = policy.delaySeconds(attempt: attempt, response: response)
         guard delay > 0 else { return }
-        try await ProviderHTTPRetryTiming.sleep(delay)
+        try await sleep(delay)
     }
 }
 

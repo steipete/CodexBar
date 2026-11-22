@@ -22,7 +22,11 @@ package final class BoundedTaskJoin<Value: Sendable>: @unchecked Sendable {
         self.sourceTask = sourceTask
     }
 
-    package func value(joinGrace: Duration?) async -> BoundedTaskJoinOutcome<Value> {
+    package func value(
+        joinGrace: Duration?,
+        sleep: @escaping @Sendable (Duration) async throws -> Void = BoundedTaskJoinTiming.sleep)
+        async -> BoundedTaskJoinOutcome<Value>
+    {
         await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
                 self.lock.lock()
@@ -46,7 +50,7 @@ package final class BoundedTaskJoin<Value: Sendable>: @unchecked Sendable {
                     self.timeoutTask = Task { [weak self] in
                         do {
                             if joinGrace > .zero {
-                                try await BoundedTaskJoinTiming.sleep(joinGrace)
+                                try await sleep(joinGrace)
                             }
                             self?.resolve(.timedOut, cancelSource: true)
                         } catch {
