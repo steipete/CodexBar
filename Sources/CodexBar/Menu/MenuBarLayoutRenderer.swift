@@ -251,17 +251,20 @@ struct MenuBarLayoutRenderedTitle {
     /// content AppKit automatically dims on inactive displays; attributed-title attachments are
     /// pre-rendered bitmaps and do not follow the system's active-state tinting.
     let leadingIcon: NSImage?
+    let verticalAdjustment: Int
 
     init(
         attributedTitle: NSAttributedString,
         accessibilityLabel: String,
         leadingIcon: NSImage?,
-        statusImage: NSImage? = nil)
+        statusImage: NSImage? = nil,
+        verticalAdjustment: Int = 0)
     {
         self.attributedTitle = attributedTitle
         self.accessibilityLabel = accessibilityLabel
         self.leadingIcon = leadingIcon
         self.statusImage = statusImage
+        self.verticalAdjustment = verticalAdjustment
     }
 
     func statusItemWidth(gap: MenuBarLayoutGap) -> CGFloat {
@@ -312,6 +315,7 @@ final class MenuBarLayoutRenderer {
     private static let missingValue = "–"
     private static let stackedBaselineOffset: CGFloat = -3 // Center multi-line NSStatusBarButton titles.
     private static let windowPrefixKey = NSAttributedString.Key("CodexBarWindowPrefix")
+    private static let attachmentBaselineShiftKey = NSAttributedString.Key("CodexBarAttachmentBaselineShift")
     private static let singleLineBaselineOffset: CGFloat = -1 // Drop single-line titles slightly for optical centering.
 
     private struct TokenStyle {
@@ -410,7 +414,8 @@ final class MenuBarLayoutRenderer {
                 attributedTitle: row.attributedTitle,
                 accessibilityLabel: "\(providerName), \(row.accessibilityLabel)",
                 leadingIcon: row.leadingIcon,
-                statusImage: row.statusImage)
+                statusImage: row.statusImage,
+                verticalAdjustment: row.verticalAdjustment)
         }
 
         let result = NSMutableAttributedString(attributedString: top.attributedTitle)
@@ -425,7 +430,9 @@ final class MenuBarLayoutRenderer {
             attributedTitle: result,
             accessibilityLabel: accessibilityLabel,
             leadingIcon: nil,
-            statusImage: Self.statusImage(title: result, foregroundColor: .controlTextColor))
+            statusImage: Self.statusImage(
+                title: result, foregroundColor: .controlTextColor, verticalAdjustment: top.verticalAdjustment),
+            verticalAdjustment: top.verticalAdjustment)
     }
 
     private static func renderUncached(
@@ -593,8 +600,10 @@ final class MenuBarLayoutRenderer {
             leadingIcon: leadingIcon,
             statusImage: !options.highContrast && !options.isStale && !isTintActive && leadingIcon == nil
                 && result.string.filter(\.isNewline).count == max(0, renderedLines.count - 1)
-                ? Self.statusImage(title: result, foregroundColor: foregroundColor)
-                : nil)
+                ? Self.statusImage(
+                    title: result, foregroundColor: foregroundColor, verticalAdjustment: options.verticalAdjustment)
+                : nil,
+            verticalAdjustment: options.verticalAdjustment)
     }
 
     private static func removeDuplicateBalanceResets(
@@ -653,7 +662,9 @@ final class MenuBarLayoutRenderer {
             statusImage: highContrast ? nil : self.statusImage(title: title, foregroundColor: .labelColor))
     }
 
-    private static func statusImage(title: NSAttributedString, foregroundColor: NSColor) -> NSImage? {
+    private static func statusImage(
+        title: NSAttributedString, foregroundColor: NSColor, verticalAdjustment: Int = 0) -> NSImage?
+    {
         guard title.length > 0 else { return nil }
         // Preserve colored glyphs and attachments; monochrome attachment masks may join the template.
         let line = CTLineCreateWithAttributedString(title)
@@ -667,28 +678,43 @@ final class MenuBarLayoutRenderer {
                   !CTFontGetSymbolicTraits(font as CTFont).contains(.traitColorGlyphs)
             else { return nil }
         }
-        let baseline = (title.attribute(.baselineOffset, at: 0, effectiveRange: nil) as? NSNumber)?.doubleValue ?? 0
-        let unshiftedTitle = NSMutableAttributedString(attributedString: title)
-        unshiftedTitle.removeAttribute(.baselineOffset, range: NSRange(location: 0, length: title.length))
-        let immutableTitle = NSAttributedString(attributedString: unshiftedTitle)
-        let bounds = unshiftedTitle.boundingRect(
-            with: NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin, .usesFontLeading])
-        let size = NSSize(width: max(1, ceil(bounds.width)), height: 22)
-        // NSStatusBarButton's native title baseline sits one point above the image canvas's geometric center.
-        let titleRect = NSRect(
-            x: -bounds.minX,
-            y: floor((size.height - bounds.height) / 2) - bounds.minY + baseline + 1,
-            width: bounds.width,
-            height: bounds.height)
+        let prepared = Self.prepareImageTitle(title, verticalAdjustment: verticalAdjustment)
+        let size = NSSize(width: max(1, ceil(prepared.bounds.width)), height: 22)
         // Drawing handlers preserve the destination scale; the template lets AppKit own highlight and inactive tinting.
         // Capture immutable content only: AppKit can call the handler away from the main thread.
         let image = NSImage(size: size, flipped: false) { _ in
-            immutableTitle.draw(with: titleRect, options: [.usesLineFragmentOrigin, .usesFontLeading])
+            prepared.title.draw(with: prepared.rect, options: [.usesLineFragmentOrigin, .usesFontLeading])
             return true
         }
         image.isTemplate = true
         return image
+    }
+
+    private static func prepareImageTitle(
+        _ title: NSAttributedString, x: CGFloat = 0, verticalAdjustment: Int = 0)
+        -> (title: NSAttributedString, bounds: NSRect, rect: NSRect)
+    {
+        let fullRange = NSRange(location: 0, length: title.length)
+        let unshifted = NSMutableAttributedString(attributedString: title)
+        // Meter/pace runs bake their shift into attachment bounds instead of baselineOffset.
+        // Undo each run's recorded shift so mixed rows normalize independently before centering.
+        title.enumerateAttributes(in: fullRange) { attributes, range, _ in
+            guard let shift = (attributes[Self.attachmentBaselineShiftKey] as? NSNumber)?.doubleValue,
+                  shift != 0, let source = attributes[.attachment] as? NSTextAttachment else { return }
+            let attachment = NSTextAttachment()
+            attachment.image = source.image
+            attachment.bounds = source.bounds.offsetBy(dx: 0, dy: -CGFloat(shift))
+            unshifted.addAttribute(.attachment, value: attachment, range: range)
+        }
+        unshifted.removeAttribute(Self.attachmentBaselineShiftKey, range: fullRange)
+        unshifted.removeAttribute(.baselineOffset, range: fullRange)
+        let immutableTitle = NSAttributedString(attributedString: unshifted)
+        let bounds = immutableTitle.boundingRect(
+            with: NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading])
+        let y = floor((22 - bounds.height) / 2) - bounds.minY + CGFloat(verticalAdjustment)
+        let rect = NSRect(x: x - bounds.minX, y: y, width: bounds.width, height: bounds.height)
+        return (immutableTitle, bounds, rect)
     }
 
     /// nil == resolved to .hidden (render nothing, no separator). A returned .conditional
@@ -1180,29 +1206,8 @@ final class MenuBarLayoutRenderer {
         font: NSFont,
         options: MenuBarLayoutRenderOptions) -> NSAttributedString
     {
-        let baseline = (title.attribute(.baselineOffset, at: 0, effectiveRange: nil) as? NSNumber)?.doubleValue ?? 0
-        let unshifted = NSMutableAttributedString(attributedString: title)
-        // Meter runs put their shift in attachment bounds instead of baselineOffset. Normalize
-        // those as well before moving the complete title, otherwise meters move twice.
-        title.enumerateAttributes(in: NSRange(location: 0, length: title.length)) { attributes, range, _ in
-            guard attributes[.baselineOffset] == nil,
-                  let source = attributes[.attachment] as? NSTextAttachment else { return }
-            let attachment = NSTextAttachment()
-            attachment.image = source.image
-            attachment.bounds = source.bounds.offsetBy(dx: 0, dy: -baseline)
-            unshifted.addAttribute(.attachment, value: attachment, range: range)
-        }
-        unshifted.removeAttribute(.baselineOffset, range: NSRange(location: 0, length: title.length))
-        let immutableTitle = NSAttributedString(attributedString: unshifted)
-        let bounds = immutableTitle.boundingRect(
-            with: NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin, .usesFontLeading])
-        let size = NSSize(width: max(1, ceil(icon.size.width + bounds.width)), height: 22)
-        let titleRect = NSRect(
-            x: icon.size.width - bounds.minX,
-            y: floor((size.height - bounds.height) / 2) - bounds.minY + baseline + 1,
-            width: bounds.width,
-            height: bounds.height)
+        let prepared = Self.prepareImageTitle(title, x: icon.size.width, verticalAdjustment: options.verticalAdjustment)
+        let size = NSSize(width: max(1, ceil(icon.size.width + prepared.bounds.width)), height: 22)
         let mark = Self.offsetLeadingIcon(
             Self.attachmentImage(icon, tint: .labelColor), adjustment: options.verticalAdjustment)
         let iconRect = NSRect(
@@ -1215,7 +1220,7 @@ final class MenuBarLayoutRenderer {
         let image = NSImage(size: size, flipped: false) { _ in
             let draw = {
                 mark.draw(in: iconRect)
-                immutableTitle.draw(with: titleRect, options: [.usesLineFragmentOrigin, .usesFontLeading])
+                prepared.title.draw(with: prepared.rect, options: [.usesLineFragmentOrigin, .usesFontLeading])
             }
             if let appearance {
                 appearance.performAsCurrentDrawingAppearance(draw)
@@ -1227,9 +1232,10 @@ final class MenuBarLayoutRenderer {
         image.isTemplate = false
         let attachment = NSTextAttachment()
         attachment.image = image
-        // AppKit rounds the font descent down to a whole point when measuring the title line.
-        // Match that baseline so the attachment stays exactly 22pt and lands on whole pixels.
-        attachment.bounds = NSRect(x: 0, y: floor(font.descender), width: size.width, height: size.height)
+        // NSStatusBarButton centers titles against the standard menu-bar system font rather than
+        // the smaller stacked font; center the 22 pt attachment on that cap band.
+        let attachmentY = floor((NSFont.systemFont(ofSize: NSFont.systemFontSize).capHeight - size.height) / 2)
+        attachment.bounds = NSRect(x: 0, y: attachmentY, width: size.width, height: size.height)
         let result = NSMutableAttributedString(attachment: attachment)
         result.addAttribute(.font, value: font, range: NSRange(location: 0, length: result.length))
         return result
@@ -1617,8 +1623,12 @@ extension MenuBarLayoutRenderer {
     /// vertically off-center from the surrounding text (especially stacked rows at -3pt).
     private static func attachmentText(_ attachment: NSTextAttachment, style: TokenStyle) -> NSAttributedString {
         let value = NSMutableAttributedString(attachment: attachment)
-        value.addAttributes(style.attributes, range: NSRange(location: 0, length: value.length))
-        value.removeAttribute(.baselineOffset, range: NSRange(location: 0, length: value.length))
+        let fullRange = NSRange(location: 0, length: value.length)
+        value.addAttributes(style.attributes, range: fullRange)
+        if let shift = (style.attributes[.baselineOffset] as? NSNumber)?.doubleValue, shift != 0 {
+            value.addAttribute(Self.attachmentBaselineShiftKey, value: CGFloat(shift), range: fullRange)
+        }
+        value.removeAttribute(.baselineOffset, range: fullRange)
         return value
     }
 

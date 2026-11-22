@@ -2,6 +2,10 @@
 
 ## 0.85.1 — Unreleased
 
+### Fixed
+
+- Menu bar: keep two-line template titles, combined stacked rows, and high-contrast spanning layouts vertically centered instead of shifting on refresh, warning-flash, or high-contrast transitions.
+
 ## 0.85.0 — 2026-11-21
 
 ### Highlights
