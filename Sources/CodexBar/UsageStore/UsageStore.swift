@@ -438,7 +438,10 @@ final class UsageStore {
         self.codexSessionQuotaBaselineRequirement != nil
     }
 
-    @ObservationIgnored var quotaWarningState: [QuotaWarningStateKey: QuotaWarningState] = [:]
+    @ObservationIgnored var quotaWarningState: [QuotaWarningStateKey: QuotaWarningState] = [:] {
+        didSet { self.persistQuotaWarningState() }
+    }
+
     @ObservationIgnored var lastClaudeQuotaWarningAccount: String?
     @ObservationIgnored let hookRateLimiter = HookRateLimiter()
     @ObservationIgnored var providerStatusHadIssue: [ProviderInstanceID: Bool] = [:]
@@ -581,6 +584,7 @@ final class UsageStore {
             defaultsKey: Self.sessionLimitResetDetectorDefaultsKey,
             logName: "session")
         self.weeklyLimitResetDetectorStates = Self.loadWeeklyLimitResetDetectorStates(from: settings.userDefaults)
+        self.quotaWarningState = Self.loadQuotaWarningState(from: settings.userDefaults)
         if let codexAccountUsageSnapshotStore = self.codexAccountUsageSnapshotStore {
             self.codexAccountSnapshots = codexAccountUsageSnapshotStore.load(
                 for: self.freshCodexVisibleAccountsForSnapshotHydration())
@@ -987,7 +991,7 @@ final class UsageStore {
         self.planUtilizationHistoryLoadTask?.cancel()
     }
 
-    enum SessionQuotaWindowSource: String {
+    enum SessionQuotaWindowSource: String, Codable {
         case primary
         case copilotSecondaryFallback
         case antigravityQuotaSummary

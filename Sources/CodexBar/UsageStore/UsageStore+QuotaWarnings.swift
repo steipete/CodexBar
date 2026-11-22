@@ -2,7 +2,7 @@ import CodexBarCore
 import Foundation
 
 extension UsageStore {
-    struct QuotaWarningStateKey: Hashable {
+    struct QuotaWarningStateKey: Hashable, Codable {
         let provider: ProviderInstanceID
         let window: QuotaWarningWindow
         /// Keeps independent accounts from sharing threshold-crossing state. `nil` preserves the
@@ -15,7 +15,7 @@ extension UsageStore {
         let windowID: String?
     }
 
-    struct QuotaWarningState {
+    struct QuotaWarningState: Codable {
         var lastRemaining: Double?
         var observedAt: Date = .distantPast
         var firedThresholds: Set<Int> = []
@@ -27,10 +27,31 @@ extension UsageStore {
 
 @MainActor
 extension UsageStore {
+    static let quotaWarningStateDefaultsKey = "quotaWarningStateV1"
+
+    func persistQuotaWarningState() {
+        let scoped = self.quotaWarningState.filter { Self.canPersistQuotaWarning(key: $0.key) }
+        guard let data = try? JSONEncoder().encode(scoped) else { return }
+        self.settings.userDefaults.set(data, forKey: Self.quotaWarningStateDefaultsKey)
+    }
+
+    private static func canPersistQuotaWarning(key: QuotaWarningStateKey) -> Bool {
+        guard let account = key.accountDiscriminator, !account.isEmpty else { return false }
+        return account != "claude-account:unknown"
+    }
+
+    static func loadQuotaWarningState(from defaults: UserDefaults) -> [QuotaWarningStateKey: QuotaWarningState] {
+        guard let data = defaults.data(forKey: quotaWarningStateDefaultsKey),
+              let states = try? JSONDecoder().decode([QuotaWarningStateKey: QuotaWarningState].self, from: data)
+        else { return [:] }
+        return states.filter { self.canPersistQuotaWarning(key: $0.key) }
+    }
+
     private struct QuotaWarningAccountContext {
         let discriminator: String?
         let displayName: String?
         let observedAt: Date
+        var changedAntigravitySource = false
     }
 
     func handleQuotaWarningTransitions(
@@ -52,8 +73,11 @@ extension UsageStore {
         guard notificationsEnabled || hooksActive else { return }
         guard !requiresKnownAccount || accountDiscriminator != nil else { return }
 
-        let accountContext = QuotaWarningAccountContext(
-            discriminator: accountDiscriminator,
+        let familyAccount = provider == .antigravity
+            ? snapshot.accountEmail(for: provider)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            : nil
+        var accountContext = QuotaWarningAccountContext(
+            discriminator: accountDiscriminator ?? familyAccount,
             displayName: self.warningAccountDisplayName(provider: provider, snapshot: snapshot),
             observedAt: snapshot.updatedAt)
         // Provider-specific by design: warning lanes follow Antigravity families, balance-only suppression, and
@@ -65,6 +89,13 @@ extension UsageStore {
         } else {
             nil
         }
+        let priorSource = self.quotaWarningState
+            .filter {
+                $0.key.provider == provider.instanceID && $0.key.accountDiscriminator == accountContext.discriminator
+            }
+            .values.max { $0.observedAt < $1.observedAt }
+        accountContext.changedAntigravitySource = provider == .antigravity
+            && priorSource.map { $0.source != source } == true
         let primaryWindow: RateWindow?
         let secondaryWindow: RateWindow?
         if provider == .antigravity {
@@ -87,10 +118,27 @@ extension UsageStore {
         let extraWindows = provider == .claude
             ? (snapshot.extraRateWindows ?? []).filter(Self.isClaudeNotifiableExtraWindow)
             : []
-        let windows: [(QuotaWarningWindow, RateWindow?, String?, String?)] = [
-            (.session, primaryWindow, nil, primaryWindowDisplayLabel),
-            (.weekly, secondaryWindow, nil, secondaryWindowDisplayLabel),
-        ] + extraWindows.map { (.weekly, $0.window, $0.id, $0.title) }
+        let familyWindows = provider == .antigravity
+            ? (snapshot.extraRateWindows ?? []).filter {
+                $0.id.hasPrefix("antigravity-quota-summary-") && $0.usageKnown
+            }
+            : []
+        let usesFamilyWindows = provider == .antigravity && Self.hasAntigravityQuotaSummaryWindows(snapshot: snapshot)
+        // Every model family owns its own threshold history; do not also warn on the aggregate minimum.
+        let windows: [(QuotaWarningWindow, RateWindow?, String?, String?)] = usesFamilyWindows
+            ? familyWindows.compactMap { named in
+                let lane: QuotaWarningWindow
+                switch named.window.windowMinutes {
+                case 300: lane = .session
+                case 10080: lane = .weekly
+                default: return nil
+                }
+                return (lane, named.window, named.id, named.title)
+            }
+            : [
+                (.session, primaryWindow, nil, primaryWindowDisplayLabel),
+                (.weekly, secondaryWindow, nil, secondaryWindowDisplayLabel),
+            ] + extraWindows.map { (.weekly, $0.window, $0.id, $0.title) }
         if notificationsEnabled {
             for (window, rateWindow, windowID, label) in windows {
                 self.handleQuotaWarningTransition(
@@ -114,7 +162,7 @@ extension UsageStore {
         }
 
         if hooksActive {
-            let hookDiscriminator = hookAccountDiscriminator ?? accountDiscriminator
+            let hookDiscriminator = hookAccountDiscriminator ?? accountContext.discriminator
             for (window, rateWindow, windowID, label) in windows {
                 self.dispatchQuotaLowHooks(
                     provider: provider.instanceID,
@@ -126,7 +174,7 @@ extension UsageStore {
             self.pruneQuotaLowHookUsage(
                 provider: provider.instanceID,
                 accountDiscriminator: hookDiscriminator,
-                keepingExtraWindowIDs: Set(extraWindows.map(\.id)))
+                keepingExtraWindowIDs: Set(windows.compactMap(\.2)))
         }
     }
 
@@ -153,15 +201,10 @@ extension UsageStore {
             self.clearQuotaWarningState(provider: provider, window: window)
             return
         }
-        // Missing five-hour readings preserve session warning history. Older caches may have a weekly window
-        // in the primary slot, so only a five-hour window belongs to this lane.
+        // Missing readings are not a quota recovery and must not erase persisted warning history.
+        // Older Claude caches can put a weekly window in the primary slot.
         let isClaudeSessionLane = provider == .claude && window == .session
-        guard let rateWindow else {
-            if !isClaudeSessionLane {
-                self.quotaWarningState.removeValue(forKey: key)
-            }
-            return
-        }
+        guard let rateWindow else { return }
         guard !isClaudeSessionLane || Self.isSessionWindow(rateWindow) else { return }
         guard !rateWindow.isSyntheticPlaceholder else { return }
 
@@ -184,14 +227,25 @@ extension UsageStore {
             }
         }
         let previousState = self.quotaWarningState[key]
-        if let previousState, previousState.source != source {
+        guard previousState.map({ accountContext.observedAt >= $0.observedAt }) ?? true else { return }
+        if (previousState.map { $0.source != source } ?? false) || accountContext.changedAntigravitySource {
             self.quotaWarningState[key] = QuotaWarningState(
                 lastRemaining: currentRemaining,
                 observedAt: accountContext.observedAt,
-                source: source)
+                source: source,
+                resetsAt: rateWindow.resetsAt.flatMap { $0 > accountContext.observedAt ? $0 : nil })
             return
         }
         var state = previousState ?? QuotaWarningState(source: source)
+        // A genuinely new allowance period can warn again even if the app missed its full-quota sample.
+        // Do not interpret small reset-time corrections before the old boundary as a new period.
+        if let oldReset = state.resetsAt, let newReset = rateWindow.resetsAt,
+           accountContext.observedAt >= oldReset, newReset > accountContext.observedAt,
+           newReset.timeIntervalSince(oldReset) > 60
+        {
+            state.lastRemaining = nil
+            state.firedThresholds = []
+        }
         let cleared = QuotaWarningNotificationLogic.thresholdsToClear(
             currentRemaining: currentRemaining,
             alreadyFired: state.firedThresholds)
@@ -218,7 +272,11 @@ extension UsageStore {
         }
 
         state.observedAt = accountContext.observedAt
-        state.resetsAt = rateWindow.resetsAt
+        if let reset = rateWindow.resetsAt, reset > accountContext.observedAt,
+           state.resetsAt.map({ reset > $0 }) ?? true
+        {
+            state.resetsAt = reset
+        }
         state.lastRemaining = currentRemaining
         self.quotaWarningState[key] = state
     }
