@@ -268,6 +268,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     private var lastSwitcherShowsIcons: Bool
     private var lastObservedUsageBarsShowUsed: Bool
     var lastWidgetDisplaySettingsSignature = ""
+    var lastDisplayConfigurationSignature: String = ""
     var lastAgentSessionsVisibility: (local: Bool, remote: Bool)
     var lastAgentSessionsManualHosts: String
     var lastAgentSessionsRefreshFrequency: RefreshFrequency
@@ -430,6 +431,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.lastMenuAdjunctReadinessSignature = self.menuAdjunctReadinessSignature()
         self.lastMenuAdjunctReadinessBaselineVersion = self.menuSession.contentVersion
         self.lastWidgetDisplaySettingsSignature = self.widgetDisplaySettingsSignature()
+        self.lastDisplayConfigurationSignature = self.displayConfigurationSignature()
         self.wireBindings()
         self.wireAgentSessionUpdates()
         if !SettingsStore.isRunningTests {
@@ -917,19 +919,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             || self.fallbackProvider == provider
     }
 
-    func switchAccountSubtitle(for target: UsageProvider) -> String? {
-        guard self.loginTask != nil, let provider = self.activeLoginProvider, provider == target
-        else { return nil }
-        let base: String
-        switch self.loginPhase {
-        case .idle: return nil
-        case .requesting: base = L("Requesting login…")
-        case .waitingBrowser: base = L("Waiting in browser…")
-        }
-        let prefix = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
-        return "\(prefix): \(base)"
-    }
-
     deinit {
         let animationDriver = self.animationDriver
         Task { @MainActor in
@@ -1027,6 +1016,14 @@ extension StatusItemController {
         return Self.mergedLegacyDefaultItemIndex + 1 + providerOffset
     }
 
+    func displayConfigurationSignature(screens: [NSScreen] = NSScreen.screens) -> String {
+        screens.map { screen in
+            let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
+            let id = number?.stringValue ?? "none"
+            return "\(id):\(screen.frame):\(screen.visibleFrame):\(screen.backingScaleFactor)"
+        }.joined(separator: "|")
+    }
+
     func refreshExistingStatusItemsForVisibilityRecovery() {
         #if DEBUG
         guard !self.isReleasedForTesting else { return }
@@ -1038,7 +1035,24 @@ extension StatusItemController {
         for item in visibleItems {
             self.setStatusItemVisiblePreservingPlacement(item, true)
         }
+        self.lastAppliedMergedIconRenderSignature = nil
+        self.lastAppliedProviderIconRenderSignatures.removeAll()
+        self.measuredStandardMenuWidthCache.removeAll(keepingCapacity: false)
         self.updateVisibility()
         self.updateIcons()
+        self.invalidateMenus(refreshOpenMenus: true, deferOpenParentMenuRebuild: true)
+    }
+
+    func switchAccountSubtitle(for target: UsageProvider) -> String? {
+        guard self.loginTask != nil, let provider = self.activeLoginProvider, provider == target
+        else { return nil }
+        let base: String
+        switch self.loginPhase {
+        case .idle: return nil
+        case .requesting: base = L("Requesting login…")
+        case .waitingBrowser: base = L("Waiting in browser…")
+        }
+        let prefix = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
+        return "\(prefix): \(base)"
     }
 }

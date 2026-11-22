@@ -8,6 +8,8 @@ struct StatusItemVisibilitySnapshot: Equatable {
     let hasScreen: Bool
     let isOnCurrentScreen: Bool
     let buttonWidth: CGFloat
+    let backingScaleFactor: CGFloat
+    let screenFrame: CGRect?
 
     init(
         isVisible: Bool,
@@ -15,7 +17,9 @@ struct StatusItemVisibilitySnapshot: Equatable {
         hasWindow: Bool,
         hasScreen: Bool,
         isOnCurrentScreen: Bool = true,
-        buttonWidth: CGFloat)
+        buttonWidth: CGFloat,
+        backingScaleFactor: CGFloat = 1.0,
+        screenFrame: CGRect? = nil)
     {
         self.isVisible = isVisible
         self.hasButton = hasButton
@@ -23,13 +27,18 @@ struct StatusItemVisibilitySnapshot: Equatable {
         self.hasScreen = hasScreen
         self.isOnCurrentScreen = isOnCurrentScreen
         self.buttonWidth = buttonWidth
+        self.backingScaleFactor = backingScaleFactor
+        self.screenFrame = screenFrame
     }
 }
 
 extension StatusItemVisibilitySnapshot: CustomStringConvertible {
     var description: String {
-        "visible=\(self.isVisible),button=\(self.hasButton),window=\(self.hasWindow),"
+        let frameText = self.screenFrame.map { "\(Int($0.width))x\(Int($0.height))" } ?? "none"
+        return "visible=\(self.isVisible),button=\(self.hasButton),window=\(self.hasWindow),"
             + "screen=\(self.hasScreen),currentScreen=\(self.isOnCurrentScreen),"
+            + "scale=\(String(format: "%.1f", Double(self.backingScaleFactor))),"
+            + "screenFrame=\(frameText),"
             + "width=\(String(format: "%.1f", Double(self.buttonWidth)))"
     }
 }
@@ -58,28 +67,35 @@ enum MenuBarVisibilityWatcher {
 
     @MainActor
     static func visibilitySnapshot(_ item: NSStatusItem) -> StatusItemVisibilitySnapshot {
-        let screen = item.button?.window?.screen
+        let window = item.button?.window
+        let screen = window?.screen
         return StatusItemVisibilitySnapshot(
             isVisible: item.isVisible,
             hasButton: item.button != nil,
-            hasWindow: item.button?.window != nil,
+            hasWindow: window != nil,
             hasScreen: screen != nil,
-            isOnCurrentScreen: screen.map(self.isCurrentScreen) ?? false,
-            buttonWidth: item.button?.frame.size.width ?? 0)
+            isOnCurrentScreen: screen.map { self.isCurrentScreen($0) } ?? false,
+            buttonWidth: item.button?.frame.size.width ?? 0,
+            backingScaleFactor: window?.backingScaleFactor ?? screen?.backingScaleFactor ?? 1.0,
+            screenFrame: screen?.frame)
     }
 
     @MainActor
-    private static func isCurrentScreen(_ screen: NSScreen) -> Bool {
+    static func isCurrentScreen(_ screen: NSScreen, activeScreens: [NSScreen] = NSScreen.screens) -> Bool {
         let screenNumber = self.screenNumber(screen)
-        return NSScreen.screens.contains { candidate in
+        return activeScreens.contains { candidate in
             if let screenNumber, let candidateNumber = self.screenNumber(candidate) {
                 return candidateNumber == screenNumber
+                    && candidate.frame == screen.frame
+                    && candidate.backingScaleFactor == screen.backingScaleFactor
             }
             return candidate === screen
+                && candidate.frame == screen.frame
+                && candidate.backingScaleFactor == screen.backingScaleFactor
         }
     }
 
-    private static func screenNumber(_ screen: NSScreen) -> NSNumber? {
+    static func screenNumber(_ screen: NSScreen) -> NSNumber? {
         screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
     }
 
@@ -285,12 +301,17 @@ extension StatusItemController {
 
     private func checkScreenChangeStatusItemVisibility() {
         let snapshots = MenuBarVisibilityWatcher.visibilitySnapshots(self.startupVisibilityStatusItems)
+        let currentSignature = self.displayConfigurationSignature()
+        let displayChanged = !self.lastDisplayConfigurationSignature.isEmpty
+            && self.lastDisplayConfigurationSignature != currentSignature
+        self.lastDisplayConfigurationSignature = currentSignature
+
         if MenuBarVisibilityWatcher.hasAnyBlockedVisibleSnapshot(snapshots) {
             self.menuLogger.error(
                 "Display configuration changed; recreating status items", metadata: self.statusItemVisibilityMetadata())
             self.recreateStatusItemsForVisibilityRecovery()
             self.schedulePostScreenChangeRecoveryVerification(attempt: 1)
-        } else if MenuBarVisibilityWatcher.hasAnyDisplacedVisibleSnapshot(snapshots) {
+        } else if displayChanged || MenuBarVisibilityWatcher.hasAnyDisplacedVisibleSnapshot(snapshots) {
             self.menuLogger.info(
                 "Display configuration changed; refreshing existing status items",
                 metadata: self.statusItemVisibilityMetadata())

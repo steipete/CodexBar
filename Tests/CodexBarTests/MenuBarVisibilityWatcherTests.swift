@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 import Testing
@@ -485,6 +486,32 @@ struct MenuBarVisibilityWatcherTests {
 
         #expect(MenuBarVisibilityWatcher.hasAnyBlockedVisibleSnapshot([blocked]))
         #expect(!MenuBarVisibilityWatcher.hasAnyDisplacedVisibleSnapshot([blocked]))
+    }
+
+    @Test
+    func `snapshot description contains scale and screen frame`() {
+        let snapshot = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: true,
+            hasScreen: true,
+            isOnCurrentScreen: true,
+            buttonWidth: 24,
+            backingScaleFactor: 2.0,
+            screenFrame: CGRect(x: 0, y: 0, width: 1512, height: 982))
+
+        #expect(snapshot.description.contains("scale=2.0"))
+        #expect(snapshot.description.contains("screenFrame=1512x982"))
+    }
+
+    @Test
+    @MainActor
+    func `isCurrentScreen validates screen presence in active screens`() {
+        let currentScreens = NSScreen.screens
+        guard let primary = currentScreens.first else { return }
+
+        #expect(MenuBarVisibilityWatcher.isCurrentScreen(primary, activeScreens: currentScreens))
+        #expect(!MenuBarVisibilityWatcher.isCurrentScreen(primary, activeScreens: []))
     }
 
     private static func snapshot(
