@@ -415,10 +415,11 @@ Recognized Gemini 3.1 Pro product and effort aliases use the catalog’s preview
 recorded breakdown names. See [model pricing](model-pricing.md) for the supported aliases.
 
 Local history reads only the existing recognized roots: `~/.gemini/antigravity-cli/conversations/*.db`,
-`~/.gemini/antigravity/*.db`, and `~/.gemini/antigravity/conversations/*.db`. `GEMINI_CLI_HOME` replaces
+`~/.gemini/antigravity-acp/conversations/*.db`, `~/.gemini/antigravity/*.db`, and `~/.gemini/antigravity/conversations/*.db`. `GEMINI_CLI_HOME` replaces
 `~/.gemini` as the primary home. **Settings → Providers → Antigravity → Additional Gemini profile homes**
 lets you opt in to other homes with a folder picker and remove them individually. Select each profile's
 Gemini directory (usually its `.gemini` directory), not its parent HOME or its `conversations` directory.
+For T3 Code, select the profile directory containing `antigravity-acp`.
 The CLI reads the same `antigravityAdditionalProfileHomes` array from the Antigravity provider entry in
 `~/.codexbar/config.json` (or `CODEXBAR_CONFIG`):
 
@@ -434,7 +435,7 @@ The CLI reads the same `antigravityAdditionalProfileHomes` array from the Antigr
 ```
 
 Use absolute paths or `~/…` relative to the refresh environment's HOME. An empty or omitted list keeps
-single-home behavior. Each selected home contributes the same three recognized directories; CodexBar never
+single-home behavior. Each selected home contributes the same recognized directories; CodexBar never
 discovers additional homes from running processes or by traversing unrelated directories. Duplicate paths
 (including symlink aliases) are scanned once. Copied databases retaining their conversation filename are
 deduplicated by conversation and row/request identity; distinct conversations remain separate. Conflicting

@@ -22,6 +22,7 @@ struct AntigravityProfileScanTests {
             fixture.root.path + "/.gemini/antigravity-cli/conversations",
             fixture.root.path + "/.gemini/antigravity",
             fixture.root.path + "/.gemini/antigravity/conversations",
+            fixture.root.path + "/.gemini/antigravity-acp/conversations",
         ])
         #expect(context.databaseRoots == fixture.context.databaseRoots)
         #expect(context.cacheRoot == fixture.context.cacheRoot)
@@ -41,7 +42,7 @@ struct AntigravityProfileScanTests {
         let additional = try Fixture()
         try fixture.database("excluded-default", blobs: [Fixture.blob()])
         try primary.database("september-29", rootIndex: 2, blobs: [Fixture.blob(seconds: 1_790_683_200)])
-        try additional.database("september-30", rootIndex: 0, blobs: [Fixture.blob(seconds: 1_790_769_600)])
+        try additional.database("september-30", rootIndex: 3, blobs: [Fixture.blob(seconds: 1_790_769_600)])
         try additional.database("october-1", rootIndex: 1, blobs: [Fixture.blob(seconds: 1_790_856_000)])
         var environment = fixture.environment
         environment["GEMINI_CLI_HOME"] = primary.root.appendingPathComponent(".gemini").path

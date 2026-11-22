@@ -17,7 +17,10 @@ extension AntigravityLocalReader {
             AntigravityOfflineStore.geminiHomeDirectories(
                 home: self.home, env: self.environment, additionalProfileHomes: self.additionalProfileHomes)
                 .flatMap { home in
-                    ["antigravity-cli/conversations", "antigravity", "antigravity/conversations"].map {
+                    [
+                        "antigravity-cli/conversations", "antigravity", "antigravity/conversations",
+                        "antigravity-acp/conversations",
+                    ].map {
                         home.appendingPathComponent($0, isDirectory: true)
                     }
                 }
