@@ -9,6 +9,21 @@ struct AntigravityBarSelectionTests {
     private let geminiID = "antigravity-quota-summary-gemini-weekly"
     private let fableID = "antigravity-quota-summary-fictional-fable-weekly"
 
+    @Test
+    func `saved Cursor extra uses the unified weekly projection`() {
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 80, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            cursorHasUnifiedWeeklyPool: true,
+            updatedAt: Date())
+        #expect(snapshot.extraRateWindows == nil)
+        #expect(StatusItemController.switcherWeeklyMetricPercent(
+            for: .cursor,
+            snapshot: snapshot,
+            showUsed: false,
+            percentWindowPreference: .extra(id: "cursor-grok-bot")) == 20)
+    }
+
     private func snapshot(selected: NamedRateWindow?) -> UsageSnapshot {
         UsageSnapshot(
             primary: nil,

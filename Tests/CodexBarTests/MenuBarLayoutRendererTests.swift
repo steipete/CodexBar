@@ -15,6 +15,32 @@ struct MenuBarLayoutRendererTests {
     let now = Date(timeIntervalSince1970: 1_752_768_000)
 
     @Test
+    func `dynamic family retains an unavailable token and a distinct editor label`() {
+        let id = "antigravity-quota-summary-fictional-fable-weekly"
+        let named = NamedRateWindow(
+            id: id,
+            title: "Fictional Fable weekly",
+            window: RateWindow(usedPercent: 12, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            usageKnown: false)
+        let token = MenuBarLayoutToken.extraPercent(id: id)
+        for snapshot in [
+            UsageSnapshot(primary: nil, secondary: nil, extraRateWindows: [named], updatedAt: self.now),
+            UsageSnapshot(primary: nil, secondary: nil, updatedAt: self.now),
+        ] {
+            let extras = MenuBarLayoutNamedExtra.windows(
+                provider: .antigravity, snapshot: snapshot, includeUnavailable: true, includeDynamic: true)
+            let data = self.data(provider: .antigravity, extraRateWindows: extras.map(MenuBarLayoutRenderExtra.init))
+            #expect(MenuBarLayoutRenderer.resolvedDisplayToken(
+                token, data: data, conditionals: [:], outcomes: [:]) == token)
+            let rendered = MenuBarLayoutRenderer().render(
+                layout: MenuBarLayout(lines: [[token]]), data: data, icon: nil, options: self.options(showUsed: false))
+            #expect(rendered.attributedTitle.string.hasSuffix("–"))
+            #expect(rendered.accessibilityLabel.contains("unavailable"))
+            #expect(token.editorLabel(provider: .antigravity, snapshot: snapshot).lowercased().contains("fable"))
+        }
+    }
+
+    @Test
     func `dynamic Antigravity family renders its own remaining percentage`() {
         let id = "antigravity-quota-summary-fictional-fable-weekly"
         let named = NamedRateWindow(
@@ -22,7 +48,8 @@ struct MenuBarLayoutRendererTests {
             title: "Fictional Fable weekly",
             window: RateWindow(usedPercent: 12, windowMinutes: 10080, resetsAt: nil, resetDescription: nil))
         let snapshot = UsageSnapshot(primary: nil, secondary: nil, extraRateWindows: [named], updatedAt: self.now)
-        let windows = MenuBarLayoutNamedExtra.windows(provider: .antigravity, snapshot: snapshot)
+        let windows = MenuBarLayoutNamedExtra.windows(
+            provider: .antigravity, snapshot: snapshot, includeDynamic: true)
         #expect(windows.map(\.id) == [id])
         let layout = MenuBarPercentWindowPreference.extra(id: id)
             .applied(to: MenuBarLayout(lines: [[.percent(window: .automatic)]]))
@@ -63,7 +90,8 @@ struct MenuBarLayoutRendererTests {
         ]
         for named in unavailable {
             let invalid = UsageSnapshot(primary: nil, secondary: nil, extraRateWindows: [named], updatedAt: self.now)
-            #expect(MenuBarLayoutNamedExtra.windows(provider: .antigravity, snapshot: invalid).isEmpty)
+            #expect(MenuBarLayoutNamedExtra.windows(
+                provider: .antigravity, snapshot: invalid, includeDynamic: true).isEmpty)
         }
     }
 

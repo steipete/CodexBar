@@ -1159,6 +1159,11 @@ extension MenuBarLayoutToken {
         if case let .extraPercent(id) = self, let title = MenuBarLayoutNamedExtra.title(id: id) {
             return L("%@ %@", title, "%")
         }
+        if case let .extraPercent(id) = self,
+           let title = MenuBarLayoutNamedExtra.dynamicTitle(id: id, provider: provider, snapshot: snapshot)
+        {
+            return L("%@ %@", title, "%")
+        }
         if let providerLabel = self.providerEditorLabel(provider: provider, snapshot: snapshot) {
             return providerLabel
         }
