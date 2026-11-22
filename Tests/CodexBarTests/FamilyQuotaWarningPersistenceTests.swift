@@ -22,14 +22,16 @@ struct FamilyQuotaWarningPersistenceTests {
         }
     }
 
-    private func makeStore(defaults: UserDefaults, notifier: Notifier) -> UsageStore {
+    private func makeStore(defaults: UserDefaults, notifier: Notifier, configure: Bool = true) -> UsageStore {
         let settings = testSettingsStore(suiteName: "family-warning", userDefaults: defaults)
         settings.refreshFrequency = .manual
         settings.statusChecksEnabled = false
-        settings.quotaWarningNotificationsEnabled = true
-        settings.quotaWarningThresholds = [50, 20, 10]
-        settings.setQuotaWarningWindowEnabled(.weekly, enabled: true)
-        settings.setQuotaWarningWindowEnabled(.session, enabled: true)
+        if configure {
+            settings.quotaWarningNotificationsEnabled = true
+            settings.quotaWarningThresholds = [50, 20, 10]
+            settings.setQuotaWarningWindowEnabled(.weekly, enabled: true)
+            settings.setQuotaWarningWindowEnabled(.session, enabled: true)
+        }
         return UsageStore(
             fetcher: UsageFetcher(),
             browserDetection: BrowserDetection(cacheTTL: 0),
@@ -290,5 +292,90 @@ struct FamilyQuotaWarningPersistenceTests {
             .handleQuotaWarningTransitions(
                 provider: .codex, snapshot: self.snapshot(), accountDiscriminator: "codex-owner-a")
         #expect(second.warnings.isEmpty)
+    }
+}
+
+extension FamilyQuotaWarningPersistenceTests {
+    @Test
+    func `absent invalid and wrong type history preserve existing preferences`() {
+        let old: [String: Any] = [
+            "quotaWarningNotificationsEnabled": true,
+            "quotaWarningThresholds": [20, 10],
+            "quotaWarningSoundEnabled": false,
+            "unrelatedSetting": "preserve",
+        ]
+        for history: Any? in [nil, Data("invalid".utf8), Data("{}".utf8), "wrong type"] {
+            var values = old
+            values[UsageStore.quotaWarningStateDefaultsKey] = history
+            let defaults = InMemoryUserDefaults(values: values)
+            #expect(UsageStore.loadQuotaWarningState(from: defaults).isEmpty)
+            #expect(NSDictionary(dictionary: defaults.dictionaryRepresentation()) == NSDictionary(dictionary: values))
+        }
+    }
+
+    /// Run seed, upgrade, and restart as three separate test processes against a synthetic plist.
+    /// This proves serialization and reducer startup compatibility, not an OS-level app upgrade.
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["CODEXBAR_WARNING_PROOF_DIR"] != nil))
+    func `cold process warning history proof`() throws {
+        let directory = try #require(ProcessInfo.processInfo.environment["CODEXBAR_WARNING_PROOF_DIR"])
+        let phase = try #require(ProcessInfo.processInfo.environment["CODEXBAR_WARNING_PROOF_PHASE"])
+        let root = URL(fileURLWithPath: directory, isDirectory: true)
+        let file = root.appendingPathComponent("synthetic-defaults.plist")
+        let notifier = Notifier()
+        if phase == "seed" {
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            #expect(!FileManager.default.fileExists(atPath: file.path))
+            let defaults = InMemoryUserDefaults()
+            _ = self.makeStore(defaults: defaults, notifier: notifier)
+            defaults.set("preserve", forKey: "unrelatedSetting")
+            #expect(defaults.data(forKey: UsageStore.quotaWarningStateDefaultsKey) == nil)
+            try Self.writeProofDefaults(defaults, to: file)
+            print("WARNING_PROOF phase=seed history=absent fixture=synthetic-legacy-format")
+            return
+        }
+        let values = try #require(PropertyListSerialization.propertyList(
+            from: Data(contentsOf: file), format: nil) as? [String: Any])
+        let defaults = InMemoryUserDefaults(values: values)
+        let before = Self.warningPreferences(defaults)
+        let store = self.makeStore(defaults: defaults, notifier: notifier, configure: false)
+        #expect(defaults.string(forKey: "unrelatedSetting") == "preserve")
+        #expect(NSDictionary(dictionary: Self.warningPreferences(defaults)) == NSDictionary(dictionary: before))
+        switch phase {
+        case "upgrade":
+            #expect(store.quotaWarningState.isEmpty)
+            store.handleQuotaWarningTransitions(provider: .antigravity, snapshot: self.snapshot())
+            #expect(notifier.warnings.count == 1)
+            let warning = try #require(notifier.warnings.first)
+            #expect(warning.windowDisplayLabel == "Claude/GPT weekly")
+            #expect(warning.threshold == 20)
+            try Self.writeProofDefaults(defaults, to: file)
+            print("WARNING_PROOF phase=upgrade family=Claude/GPT-weekly remaining=16 threshold=20 warnings=1")
+        case "restart":
+            #expect(!store.quotaWarningState.isEmpty)
+            store.handleQuotaWarningTransitions(
+                provider: .antigravity, snapshot: self.snapshot(now: Self.now.addingTimeInterval(5)))
+            #expect(notifier.warnings.isEmpty)
+            store.handleQuotaWarningTransitions(
+                provider: .antigravity, snapshot: self.snapshot(claude: 9, now: Self.now.addingTimeInterval(10)))
+            #expect(notifier.warnings.map(\.threshold) == [10])
+            print("WARNING_PROOF phase=restart same-threshold-warnings=0 lower-threshold=10 warnings=1")
+        default:
+            Issue.record("Unknown proof phase")
+        }
+        #expect(NSDictionary(dictionary: Self.warningPreferences(defaults)) == NSDictionary(dictionary: before))
+        let processID = ProcessInfo.processInfo.processIdentifier
+        print("WARNING_PROOF preferences=preserved unrelated-setting=preserved pid=\(processID)")
+    }
+
+    private static func warningPreferences(_ defaults: UserDefaults) -> [String: Any] {
+        defaults.dictionaryRepresentation().filter {
+            $0.key.hasPrefix("quotaWarning") && $0.key != UsageStore.quotaWarningStateDefaultsKey
+        }
+    }
+
+    private static func writeProofDefaults(_ defaults: UserDefaults, to url: URL) throws {
+        let data = try PropertyListSerialization.data(
+            fromPropertyList: defaults.dictionaryRepresentation(), format: .binary, options: 0)
+        try data.write(to: url, options: .atomic)
     }
 }
