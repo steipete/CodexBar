@@ -7,37 +7,17 @@ import Testing
 struct MenuBarVerticalAlignmentTests {
     @Test(arguments: [MenuBarLayoutSize.small, .regular, .large])
     func `stacked template vertical alignment matches native button across sizes`(size: MenuBarLayoutSize) throws {
-        let fixture = MenuBarLayoutRendererTests()
-        let renderer = MenuBarLayoutRenderer()
-        let icon = Self.makeTemplateIcon()
         let layout = MenuBarLayout(lines: [
             [.space, .icon, .percent(window: .automatic)],
             [.space, .resetCountdown],
         ])
+        try Self.assertStackedTemplateAligned(layout: layout, icon: Self.makeIcon(template: true), size: size)
+    }
 
-        let fresh = renderer.render(
-            layout: layout,
-            data: fixture.data(),
-            icon: icon,
-            options: fixture.options(size: size, isStale: false))
-        let stale = renderer.render(
-            layout: layout,
-            data: fixture.data(),
-            icon: icon,
-            options: fixture.options(size: size, isStale: true))
-
-        let freshImage = try #require(fresh.statusImage)
-        #expect(stale.statusImage == nil)
-
-        let freshBounds = try Self.inkVerticalBounds(of: Self.buttonBitmap(for: fresh))
-        let staleBounds = try Self.inkVerticalBounds(of: Self.buttonBitmap(for: stale))
-        #expect(
-            abs(freshBounds.midY - staleBounds.midY) <= 1.0,
-            "Fresh stacked template (\(freshBounds.midY) pt) drifted from stale title (\(staleBounds.midY) pt)")
-
-        let imageBitmap = try Self.statusBitmap(image: freshImage, scale: 2)
-        let imageBounds = try Self.inkVerticalBounds(of: imageBitmap)
-        #expect(imageBounds.bottomMargin > 0.5, "Stacked template at \(size) should leave bottom margin inside 22 pt")
+    @Test(arguments: [MenuBarLayoutSize.small, .regular, .large])
+    func `text only stacked template centers vertically without bottom clipping`(size: MenuBarLayoutSize) throws {
+        let layout = MenuBarLayout(lines: [[.percent(window: .session)], [.percent(window: .weekly)]])
+        try Self.assertStackedTemplateAligned(layout: layout, icon: nil, size: size)
     }
 
     @Test(arguments: [MenuBarLayoutSize.small, .regular, .large])
@@ -46,24 +26,16 @@ struct MenuBarVerticalAlignmentTests {
     {
         let fixture = MenuBarLayoutRendererTests()
         let renderer = MenuBarLayoutRenderer()
-        let icon = Self.makeTemplateIcon()
+        let icon = Self.makeIcon(template: true)
         let rowLayout = MenuBarLayout(lines: [[.icon, .percent(window: .automatic), .resetCountdown]])
 
         func compose(shift: Int, isStale: Bool = false) -> MenuBarLayoutRenderedTitle {
             let options = fixture.options(
-                size: size,
-                verticalAdjustment: shift,
-                isStale: isStale,
-                forceStackedStyle: true)
-            let top = renderer.render(layout: rowLayout, data: fixture.data(), icon: icon, options: options)
-            let bottom = renderer.render(
-                layout: rowLayout,
-                data: fixture.data(provider: .claude),
-                icon: icon,
-                options: options)
+                size: size, verticalAdjustment: shift, isStale: isStale, forceStackedStyle: true)
             return MenuBarLayoutRenderer.composeStackedProviderRows(
-                top: top,
-                bottom: bottom,
+                top: renderer.render(layout: rowLayout, data: fixture.data(), icon: icon, options: options),
+                bottom: renderer.render(
+                    layout: rowLayout, data: fixture.data(provider: .claude), icon: icon, options: options),
                 topProviderName: "Codex",
                 bottomProviderName: "Claude")
         }
@@ -72,17 +44,12 @@ struct MenuBarVerticalAlignmentTests {
         let staleZero = compose(shift: 0, isStale: true)
         #expect(freshZero.statusImage != nil)
         #expect(staleZero.statusImage == nil)
+        let freshMid = try Self.inkVerticalBounds(of: Self.buttonBitmap(for: freshZero)).midY
+        let staleMid = try Self.inkVerticalBounds(of: Self.buttonBitmap(for: staleZero)).midY
+        #expect(abs(freshMid - staleMid) <= 1.0)
 
-        let freshBounds = try Self.inkVerticalBounds(of: Self.buttonBitmap(for: freshZero))
-        let staleBounds = try Self.inkVerticalBounds(of: Self.buttonBitmap(for: staleZero))
-        #expect(
-            abs(freshBounds.midY - staleBounds.midY) <= 1.0,
-            "Composed stacked template (\(freshBounds.midY) pt) drifted from stale title (\(staleBounds.midY) pt)")
-
-        let lowered = try Self.inkCentroidY(
-            of: Self.statusBitmap(image: #require(compose(shift: -2).statusImage), scale: 2))
-        let raised = try Self.inkCentroidY(
-            of: Self.statusBitmap(image: #require(compose(shift: 2).statusImage), scale: 2))
+        let lowered = try Self.inkCentroidY(of: Self.statusBitmap(image: #require(compose(shift: -2).statusImage)))
+        let raised = try Self.inkCentroidY(of: Self.statusBitmap(image: #require(compose(shift: 2).statusImage)))
         #expect(abs((lowered - raised) - 4.0) < 0.6)
     }
 
@@ -90,23 +57,17 @@ struct MenuBarVerticalAlignmentTests {
     func `composed stacked rows normalize mixed baseline shifts when top row offset is zero`() throws {
         let fixture = MenuBarLayoutRendererTests()
         let renderer = MenuBarLayoutRenderer()
-        let icon = Self.makeTemplateIcon()
-        // At .large + verticalAdjustment +1, an icon-bearing top row gets baselineOffset == 0
-        // while a text-only bottom row without an icon gets baselineOffset == -2.
+        let icon = Self.makeIcon(template: true)
+        // At .large + verticalAdjustment +1, an icon top row gets baselineOffset 0 while a text bottom row gets -2.
         let topLayout = MenuBarLayout(lines: [[.icon, .percent(window: .automatic)]])
         let bottomLayout = MenuBarLayout(lines: [[.percent(window: .automatic)]])
 
         func compose(shift: Int) -> MenuBarLayoutRenderedTitle {
             let options = fixture.options(size: .large, verticalAdjustment: shift, forceStackedStyle: true)
-            let top = renderer.render(layout: topLayout, data: fixture.data(), icon: icon, options: options)
-            let bottom = renderer.render(
-                layout: bottomLayout,
-                data: fixture.data(provider: .claude),
-                icon: nil,
-                options: options)
             return MenuBarLayoutRenderer.composeStackedProviderRows(
-                top: top,
-                bottom: bottom,
+                top: renderer.render(layout: topLayout, data: fixture.data(), icon: icon, options: options),
+                bottom: renderer.render(
+                    layout: bottomLayout, data: fixture.data(provider: .claude), icon: nil, options: options),
                 topProviderName: "Codex",
                 bottomProviderName: "Claude")
         }
@@ -115,129 +76,67 @@ struct MenuBarVerticalAlignmentTests {
         let plusOne = compose(shift: 1)
         let topOffset = plusOne.attributedTitle.attribute(.baselineOffset, at: 0, effectiveRange: nil) as? CGFloat
         let bottomOffset = plusOne.attributedTitle.attribute(
-            .baselineOffset,
-            at: plusOne.attributedTitle.length - 1,
-            effectiveRange: nil) as? CGFloat
+            .baselineOffset, at: plusOne.attributedTitle.length - 1, effectiveRange: nil) as? CGFloat
         #expect(topOffset == 0)
         #expect(bottomOffset == -2)
 
-        let zeroBitmap = try Self.statusBitmap(image: #require(zero.statusImage), scale: 2)
-        let plusOneBitmap = try Self.statusBitmap(image: #require(plusOne.statusImage), scale: 2)
-        // Moving verticalAdjustment from 0 to +1 should raise the entire composed image by 1 pt,
-        // without leaving the lower row 2 pt behind.
+        let zeroBitmap = try Self.statusBitmap(image: #require(zero.statusImage))
+        let plusOneBitmap = try Self.statusBitmap(image: #require(plusOne.statusImage))
         let zeroBounds = try Self.inkVerticalBounds(of: zeroBitmap)
         let plusOneBounds = try Self.inkVerticalBounds(of: plusOneBitmap)
-        let zeroSpan = zeroBounds.maxY - zeroBounds.minY
-        let plusOneSpan = plusOneBounds.maxY - plusOneBounds.minY
-        #expect(
-            abs(plusOneSpan - zeroSpan) < 0.6,
-            "Mixed-row vertical span changed from \(zeroSpan) pt to \(plusOneSpan) pt")
-        let zeroCentroid = try Self.inkCentroidY(of: zeroBitmap)
-        let plusOneCentroid = try Self.inkCentroidY(of: plusOneBitmap)
-        #expect(
-            abs((zeroCentroid - plusOneCentroid) - 1.0) < 0.4,
-            "Mixed-row composed image shifted by \(zeroCentroid - plusOneCentroid) pt instead of 1.0 pt")
+        #expect(abs((plusOneBounds.maxY - plusOneBounds.minY) - (zeroBounds.maxY - zeroBounds.minY)) < 0.6)
+        let delta = try Self.inkCentroidY(of: zeroBitmap) - Self.inkCentroidY(of: plusOneBitmap)
+        #expect(abs(delta - 1.0) < 0.4)
     }
 
     @Test(arguments: [MenuBarLayoutSize.small, .regular, .large])
     func `high contrast spanning icon centers stacked text beside the icon`(size: MenuBarLayoutSize) throws {
         let fixture = MenuBarLayoutRendererTests()
-        let renderer = MenuBarLayoutRenderer()
-        let icon = Self.makeSolidRedIcon(size: 16)
         let layout = MenuBarLayout(lines: [[.icon, .percent(window: .session)], [.percent(window: .weekly)]])
-
-        let output = renderer.render(
+        let output = MenuBarLayoutRenderer().render(
             layout: layout,
             data: fixture.data(),
-            icon: icon,
+            icon: Self.makeIcon(template: false),
             options: fixture.options(size: size, verticalAdjustment: 0, highContrast: true))
         let attachment = try #require(
             output.attributedTitle.attribute(.attachment, at: 0, effectiveRange: nil) as? NSTextAttachment)
-        let menuBarFont = NSFont.systemFont(ofSize: NSFont.systemFontSize)
-        #expect(attachment.bounds.origin.y == floor((menuBarFont.capHeight - 22) / 2))
+        let expectedY = floor((NSFont.systemFont(ofSize: NSFont.systemFontSize).capHeight - 22) / 2)
+        #expect(attachment.bounds.origin.y == expectedY)
         #expect(output.attributedTitle.size().height <= 22)
-        let image = try #require(attachment.image)
-        let bitmap = try Self.statusBitmap(image: image, scale: 2)
 
-        let iconMid = try Self.inkVerticalBounds(of: bitmap, xRange: 0..<(16 * 2)).midY
-        let textMid = try Self.inkVerticalBounds(of: bitmap, xRange: (16 * 2)..<bitmap.pixelsWide).midY
-        #expect(
-            abs(textMid - iconMid) <= 1.25,
-            "High-contrast spanning text (\(textMid) pt) drifted from centered icon (\(iconMid) pt)")
-    }
-
-    @Test(arguments: [MenuBarLayoutSize.small, .regular, .large])
-    func `text only stacked template centers vertically without bottom clipping`(size: MenuBarLayoutSize) throws {
-        let fixture = MenuBarLayoutRendererTests()
-        let renderer = MenuBarLayoutRenderer()
-        let layout = MenuBarLayout(lines: [
-            [.percent(window: .session)],
-            [.percent(window: .weekly)],
-        ])
-
-        let fresh = renderer.render(
-            layout: layout,
-            data: fixture.data(),
-            icon: nil,
-            options: fixture.options(size: size, isStale: false))
-        let stale = renderer.render(
-            layout: layout,
-            data: fixture.data(),
-            icon: nil,
-            options: fixture.options(size: size, isStale: true))
-
-        let freshImage = try #require(fresh.statusImage)
-        #expect(stale.statusImage == nil)
-
-        let freshBounds = try Self.inkVerticalBounds(of: Self.buttonBitmap(for: fresh))
-        let staleBounds = try Self.inkVerticalBounds(of: Self.buttonBitmap(for: stale))
-        #expect(
-            abs(freshBounds.midY - staleBounds.midY) <= 1.0,
-            "Text-only stacked template (\(freshBounds.midY) pt) drifted from stale title (\(staleBounds.midY) pt)")
-
-        let imageBounds = try Self.inkVerticalBounds(of: Self.statusBitmap(image: freshImage, scale: 2))
-        #expect(imageBounds.bottomMargin > 0.5, "Text-only stacked template at \(size) should not touch the bottom")
+        let bitmap = try Self.statusBitmap(image: #require(attachment.image))
+        let iconMid = try Self.inkVerticalBounds(of: bitmap, xRange: 0..<32).midY
+        let textMid = try Self.inkVerticalBounds(of: bitmap, xRange: 32..<bitmap.pixelsWide).midY
+        #expect(abs(textMid - iconMid) <= 1.25)
     }
 
     @Test
     func `high contrast spanning icon with meter centers vertically and moves meter once`() throws {
         let fixture = MenuBarLayoutRendererTests()
         let renderer = MenuBarLayoutRenderer()
-        let icon = Self.makeSolidRedIcon(size: 16)
-        let layout = MenuBarLayout(lines: [
-            [.icon, .progressBar(window: .session)],
-            [.percent(window: .weekly)],
-        ])
+        let icon = Self.makeIcon(template: false)
+        let layout = MenuBarLayout(lines: [[.icon, .progressBar(window: .session)], [.percent(window: .weekly)]])
 
-        let zero = renderer.render(
-            layout: layout,
-            data: fixture.data(),
-            icon: icon,
-            options: fixture.options(size: .regular, verticalAdjustment: 0, highContrast: true))
-        let raised = renderer.render(
-            layout: layout,
-            data: fixture.data(),
-            icon: icon,
-            options: fixture.options(size: .regular, verticalAdjustment: 2, highContrast: true))
+        func bitmap(shift: Int) throws -> NSBitmapImageRep {
+            let output = renderer.render(
+                layout: layout,
+                data: fixture.data(),
+                icon: icon,
+                options: fixture.options(size: .regular, verticalAdjustment: shift, highContrast: true))
+            let attachment = try #require(
+                output.attributedTitle.attribute(.attachment, at: 0, effectiveRange: nil) as? NSTextAttachment)
+            return try Self.statusBitmap(image: #require(attachment.image))
+        }
 
-        let zeroAttachment = try #require(
-            zero.attributedTitle.attribute(.attachment, at: 0, effectiveRange: nil) as? NSTextAttachment)
-        let raisedAttachment = try #require(
-            raised.attributedTitle.attribute(.attachment, at: 0, effectiveRange: nil) as? NSTextAttachment)
-        let zeroBitmap = try Self.statusBitmap(image: #require(zeroAttachment.image), scale: 2)
-        let raisedBitmap = try Self.statusBitmap(image: #require(raisedAttachment.image), scale: 2)
+        let zeroBitmap = try bitmap(shift: 0)
+        let raisedBitmap = try bitmap(shift: 2)
+        let iconMid = try Self.inkVerticalBounds(of: zeroBitmap, xRange: 0..<32).midY
+        let contentMid = try Self.inkVerticalBounds(of: zeroBitmap, xRange: 32..<zeroBitmap.pixelsWide).midY
+        #expect(abs(contentMid - iconMid) <= 1.25)
 
-        let iconMid = try Self.inkVerticalBounds(of: zeroBitmap, xRange: 0..<(16 * 2)).midY
-        let contentMid = try Self.inkVerticalBounds(of: zeroBitmap, xRange: (16 * 2)..<zeroBitmap.pixelsWide).midY
-        #expect(
-            abs(contentMid - iconMid) <= 1.25,
-            "Spanning meter content (\(contentMid) pt) drifted from centered icon (\(iconMid) pt)")
-
-        let zeroContentCentroid = try Self.inkCentroidY(of: zeroBitmap, xRange: (16 * 2)..<zeroBitmap.pixelsWide)
-        let raisedContentCentroid = try Self.inkCentroidY(
-            of: raisedBitmap,
-            xRange: (16 * 2)..<raisedBitmap.pixelsWide)
-        #expect(abs((zeroContentCentroid - raisedContentCentroid) - 2.0) < 0.6)
+        let zeroCentroid = try Self.inkCentroidY(of: zeroBitmap, xRange: 32..<zeroBitmap.pixelsWide)
+        let raisedCentroid = try Self.inkCentroidY(of: raisedBitmap, xRange: 32..<raisedBitmap.pixelsWide)
+        #expect(abs((zeroCentroid - raisedCentroid) - 2.0) < 0.6)
     }
 
     @Test
@@ -248,15 +147,9 @@ struct MenuBarVerticalAlignmentTests {
 
         for size in [MenuBarLayoutSize.small, .regular, .large] {
             let fresh = renderer.render(
-                layout: layout,
-                data: fixture.data(),
-                icon: nil,
-                options: fixture.options(size: size, isStale: false))
+                layout: layout, data: fixture.data(), icon: nil, options: fixture.options(size: size, isStale: false))
             let stale = renderer.render(
-                layout: layout,
-                data: fixture.data(),
-                icon: nil,
-                options: fixture.options(size: size, isStale: true))
+                layout: layout, data: fixture.data(), icon: nil, options: fixture.options(size: size, isStale: true))
             #expect(fresh.statusImage != nil)
             #expect(stale.statusImage == nil)
             let freshMid = try Self.inkVerticalBounds(of: Self.buttonBitmap(for: fresh)).midY
@@ -265,11 +158,8 @@ struct MenuBarVerticalAlignmentTests {
         }
 
         let summaryRenderer = PluginMenuBarSummaryRenderer()
-        let elements = [PluginMenuBarSummaryRenderer.Element(
-            iconProvider: nil,
-            value: "75%",
-            accessibility: "Usage: 75%")]
-        let fallback = Self.makeTemplateIcon()
+        let elements = [PluginMenuBarSummaryRenderer.Element(iconProvider: nil, value: "75%", accessibility: "75%")]
+        let fallback = Self.makeIcon(template: true)
         let templateSummary = summaryRenderer.render(
             elements: elements,
             options: .init(sourceHash: "h1", monospaced: false, highContrast: false, appearance: "aqua"),
@@ -285,6 +175,24 @@ struct MenuBarVerticalAlignmentTests {
         #expect(abs(templateMid - highContrastMid) <= 0.75)
     }
 
+    private static func assertStackedTemplateAligned(
+        layout: MenuBarLayout, icon: NSImage?, size: MenuBarLayoutSize) throws
+    {
+        let fixture = MenuBarLayoutRendererTests()
+        let renderer = MenuBarLayoutRenderer()
+        let fresh = renderer.render(
+            layout: layout, data: fixture.data(), icon: icon, options: fixture.options(size: size, isStale: false))
+        let stale = renderer.render(
+            layout: layout, data: fixture.data(), icon: icon, options: fixture.options(size: size, isStale: true))
+        let freshImage = try #require(fresh.statusImage)
+        #expect(stale.statusImage == nil)
+
+        let freshMid = try Self.inkVerticalBounds(of: Self.buttonBitmap(for: fresh)).midY
+        let staleMid = try Self.inkVerticalBounds(of: Self.buttonBitmap(for: stale)).midY
+        #expect(abs(freshMid - staleMid) <= 1.0)
+        #expect(try Self.inkVerticalBounds(of: Self.statusBitmap(image: freshImage)).bottomMargin > 0.5)
+    }
+
     private struct InkVerticalBounds {
         let minY: CGFloat
         let maxY: CGFloat
@@ -292,23 +200,13 @@ struct MenuBarVerticalAlignmentTests {
         let bottomMargin: CGFloat
     }
 
-    private static func makeTemplateIcon(size: CGFloat = 16) -> NSImage {
-        let image = NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
-            NSColor.black.setFill()
-            NSBezierPath(ovalIn: rect.insetBy(dx: 2, dy: 2)).fill()
+    private static func makeIcon(template: Bool) -> NSImage {
+        let image = NSImage(size: NSSize(width: 16, height: 16), flipped: false) { rect in
+            (template ? NSColor.black : NSColor.red).setFill()
+            (template ? NSBezierPath(ovalIn: rect.insetBy(dx: 2, dy: 2)) : NSBezierPath(rect: rect)).fill()
             return true
         }
-        image.isTemplate = true
-        return image
-    }
-
-    private static func makeSolidRedIcon(size: CGFloat = 16) -> NSImage {
-        let image = NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
-            NSColor.red.setFill()
-            rect.fill()
-            return true
-        }
-        image.isTemplate = false
+        image.isTemplate = template
         return image
     }
 
@@ -318,11 +216,10 @@ struct MenuBarVerticalAlignmentTests {
         button.isBordered = false
         button.appearance = NSAppearance(named: .aqua)
         _ = StatusItemController.applyMenuBarLayoutContent(rendered, for: button, gap: .regular)
-        let scale = 2
         let rep = try #require(NSBitmapImageRep(
             bitmapDataPlanes: nil,
-            pixelsWide: Int(width) * scale,
-            pixelsHigh: 22 * scale,
+            pixelsWide: Int(width) * 2,
+            pixelsHigh: 44,
             bitsPerSample: 8,
             samplesPerPixel: 4,
             hasAlpha: true,
@@ -335,7 +232,7 @@ struct MenuBarVerticalAlignmentTests {
         return rep
     }
 
-    private static func statusBitmap(image: NSImage, scale: Int) throws -> NSBitmapImageRep {
+    private static func statusBitmap(image: NSImage, scale: Int = 2) throws -> NSBitmapImageRep {
         let context = try #require(CGContext(
             data: nil,
             width: Int(image.size.width) * scale,
@@ -355,16 +252,13 @@ struct MenuBarVerticalAlignmentTests {
     }
 
     private static func inkVerticalBounds(
-        of bitmap: NSBitmapImageRep,
-        xRange: Range<Int>? = nil,
-        yRange: Range<Int>? = nil) throws -> InkVerticalBounds
+        of bitmap: NSBitmapImageRep, xRange: Range<Int>? = nil) throws -> InkVerticalBounds
     {
         let xs = xRange ?? 0..<bitmap.pixelsWide
-        let ys = yRange ?? 0..<bitmap.pixelsHigh
         let scale = CGFloat(bitmap.pixelsHigh) / max(1, bitmap.size.height)
         var minY = bitmap.pixelsHigh
         var maxY = -1
-        for y in ys {
+        for y in 0..<bitmap.pixelsHigh {
             for x in xs where (bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.1 {
                 minY = min(minY, y)
                 maxY = max(maxY, y)
@@ -378,10 +272,7 @@ struct MenuBarVerticalAlignmentTests {
             bottomMargin: CGFloat(bitmap.pixelsHigh - 1 - maxY) / scale)
     }
 
-    private static func inkCentroidY(
-        of bitmap: NSBitmapImageRep,
-        xRange: Range<Int>? = nil) throws -> CGFloat
-    {
+    private static func inkCentroidY(of bitmap: NSBitmapImageRep, xRange: Range<Int>? = nil) throws -> CGFloat {
         let xs = xRange ?? 0..<bitmap.pixelsWide
         let scale = CGFloat(bitmap.pixelsHigh) / max(1, bitmap.size.height)
         var mass: CGFloat = 0
