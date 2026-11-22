@@ -33,7 +33,13 @@ defineProvider({
         headers: { Accept: "application/json", Referer: `https://${domain}/usage` },
         retryPolicy: "transientIdempotent",
       });
+      // Cross-origin sign-in redirects are deliberately not followed with imported cookies.
+      // Reject this session so another signed-in browser profile can still supply usage.
+      const signInRedirect =
+        [301, 302, 303, 307, 308].includes(response.status) &&
+        /^https:\/\/accounts\.google\.com(?:\/|$)/i.test(response.headers.location || "");
       if (
+        signInRedirect ||
         response.status === 401 ||
         response.status === 403 ||
         (response.status === 200 && response.bodyText.trimStart().startsWith("<"))
