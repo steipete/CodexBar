@@ -89,6 +89,28 @@ struct GeminiWebPluginTests {
     }
 
     @Test(arguments: BundledPluginTestSupport.engines)
+    func `Google verification redirects stop without rejecting the account`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let fixture = Fixture(
+            [(302, ""), (200, Self.usage)], redirectLocation: "https://www.google.com/sorry/index?private=query")
+        let runtime = try BundledPluginTestSupport.runtime("gemini-web", engine: engine, transport: fixture)
+        let rejected = Counter()
+        await #expect {
+            try await runtime.fetchUsage(
+                cookieSessionResolver: { _, _ in await fixture.nextSession() },
+                cookieSessionInvalidator: { _, _ in rejected.increment() })
+        } throws: { error in
+            guard let error = error as? ProviderFetchClassifiedError else { return false }
+            return error.kind == .providerUnavailable && error.message.contains("browser verification")
+                && !error.message.contains("private=query")
+        }
+        #expect(await fixture.requests == 1)
+        #expect(await fixture.sessions == 1)
+        #expect(rejected.value == 0)
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
     func `query drift stops browser traversal without echoing the response`(engine: ProviderPluginEngineKind) async {
         let fixture = Fixture([
             (200, #"[{"data":{},"errors":[{"message":"private-response"}]}]"#),
