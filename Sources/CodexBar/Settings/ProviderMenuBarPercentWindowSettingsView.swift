@@ -59,7 +59,24 @@ struct ProviderMenuBarPercentWindowPicker: View {
 
     var available: [MenuBarPercentWindowPreference] {
         if let provider {
-            return MenuBarPercentWindowPreference.available(for: provider, layout: self.layout)
+            var options = MenuBarPercentWindowPreference.available(for: provider, layout: self.layout)
+            // Provider-specific by design: Antigravity's reported family buckets extend its static picker choices.
+            if provider == .antigravity {
+                for named in self.snapshot?.extraRateWindows ?? []
+                    where named.id.hasPrefix("antigravity-quota-summary-")
+                {
+                    let preference = MenuBarPercentWindowPreference.extra(id: named.id)
+                    if !options.contains(preference), preference.applied(to: self.layout) != self.layout {
+                        options.append(preference)
+                    }
+                }
+                if let selected = MenuBarPercentWindowPreference.current(in: self.layout),
+                   !options.contains(selected), !options.isEmpty
+                {
+                    options.append(selected)
+                }
+            }
+            return options
         }
         return MenuBarPercentWindowPreference.availableForPlugin(snapshot: self.snapshot, layout: self.layout)
     }
@@ -68,10 +85,13 @@ struct ProviderMenuBarPercentWindowPicker: View {
         if self.provider == nil {
             // Plugin settings already own the section; the choice also controls the switcher in meter mode.
             self.picker
-        } else if MenuBarPercentWindowPreference.isVisible(
-            iconStyle: self.iconStyle,
-            layout: self.layout,
-            available: self.available)
+            // Provider-specific by design: Antigravity's family selection also drives the switcher in meter mode.
+        } else if (self.provider == .antigravity && self.available.count > 1
+            && MenuBarPercentWindowPreference.hasPercentToken(in: self.layout))
+            || MenuBarPercentWindowPreference.isVisible(
+                iconStyle: self.iconStyle,
+                layout: self.layout,
+                available: self.available)
         {
             Section {
                 self.picker

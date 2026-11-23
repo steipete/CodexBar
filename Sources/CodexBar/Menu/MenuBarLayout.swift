@@ -711,18 +711,47 @@ enum MenuBarLayoutNamedExtra {
         ProviderDescriptorRegistry.all.lazy.compactMap { $0.menuBarMetrics.namedExtras[id] }.first
     }
 
-    static func windows(provider: UsageProvider?, snapshot: UsageSnapshot?) -> [NamedRateWindow] {
+    static func projectedWindows(provider: UsageProvider?, snapshot: UsageSnapshot?) -> [NamedRateWindow] {
+        provider == .cursor
+            ? snapshot.map(CursorProviderDescriptor.menuBarExtras) ?? [] : snapshot?.extraRateWindows ?? []
+    }
+
+    static func windows(
+        provider: UsageProvider?,
+        snapshot: UsageSnapshot?,
+        includeUnavailable: Bool = false,
+        includeDynamic: Bool = false) -> [NamedRateWindow]
+    {
         guard let provider else { return [] }
         let definitions = ProviderDescriptorRegistry.descriptor(for: provider).menuBarMetrics.namedExtras
-        let windows = provider == .cursor
-            ? snapshot.map(CursorProviderDescriptor.menuBarExtras) ?? [] : snapshot?.extraRateWindows ?? []
+        let windows = Self.projectedWindows(provider: provider, snapshot: snapshot)
         return windows.filter {
-            definitions[$0.id] != nil && $0.usageKnown && !$0.window.isSyntheticPlaceholder
+            (definitions[$0.id] != nil || (includeDynamic && Self.isDynamicAntigravityQuota(
+                id: $0.id, provider: provider)))
+                && (includeUnavailable || ($0.usageKnown && !$0.window.isSyntheticPlaceholder
+                        && $0.window.usedPercent.isFinite))
         }
     }
 
+    static func isDynamicAntigravityQuota(id: String, provider: UsageProvider?) -> Bool {
+        // Provider-specific by design: Antigravity reports family buckets beyond its static named-quota catalog.
+        provider == .antigravity && AntigravityStatusSnapshot.isQuotaSummaryWindowID(id)
+    }
+
+    static func dynamicTitle(id: String, provider: UsageProvider?, snapshot: UsageSnapshot? = nil) -> String? {
+        guard self.isDynamicAntigravityQuota(id: id, provider: provider) else { return nil }
+        return snapshot?.extraRateWindows?.first { $0.id == id }?.title
+            ?? id.replacingOccurrences(of: "antigravity-quota-summary-", with: "")
+            .replacingOccurrences(of: "-", with: " ")
+    }
+
     static func availableTokens(provider: UsageProvider?, snapshot: UsageSnapshot?) -> [MenuBarLayoutToken] {
-        self.windows(provider: provider, snapshot: snapshot).map { .extraPercent(id: $0.id) }
+        guard let provider else { return [] }
+        let definitions = ProviderDescriptorRegistry.descriptor(for: provider).menuBarMetrics.namedExtras
+        // Dynamic families remain selectable through the family picker. Keep the advanced palette
+        // constrained to provider-declared entries, with its established labels and cadence contract.
+        return self.windows(provider: provider, snapshot: snapshot)
+            .filter { definitions[$0.id] != nil }.map { .extraPercent(id: $0.id) }
     }
 }
 

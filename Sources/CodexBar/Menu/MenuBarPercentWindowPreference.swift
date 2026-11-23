@@ -51,7 +51,10 @@ enum MenuBarPercentWindowPreference: Hashable, Identifiable, Sendable {
             }
         }
         let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
-        if case let .extra(id) = self { return descriptor.menuBarMetrics.namedExtras[id].map(L) ?? L("Usage") }
+        if case let .extra(id) = self {
+            return descriptor.menuBarMetrics.namedExtras[id].map(L)
+                ?? snapshot?.extraRateWindows?.first { $0.id == id }?.title ?? id
+        }
         guard self != .automatic else { return L("menu_bar_layout_token_auto") }
         if self == .monthlyPlan { return MenuBarMetricPreference.monthlyPlan.label }
         if self == .tertiary {

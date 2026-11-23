@@ -107,6 +107,12 @@ struct MenuBarLayoutRenderData: Hashable {
 
     func extraTitle(_ id: String) -> String? {
         guard let descriptor else { return self.extraRateWindows.first { $0.id == id }?.title }
+        if MenuBarLayoutNamedExtra.isDynamicAntigravityQuota(id: id, provider: self.provider.firstPartyProvider),
+           descriptor.menuBarMetrics.namedExtras[id] == nil
+        {
+            return self.extraRateWindows.first { $0.id == id }?.title
+                ?? MenuBarLayoutNamedExtra.dynamicTitle(id: id, provider: self.provider.firstPartyProvider)
+        }
         return descriptor.menuBarMetrics.namedExtras[id].map { title in
             L(self.extraRateWindows.first { $0.id == id }?.title ?? title)
         }
@@ -126,7 +132,8 @@ struct MenuBarLayoutRenderExtra: Hashable {
     init(_ namedWindow: NamedRateWindow) {
         self.id = namedWindow.id
         self.title = namedWindow.title
-        self.window = namedWindow.usageKnown ? MenuBarLayoutRenderWindow(namedWindow.window) : nil
+        self.window = namedWindow.usageKnown && namedWindow.window.usedPercent.isFinite
+            ? MenuBarLayoutRenderWindow(namedWindow.window) : nil
     }
 
     static func signature(tokens: [MenuBarLayoutToken], provider: UsageProvider, snapshot: UsageSnapshot?) -> Int? {
@@ -135,7 +142,8 @@ struct MenuBarLayoutRenderExtra: Hashable {
             return nil
         })
         guard !ids.isEmpty else { return nil }
-        return MenuBarLayoutNamedExtra.windows(provider: provider, snapshot: snapshot)
+        return MenuBarLayoutNamedExtra.windows(
+            provider: provider, snapshot: snapshot, includeUnavailable: true, includeDynamic: true)
             .filter { ids.contains($0.id) }.map(Self.init).hashValue
     }
 }

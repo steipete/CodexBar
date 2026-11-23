@@ -20,7 +20,9 @@ extension StatusItemController {
             for: provider,
             snapshot: snapshot,
             showUsed: self.settings.usageBarsShowUsed,
-            preference: self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot))
+            preference: self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot),
+            percentWindowPreference: MenuBarPercentWindowPreference.current(
+                in: self.settings.menuBarLayout(for: provider)))
         {
             return metric
         }

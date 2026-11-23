@@ -408,7 +408,8 @@ extension UsageStore {
             primary: MenuBarLayoutRenderWindow(windows.primary),
             secondary: MenuBarLayoutRenderWindow(windows.secondary),
             tertiary: MenuBarLayoutRenderWindow(windows.tertiary),
-            extraRateWindows: MenuBarLayoutNamedExtra.windows(provider: provider, snapshot: snapshot)
+            extraRateWindows: MenuBarLayoutNamedExtra.windows(
+                provider: provider, snapshot: snapshot, includeUnavailable: true, includeDynamic: true)
                 .map(MenuBarLayoutRenderExtra.init),
             session: MenuBarLayoutRenderWindow(windows.session),
             weekly: MenuBarLayoutRenderWindow(windows.weekly),

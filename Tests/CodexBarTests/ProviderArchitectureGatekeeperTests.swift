@@ -1595,7 +1595,7 @@ struct ProviderArchitectureGatekeeperTests {
     private static let allowedProviderConstructs: [AllowedProviderConstruct] = [
         AllowedProviderConstruct(
             path: "Sources/CodexBar/Menu/MenuBarLayout.swift",
-            anchor: "let windows = provider == .cursor",
+            anchor: "provider == .cursor",
             expectedProviderIDs: ["cursor"],
             expectedReferenceCount: 1,
             expectedReferenceFingerprint: ["cursor@0"],
