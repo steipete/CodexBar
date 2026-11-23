@@ -60,6 +60,7 @@ struct ProviderMenuBarPercentWindowPicker: View {
     var available: [MenuBarPercentWindowPreference] {
         if let provider {
             var options = MenuBarPercentWindowPreference.available(for: provider, layout: self.layout)
+            // Provider-specific by design: Antigravity's reported family buckets extend its static picker choices.
             if provider == .antigravity {
                 for named in self.snapshot?.extraRateWindows ?? []
                     where named.id.hasPrefix("antigravity-quota-summary-")
@@ -84,6 +85,7 @@ struct ProviderMenuBarPercentWindowPicker: View {
         if self.provider == nil {
             // Plugin settings already own the section; the choice also controls the switcher in meter mode.
             self.picker
+            // Provider-specific by design: Antigravity's family selection also drives the switcher in meter mode.
         } else if (self.provider == .antigravity && self.available.count > 1
             && MenuBarPercentWindowPreference.hasPercentToken(in: self.layout))
             || MenuBarPercentWindowPreference.isVisible(

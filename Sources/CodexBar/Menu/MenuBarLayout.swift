@@ -734,6 +734,7 @@ enum MenuBarLayoutNamedExtra {
     }
 
     static func isDynamicAntigravityQuota(id: String, provider: UsageProvider?) -> Bool {
+        // Provider-specific by design: Antigravity reports family buckets beyond its static named-quota catalog.
         provider == .antigravity && AntigravityStatusSnapshot.isQuotaSummaryWindowID(id)
     }
 
