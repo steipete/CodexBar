@@ -290,6 +290,7 @@ struct OAuthUsageResponse: Decodable {
     let sevenDayRoutines: OAuthUsageWindow?
     let sevenDayRoutinesSourceKey: String?
     let cloudCredits: ClaudeCloudCreditsSnapshot?
+    let weeklyProductBreakdown: ClaudeWeeklyProductBreakdown?
     let extraUsage: OAuthExtraUsage?
     let resetStatus: ClaudeLimitResetStatusResponse?
     /// Newer shape (superseding the flat `seven_day_*` fields above for scoped weekly
@@ -317,6 +318,7 @@ struct OAuthUsageResponse: Decodable {
         self.sevenDayRoutines = routines.window
         self.sevenDayRoutinesSourceKey = routines.sourceKey
         self.cloudCredits = Self.decodeValue(in: container, keys: ["iguana_necktie"])
+        self.weeklyProductBreakdown = Self.decodeValue(in: container, keys: ["seven_day_breakdown"])
         self.extraUsage = Self.decodeValue(in: container, keys: ["extra_usage"])
         self.resetStatus = Self.decodeValue(in: container, keys: ["cedar_ember"])
     }

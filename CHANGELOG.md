@@ -2,6 +2,10 @@
 
 ## 0.85.1 — Unreleased
 
+### Added
+
+- Claude: show this week's usage share by product (Claude Code, Chats, Cowork) beneath the weekly bar from the existing usage response (#4123).
+
 ## 0.85.0 — 2026-11-21
 
 ### Highlights

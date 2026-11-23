@@ -14,6 +14,7 @@ public struct ClaudeUsageSnapshot: Sendable {
     public internal(set) var providerCost: ProviderCostSnapshot?
     public let resetCredits: ClaudeRateLimitResetCreditsSnapshot?
     public let cloudCredits: ClaudeCloudCreditsSnapshot?
+    public let weeklyProductBreakdown: ClaudeWeeklyProductBreakdown?
     public let updatedAt: Date
     public internal(set) var accountEmail: String?
     public let accountOrganization: String?
@@ -43,6 +44,7 @@ public struct ClaudeUsageSnapshot: Sendable {
         providerCost: ProviderCostSnapshot? = nil,
         resetCredits: ClaudeRateLimitResetCreditsSnapshot? = nil,
         cloudCredits: ClaudeCloudCreditsSnapshot? = nil,
+        weeklyProductBreakdown: ClaudeWeeklyProductBreakdown? = nil,
         updatedAt: Date,
         accountEmail: String?,
         accountOrganization: String?,
@@ -63,6 +65,7 @@ public struct ClaudeUsageSnapshot: Sendable {
         self.providerCost = providerCost
         self.resetCredits = resetCredits
         self.cloudCredits = cloudCredits
+        self.weeklyProductBreakdown = weeklyProductBreakdown
         self.updatedAt = updatedAt
         self.accountEmail = accountEmail
         self.accountOrganization = accountOrganization
@@ -1013,6 +1016,7 @@ extension ClaudeUsageFetcher {
             providerCost: providerCost,
             resetCredits: usage.resetStatus?.snapshot(updatedAt: updatedAt),
             cloudCredits: usage.cloudCredits,
+            weeklyProductBreakdown: usage.weeklyProductBreakdown,
             updatedAt: updatedAt,
             accountEmail: nil,
             accountOrganization: nil,
@@ -1136,6 +1140,7 @@ extension ClaudeUsageFetcher {
             providerCost: webData.extraUsageCost,
             resetCredits: webData.resetCredits,
             cloudCredits: webData.cloudCredits,
+            weeklyProductBreakdown: webData.weeklyProductBreakdown,
             updatedAt: Date(),
             accountEmail: webData.accountEmail,
             accountOrganization: webData.accountOrganization,

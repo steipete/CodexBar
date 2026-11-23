@@ -445,6 +445,15 @@ to all Claude monthly caps. Reset text uses local time (November 1 UTC can appea
 the metric tooltip identifies the inference. Shared calendar-month pace uses the actual 28–31-day month.
 Changing a cap changes the percentage, not its rollover. A stale observation does not advance into a new month.
 
+## Weekly usage by product
+
+- Web usage responses carry `seven_day_breakdown.rows`, each with `key`, `display_name`, and `percent`: that
+  product's share of this week's usage (Claude Code, Chats, Cowork, Other). OAuth responses use the same decoder.
+- CodexBar lists nonzero shares, largest first, in a **Usage breakdown** detail section beneath the weekly bar and in
+  CLI output. Shares are not separate quotas and never change the weekly percentage.
+- The section needs the weekly window from the same response. A malformed row, or shares that do not add up to about
+  100%, drops the whole breakdown and leaves the weekly window intact.
+
 ## Cloud-session credits
 
 - OAuth and Web usage responses can supply promotional cloud-session credit in `iguana_necktie`.
