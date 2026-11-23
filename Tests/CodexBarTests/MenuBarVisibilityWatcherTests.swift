@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 import Testing
@@ -485,6 +486,59 @@ struct MenuBarVisibilityWatcherTests {
 
         #expect(MenuBarVisibilityWatcher.hasAnyBlockedVisibleSnapshot([blocked]))
         #expect(!MenuBarVisibilityWatcher.hasAnyDisplacedVisibleSnapshot([blocked]))
+    }
+
+    @Test
+    func `isScreenMatching rejects scale and frame mismatches on matching screen number`() {
+        let baseNumber = NSNumber(value: 1)
+        let otherNumber = NSNumber(value: 2)
+        let baseFrame = CGRect(x: 0, y: 0, width: 1512, height: 982)
+        let scaledFrame = CGRect(x: 0, y: 0, width: 1800, height: 1169)
+        let base = MenuBarVisibilityWatcher.ScreenIdentity(number: baseNumber, frame: baseFrame, scale: 2.0)
+
+        #expect(MenuBarVisibilityWatcher.isScreenMatching(
+            base,
+            candidate: MenuBarVisibilityWatcher.ScreenIdentity(number: baseNumber, frame: baseFrame, scale: 2.0)))
+
+        #expect(!MenuBarVisibilityWatcher.isScreenMatching(
+            base,
+            candidate: MenuBarVisibilityWatcher.ScreenIdentity(number: baseNumber, frame: baseFrame, scale: 1.0)))
+
+        #expect(!MenuBarVisibilityWatcher.isScreenMatching(
+            base,
+            candidate: MenuBarVisibilityWatcher.ScreenIdentity(number: baseNumber, frame: scaledFrame, scale: 2.0)))
+
+        #expect(!MenuBarVisibilityWatcher.isScreenMatching(
+            base,
+            candidate: MenuBarVisibilityWatcher.ScreenIdentity(number: otherNumber, frame: baseFrame, scale: 2.0)))
+    }
+
+    @Test
+    func `display change recovery decision triggers on configuration change or displaced snapshots`() {
+        let healthy = Self.snapshot()
+        let displaced = Self.snapshot(isOnCurrentScreen: false)
+        let blocked = Self.snapshot(hasWindow: false, hasScreen: false)
+        let hidden = Self.snapshot(isVisible: false)
+
+        #expect(MenuBarVisibilityWatcher.shouldRefreshForDisplayChange(
+            displayConfigurationChanged: true,
+            snapshots: [healthy]))
+
+        #expect(MenuBarVisibilityWatcher.shouldRefreshForDisplayChange(
+            displayConfigurationChanged: false,
+            snapshots: [displaced]))
+
+        #expect(!MenuBarVisibilityWatcher.shouldRefreshForDisplayChange(
+            displayConfigurationChanged: false,
+            snapshots: [healthy]))
+
+        #expect(!MenuBarVisibilityWatcher.shouldRefreshForDisplayChange(
+            displayConfigurationChanged: false,
+            snapshots: [blocked]))
+
+        #expect(!MenuBarVisibilityWatcher.shouldRefreshForDisplayChange(
+            displayConfigurationChanged: false,
+            snapshots: [hidden]))
     }
 
     private static func snapshot(
