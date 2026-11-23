@@ -202,6 +202,7 @@ public enum ClaudeWebAPIFetcher {
         public fileprivate(set) var extraUsageCost: ProviderCostSnapshot?
         public let resetCredits: ClaudeRateLimitResetCreditsSnapshot?
         public let cloudCredits: ClaudeCloudCreditsSnapshot?
+        public let weeklyProductBreakdown: ClaudeWeeklyProductBreakdown?
         public fileprivate(set) var accountOrganization: String?
         public fileprivate(set) var accountOrganizationID: String?
         public fileprivate(set) var accountEmail: String?
@@ -219,7 +220,8 @@ public enum ClaudeWebAPIFetcher {
             accountEmail: String?,
             loginMethod: String?,
             resetCredits: ClaudeRateLimitResetCreditsSnapshot? = nil,
-            cloudCredits: ClaudeCloudCreditsSnapshot? = nil)
+            cloudCredits: ClaudeCloudCreditsSnapshot? = nil,
+            weeklyProductBreakdown: ClaudeWeeklyProductBreakdown? = nil)
         {
             self.sessionPercentUsed = sessionPercentUsed
             self.sessionResetsAt = sessionResetsAt
@@ -234,6 +236,7 @@ public enum ClaudeWebAPIFetcher {
             self.loginMethod = loginMethod
             self.resetCredits = resetCredits
             self.cloudCredits = cloudCredits
+            self.weeklyProductBreakdown = weeklyProductBreakdown
         }
     }
 
@@ -750,7 +753,8 @@ extension ClaudeWebAPIFetcher {
             accountEmail: nil,
             loginMethod: nil,
             resetCredits: resetCredits,
-            cloudCredits: ClaudeCloudCreditsSnapshot.parse(json["iguana_necktie"]))
+            cloudCredits: ClaudeCloudCreditsSnapshot.parse(json["iguana_necktie"]),
+            weeklyProductBreakdown: ClaudeWeeklyProductBreakdown.parse(json["seven_day_breakdown"]))
     }
 
     /// Anything unreadable in the `cedar_ember` block yields no inventory and leaves the usage windows intact.

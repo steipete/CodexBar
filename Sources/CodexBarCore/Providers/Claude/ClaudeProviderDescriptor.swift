@@ -821,6 +821,9 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
                 .makeRow(id: ClaudeStatusProbe.modelBreakdownDetailRowID, label: "Status", value: notice),
             ]))
         }
+        if usage.secondary != nil {
+            details += usage.weeklyProductBreakdown?.detailSections() ?? []
+        }
         if includeOptionalUsage {
             details += usage.cloudCredits?.detailSections(now: usage.updatedAt) ?? []
         }
