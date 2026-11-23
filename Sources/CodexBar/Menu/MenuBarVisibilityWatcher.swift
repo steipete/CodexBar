@@ -80,19 +80,46 @@ enum MenuBarVisibilityWatcher {
             screenFrame: screen?.frame)
     }
 
+    struct ScreenIdentity: Equatable {
+        let number: NSNumber?
+        let frame: CGRect
+        let scale: CGFloat
+    }
+
     @MainActor
     static func isCurrentScreen(_ screen: NSScreen, activeScreens: [NSScreen] = NSScreen.screens) -> Bool {
-        let screenNumber = self.screenNumber(screen)
+        let identity = ScreenIdentity(
+            number: self.screenNumber(screen),
+            frame: screen.frame,
+            scale: screen.backingScaleFactor)
         return activeScreens.contains { candidate in
-            if let screenNumber, let candidateNumber = self.screenNumber(candidate) {
-                return candidateNumber == screenNumber
-                    && candidate.frame == screen.frame
-                    && candidate.backingScaleFactor == screen.backingScaleFactor
-            }
-            return candidate === screen
-                && candidate.frame == screen.frame
-                && candidate.backingScaleFactor == screen.backingScaleFactor
+            let candidateIdentity = ScreenIdentity(
+                number: self.screenNumber(candidate),
+                frame: candidate.frame,
+                scale: candidate.backingScaleFactor)
+            return self.isScreenMatching(identity, candidate: candidateIdentity)
         }
+    }
+
+    static func isScreenMatching(
+        _ screen: ScreenIdentity,
+        candidate: ScreenIdentity)
+        -> Bool
+    {
+        if let screenNumber = screen.number, let candidateNumber = candidate.number {
+            return candidateNumber == screenNumber
+                && candidate.frame == screen.frame
+                && candidate.scale == screen.scale
+        }
+        return candidate.frame == screen.frame && candidate.scale == screen.scale
+    }
+
+    static func shouldRefreshForDisplayChange(
+        displayConfigurationChanged: Bool,
+        snapshots: [StatusItemVisibilitySnapshot])
+        -> Bool
+    {
+        displayConfigurationChanged || self.hasAnyDisplacedVisibleSnapshot(snapshots)
     }
 
     static func screenNumber(_ screen: NSScreen) -> NSNumber? {
@@ -311,7 +338,10 @@ extension StatusItemController {
                 "Display configuration changed; recreating status items", metadata: self.statusItemVisibilityMetadata())
             self.recreateStatusItemsForVisibilityRecovery()
             self.schedulePostScreenChangeRecoveryVerification(attempt: 1)
-        } else if displayChanged || MenuBarVisibilityWatcher.hasAnyDisplacedVisibleSnapshot(snapshots) {
+        } else if MenuBarVisibilityWatcher.shouldRefreshForDisplayChange(
+            displayConfigurationChanged: displayChanged,
+            snapshots: snapshots)
+        {
             self.menuLogger.info(
                 "Display configuration changed; refreshing existing status items",
                 metadata: self.statusItemVisibilityMetadata())
