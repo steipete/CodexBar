@@ -78,6 +78,8 @@ actor ClaudeCLISession {
     private var sessionIdentity: SessionIdentity?
     private var startedAt: Date?
     private var launchedInProbeDirectory = false
+    /// Bounded snapshot of this process's screen after the last successful capture; nil once continuity is lost.
+    private var screenBaseline: String?
     private let operationGate = AsyncOperationGate()
     private let workingDirectory: URL?
 
@@ -144,7 +146,11 @@ actor ClaudeCLISession {
 
     private func captureExclusive(request: CaptureRequest) async throws -> String {
         defer { self.releaseSleepInhibitors() }
-        if try self.ensureStarted(request: request) {
+        let reused = try self.ensureStarted(request: request)
+        // A failed capture drops unread bytes, so only a successful capture can hand its screen to the next one.
+        let priorScreen = reused ? self.screenBaseline : ""
+        self.screenBaseline = nil
+        if reused {
             // Dismiss /usage or /status before typing; keep Escape separate from the next command's input.
             try self.send("\u{1b}")
             try await Task.sleep(nanoseconds: 150_000_000)
@@ -173,6 +179,7 @@ actor ClaudeCLISession {
         var trustPending = false
         var trustKeysLeft = 4
         var stoppedEarly = false
+        var commandBaseline = ""
         while Date() < deadline {
             let newData = self.readChunk()
             if !newData.isEmpty {
@@ -189,7 +196,7 @@ actor ClaudeCLISession {
                let text = String(data: buffer.data, encoding: .utf8)
             {
                 uncheckedFrame = false
-                let screen = ClaudeCLIScreen.render(text)
+                let screen = ClaudeCLIScreen.render(commandSent ? commandBaseline + text : text)
                 let normalized = Self.normalizedNeedle(screen)
                 if commandSent, trimmed == "/usage" {
                     usagePanelOpen = usagePanelOpen || ClaudeStatusProbe.usageCaptureHasQuotaValue(normalized)
@@ -221,6 +228,10 @@ actor ClaudeCLISession {
                 }
             }
             if !commandSent, !trustPending, !uncheckedFrame, Date() >= readyAt {
+                // Claude redraws only changed cells, so keep the screen the command output is drawn against.
+                if let priorScreen, let text = String(data: buffer.data, encoding: .utf8) {
+                    commandBaseline = ClaudeCLIScreen.baseline(after: priorScreen + text)
+                }
                 buffer.removeAll(keepingCapacity: true)
                 if !trimmed.isEmpty { try self.send(trimmed + "\r") }
                 commandSent = true
@@ -255,7 +266,11 @@ actor ClaudeCLISession {
         }
         guard commandSent, !trustPending, !buffer.isEmpty,
               let text = String(data: buffer.data, encoding: .utf8) else { throw SessionError.timedOut }
-        return text
+        let output = commandBaseline + text
+        if !commandBaseline.isEmpty {
+            self.screenBaseline = ClaudeCLIScreen.baseline(after: output)
+        }
+        return output
     }
 
     /// Returns the key for the workspace trust dialog on screen, or nil when it is not shown. Without `acceptsTrust`,
@@ -614,6 +629,7 @@ actor ClaudeCLISession {
         self.sessionIdentity = nil
         self.startedAt = nil
         self.launchedInProbeDirectory = false
+        self.screenBaseline = nil
     }
 
     private func readChunk() -> Data {

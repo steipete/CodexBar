@@ -92,4 +92,88 @@ struct ClaudeCLIPanelTransitionTests {
 
         """)
     }
+
+    @Test
+    func `usage capture redraws over the startup screen without reusing stale quotas`() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("claude-usage-baseline-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let binary = directory.appendingPathComponent("fake-claude")
+        // Like Claude's differential renderer, the first /usage reuses the startup "r" at column 6 and its refresh
+        // rewrites only the changed digit. Escape leaves the panel visible, and later /usage commands never finish.
+        let script = #"""
+        #!/bin/bash
+        /bin/stty raw -echo -icrnl
+        printf '\e[H\e[2J\e[3;1H  Start typing'
+        command=''
+        count=0
+        while IFS= read -r -n 1 key; do
+          case "$key" in
+            $'\e') command='' ;;
+            $'\r'|'')
+              if [[ "$command" == /usage ]]; then
+                count=$((count + 1))
+                if [[ $count == 1 ]]; then
+                  printf '\e[3;3HCur\e[3;7Hent week (all models)\e[4;3H██ 52%% used'
+                  printf '\e[5;3HResets Nov 24 at 4:59am (America/Los_Angeles)'
+                  printf '\e[6;3HCurrent week (Fable)\e[7;3H█ 8%% used\e[9;3HRefreshing… esc to cancel'
+                  /bin/sleep 0.4
+                  printf '\e[4;7H3\e[9;1H\e[K'
+                else
+                  printf '\e[11;3HLoading usage data…'
+                fi
+              fi
+              command=''
+              ;;
+            *) command+="$key" ;;
+          esac
+        done
+        """#
+        try script.write(to: binary, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: binary.path)
+        let session = ClaudeCLISession(workingDirectory: directory)
+        let environment = [
+            "HOME": directory.path,
+            "CLAUDE_CONFIG_DIR": directory.path,
+            "CLAUDE_SECURESTORAGE_CONFIG_DIR": directory.path,
+            "CODEXBAR_DISABLE_CLAUDE_WATCHDOG": "1",
+        ]
+        func usage(account: String, timeout: TimeInterval) async throws -> String {
+            try await session.capture(
+                subcommand: "/usage",
+                binary: binary.path,
+                accountScope: account,
+                timeout: timeout,
+                environment: environment,
+                idleTimeout: nil,
+                stopWhenNormalized: { ClaudeStatusProbe.usageCaptureIsComplete($0) },
+                settleAfterStop: 0.1)
+        }
+        func assertAllModelsWeekly(_ text: String) throws {
+            let snapshot = try ClaudeStatusProbe.parse(text: text)
+            #expect(snapshot.weeklyPercentLeft == 47)
+            #expect(snapshot.secondaryResetDescription == "Resets Nov 24 at 4:59am (America/Los_Angeles)")
+            #expect(snapshot.extraRateWindows.first { $0.id == "claude-weekly-scoped-fable" }?.window
+                .usedPercent == 8)
+        }
+        do {
+            try await assertAllModelsWeekly(usage(account: "synthetic-account", timeout: 5))
+
+            let stale = try await usage(account: "synthetic-account", timeout: 1.5)
+            let staleScreen = ClaudeCLIScreen.render(stale)
+            #expect(!staleScreen.contains("%"))
+            #expect(!ClaudeStatusProbe.usageCaptureIsComplete(
+                String(staleScreen.lowercased().filter { !$0.isWhitespace })))
+            #expect(throws: ClaudeStatusProbeError.self) { try ClaudeStatusProbe.parse(text: stale) }
+
+            let replaced = try await usage(account: "other-synthetic-account", timeout: 5)
+            #expect(!replaced.contains("Loading usage"))
+            try assertAllModelsWeekly(replaced)
+            await session.reset()
+        } catch {
+            await session.reset()
+            throw error
+        }
+    }
 }
