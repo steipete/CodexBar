@@ -69,6 +69,16 @@ struct ClaudeCLIScreenTests {
     }
 
     @Test
+    func `pre-command screen keeps a pending wrap at the last column`() {
+        let full = String(repeating: "A", count: ClaudeCLIScreen.columns)
+        let direct = ClaudeCLIScreen.render(full + "B").components(separatedBy: "\n")
+        let replayed = ClaudeCLIScreen.render(ClaudeCLIScreen.baseline(after: full) + "B")
+            .components(separatedBy: "\n")
+        #expect(direct == [full, "B"])
+        #expect(replayed == ["", "B"])
+    }
+
+    @Test
     func `pre-command screen stays bounded across captures`() {
         let line = String(repeating: "█", count: ClaudeCLIScreen.columns) + "\r\n"
         let first = ClaudeCLIScreen.baseline(after: String(repeating: line, count: ClaudeCLIScreen.rows * 3))

@@ -44,8 +44,13 @@ struct ClaudeCLIScreen {
         for (index, line) in screen.lines.enumerated() where line.contains(where: { $0 != " " }) {
             output += "\u{1b}[\(index + 1);1H" + String(line.filter { $0 != "\u{0}" })
         }
-        let column = min(screen.column, Self.columns - 1)
-        return output + "\u{1b}[\(screen.row + 1);\(column + 1)H" + Self.baselineEnd
+        guard screen.column >= Self.columns else {
+            return output + "\u{1b}[\(screen.row + 1);\(screen.column + 1)H" + Self.baselineEnd
+        }
+        // Rewrite the final glyph so the cursor keeps its pending wrap instead of overwriting the last cell.
+        let line = screen.lines[screen.row]
+        let start = line[Self.columns - 1] == "\u{0}" ? Self.columns - 2 : Self.columns - 1
+        return output + "\u{1b}[\(screen.row + 1);\(start + 1)H" + String(line[start]) + Self.baselineEnd
     }
 
     /// Returns whether the text needs cursor replay, plus its plain text when it does not.
