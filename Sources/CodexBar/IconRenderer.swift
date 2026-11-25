@@ -728,6 +728,18 @@ enum IconRenderer {
                 let decorations = hideCritters ? ProviderIconDecorations() : providerPresentation?.iconDecorations ?? []
                 var statusOverlayAttachesToProminentMeter = false
 
+                func drawWeeklyTimeMarker() {
+                    guard let weeklyTimeMarkerPercent else { return }
+                    Self.drawTimeMarker(
+                        below: bottomRectPx,
+                        percent: weeklyTimeMarkerPercent,
+                        style: weeklyTimeMarkerStyle,
+                        colors: TimeMarkerColors(
+                            fill: fillColor,
+                            track: baseFill.withAlphaComponent(trackFillAlpha),
+                            dots: baseFill.withAlphaComponent(stale ? 0.4 : 0.6)))
+                }
+
                 if let bottomValue, bottomValue > 0, topValue == nil,
                    !quotaLayoutPolicy.reservesMissingSecondaryLane,
                    !usesMissingSecondaryLayout
@@ -739,16 +751,7 @@ enum IconRenderer {
                     // Normal: top=primary, bottom=secondary (bonus/weekly).
                     drawBar(rectPx: topRectPx, remaining: topValue, decorations: decorations, blink: blink)
                     drawBar(rectPx: bottomRectPx, remaining: bottomValue)
-                    if let weeklyTimeMarkerPercent {
-                        Self.drawTimeMarker(
-                            below: bottomRectPx,
-                            percent: weeklyTimeMarkerPercent,
-                            style: weeklyTimeMarkerStyle,
-                            colors: TimeMarkerColors(
-                                fill: fillColor,
-                                track: baseFill.withAlphaComponent(trackFillAlpha),
-                                dots: baseFill.withAlphaComponent(stale ? 0.4 : 0.6)))
-                    }
+                    drawWeeklyTimeMarker()
                 } else if !hasWeekly || missingSecondary {
                     if usesMissingSecondaryLayout {
                         // Provider-specific by design: Warp retains its logo shape when the secondary quota is missing.
@@ -784,6 +787,10 @@ enum IconRenderer {
                         drawBar(rectPx: topRectPx, remaining: topValue, decorations: decorations, blink: blink)
                     }
                     drawBar(rectPx: creditsRatio == nil ? bottomRectPx : creditsBottomRectPx, remaining: bottomValue)
+                    // A zero weekly quota keeps the normal lane without credits, so it keeps its time marker too.
+                    if creditsRatio == nil {
+                        drawWeeklyTimeMarker()
+                    }
                 }
 
                 Self.drawStatusOverlay(
@@ -796,7 +803,7 @@ enum IconRenderer {
             let key = IconCacheKey(
                 primary: self.quantizedPercent(primaryRemaining),
                 weekly: self.quantizedPercent(weeklyRemaining),
-                weeklyTimeMarker: self.timeMarkerPixel(weeklyTimeMarkerPercent, rectWidth: 30),
+                weeklyTimeMarker: self.timeMarkerPixel(weeklyTimeMarkerPercent, rectWidth: self.timeMarkerBarWidthPx),
                 weeklyTimeMarkerStyle: weeklyTimeMarkerStyle.rawValue,
                 credits: self.quantizedCredits(creditsRemaining),
                 stale: stale,
@@ -833,6 +840,8 @@ enum IconRenderer {
 
     /// Width in 2x pixels of the time marker measured from the bar's left edge, or -1 for none.
     /// Markers are cached by pixel, so the icon only re-renders when the marker actually moves.
+    static let timeMarkerBarWidthPx = 30
+
     static func timeMarkerPixel(_ percent: Double?, rectWidth: Int) -> Int {
         guard let percent, percent.isFinite else { return -1 }
         return Int((CGFloat(rectWidth) * CGFloat(max(0, min(percent, 100)) / 100)).rounded())

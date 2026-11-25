@@ -38,6 +38,19 @@ enum IconRemainingResolver {
         return showUsed ? 100 - leftPercent : leftPercent
     }
 
+    /// The next instant the time marker moves to another pixel on a bar `rectWidth` pixels wide, or nil when
+    /// there is no marker. Pixel boundaries do not depend on the fill direction, and the last one is the reset.
+    static func nextTimeMarkerPixelChange(window: RateWindow?, rectWidth: Int, now: Date = Date()) -> Date? {
+        guard self.secondaryTimeMarkerPercent(window: window, showUsed: false, now: now) != nil,
+              let window, let resetsAt = window.resetsAt, let minutes = window.windowMinutes
+        else { return nil }
+        let secondsPerPixel = TimeInterval(minutes) * 60 / Double(rectWidth)
+        let position = resetsAt.timeIntervalSince(now) / secondsPerPixel
+        var boundary = (position - 0.5).rounded(.up) - 0.5
+        if boundary >= position { boundary -= 1 }
+        return now.addingTimeInterval((position - max(0, boundary)) * secondsPerPixel)
+    }
+
     static func resolvedPercents(
         snapshot: UsageSnapshot,
         style: IconStyle,

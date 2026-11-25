@@ -75,4 +75,85 @@ struct IconRendererWeeklyTimeMarkerTests {
         #expect(try render(30) != plain)
         #expect(try render(30) != render(60))
     }
+
+    @Test
+    func `zero weekly quota keeps its time marker`() throws {
+        func render(_ marker: Double?) throws -> Data {
+            try #require(IconRenderer.makeIcon(
+                primaryRemaining: 60,
+                weeklyRemaining: 0,
+                creditsRemaining: nil,
+                stale: false,
+                style: .claude,
+                hideCritters: true,
+                weeklyTimeMarkerPercent: marker,
+                weeklyTimeMarkerStyle: .line).tiffRepresentation)
+        }
+        #expect(try render(50) != render(nil))
+    }
+
+    @Test
+    func `next marker update lands on the next pixel boundary`() throws {
+        let width = IconRenderer.timeMarkerBarWidthPx
+        let window = self.weeklyWindow(hoursLeft: 40)
+        let change = try #require(IconRemainingResolver.nextTimeMarkerPixelChange(
+            window: window,
+            rectWidth: width,
+            now: self.now))
+        func pixel(at date: Date) -> Int {
+            IconRenderer.timeMarkerPixel(
+                IconRemainingResolver.secondaryTimeMarkerPercent(window: window, showUsed: false, now: date),
+                rectWidth: width)
+        }
+        #expect(change > self.now)
+        #expect(pixel(at: change.addingTimeInterval(-1)) == pixel(at: self.now))
+        #expect(pixel(at: change.addingTimeInterval(1)) != pixel(at: self.now))
+    }
+
+    @Test
+    func `last marker update is the reset`() {
+        let window = self.weeklyWindow(hoursLeft: 1)
+        #expect(IconRemainingResolver.nextTimeMarkerPixelChange(
+            window: window,
+            rectWidth: IconRenderer.timeMarkerBarWidthPx,
+            now: self.now) == window.resetsAt)
+        #expect(IconRemainingResolver.nextTimeMarkerPixelChange(
+            window: self.weeklyWindow(hoursLeft: -1),
+            rectWidth: IconRenderer.timeMarkerBarWidthPx,
+            now: self.now) == nil)
+    }
+
+    @Test
+    func `marker skips providers whose lower lane is not weekly`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "IconRendererWeeklyTimeMarkerTests-semantic-lane"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.menuBarWeekProgressStyle = .line
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: NSStatusBar.system)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 20, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: self.weeklyWindow(hoursLeft: 42),
+            updatedAt: self.now)
+        #expect(controller.menuBarWeeklyTimeMarkerPercent(
+            provider: .claude,
+            snapshot: snapshot,
+            showUsed: false,
+            now: self.now) != nil)
+        #expect(controller.menuBarWeeklyTimeMarkerPercent(
+            provider: .kimi,
+            snapshot: snapshot,
+            showUsed: false,
+            now: self.now) == nil)
+    }
 }
