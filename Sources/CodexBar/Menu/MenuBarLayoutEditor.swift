@@ -64,7 +64,7 @@ enum MenuBarLayoutPaletteTokens {
                 .pace(window: .weekly),
                 .pace(window: .automatic),
                 .pace(window: .spend),
-            ]
+            ] + MenuBarLayoutNamedExtra.availablePaceTokens(provider: provider, snapshot: snapshot)
     }
 
     static let time: [MenuBarLayoutToken] = [
@@ -1159,6 +1159,9 @@ extension MenuBarLayoutToken {
         if case let .extraPercent(id) = self, let title = MenuBarLayoutNamedExtra.title(id: id) {
             return L("%@ %@", title, "%")
         }
+        if case let .extraPace(id) = self, let title = MenuBarLayoutNamedExtra.title(id: id) {
+            return L("%@ %@", title, L("display_mode_pace").lowercased())
+        }
         if let providerLabel = self.providerEditorLabel(provider: provider, snapshot: snapshot) {
             return providerLabel
         }
@@ -1206,6 +1209,7 @@ extension MenuBarLayoutToken {
         case .percent(window: .spend): L("menu_bar_layout_token_spend")
         case let .lanePercent(lane): L("%@ %@", lane.rawValue.capitalized, "%")
         case .extraPercent: L("%@ %@", L("Usage"), "%")
+        case .extraPace: L("%@ %@", L("Usage"), L("display_mode_pace").lowercased())
         case .pace(window: .session): L("menu_bar_layout_token_session_pace")
         case .pace(window: .weekly): L("menu_bar_layout_token_weekly_pace")
         case .pace(window: .scopedWeekly): L("menu_bar_layout_token_weekly_pace")
@@ -1274,7 +1278,7 @@ extension MenuBarLayoutToken {
         case .providerName: "textformat"
         case .accountLabel: "person.crop.circle"
         case .percent, .lanePercent, .extraPercent: "percent"
-        case .pace: "speedometer"
+        case .pace, .extraPace: "speedometer"
         case .usageBar, .progressBar: "chart.bar.fill"
         case .resetCountdown, .windowResetCountdown: "timer"
         case .resetAbsolute, .windowResetAbsolute: "clock"

@@ -15,9 +15,11 @@ struct MenuBarLayoutV6PersistenceTests {
         settings.setMenuBarLayout(Self.spendLayout, for: .claude)
         settings.menuBarLayoutConditionals = [.makeDefault()]
         let keys = [
-            "menuBarLayoutV7", "menuBarLayoutV6", "menuBarLayoutV5",
-            "menuBarLayoutOverridesV7", "menuBarLayoutOverridesV6", "menuBarLayoutOverridesV5",
-            "menuBarLayoutConditionalsV7", "menuBarLayoutConditionalsV6", "menuBarLayoutConditionalsV5",
+            "menuBarLayoutV8", "menuBarLayoutV7", "menuBarLayoutV6", "menuBarLayoutV5",
+            "menuBarLayoutOverridesV8", "menuBarLayoutOverridesV7", "menuBarLayoutOverridesV6",
+            "menuBarLayoutOverridesV5",
+            "menuBarLayoutConditionalsV8", "menuBarLayoutConditionalsV7", "menuBarLayoutConditionalsV6",
+            "menuBarLayoutConditionalsV5",
         ]
         let before = keys.map { defaults.data(forKey: $0) }
         #expect(before.allSatisfy { $0 != nil })
@@ -178,7 +180,7 @@ struct MenuBarLayoutV6PersistenceTests {
         settings.setMenuBarLayout(Self.spendLayout, for: nil)
         settings.setMenuBarLayout(Self.spendLayout, for: .claude)
         settings.setMenuBarLayout(Self.spendLayout, for: .cursor)
-        let full = try #require(defaults.data(forKey: "menuBarLayoutV7"))
+        let full = try #require(defaults.data(forKey: "menuBarLayoutV8"))
 
         // 0.75.0 decodes every V5 key, so its startup finds all its generations and rewrites nothing.
         let decoder = JSONDecoder()
@@ -198,7 +200,7 @@ struct MenuBarLayoutV6PersistenceTests {
         #expect(returned.menuBarLayoutOverrides[.claude] == Self.spendLayout)
         #expect(returned.menuBarLayoutConditionals == [readable, spendRule])
 
-        // An edit saved by 0.75.0 writes V5 and older, leaving the unknown V7 keys untouched.
+        // An edit saved by 0.75.0 writes V5 and older, leaving the unknown V8 keys untouched.
         let edited = MenuBarLayout(lines: [[.usageBar]])
         let projected = try decoder.decode(MenuBarLayout.self, from: #require(defaults.data(forKey: "menuBarLayoutV5")))
         var editedRule = readable
@@ -208,7 +210,7 @@ struct MenuBarLayoutV6PersistenceTests {
             overrides: ["claude": edited, "cursor": projected],
             rules: [editedRule],
             defaults: defaults)
-        #expect(defaults.data(forKey: "menuBarLayoutV7") == full)
+        #expect(defaults.data(forKey: "menuBarLayoutV8") == full)
         let editedReturn = testSettingsStore(suiteName: "spend-v6-edited-return", userDefaults: defaults)
         #expect(editedReturn.menuBarLayout == edited)
         #expect(editedReturn.menuBarLayoutOverrides[.claude] == edited)

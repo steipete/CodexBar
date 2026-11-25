@@ -40,6 +40,41 @@ struct AntigravityWeeklyLayoutTests {
     }
 
     @Test
+    func `family pace chips pace each quota on its own`() throws {
+        let store = Self.store()
+        let reset = try #require(ISO8601DateFormatter().date(from: "2026-06-19T08:45:39Z"))
+        let now = reset.addingTimeInterval(-3.5 * 24 * 60 * 60)
+        let data = try store.menuBarLayoutRenderData(
+            provider: .antigravity,
+            snapshot: self.snapshot(),
+            iconKey: "antigravity",
+            accountLabel: nil,
+            costs: MenuBarLayoutCostValues(today: nil, last30Days: nil, todayUSD: nil, last30DaysUSD: nil),
+            now: now)
+        let fixture = MenuBarLayoutRendererTests()
+        let cases: [(String, String, NSColor)] = [
+            ("antigravity-quota-summary-gemini-weekly", "-30%", .systemGreen),
+            ("antigravity-quota-summary-3p-weekly", "+19%", .systemRed),
+        ]
+        for (id, pace, color) in cases {
+            let rendered = MenuBarLayoutRenderer().render(
+                layout: MenuBarLayout(lines: [[.extraPace(id: id)]]),
+                data: data,
+                icon: nil,
+                options: fixture.options(colorPace: true))
+            #expect(rendered.attributedTitle.string.hasSuffix(pace))
+            #expect(rendered.attributedTitle.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
+                == color)
+        }
+        let unavailable = MenuBarLayoutRenderer().render(
+            layout: MenuBarLayout(lines: [[.extraPace(id: "antigravity-quota-summary-gemini-weekly")]]),
+            data: fixture.data(provider: .antigravity),
+            icon: nil,
+            options: fixture.options(colorPace: true))
+        #expect(unavailable.accessibilityLabel == "Gemini weekly pace unavailable")
+    }
+
+    @Test
     func `synthetic family weekly before and after proof`() throws {
         guard let directory = ProcessInfo.processInfo.environment["CODEXBAR_WEEKLY_LAYOUT_PROOF_DIR"] else { return }
         let extras = try (self.snapshot().extraRateWindows ?? []).map(MenuBarLayoutRenderExtra.init)
@@ -78,6 +113,16 @@ struct AntigravityWeeklyLayoutTests {
             .extraPercent(id: "antigravity-quota-summary-gemini-weekly"),
             .extraPercent(id: "antigravity-quota-summary-3p-weekly"),
         ]
+    }
+
+    private static func store() -> UsageStore {
+        let settings = testSettingsStore(
+            suiteName: "antigravity-family-pace",
+            userDefaults: InMemoryUserDefaults(),
+            config: testConfigWithAllProvidersDisabled())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        return UsageStore(fetcher: UsageFetcher(), browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
     }
 
     private func snapshot() throws -> UsageSnapshot {
