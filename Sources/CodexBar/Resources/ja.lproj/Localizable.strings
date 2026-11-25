@@ -2873,7 +2873,7 @@
 "MiMo request failed. Try refreshing later." = "MiMo へのリクエストに失敗しました。後でもう一度更新してください。";
 "Skip cost refresh" = "コストの更新をスキップ";
 "menu_bar_week_progress_title" = "週の経過";
-"menu_bar_week_progress_subtitle" = "下のバーの下に、週間ウィンドウの経過分を表示します。";
+"menu_bar_week_progress_subtitle" = "下のバーの下に週間ウィンドウの時間を表示します。経過分か残り分かは「使用量バーの表示」に従います。";
 "menu_bar_week_progress_off" = "オフ";
 "menu_bar_week_progress_caret" = "マーカー";
 "menu_bar_week_progress_line" = "線";

@@ -2875,7 +2875,7 @@
 "MiMo request failed. Try refreshing later." = "คำขอ MiMo ล้มเหลว ลองรีเฟรชอีกครั้งในภายหลัง";
 "Skip cost refresh" = "ข้ามการรีเฟรชค่าใช้จ่าย";
 "menu_bar_week_progress_title" = "ความคืบหน้าของสัปดาห์";
-"menu_bar_week_progress_subtitle" = "แสดงใต้แถบล่างว่าช่วงรายสัปดาห์ผ่านไปแล้วเท่าใด";
+"menu_bar_week_progress_subtitle" = "แสดงเวลาของช่วงรายสัปดาห์ใต้แถบล่าง: เวลาที่ผ่านไปหรือเวลาที่เหลือ ตาม \"รูปแบบการเติมแถบการใช้งาน\"";
 "menu_bar_week_progress_off" = "ปิด";
 "menu_bar_week_progress_caret" = "ตัวชี้";
 "menu_bar_week_progress_line" = "เส้น";

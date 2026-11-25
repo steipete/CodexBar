@@ -2877,7 +2877,7 @@
 "MiMo request failed. Try refreshing later." = "La richiesta a MiMo non è riuscita. Riprova ad aggiornare più tardi.";
 "Skip cost refresh" = "Salta l’aggiornamento dei costi";
 "menu_bar_week_progress_title" = "Avanzamento settimana";
-"menu_bar_week_progress_subtitle" = "Indica sotto la barra inferiore quanta parte della finestra settimanale è trascorsa.";
+"menu_bar_week_progress_subtitle" = "Indica sotto la barra inferiore il tempo della finestra settimanale: trascorso o rimanente, secondo «Riempimento delle barre di utilizzo».";
 "menu_bar_week_progress_off" = "Disattivato";
 "menu_bar_week_progress_caret" = "Indicatore";
 "menu_bar_week_progress_line" = "Linea";

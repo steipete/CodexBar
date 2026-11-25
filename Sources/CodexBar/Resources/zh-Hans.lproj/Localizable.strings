@@ -2865,7 +2865,7 @@
 "MiMo request failed. Try refreshing later." = "MiMo 请求失败。请稍后尝试刷新。";
 "Skip cost refresh" = "跳过费用刷新";
 "menu_bar_week_progress_title" = "本周进度";
-"menu_bar_week_progress_subtitle" = "在下方条形下面标出每周窗口已过去的部分。";
+"menu_bar_week_progress_subtitle" = "在下方条形下面标出每周窗口的时间：已过去或剩余，依照“用量条填充方式”。";
 "menu_bar_week_progress_off" = "关闭";
 "menu_bar_week_progress_caret" = "标记";
 "menu_bar_week_progress_line" = "线条";

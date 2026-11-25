@@ -2870,7 +2870,7 @@
 "MiMo request failed. Try refreshing later." = "Het MiMo-verzoek is mislukt. Probeer later opnieuw te vernieuwen.";
 "Skip cost refresh" = "Vernieuwen van kosten overslaan";
 "menu_bar_week_progress_title" = "Weekvoortgang";
-"menu_bar_week_progress_subtitle" = "Toont onder de onderste balk hoeveel van het weekvenster is verstreken.";
+"menu_bar_week_progress_subtitle" = "Toont onder de onderste balk de tijd van het weekvenster: verstreken of resterend, volgens Vulling gebruiksbalken.";
 "menu_bar_week_progress_off" = "Uit";
 "menu_bar_week_progress_caret" = "Markering";
 "menu_bar_week_progress_line" = "Lijn";

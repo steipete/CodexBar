@@ -2871,7 +2871,7 @@
 "MiMo request failed. Try refreshing later." = "Die Anfrage an MiMo ist fehlgeschlagen. Versuche es später erneut.";
 "Skip cost refresh" = "Kostenaktualisierung überspringen";
 "menu_bar_week_progress_title" = "Wochenfortschritt";
-"menu_bar_week_progress_subtitle" = "Zeigt unter dem unteren Balken, wie viel des Wochenfensters vergangen ist.";
+"menu_bar_week_progress_subtitle" = "Markiert unter dem unteren Balken die Zeit des Wochenfensters: vergangen oder verbleibend, passend zu „Füllung der Nutzungsbalken“.";
 "menu_bar_week_progress_off" = "Aus";
 "menu_bar_week_progress_caret" = "Pfeil";
 "menu_bar_week_progress_line" = "Linie";

@@ -2878,7 +2878,7 @@
 "MiMo request failed. Try refreshing later." = "MiMo request failed. Try refreshing later.";
 "Skip cost refresh" = "Skip cost refresh";
 "menu_bar_week_progress_title" = "Week progress";
-"menu_bar_week_progress_subtitle" = "Marks how much of the weekly window has passed under the lower bar.";
+"menu_bar_week_progress_subtitle" = "Marks weekly window time under the lower bar: time passed or time left, matching Usage bars fill.";
 "menu_bar_week_progress_off" = "Off";
 "menu_bar_week_progress_caret" = "Caret";
 "menu_bar_week_progress_line" = "Line";

@@ -2877,7 +2877,7 @@
 "MiMo request failed. Try refreshing later." = "درخواست MiMo ناموفق بود. بعداً دوباره تازه‌سازی کنید.";
 "Skip cost refresh" = "رد کردن به‌روزرسانی هزینه";
 "menu_bar_week_progress_title" = "پیشرفت هفته";
-"menu_bar_week_progress_subtitle" = "زیر نوار پایینی نشان می‌دهد چه مقدار از بازهٔ هفتگی گذشته است.";
+"menu_bar_week_progress_subtitle" = "زیر نوار پایینی زمان بازهٔ هفتگی را نشان می‌دهد: گذشته یا باقی‌مانده، مطابق «پرشدن نوارهای استفاده».";
 "menu_bar_week_progress_off" = "خاموش";
 "menu_bar_week_progress_caret" = "نشانگر";
 "menu_bar_week_progress_line" = "خط";
