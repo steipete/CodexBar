@@ -102,7 +102,7 @@ struct ClaudeCLIPanelTransitionTests {
         let binary = directory.appendingPathComponent("fake-claude")
         // Like Claude's differential renderer, the first /usage reuses the startup "r" at column 6 and its refresh
         // rewrites only the changed digit. Escape leaves the panel visible; the second /usage again rewrites only a
-        // digit, and later /usage commands never finish.
+        // digit, and later /usage commands never finish while a custom status line draws its own "% used" row.
         let script = #"""
         #!/bin/bash
         /bin/stty raw -echo -icrnl
@@ -124,7 +124,7 @@ struct ClaudeCLIPanelTransitionTests {
                 elif [[ $count == 2 ]]; then
                   printf '\e[4;7H5'
                 else
-                  printf '\e[11;3HLoading usage data…'
+                  printf '\e[11;3HLoading usage data…\e[20;3H53%% used'
                 fi
               fi
               command=''
@@ -166,7 +166,7 @@ struct ClaudeCLIPanelTransitionTests {
 
             let stale = try await usage(account: "synthetic-account", timeout: 1.5)
             let staleScreen = ClaudeCLIScreen.render(stale)
-            #expect(!staleScreen.contains("%"))
+            #expect(!staleScreen.contains("Current"))
             #expect(!ClaudeStatusProbe.usageCaptureIsComplete(
                 String(staleScreen.lowercased().filter { !$0.isWhitespace })))
             #expect(throws: ClaudeStatusProbeError.self) { try ClaudeStatusProbe.parse(text: stale) }

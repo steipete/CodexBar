@@ -12,8 +12,8 @@ struct ClaudeCLIScreen {
     private static let blank = Array(repeating: Character(" "), count: Self.columns)
     // Brackets a screen snapshot taken before a command. Claude's differential renderer only rewrites cells that
     // changed, so the capture is replayed on top of the screen it was drawn against. The whole screen is shown once
-    // the capture writes or erases a quota value row; until then only the rows it touched are, so an earlier panel
-    // cannot be read as a new one.
+    // the capture writes or erases a quota value row under a quota label; until then only the rows it touched are, so
+    // an earlier panel cannot be read as a new one, even when a custom status line draws its own "% used".
     static let baselineStart = "\u{1b}]codexbar;baseline-start\u{07}"
     static let baselineEnd = "\u{1b}]codexbar;baseline-end\u{07}"
     private var lines = Array(repeating: Self.blank, count: Self.rows)
@@ -31,7 +31,8 @@ struct ClaudeCLIScreen {
             String(line.reversed().drop(while: { $0 == " " }).reversed().filter { $0 != "\u{0}" })
         }
         let written = screen.written
-        let showAll = !screen.hasBaseline || lines.indices.contains { written[$0] && Self.isQuotaValue(lines[$0]) }
+        let showAll = !screen.hasBaseline || lines.indices
+            .contains { written[$0] && Self.isQuotaValue(at: $0, in: lines) }
         var result = lines.indices.map { showAll || written[$0] ? lines[$0] : "" }
         while result.last?.isEmpty == true {
             result.removeLast()
@@ -39,8 +40,15 @@ struct ClaudeCLIScreen {
         return result.joined(separator: "\n")
     }
 
-    private static func isQuotaValue(_ line: String) -> Bool {
-        line.range(of: #"[0-9]{1,3}(?:\.[0-9]+)?%\s*used"#, options: [.regularExpression, .caseInsensitive]) != nil
+    /// A quota value sits on the bar row directly under its "Current session" or "Current week" label.
+    private static func isQuotaValue(at index: Int, in lines: [String]) -> Bool {
+        let value = #"[0-9]{1,3}(?:\.[0-9]+)?%\s*used"#
+        guard lines[index].range(of: value, options: [.regularExpression, .caseInsensitive]) != nil
+        else { return false }
+        return lines[max(0, index - 2)..<index].contains { line in
+            let normalized = line.lowercased().filter { !$0.isWhitespace }
+            return normalized.contains("currentsession") || normalized.contains("currentweek")
+        }
     }
 
     /// Serializes the screen and cursor reached by `text` as a bounded baseline for the next command capture.
