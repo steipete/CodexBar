@@ -741,13 +741,13 @@ final class MenuBarLayoutRenderer {
         guard Set(windows).count > 1 else { return nil }
         // Match the complete selected window, never its percentage or formatted pace alone.
         let matches = semantic.filter { self.window($0, data: data) == automatic }
-        let laneMatches = lanes.filter { self.laneWindow($0, data: data) == automatic }
-        let extraMatches = extras.filter { $0.window == automatic }
-        guard laneMatches.count + extraMatches.count <= 1 else { return nil }
         if matches.count == 1, let selected = matches.first {
             return (self.windowPrefix(selected, data: data), self.windowAccessibilityLabel(selected, data: data))
         }
         guard matches.isEmpty else { return nil }
+        let laneMatches = lanes.filter { self.laneWindow($0, data: data) == automatic }
+        let extraMatches = extras.filter { $0.window == automatic }
+        guard laneMatches.count + extraMatches.count <= 1 else { return nil }
         if laneMatches.count == 1, let lane = laneMatches.first {
             let title = data.laneLabels.label(for: lane)
             return (self.laneShortLabel(lane, data: data) ?? String(title.prefix(1)).uppercased(), title)
