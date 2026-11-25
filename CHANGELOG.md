@@ -2,6 +2,10 @@
 
 ## 0.85.1 — Unreleased
 
+### Added
+
+- Menu bar: add a pace element for each named allowance with a known window, such as Antigravity's Gemini weekly and Claude/GPT weekly quotas, so each family can show its own pace.
+
 ## 0.85.0 — 2026-11-21
 
 ### Highlights

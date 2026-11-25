@@ -233,8 +233,8 @@ extension StatusItemController {
         guard !resolution.usesLegacyRendering else { return nil }
 
         let metrics = self.referencedConditionalMetrics(resolution: resolution)
-        var paceWindows = Set(resolution.layout
-            .flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
+        let tokens = resolution.layout.flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
+        var paceWindows = Set(tokens
             .compactMap { token -> PercentWindow? in
                 guard case let .pace(window) = token else { return nil }
                 return window
@@ -251,9 +251,12 @@ extension StatusItemController {
         if metrics.contains(.spendPace) {
             paceWindows.insert(.spend)
         }
-        let tokens = resolution.layout.flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
+        let extraPaceIDs = Set(tokens.compactMap { token -> String? in
+            guard case let .extraPace(id) = token else { return nil }
+            return id
+        })
         let needsRunsOut = metrics.contains(.runsOutIn) || tokens.contains(.runsOut) || tokens.contains(.runsOutCompact)
-        guard !paceWindows.isEmpty || needsRunsOut else { return nil }
+        guard !paceWindows.isEmpty || !extraPaceIDs.isEmpty || needsRunsOut else { return nil }
 
         let now = Date()
         let windows = self.menuBarLayoutWindows(provider: provider, snapshot: snapshot, now: now)
@@ -288,6 +291,16 @@ extension StatusItemController {
                 .flatMap(\.etaSeconds)
                 .map { Int(($0 / 60).rounded()) }
             components.append("runsOut=\(runsOutMinutes.map { String($0) } ?? "nil")")
+        }
+        for extra in MenuBarLayoutNamedExtra.windows(provider: provider, snapshot: snapshot)
+            where extraPaceIDs.contains(extra.id)
+        {
+            let pace = self.store.menuBarLayoutPaceText(
+                provider: provider,
+                window: extra.window,
+                dataConfidence: snapshot?.dataConfidence ?? .unknown,
+                now: now)
+            components.append("\(extra.id)=\(pace ?? "nil")")
         }
         return components.joined(separator: ",")
     }

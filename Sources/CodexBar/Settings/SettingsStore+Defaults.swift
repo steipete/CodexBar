@@ -529,6 +529,7 @@ extension SettingsStore {
     private func persistMenuBarLayout(_ layout: MenuBarLayout) {
         guard let blobs = try? MenuBarLayoutPersistence.encoded(layout) else { return }
         self.userDefaults.set(blobs.current, forKey: MenuBarLayoutUserDefaultsKey.layoutCurrent)
+        self.userDefaults.set(blobs.v7, forKey: MenuBarLayoutUserDefaultsKey.layoutV7)
         self.userDefaults.set(blobs.v6, forKey: MenuBarLayoutUserDefaultsKey.layoutV6)
         self.userDefaults.set(blobs.v5, forKey: MenuBarLayoutUserDefaultsKey.layoutV5)
         self.userDefaults.set(blobs.v4, forKey: MenuBarLayoutUserDefaultsKey.layoutV4)
@@ -542,6 +543,7 @@ extension SettingsStore {
             .encodedLibrary(self.defaultsState.menuBarLayoutConditionals)
         else { return }
         self.userDefaults.set(blobs.current, forKey: MenuBarLayoutUserDefaultsKey.conditionalsCurrent)
+        self.userDefaults.set(blobs.v7, forKey: MenuBarLayoutUserDefaultsKey.conditionalsV7)
         self.userDefaults.set(blobs.v6, forKey: MenuBarLayoutUserDefaultsKey.conditionalsV6)
         self.userDefaults.set(blobs.v5, forKey: MenuBarLayoutUserDefaultsKey.conditionalsV5)
         self.userDefaults.set(blobs.v4, forKey: MenuBarLayoutUserDefaultsKey.conditionalsV4)
@@ -554,6 +556,7 @@ extension SettingsStore {
         guard let blobs = try? MenuBarLayoutPersistence.encodedOverrides(self.defaultsState.menuBarLayoutOverridesRaw)
         else { return }
         self.userDefaults.set(blobs.current, forKey: MenuBarLayoutUserDefaultsKey.overridesCurrent)
+        self.userDefaults.set(blobs.v7, forKey: MenuBarLayoutUserDefaultsKey.overridesV7)
         self.userDefaults.set(blobs.v6, forKey: MenuBarLayoutUserDefaultsKey.overridesV6)
         self.userDefaults.set(blobs.v5, forKey: MenuBarLayoutUserDefaultsKey.overridesV5)
         self.userDefaults.set(blobs.v4, forKey: MenuBarLayoutUserDefaultsKey.overridesV4)

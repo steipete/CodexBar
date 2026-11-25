@@ -118,28 +118,6 @@ struct MenuBarLayoutRenderData: Hashable {
     }
 }
 
-struct MenuBarLayoutRenderExtra: Hashable {
-    let id: String
-    let title: String
-    let window: MenuBarLayoutRenderWindow?
-
-    init(_ namedWindow: NamedRateWindow) {
-        self.id = namedWindow.id
-        self.title = namedWindow.title
-        self.window = namedWindow.usageKnown ? MenuBarLayoutRenderWindow(namedWindow.window) : nil
-    }
-
-    static func signature(tokens: [MenuBarLayoutToken], provider: UsageProvider, snapshot: UsageSnapshot?) -> Int? {
-        let ids = Set(tokens.compactMap { token -> String? in
-            if case let .extraPercent(id) = token { return id }
-            return nil
-        })
-        guard !ids.isEmpty else { return nil }
-        return MenuBarLayoutNamedExtra.windows(provider: provider, snapshot: snapshot)
-            .filter { ids.contains($0.id) }.map(Self.init).hashValue
-    }
-}
-
 struct MenuBarLayoutRenderOptions: Hashable {
     let size: MenuBarLayoutSize
     let monospacedDigits: Bool
@@ -713,7 +691,7 @@ final class MenuBarLayoutRenderer {
         }
         switch token {
         case .hidden: return nil
-        case let .extraPercent(id): return data.extraTitle(id) == nil ? nil : token
+        case let .extraPercent(id), let .extraPace(id): return data.extraTitle(id) == nil ? nil : token
         case let .conditional(id):
             guard depth < MenuBarLayoutToken.maxConditionalDepth,
                   let conditional = conditionals[id],
@@ -807,32 +785,20 @@ final class MenuBarLayoutRenderer {
         case let .percent(window):
             return self.renderPercent(window, data: data, style: style, options: options)
         case let .pace(window):
-            let accessibilityPrefix = item.editorLabel(provider: data.provider.firstPartyProvider)
-            let pace = Self.pace(window, data: data)
-            let neutralColor = Self.neutralForegroundColor(options)
-            var attributes = style.attributes
-            attributes[.foregroundColor] = neutralColor
-            let rendered = self.optionalTextToken(
-                pace,
-                unavailableLabel: L("%@ unavailable", accessibilityPrefix),
-                accessibilityPrefix: accessibilityPrefix,
-                attributes: attributes)
-            guard options.colorPace, let pace, !pace.isEmpty else { return rendered }
-
-            var indicatorColor = neutralColor
-            var isMonochrome = true
-            if let delta = Self.paceDelta(window, data: data), delta.isFinite, delta != 0 {
-                // Use the same rounded numeric delta as the displayed text, never its localized sign.
-                let color: NSColor = delta < 0 ? .systemGreen : .systemRed
-                indicatorColor = options.isStale && !options.highContrast ? color
-                    .withAlphaComponent(0.5) : color
-                isMonochrome = false
-            }
-            let result = NSMutableAttributedString(attributedString: Self.paceIndicator(
-                color: indicatorColor, style: style, isMonochrome: isMonochrome))
-            result.append(NSAttributedString(string: "\u{2009}", attributes: attributes))
-            result.append(rendered.value)
-            return (result, rendered.accessibilityText)
+            return self.paceToken(
+                Self.pace(window, data: data),
+                delta: Self.paceDelta(window, data: data),
+                accessibilityPrefix: item.editorLabel(provider: data.provider.firstPartyProvider),
+                style: style,
+                options: options)
+        case let .extraPace(id):
+            let extra = data.extraWindow(id)
+            return self.paceToken(
+                extra?.pace,
+                delta: extra?.paceDelta,
+                accessibilityPrefix: item.editorLabel(provider: data.provider.firstPartyProvider),
+                style: style,
+                options: options)
         case .resetCountdown, .resetAbsolute, .windowResetCountdown, .windowResetAbsolute:
             let window = item.resetWindow ?? .automatic
             let qualified = item != .resetCountdown && item != .resetAbsolute
@@ -1106,6 +1072,40 @@ final class MenuBarLayoutRenderer {
         let display = Self.laneShortLabel(lane, data: data)
             .map { "\($0) \(resolvedValue.text)" } ?? resolvedValue.text
         return self.textToken(display, accessibilityText: accessibility, attributes: attributes)
+    }
+
+    private static func paceToken(
+        _ pace: String?,
+        delta: Double?,
+        accessibilityPrefix: String,
+        style: TokenStyle,
+        options: MenuBarLayoutRenderOptions)
+        -> (value: NSAttributedString, accessibilityText: String?)
+    {
+        let neutralColor = Self.neutralForegroundColor(options)
+        var attributes = style.attributes
+        attributes[.foregroundColor] = neutralColor
+        let rendered = self.optionalTextToken(
+            pace,
+            unavailableLabel: L("%@ unavailable", accessibilityPrefix),
+            accessibilityPrefix: accessibilityPrefix,
+            attributes: attributes)
+        guard options.colorPace, let pace, !pace.isEmpty else { return rendered }
+
+        var indicatorColor = neutralColor
+        var isMonochrome = true
+        if let delta, delta.isFinite, delta != 0 {
+            // Use the same rounded numeric delta as the displayed text, never its localized sign.
+            let color: NSColor = delta < 0 ? .systemGreen : .systemRed
+            indicatorColor = options.isStale && !options.highContrast ? color
+                .withAlphaComponent(0.5) : color
+            isMonochrome = false
+        }
+        let result = NSMutableAttributedString(attributedString: Self.paceIndicator(
+            color: indicatorColor, style: style, isMonochrome: isMonochrome))
+        result.append(NSAttributedString(string: "\u{2009}", attributes: attributes))
+        result.append(rendered.value)
+        return (result, rendered.accessibilityText)
     }
 
     private static func extraPercentToken(

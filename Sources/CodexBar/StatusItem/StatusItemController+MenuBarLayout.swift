@@ -408,8 +408,22 @@ extension UsageStore {
             primary: MenuBarLayoutRenderWindow(windows.primary),
             secondary: MenuBarLayoutRenderWindow(windows.secondary),
             tertiary: MenuBarLayoutRenderWindow(windows.tertiary),
-            extraRateWindows: MenuBarLayoutNamedExtra.windows(provider: provider, snapshot: snapshot)
-                .map(MenuBarLayoutRenderExtra.init),
+            extraRateWindows: MenuBarLayoutNamedExtra.windows(provider: provider, snapshot: snapshot).map { named in
+                var extra = MenuBarLayoutRenderExtra(named)
+                if includeLocalDerivedData {
+                    extra.pace = self.menuBarLayoutPaceText(
+                        provider: provider,
+                        window: named.window,
+                        dataConfidence: snapshot?.dataConfidence ?? .unknown,
+                        now: now)
+                    extra.paceDelta = self.menuBarLayoutPaceDelta(
+                        provider: provider,
+                        window: named.window,
+                        dataConfidence: snapshot?.dataConfidence ?? .unknown,
+                        now: now)
+                }
+                return extra
+            },
             session: MenuBarLayoutRenderWindow(windows.session),
             weekly: MenuBarLayoutRenderWindow(windows.weekly),
             scopedWeekly: MenuBarLayoutRenderWindow(scopedNamed?.window),

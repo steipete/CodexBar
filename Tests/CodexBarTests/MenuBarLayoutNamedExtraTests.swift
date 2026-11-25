@@ -36,6 +36,26 @@ struct MenuBarLayoutNamedExtraTests {
         #expect(layout.v3Compatible() == .defaultLayout)
     }
 
+    @Test
+    func `Antigravity offers a pace chip for each family weekly allowance`() throws {
+        let json = antigravityQuotaSummaryJSON(
+            geminiSession: 0.1, geminiWeekly: 0.8, claudeSession: 0.2, claudeWeekly: 0.6)
+        let snapshot = try AntigravityStatusProbe.parseQuotaSummaryResponse(Data(json.utf8)).toUsageSnapshot()
+        let tokens = MenuBarLayoutNamedExtra.availablePaceTokens(provider: .antigravity, snapshot: snapshot)
+        #expect(tokens == [
+            .extraPace(id: "antigravity-quota-summary-gemini-weekly"),
+            .extraPace(id: "antigravity-quota-summary-3p-weekly"),
+        ])
+        #expect(tokens.map { $0.editorLabel(provider: .antigravity) } == [
+            "Gemini weekly pace",
+            "Claude/GPT weekly pace",
+        ])
+        let palette = MenuBarLayoutPaletteTokens.usage(provider: .antigravity, snapshot: snapshot)
+        #expect(palette.suffix(2) == tokens[...])
+        let layout = MenuBarLayout(lines: [tokens])
+        #expect(try JSONDecoder().decode(MenuBarLayout.self, from: JSONEncoder().encode(layout)) == layout)
+    }
+
     @Test(arguments: [false, true])
     func `Antigravity weekly choices omit unknown and synthetic allowances`(synthetic: Bool) {
         let window = RateWindow(

@@ -134,7 +134,7 @@ Stacked rows with leading window labels align their values and meters after the 
 | Identity | Icon, Provider name, Account | Provider-scoped branding and identity |
 | Usage | Session %, Weekly %, Scoped weekly %, Auto %, Spend %, Usage bar | Window percentage or a compact three-glyph usage bar |
 | Usage | Named allowances (Cursor Grok Bot, Antigravity family weekly quotas) | Own label and percentage; a saved selection shows a dash when unavailable |
-| Usage | Session pace, Weekly pace, Auto pace, Spend pace | Signed pace delta for that window |
+| Usage | Session pace, Weekly pace, Auto pace, Spend pace, named allowance pace (such as Gemini weekly) | Signed pace delta for that window. Named allowance pace is offered only for allowances with a known window length |
 | Time | Resets in, Reset at (automatic, Session, Weekly, Spend), Runs out | Selected-window relative reset, absolute reset, or pace estimate |
 | Money | Balance, Cost today, Cost (History window), Spend, Spend / budget | Provider balance or remaining credits, or local cost estimate. Cost (History window) is the total for the selected [History window](cost-reporting-periods.md), and cost thresholds compare that window's total. Spend and Spend / budget show the provider-reported amount spent, alone or against its budget |
 | Structure | Separator dot, eight more separator glyphs (`\|`, `/`, `-`, `•`, `◆`, `◇`, `~`, `‖`), Space, Line break | Spacing and optional two-line composition. Each separator is a single visible glyph |
@@ -145,7 +145,8 @@ currency symbol; credit-denominated caps have no currency prefix and no monetary
 reported period and becomes available after 1% of that period. Existing layouts are unchanged; new installs also
 include a **Spend over 90% used** conditional rule.
 
-Layouts, overrides, and rules are stored in V7. A build that reads V6 gets a projection that maps each extra separator
+Layouts, overrides, and rules are stored in V8. A build that reads V7 gets a projection that maps each named
+allowance pace to that allowance's percentage. A build that reads V6 gets a projection that maps each extra separator
 glyph to the separator dot, so the layout stays visible there. Older builds read a V5 projection without Spend tokens
 or rules; V4 and earlier projections retain their existing compatibility behavior. Returning restores the full layout
 when the older copy was unchanged. Edits in an older build take precedence, while untouched overrides and Spend rules survive;
