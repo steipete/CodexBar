@@ -147,9 +147,7 @@ actor ClaudeCLISession {
     private func captureExclusive(request: CaptureRequest) async throws -> String {
         defer { self.releaseSleepInhibitors() }
         let reused = try self.ensureStarted(request: request)
-        // A failed capture drops unread bytes, so only a successful capture can hand its screen to the next one.
-        let priorScreen = reused ? self.screenBaseline : ""
-        self.screenBaseline = nil
+        let priorScreen = self.takeScreenBaseline(reused: reused)
         if reused {
             // Dismiss /usage or /status before typing; keep Escape separate from the next command's input.
             try self.send("\u{1b}")
@@ -196,7 +194,8 @@ actor ClaudeCLISession {
                let text = String(data: buffer.data, encoding: .utf8)
             {
                 uncheckedFrame = false
-                let screen = ClaudeCLIScreen.render(commandSent ? commandBaseline + text : text)
+                // The baseline stays empty until the command is sent.
+                let screen = ClaudeCLIScreen.render(commandBaseline + text)
                 let normalized = Self.normalizedNeedle(screen)
                 if commandSent, trimmed == "/usage" {
                     usagePanelOpen = usagePanelOpen || ClaudeStatusProbe.usageCaptureHasQuotaValue(normalized)
@@ -228,10 +227,7 @@ actor ClaudeCLISession {
                 }
             }
             if !commandSent, !trustPending, !uncheckedFrame, Date() >= readyAt {
-                // Claude redraws only changed cells, so keep the screen the command output is drawn against.
-                if let priorScreen, let text = String(data: buffer.data, encoding: .utf8) {
-                    commandBaseline = ClaudeCLIScreen.baseline(after: priorScreen + text)
-                }
+                commandBaseline = Self.commandBaseline(priorScreen: priorScreen, pendingOutput: buffer.data)
                 buffer.removeAll(keepingCapacity: true)
                 if !trimmed.isEmpty { try self.send(trimmed + "\r") }
                 commandSent = true
@@ -266,6 +262,22 @@ actor ClaudeCLISession {
         }
         guard commandSent, !trustPending, !buffer.isEmpty,
               let text = String(data: buffer.data, encoding: .utf8) else { throw SessionError.timedOut }
+        return self.finishCapture(commandBaseline: commandBaseline, output: text)
+    }
+
+    /// A failed capture drops unread bytes, so only a successful capture can hand its screen to the next one.
+    private func takeScreenBaseline(reused: Bool) -> String? {
+        defer { self.screenBaseline = nil }
+        return reused ? self.screenBaseline : ""
+    }
+
+    /// Claude redraws only changed cells, so keep the screen the command output is drawn against.
+    private static func commandBaseline(priorScreen: String?, pendingOutput: Data) -> String {
+        guard let priorScreen, let text = String(data: pendingOutput, encoding: .utf8) else { return "" }
+        return ClaudeCLIScreen.baseline(after: priorScreen + text)
+    }
+
+    private func finishCapture(commandBaseline: String, output text: String) -> String {
         let output = commandBaseline + text
         if !commandBaseline.isEmpty {
             self.screenBaseline = ClaudeCLIScreen.baseline(after: output)

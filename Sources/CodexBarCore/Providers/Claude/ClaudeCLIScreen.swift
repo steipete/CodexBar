@@ -60,8 +60,9 @@ struct ClaudeCLIScreen {
         // Consume complete OSC strings before interpreting text, including BEL and ST terminators.
         let pattern = #"\u001B(?:\[[0-?]*[ -/]*[@-~]?|\][\s\S]*?(?:\u0007|\u001B\\|$)|.)|[^\u001B]+"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
-        regex.enumerateMatches(in: text, range: NSRange(text.startIndex..., in: text)) { match, _, _ in
-            guard let match, let range = Range(match.range, in: text) else { return }
+        // Linux Foundation's enumeration closure is escaping, so iterate the matches to keep mutating `self` local.
+        for match in regex.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
+            guard let range = Range(match.range, in: text) else { continue }
             let token = text[range]
             if token == Self.baselineStart {
                 self.inBaseline = true
