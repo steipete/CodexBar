@@ -4,7 +4,7 @@
 
 ### Added
 
-- Menu bar: optionally mark weekly window progress under the meter icon as a caret, line, or dotted line, so pace is visible without opening the menu. Thanks @nunoh!
+- Menu bar: optionally mark weekly window progress under the meter icon as a caret, line, or dotted line, so pace is visible without opening the menu (#5173). Thanks @nunoh!
 
 ## 0.85.0 — 2026-11-21
 
