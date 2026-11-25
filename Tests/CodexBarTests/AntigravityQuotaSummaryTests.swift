@@ -82,6 +82,19 @@ struct AntigravityQuotaSummaryTests {
         #expect(rendered.accessibilityLabel == "\(L("%@ %@", L("Session"), "86%")), \(L("%@ %@", L("Weekly"), "55%"))")
     }
 
+    @Test(arguments: ["3p", "third-party"])
+    func `semantic cadences follow Gemini when both families tie`(claudeBucketPrefix: String) throws {
+        let json = antigravityQuotaSummaryJSON(geminiSession: 1, geminiWeekly: 1, claudeSession: 1, claudeWeekly: 1)
+            .replacingOccurrences(of: "\"3p-", with: "\"\(claudeBucketPrefix)-")
+        let usage = try AntigravityStatusProbe.parseQuotaSummaryResponse(Data(json.utf8)).toUsageSnapshot()
+        let rows = try #require(usage.extraRateWindows)
+
+        let windows = MenuBarLayoutSemanticWindowResolver.windows(provider: .antigravity, snapshot: usage)
+
+        #expect(windows.session?.resetsAt == rows[0].window.resetsAt)
+        #expect(windows.weekly?.resetsAt == rows[1].window.resetsAt)
+    }
+
     @Test
     func `parses quota summary response into two model groups with session before weekly windows`() throws {
         let snapshot = try AntigravityStatusProbe.parseQuotaSummaryResponse(

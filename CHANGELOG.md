@@ -2,6 +2,10 @@
 
 ## 0.85.1 — Unreleased
 
+### Fixed
+
+- Antigravity: when Gemini and Claude/GPT have used the same share of a limit, such as 0% after a reset, the session and weekly menu bar chips, pace and reset times now follow Gemini instead of switching to Claude/GPT.
+
 ## 0.85.0 — 2026-11-21
 
 ### Highlights
