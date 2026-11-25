@@ -10,93 +10,40 @@ struct ClaudeCLIScreen {
     static let rows = 200
     private static let maxParameter = max(Self.columns, Self.rows)
     private static let blank = Array(repeating: Character(" "), count: Self.columns)
-    // Brackets a screen snapshot taken before a command. Claude's differential renderer only rewrites cells that
-    // changed, so the capture is replayed on top of the screen it was drawn against. The whole screen is shown once
-    // the capture writes or erases a quota value row under a quota label; until then only the rows it touched are, so
-    // an earlier panel cannot be read as a new one, even when a custom status line draws its own "% used".
-    static let baselineStart = "\u{1b}]codexbar;baseline-start\u{07}"
-    static let baselineEnd = "\u{1b}]codexbar;baseline-end\u{07}"
     private var lines = Array(repeating: Self.blank, count: Self.rows)
-    private var written = Array(repeating: false, count: Self.rows)
     private var row = 0
     private var column = 0
-    private var inBaseline = false
-    private var hasBaseline = false
 
     static func render(_ text: String, preservePlainReports: Bool = false) -> String {
         var screen = Self()
-        guard let (replay, plain) = screen.replay(text, preservePlainReports: preservePlainReports) else { return "" }
-        if !replay { return plain }
-        let lines = screen.lines.map { line in
-            String(line.reversed().drop(while: { $0 == " " }).reversed().filter { $0 != "\u{0}" })
-        }
-        let written = screen.written
-        let showAll = !screen.hasBaseline || lines.indices
-            .contains { written[$0] && Self.isQuotaValue(at: $0, in: lines) }
-        var result = lines.indices.map { showAll || written[$0] ? lines[$0] : "" }
-        while result.last?.isEmpty == true {
-            result.removeLast()
-        }
-        return result.joined(separator: "\n")
-    }
-
-    /// A quota value sits on the bar row directly under its "Current session" or "Current week" label.
-    private static func isQuotaValue(at index: Int, in lines: [String]) -> Bool {
-        let value = #"[0-9]{1,3}(?:\.[0-9]+)?%\s*used"#
-        guard lines[index].range(of: value, options: [.regularExpression, .caseInsensitive]) != nil
-        else { return false }
-        return lines[max(0, index - 2)..<index].contains { line in
-            let normalized = line.lowercased().filter { !$0.isWhitespace }
-            return normalized.contains("currentsession") || normalized.contains("currentweek")
-        }
-    }
-
-    /// Serializes the screen and cursor reached by `text` as a bounded baseline for the next command capture.
-    static func baseline(after text: String) -> String {
-        var screen = Self()
-        guard screen.replay(text, preservePlainReports: false) != nil else { return "" }
-        var output = Self.baselineStart + "\u{1b}[2J"
-        for (index, line) in screen.lines.enumerated() where line.contains(where: { $0 != " " }) {
-            output += "\u{1b}[\(index + 1);1H" + String(line.filter { $0 != "\u{0}" })
-        }
-        guard screen.column >= Self.columns else {
-            return output + "\u{1b}[\(screen.row + 1);\(screen.column + 1)H" + Self.baselineEnd
-        }
-        // Rewrite the final glyph so the cursor keeps its pending wrap instead of overwriting the last cell.
-        let line = screen.lines[screen.row]
-        let start = line[Self.columns - 1] == "\u{0}" ? Self.columns - 2 : Self.columns - 1
-        return output + "\u{1b}[\(screen.row + 1);\(start + 1)H" + String(line[start]) + Self.baselineEnd
-    }
-
-    /// Returns whether the text needs cursor replay, plus its plain text when it does not.
-    private mutating func replay(_ text: String, preservePlainReports: Bool) -> (Bool, String)? {
         var replay = !preservePlainReports
         var plain = ""
         // Consume complete OSC strings before interpreting text, including BEL and ST terminators.
         let pattern = #"\u001B(?:\[[0-?]*[ -/]*[@-~]?|\][\s\S]*?(?:\u0007|\u001B\\|$)|.)|[^\u001B]+"#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
-        // Linux Foundation's enumeration closure is escaping, so iterate the matches to keep mutating `self` local.
-        for match in regex.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
-            guard let range = Range(match.range, in: text) else { continue }
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return "" }
+        regex.enumerateMatches(in: text, range: NSRange(text.startIndex..., in: text)) { match, _, _ in
+            guard let match, let range = Range(match.range, in: text) else { return }
             let token = text[range]
-            if token == Self.baselineStart {
-                self.inBaseline = true
-                self.hasBaseline = true
-            } else if token == Self.baselineEnd {
-                self.inBaseline = false
-            } else if token.hasPrefix("\u{1b}[") {
-                if self.applyCSI(token.dropFirst(2)), !self.inBaseline { replay = true }
+            if token.hasPrefix("\u{1b}[") {
+                if screen.applyCSI(token.dropFirst(2)) { replay = true }
             } else if !token.hasPrefix("\u{1b}") {
-                if !replay, !self.inBaseline {
+                if !replay {
                     plain.append(contentsOf: token)
                     replay = token.contains("\u{8}")
                 }
                 for character in token {
-                    self.write(character)
+                    screen.write(character)
                 }
             }
         }
-        return (replay, plain)
+        if !replay { return plain }
+        var result = screen.lines.map { line in
+            String(line.reversed().drop(while: { $0 == " " }).reversed().filter { $0 != "\u{0}" })
+        }
+        while result.last?.isEmpty == true {
+            result.removeLast()
+        }
+        return result.joined(separator: "\n")
     }
 
     private mutating func newline() {
@@ -105,8 +52,6 @@ struct ClaudeCLIScreen {
         if self.row == Self.rows {
             self.lines.removeFirst()
             self.lines.append(Self.blank)
-            self.written.removeFirst()
-            self.written.append(false)
             self.row -= 1
         }
     }
@@ -133,7 +78,6 @@ struct ClaudeCLIScreen {
                 self.clearCell(row: self.row, column: cell)
             }
             self.lines[self.row][self.column] = character
-            if !self.inBaseline { self.written[self.row] = true }
             if width == 2 { self.lines[self.row][self.column + 1] = "\u{0}" }
             self.column += width
         }
@@ -166,7 +110,6 @@ struct ClaudeCLIScreen {
             let range = (mode == 0 ? cursor : start)..<(mode == 1 ? cursor + 1 : end)
             for cell in range {
                 self.clearCell(row: cell / Self.columns, column: cell % Self.columns)
-                if !self.inBaseline { self.written[cell / Self.columns] = true }
             }
         default: return false
         }

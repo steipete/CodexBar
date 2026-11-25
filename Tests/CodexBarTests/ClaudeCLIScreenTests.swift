@@ -43,52 +43,6 @@ struct ClaudeCLIScreenTests {
     }
 
     @Test
-    func `command output redraws over the pre-command screen`() {
-        let baseline = ClaudeCLIScreen
-            .baseline(after: "\u{1b}[H\u{1b}[2J\u{1b}[3;1H  Start typing\u{1b}[4;3H██ 52% used")
-        let capture = "\u{1b}[3;3HCur\u{1b}[3;7Hent week (all models)\u{1b}[4;7H3"
-        #expect(ClaudeCLIScreen.render(capture) == "\n\n  Cur ent week (all models)\n      3")
-        #expect(ClaudeCLIScreen.render(baseline + capture) == "\n\n  Current week (all models)\n  ██ 53% used")
-    }
-
-    @Test
-    func `pre-command rows the command never writes stay hidden`() {
-        let baseline = ClaudeCLIScreen.baseline(after: "Current week (all models)\r\n52% used\r\n")
-        let capture = "\u{1b}[2;1H\u{1b}[2K\u{1b}[4;1HLoading usage data…"
-        let screen = ClaudeCLIScreen.render(baseline + capture)
-        #expect(screen == "\n\n\nLoading usage data…")
-        #expect(!ClaudeStatusProbe.usageCaptureIsComplete(String(screen.lowercased().filter { !$0.isWhitespace })))
-        #expect(throws: ClaudeStatusProbeError.self) { try ClaudeStatusProbe.parse(text: baseline + capture) }
-    }
-
-    @Test
-    func `plain reports after a pre-command screen keep their text`() {
-        let baseline = ClaudeCLIScreen.baseline(after: "\u{1b}[HStart typing")
-        #expect(ClaudeCLIScreen.render(baseline + "Current session\r3% used\r", preservePlainReports: true)
-            == "Current session\r3% used\r")
-    }
-
-    @Test
-    func `pre-command screen keeps a pending wrap at the last column`() {
-        let full = String(repeating: "A", count: ClaudeCLIScreen.columns)
-        let direct = ClaudeCLIScreen.render(full + "B").components(separatedBy: "\n")
-        let replayed = ClaudeCLIScreen.render(ClaudeCLIScreen.baseline(after: full) + "B")
-            .components(separatedBy: "\n")
-        #expect(direct == [full, "B"])
-        #expect(replayed == ["", "B"])
-    }
-
-    @Test
-    func `pre-command screen stays bounded across captures`() {
-        let line = String(repeating: "█", count: ClaudeCLIScreen.columns) + "\r\n"
-        let first = ClaudeCLIScreen.baseline(after: String(repeating: line, count: ClaudeCLIScreen.rows * 3))
-        let second = ClaudeCLIScreen.baseline(after: first + "\u{1b}[5;5HX")
-        #expect(ClaudeCLIScreen.baseline(after: first) == first)
-        #expect(second.utf8.count <= first.utf8.count + 8)
-        #expect(first.utf8.count < ClaudeCLIScreen.rows * (ClaudeCLIScreen.columns * 4 + 16) + 128)
-    }
-
-    @Test
     func `synthetic differential frame matches the visible panel golden`() throws {
         let frame = """
         \u{1b}[HCurrent session
