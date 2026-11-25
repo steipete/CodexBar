@@ -276,20 +276,20 @@ struct MenuBarLayoutRendererTests {
 
     @Test
     func `named extras without short labels keep their full title`() {
-        let id = "antigravity-quota-summary-gemini-weekly"
+        let id = "antigravity-quota-summary-3p-weekly"
         let output = MenuBarLayoutRenderer().render(
             layout: MenuBarLayout(lines: [[.extraPercent(id: id)]]),
             data: self.data(
                 provider: .antigravity,
                 extraRateWindows: [MenuBarLayoutRenderExtra(NamedRateWindow(
                     id: id,
-                    title: "Gemini weekly",
+                    title: "Claude/GPT weekly",
                     window: RateWindow(usedPercent: 30, windowMinutes: nil, resetsAt: nil, resetDescription: nil)))]),
             icon: nil,
             options: self.options())
 
-        #expect(output.attributedTitle.string == "Gemini weekly 30%")
-        #expect(output.accessibilityLabel == "Gemini weekly 30%")
+        #expect(output.attributedTitle.string == "Claude/GPT weekly 30%")
+        #expect(output.accessibilityLabel == "Claude/GPT weekly 30%")
     }
 
     @Test

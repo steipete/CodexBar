@@ -17,19 +17,26 @@ struct MenuBarLayoutNamedExtraTests {
     }
 
     @Test
-    func `Antigravity offers both family weekly allowances independently`() throws {
+    func `Antigravity offers each family 5-hour and weekly allowance independently`() throws {
         let json = antigravityQuotaSummaryJSON(
             geminiSession: 0.1, geminiWeekly: 0.8, claudeSession: 0.2, claudeWeekly: 0.6)
         let snapshot = try AntigravityStatusProbe.parseQuotaSummaryResponse(Data(json.utf8)).toUsageSnapshot()
         let tokens = MenuBarLayoutNamedExtra.availableTokens(provider: .antigravity, snapshot: snapshot)
         #expect(tokens == [
+            .extraPercent(id: "antigravity-quota-summary-gemini-5h"),
             .extraPercent(id: "antigravity-quota-summary-gemini-weekly"),
+            .extraPercent(id: "antigravity-quota-summary-3p-5h"),
             .extraPercent(id: "antigravity-quota-summary-3p-weekly"),
         ])
-        #expect(tokens.map { $0.editorLabel(provider: .antigravity) } == ["Gemini weekly %", "Claude/GPT weekly %"])
+        #expect(tokens.map { $0.editorLabel(provider: .antigravity) } == [
+            "Gemini 5-hour %",
+            "Gemini weekly %",
+            "Claude/GPT 5-hour %",
+            "Claude/GPT weekly %",
+        ])
         let windows = MenuBarLayoutNamedExtra.windows(provider: .antigravity, snapshot: snapshot)
-        #expect(windows.map { $0.window.remainingPercent.rounded() } == [80, 60])
-        #expect(windows.allSatisfy { $0.window.windowMinutes == 10080 })
+        #expect(windows.map { $0.window.remainingPercent.rounded() } == [10, 80, 20, 60])
+        #expect(windows.map(\.window.windowMinutes) == [300, 10080, 300, 10080])
         #expect(MenuBarLayoutNamedExtra.availableTokens(provider: .gemini, snapshot: snapshot).isEmpty)
         let layout = MenuBarLayout(lines: [tokens])
         #expect(try JSONDecoder().decode(MenuBarLayout.self, from: JSONEncoder().encode(layout)) == layout)
