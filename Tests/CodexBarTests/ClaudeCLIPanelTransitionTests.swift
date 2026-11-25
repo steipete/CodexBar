@@ -101,7 +101,8 @@ struct ClaudeCLIPanelTransitionTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         let binary = directory.appendingPathComponent("fake-claude")
         // Like Claude's differential renderer, the first /usage reuses the startup "r" at column 6 and its refresh
-        // rewrites only the changed digit. Escape leaves the panel visible, and later /usage commands never finish.
+        // rewrites only the changed digit. Escape leaves the panel visible; the second /usage again rewrites only a
+        // digit, and later /usage commands never finish.
         let script = #"""
         #!/bin/bash
         /bin/stty raw -echo -icrnl
@@ -120,6 +121,8 @@ struct ClaudeCLIPanelTransitionTests {
                   printf '\e[6;3HCurrent week (Fable)\e[7;3H█ 8%% used\e[9;3HRefreshing… esc to cancel'
                   /bin/sleep 0.4
                   printf '\e[4;7H3\e[9;1H\e[K'
+                elif [[ $count == 2 ]]; then
+                  printf '\e[4;7H5'
                 else
                   printf '\e[11;3HLoading usage data…'
                 fi
@@ -150,15 +153,16 @@ struct ClaudeCLIPanelTransitionTests {
                 stopWhenNormalized: { ClaudeStatusProbe.usageCaptureIsComplete($0) },
                 settleAfterStop: 0.1)
         }
-        func assertAllModelsWeekly(_ text: String) throws {
+        func assertAllModelsWeekly(_ text: String, percentLeft: Int = 47) throws {
             let snapshot = try ClaudeStatusProbe.parse(text: text)
-            #expect(snapshot.weeklyPercentLeft == 47)
+            #expect(snapshot.weeklyPercentLeft == percentLeft)
             #expect(snapshot.secondaryResetDescription == "Resets Nov 24 at 4:59am (America/Los_Angeles)")
             #expect(snapshot.extraRateWindows.first { $0.id == "claude-weekly-scoped-fable" }?.window
                 .usedPercent == 8)
         }
         do {
             try await assertAllModelsWeekly(usage(account: "synthetic-account", timeout: 5))
+            try await assertAllModelsWeekly(usage(account: "synthetic-account", timeout: 3), percentLeft: 45)
 
             let stale = try await usage(account: "synthetic-account", timeout: 1.5)
             let staleScreen = ClaudeCLIScreen.render(stale)

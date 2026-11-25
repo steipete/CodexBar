@@ -11,8 +11,9 @@ struct ClaudeCLIScreen {
     private static let maxParameter = max(Self.columns, Self.rows)
     private static let blank = Array(repeating: Character(" "), count: Self.columns)
     // Brackets a screen snapshot taken before a command. Claude's differential renderer only rewrites cells that
-    // changed, so the capture is replayed on top of the screen it was drawn against, while rows the capture never
-    // writes stay hidden and earlier quotas cannot be read as new ones.
+    // changed, so the capture is replayed on top of the screen it was drawn against. The whole screen is shown once
+    // the capture writes or erases a quota value row; until then only the rows it touched are, so an earlier panel
+    // cannot be read as a new one.
     static let baselineStart = "\u{1b}]codexbar;baseline-start\u{07}"
     static let baselineEnd = "\u{1b}]codexbar;baseline-end\u{07}"
     private var lines = Array(repeating: Self.blank, count: Self.rows)
@@ -26,14 +27,20 @@ struct ClaudeCLIScreen {
         var screen = Self()
         guard let (replay, plain) = screen.replay(text, preservePlainReports: preservePlainReports) else { return "" }
         if !replay { return plain }
-        var result = screen.lines.indices.map { index in
-            guard !screen.hasBaseline || screen.written[index] else { return "" }
-            return String(screen.lines[index].reversed().drop(while: { $0 == " " }).reversed().filter { $0 != "\u{0}" })
+        let lines = screen.lines.map { line in
+            String(line.reversed().drop(while: { $0 == " " }).reversed().filter { $0 != "\u{0}" })
         }
+        let written = screen.written
+        let showAll = !screen.hasBaseline || lines.indices.contains { written[$0] && Self.isQuotaValue(lines[$0]) }
+        var result = lines.indices.map { showAll || written[$0] ? lines[$0] : "" }
         while result.last?.isEmpty == true {
             result.removeLast()
         }
         return result.joined(separator: "\n")
+    }
+
+    private static func isQuotaValue(_ line: String) -> Bool {
+        line.range(of: #"[0-9]{1,3}(?:\.[0-9]+)?%\s*used"#, options: [.regularExpression, .caseInsensitive]) != nil
     }
 
     /// Serializes the screen and cursor reached by `text` as a bounded baseline for the next command capture.
@@ -151,6 +158,7 @@ struct ClaudeCLIScreen {
             let range = (mode == 0 ? cursor : start)..<(mode == 1 ? cursor + 1 : end)
             for cell in range {
                 self.clearCell(row: cell / Self.columns, column: cell % Self.columns)
+                if !self.inBaseline { self.written[cell / Self.columns] = true }
             }
         default: return false
         }
