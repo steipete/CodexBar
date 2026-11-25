@@ -428,6 +428,10 @@ extension StatusItemController {
             showUsed: showUsed)
         var primary = resolved?.primary
         var weekly = resolved?.secondary
+        var weeklyTimeMarker = self.menuBarWeeklyTimeMarkerPercent(
+            provider: provider,
+            snapshot: snapshot,
+            showUsed: showUsed)
         var credits = self.menuBarCreditsRemainingForIcon(provider: provider, snapshot: snapshot)
         var stale = self.menuBarIsStale(for: provider)
         var morphProgress: Double?
@@ -443,6 +447,7 @@ extension StatusItemController {
                 morphProgress = pattern.value(phase: phase) / 100
                 primary = nil
                 weekly = nil
+                weeklyTimeMarker = nil
                 credits = nil
                 stale = false
             } else {
@@ -451,6 +456,7 @@ extension StatusItemController {
                 weekly = max(
                     pattern.value(phase: phase + pattern.secondaryOffset),
                     Self.loadingPercentEpsilon)
+                weeklyTimeMarker = nil
                 credits = nil
                 stale = false
             }
@@ -493,12 +499,17 @@ extension StatusItemController {
                 tint: providerTint,
                 for: button)
         } else {
+            let weekMarkerPixel = IconRenderer.timeMarkerPixel(
+                weeklyTimeMarker,
+                rectWidth: IconRenderer.timeMarkerBarWidthPx)
             let signature = [
                 "mode=icon;measured=\(snapshot?.primary?.measured != nil)",
                 "provider=\(provider.rawValue)",
                 "style=\(String(describing: style))",
                 "primary=\(Self.iconSignatureValue(primary))",
                 "weekly=\(Self.iconSignatureValue(weekly))",
+                "weekProgress=\(self.settings.menuBarWeekProgressStyle.rawValue)",
+                "weekMarker=\(weekMarkerPixel)",
                 "credits=\(Self.iconSignatureValue(credits))",
                 "stale=\(stale ? "1" : "0")",
                 "status=\(statusIndicator.rawValue)",
@@ -526,7 +537,9 @@ extension StatusItemController {
                 tilt: tilt,
                 statusIndicator: statusIndicator,
                 hideCritters: self.settings.menuBarHidesCritters,
-                quotaLayoutPolicy: .provider(provider, snapshot: snapshot))
+                quotaLayoutPolicy: .provider(provider, snapshot: snapshot),
+                weeklyTimeMarkerPercent: weeklyTimeMarker,
+                weeklyTimeMarkerStyle: self.settings.menuBarWeekProgressStyle)
             self.setButtonContent(
                 image: warningFlash ? Self.quotaWarningFlashImage(base: image) : image,
                 title: nil,
@@ -546,6 +559,31 @@ extension StatusItemController {
     static func iconSignatureValue(_ value: Double?) -> String {
         guard let value else { return "nil" }
         return String(format: "%.3f", value)
+    }
+
+    func menuBarWeeklyTimeMarkerPercent(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot?,
+        showUsed: Bool,
+        now: Date = Date()) -> Double?
+    {
+        IconRemainingResolver.secondaryTimeMarkerPercent(
+            window: self.menuBarWeeklyTimeMarkerWindow(provider: provider, snapshot: snapshot, now: now),
+            showUsed: showUsed,
+            now: now)
+    }
+
+    /// The weekly window the time marker tracks under the lower bar, or nil when the marker is off or that
+    /// lane is not weekly (Kimi's lower lane is its session).
+    func menuBarWeeklyTimeMarkerWindow(provider: UsageProvider, snapshot: UsageSnapshot?, now: Date) -> RateWindow? {
+        guard self.settings.menuBarWeekProgressStyle != .off, let snapshot,
+              ProviderDescriptorRegistry.descriptor(for: provider).presentation.secondarySemanticWindow == .weekly
+        else { return nil }
+        return IconRemainingResolver.resolvedWindows(
+            snapshot: snapshot,
+            style: self.store.style(for: provider),
+            secondaryOverrideWindowID: self.settings.copilotIconSecondaryWindowOverrideID(snapshot: snapshot),
+            now: now).secondary
     }
 
     func resolvedMenuBarIconPercents(

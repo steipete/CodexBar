@@ -59,6 +59,8 @@ enum IconRenderer {
     private struct IconCacheKey: Hashable {
         let primary: Int
         let weekly: Int
+        let weeklyTimeMarker: Int
+        let weeklyTimeMarkerStyle: String
         let credits: Int
         let stale: Bool
         let style: Int
@@ -150,7 +152,9 @@ enum IconRenderer {
         tilt: CGFloat = 0,
         statusIndicator: ProviderStatusIndicator = .none,
         hideCritters: Bool = false,
-        quotaLayoutPolicy: QuotaLayoutPolicy? = nil) -> NSImage
+        quotaLayoutPolicy: QuotaLayoutPolicy? = nil,
+        weeklyTimeMarkerPercent: Double? = nil,
+        weeklyTimeMarkerStyle: MenuBarWeekProgressStyle = .line) -> NSImage
     {
         let quotaLayoutPolicy = quotaLayoutPolicy ?? .style(style)
         let shouldCache = blink <= 0.0001 && wiggle <= 0.0001 && tilt <= 0.0001
@@ -724,6 +728,18 @@ enum IconRenderer {
                 let decorations = hideCritters ? ProviderIconDecorations() : providerPresentation?.iconDecorations ?? []
                 var statusOverlayAttachesToProminentMeter = false
 
+                func drawWeeklyTimeMarker() {
+                    guard let weeklyTimeMarkerPercent else { return }
+                    Self.drawTimeMarker(
+                        below: bottomRectPx,
+                        percent: weeklyTimeMarkerPercent,
+                        style: weeklyTimeMarkerStyle,
+                        colors: TimeMarkerColors(
+                            fill: fillColor,
+                            track: baseFill.withAlphaComponent(trackFillAlpha),
+                            dots: baseFill.withAlphaComponent(stale ? 0.4 : 0.6)))
+                }
+
                 if let bottomValue, bottomValue > 0, topValue == nil,
                    !quotaLayoutPolicy.reservesMissingSecondaryLane,
                    !usesMissingSecondaryLayout
@@ -735,6 +751,7 @@ enum IconRenderer {
                     // Normal: top=primary, bottom=secondary (bonus/weekly).
                     drawBar(rectPx: topRectPx, remaining: topValue, decorations: decorations, blink: blink)
                     drawBar(rectPx: bottomRectPx, remaining: bottomValue)
+                    drawWeeklyTimeMarker()
                 } else if !hasWeekly || missingSecondary {
                     if usesMissingSecondaryLayout {
                         // Provider-specific by design: Warp retains its logo shape when the secondary quota is missing.
@@ -770,6 +787,10 @@ enum IconRenderer {
                         drawBar(rectPx: topRectPx, remaining: topValue, decorations: decorations, blink: blink)
                     }
                     drawBar(rectPx: creditsRatio == nil ? bottomRectPx : creditsBottomRectPx, remaining: bottomValue)
+                    // A zero weekly quota keeps the normal lane without credits, so it keeps its time marker too.
+                    if creditsRatio == nil {
+                        drawWeeklyTimeMarker()
+                    }
                 }
 
                 Self.drawStatusOverlay(
@@ -782,6 +803,8 @@ enum IconRenderer {
             let key = IconCacheKey(
                 primary: self.quantizedPercent(primaryRemaining),
                 weekly: self.quantizedPercent(weeklyRemaining),
+                weeklyTimeMarker: self.timeMarkerPixel(weeklyTimeMarkerPercent, rectWidth: self.timeMarkerBarWidthPx),
+                weeklyTimeMarkerStyle: weeklyTimeMarkerStyle.rawValue,
                 credits: self.quantizedCredits(creditsRemaining),
                 stale: stale,
                 style: self.styleKey(style),
@@ -813,6 +836,64 @@ enum IconRenderer {
         }
         self.morphCache.set(image, for: key)
         return image
+    }
+
+    /// Width in 2x pixels of the time marker measured from the bar's left edge, or -1 for none.
+    /// Markers are cached by pixel, so the icon only re-renders when the marker actually moves.
+    static let timeMarkerBarWidthPx = 30
+
+    static func timeMarkerPixel(_ percent: Double?, rectWidth: Int) -> Int {
+        guard let percent, percent.isFinite else { return -1 }
+        return Int((CGFloat(rectWidth) * CGFloat(max(0, min(percent, 100)) / 100)).rounded())
+    }
+
+    private struct TimeMarkerColors {
+        let fill: NSColor
+        let track: NSColor
+        let dots: NSColor
+    }
+
+    /// Draws the weekly time marker in the 4 px strip under the weekly bar.
+    private static func drawTimeMarker(
+        below rectPx: RectPx,
+        percent: Double,
+        style: MenuBarWeekProgressStyle,
+        colors: TimeMarkerColors)
+    {
+        let length = self.timeMarkerPixel(percent, rectWidth: rectPx.w)
+        guard length >= 0 else { return }
+        // 2 px line with a 3 px gap uses the full 5 px strip under the weekly bar.
+        let lineHeight = 2
+        let lineY = rectPx.y - 3 - lineHeight
+        switch style {
+        case .off:
+            return
+        case .caret:
+            // 8 px wide, 4 px tall triangle pointing up at the marker, clamped inside the bar's span.
+            let halfWidth = 4
+            let tipX = max(rectPx.x + halfWidth, min(rectPx.x + rectPx.w - halfWidth, rectPx.x + length))
+            let path = NSBezierPath()
+            path.move(to: NSPoint(x: self.grid.pt(tipX - halfWidth), y: self.grid.pt(rectPx.y - 5)))
+            path.line(to: NSPoint(x: self.grid.pt(tipX + halfWidth), y: self.grid.pt(rectPx.y - 5)))
+            path.line(to: NSPoint(x: self.grid.pt(tipX), y: self.grid.pt(rectPx.y - 1)))
+            path.close()
+            colors.fill.setFill()
+            path.fill()
+        case .line, .dottedLine:
+            if style == .line {
+                colors.track.setFill()
+                NSBezierPath(rect: self.grid.rect(x: rectPx.x, y: lineY, w: rectPx.w, h: lineHeight)).fill()
+            } else {
+                colors.dots.setFill()
+                for x in stride(from: rectPx.x, to: rectPx.x + rectPx.w, by: 4) {
+                    NSBezierPath(rect: self.grid.rect(x: x, y: lineY, w: 2, h: lineHeight)).fill()
+                }
+            }
+            if length > 0 {
+                colors.fill.setFill()
+                NSBezierPath(rect: self.grid.rect(x: rectPx.x, y: lineY, w: length, h: lineHeight)).fill()
+            }
+        }
     }
 
     private static func quantizedPercent(_ value: Double?) -> Int {

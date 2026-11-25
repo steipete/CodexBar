@@ -70,6 +70,19 @@ struct MenuBarPane: View {
                 Toggle(isOn: self.$settings.menuBarColorByProvider) {
                     Text(L("Color by provider"))
                 }
+
+                SettingsMenuPicker(
+                    selection: self.$settings.menuBarWeekProgressStyle,
+                    options: MenuBarSettingsMenuOptions.weekProgressStyles,
+                    label: {
+                        SettingsRowLabel(
+                            L("menu_bar_week_progress_title"),
+                            subtitle: L("menu_bar_week_progress_subtitle"))
+                    },
+                    optionLabel: { style in
+                        Text(style.label)
+                    })
+                    .disabled(self.settings.menuBarIconStyle == .iconAndPercent)
             } header: {
                 Text(L("section_icon"))
             }

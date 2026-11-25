@@ -2873,3 +2873,9 @@
 "MiMo is rate limiting requests. Try again later." = "MiMo đang giới hạn tần suất yêu cầu. Hãy thử lại sau.";
 "MiMo request failed. Try refreshing later." = "Yêu cầu MiMo không thành công. Hãy thử làm mới sau.";
 "Skip cost refresh" = "Bỏ qua làm mới chi phí";
+"menu_bar_week_progress_title" = "Tiến độ tuần";
+"menu_bar_week_progress_subtitle" = "Đánh dấu thời gian khung tuần bên dưới thanh dưới: đã trôi qua hoặc còn lại, theo Cách lấp đầy thanh sử dụng.";
+"menu_bar_week_progress_off" = "Tắt";
+"menu_bar_week_progress_caret" = "Dấu chỉ";
+"menu_bar_week_progress_line" = "Đường";
+"menu_bar_week_progress_dotted_line" = "Đường chấm";

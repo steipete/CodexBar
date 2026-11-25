@@ -2850,3 +2850,9 @@
 "MiMo is rate limiting requests. Try again later." = "MiMo 正在限制請求頻率。請稍後再試。";
 "MiMo request failed. Try refreshing later." = "MiMo 請求失敗。請稍後嘗試重新整理。";
 "Skip cost refresh" = "略過費用重新整理";
+"menu_bar_week_progress_title" = "本週進度";
+"menu_bar_week_progress_subtitle" = "在下方條形下面標出每週視窗的時間：已經過或剩餘，依照「使用量條填滿方式」。";
+"menu_bar_week_progress_off" = "關閉";
+"menu_bar_week_progress_caret" = "標記";
+"menu_bar_week_progress_line" = "線條";
+"menu_bar_week_progress_dotted_line" = "虛線";

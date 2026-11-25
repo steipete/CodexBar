@@ -2876,3 +2876,9 @@
 "MiMo is rate limiting requests. Try again later." = "يفرض MiMo حدًا على عدد الطلبات. حاول لاحقًا.";
 "MiMo request failed. Try refreshing later." = "فشل طلب MiMo. حاول التحديث لاحقًا.";
 "Skip cost refresh" = "تخطي تحديث التكلفة";
+"menu_bar_week_progress_title" = "تقدم الأسبوع";
+"menu_bar_week_progress_subtitle" = "يحدد أسفل الشريط السفلي وقت النافذة الأسبوعية: المنقضي أو المتبقي، وفقًا لإعداد «تعبئة أشرطة الاستخدام».";
+"menu_bar_week_progress_off" = "إيقاف";
+"menu_bar_week_progress_caret" = "علامة";
+"menu_bar_week_progress_line" = "خط";
+"menu_bar_week_progress_dotted_line" = "خط منقط";

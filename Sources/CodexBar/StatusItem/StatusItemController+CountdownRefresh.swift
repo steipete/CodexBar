@@ -63,6 +63,7 @@ extension StatusItemController {
             delays.append(delay)
         }
         delays += self.menuBarPaceRefreshDelays(providers: providers.compactMap(\.firstPartyProvider), now: now)
+        delays += self.menuBarWeeklyTimeMarkerDelays(providers: providers.compactMap(\.firstPartyProvider), now: now)
 
         if self.menuBarObservesCodexReset(providers: providers.compactMap(\.firstPartyProvider)) {
             let projection = self.store.codexConsumerProjection(surface: .menuBar, now: now)
@@ -216,6 +217,26 @@ extension StatusItemController {
                 let elapsedWindow = self.store.paceWindowForElapsedEligibility(provider: provider, window: window)
                 return Self.menuBarPaceRefreshDelay(window: elapsedWindow, now: now)
             }
+        }
+    }
+
+    /// The week progress marker moves with the clock, so wake when it reaches its next pixel even when
+    /// no provider refresh is due (for example with Manual refresh frequency).
+    private func menuBarWeeklyTimeMarkerDelays(providers: [UsageProvider], now: Date) -> [TimeInterval] {
+        guard self.settings.menuBarWeekProgressStyle != .off else { return [] }
+        return providers.compactMap { provider -> TimeInterval? in
+            let window = self.menuBarWeeklyTimeMarkerWindow(
+                provider: provider,
+                snapshot: self.menuBarUsageSource(for: provider).snapshot,
+                now: now)
+            guard let change = IconRemainingResolver.nextTimeMarkerPixelChange(
+                window: window,
+                rectWidth: IconRenderer.timeMarkerBarWidthPx,
+                now: now)
+            else { return nil }
+            return max(
+                Self.menuBarCountdownRefreshEpsilon,
+                change.timeIntervalSince(now) + Self.menuBarCountdownRefreshEpsilon)
         }
     }
 

@@ -2874,3 +2874,9 @@
 "MiMo is rate limiting requests. Try again later." = "MiMo membatasi frekuensi permintaan. Coba lagi nanti.";
 "MiMo request failed. Try refreshing later." = "Permintaan MiMo gagal. Coba segarkan lagi nanti.";
 "Skip cost refresh" = "Lewati pembaruan biaya";
+"menu_bar_week_progress_title" = "Kemajuan minggu";
+"menu_bar_week_progress_subtitle" = "Menandai waktu jendela mingguan di bawah bilah bawah: yang telah berlalu atau tersisa, mengikuti Pengisian bilah penggunaan.";
+"menu_bar_week_progress_off" = "Mati";
+"menu_bar_week_progress_caret" = "Penanda";
+"menu_bar_week_progress_line" = "Garis";
+"menu_bar_week_progress_dotted_line" = "Garis titik-titik";

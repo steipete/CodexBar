@@ -2873,3 +2873,9 @@
 "MiMo is rate limiting requests. Try again later." = "MiMo ограничивает частоту запросов. Повторите попытку позже.";
 "MiMo request failed. Try refreshing later." = "Запрос к MiMo не выполнен. Попробуйте обновить позже.";
 "Skip cost refresh" = "Пропустить обновление стоимости";
+"menu_bar_week_progress_title" = "Прогресс недели";
+"menu_bar_week_progress_subtitle" = "Показывает под нижней полосой время недельного окна: прошедшее или оставшееся, согласно настройке «Заполнение индикаторов использования».";
+"menu_bar_week_progress_off" = "Выкл.";
+"menu_bar_week_progress_caret" = "Указатель";
+"menu_bar_week_progress_line" = "Линия";
+"menu_bar_week_progress_dotted_line" = "Пунктирная линия";
