@@ -144,6 +144,14 @@ public enum AntigravityProviderDescriptor {
                 if lhs.window.usedPercent != rhs.window.usedPercent {
                     return lhs.window.usedPercent < rhs.window.usedPercent
                 }
+                // Provider-specific by design: Gemini is Antigravity's own quota family and wins usage ties.
+                let lhsGemini = AntigravityQuotaFamilyVisibility
+                    .knownFamily(windowID: lhs.id, title: lhs.title) == .gemini
+                let rhsGemini = AntigravityQuotaFamilyVisibility
+                    .knownFamily(windowID: rhs.id, title: rhs.title) == .gemini
+                if lhsGemini != rhsGemini {
+                    return rhsGemini
+                }
                 return lhs.id > rhs.id
             }?
             .window
