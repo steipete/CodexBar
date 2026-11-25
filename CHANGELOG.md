@@ -4,7 +4,7 @@
 
 ### Added
 
-- Antigravity: offer the Gemini and Claude/GPT 5-hour allowances as menu bar layout choices beside the weekly ones, so the menu bar can show one family's 5-hour and weekly limits without the other family.
+- Antigravity: offer the Gemini and Claude/GPT 5-hour allowances as menu bar layout choices beside the weekly ones, so the menu bar can show one family's 5-hour and weekly limits without the other family. The Gemini chips show the short tags "5h" and "W".
 
 ## 0.85.0 — 2026-11-21
 

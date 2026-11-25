@@ -7,7 +7,7 @@ import Testing
 @MainActor
 struct AntigravityWeeklyLayoutTests {
     @Test(arguments: [false, true])
-    func `family weekly tokens render independently and never borrow another quota`(showUsed: Bool) throws {
+    func `family tokens render independently and never borrow another quota`(showUsed: Bool) throws {
         let snapshot = try self.snapshot()
         let fixture = MenuBarLayoutRendererTests()
         let tokens = self.tokens
@@ -18,10 +18,12 @@ struct AntigravityWeeklyLayoutTests {
             data: fixture.data(provider: .antigravity, extraRateWindows: extras),
             icon: nil,
             options: fixture.options(showUsed: showUsed))
-        #expect(rendered.attributedTitle.string == (showUsed ? "Gemini weekly 20%\u{2009}Claude/GPT weekly 60%"
-                : "Gemini weekly 80%\u{2009}Claude/GPT weekly 40%"))
+        #expect(rendered.attributedTitle.string == (showUsed
+                ? "5h 90%\u{2009}W 20%\u{2009}Claude/GPT weekly 60%"
+                : "5h 10%\u{2009}W 80%\u{2009}Claude/GPT weekly 40%"))
         #expect(rendered.accessibilityLabel == (showUsed
-                ? "Gemini weekly 20%, Claude/GPT weekly 60%" : "Gemini weekly 80%, Claude/GPT weekly 40%"))
+                ? "Gemini 5-hour 90%, Gemini weekly 20%, Claude/GPT weekly 60%"
+                : "Gemini 5-hour 10%, Gemini weekly 80%, Claude/GPT weekly 40%"))
         let missing = renderer.render(
             layout: MenuBarLayout(lines: [tokens]),
             data: fixture.data(provider: .antigravity, extraRateWindows: extras.filter {
@@ -30,7 +32,7 @@ struct AntigravityWeeklyLayoutTests {
             icon: nil,
             options: fixture.options(showUsed: showUsed))
         #expect(missing.attributedTitle.string == (showUsed
-                ? "Gemini weekly –\u{2009}Claude/GPT weekly 60%" : "Gemini weekly –\u{2009}Claude/GPT weekly 40%"))
+                ? "5h 90%\u{2009}W –\u{2009}Claude/GPT weekly 60%" : "5h 10%\u{2009}W –\u{2009}Claude/GPT weekly 40%"))
         let otherProvider = renderer.render(
             layout: MenuBarLayout(lines: [[.lanePercent(lane: .primary)] + tokens]),
             data: fixture.data(provider: .claude, extraRateWindows: extras),
@@ -45,8 +47,9 @@ struct AntigravityWeeklyLayoutTests {
         let extras = try (self.snapshot().extraRateWindows ?? []).map(MenuBarLayoutRenderExtra.init)
         let fixture = MenuBarLayoutRendererTests()
         for after in [false, true] {
+            let lines = after ? self.tokens.prefix(2).map { [$0] } : [[MenuBarLayoutToken.percent(window: .weekly)]]
             let rendered = MenuBarLayoutRenderer().render(
-                layout: MenuBarLayout(lines: after ? self.tokens.map { [$0] } : [[.percent(window: .weekly)]]),
+                layout: MenuBarLayout(lines: lines),
                 data: fixture.data(provider: .antigravity, extraRateWindows: extras),
                 icon: nil,
                 options: fixture.options(showUsed: false))
@@ -54,7 +57,7 @@ struct AntigravityWeeklyLayoutTests {
             image.lockFocus()
             NSColor.white.setFill()
             NSRect(x: 0, y: 0, width: 520, height: 130).fill()
-            let caption = after ? "After: Gemini weekly / Claude-GPT weekly" : "Before: most constrained weekly"
+            let caption = after ? "After: Gemini 5h / Gemini weekly" : "Before: most constrained weekly"
             ("Antigravity · Synthetic data\n" + caption as NSString).draw(
                 at: NSPoint(x: 16, y: 86), withAttributes: [
                     .font: NSFont.systemFont(ofSize: 14), .foregroundColor: NSColor.black,
@@ -75,6 +78,7 @@ struct AntigravityWeeklyLayoutTests {
 
     private var tokens: [MenuBarLayoutToken] {
         [
+            .extraPercent(id: "antigravity-quota-summary-gemini-5h"),
             .extraPercent(id: "antigravity-quota-summary-gemini-weekly"),
             .extraPercent(id: "antigravity-quota-summary-3p-weekly"),
         ]
