@@ -17,7 +17,9 @@ public enum AntigravityProviderDescriptor {
             menuBarMetrics: ProviderMenuBarMetricCapabilities(
                 supported: [.automatic, .primary, .secondary],
                 namedExtras: [
+                    "antigravity-quota-summary-gemini-5h": "Gemini 5-hour",
                     "antigravity-quota-summary-gemini-weekly": "Gemini weekly",
+                    "antigravity-quota-summary-3p-5h": "Claude/GPT 5-hour",
                     "antigravity-quota-summary-3p-weekly": "Claude/GPT weekly",
                 ]),
             credentials: self.credentials,
