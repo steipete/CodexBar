@@ -629,6 +629,8 @@ extension SettingsStore {
             menuBarShowsBrandIconWithPercent: userDefaults.object(
                 forKey: "menuBarShowsBrandIconWithPercent") as? Bool ?? false,
             menuBarHidesCritters: userDefaults.object(forKey: "menuBarHidesCritters") as? Bool ?? false,
+            menuBarWeekProgressStyleRaw: userDefaults.string(forKey: "menuBarWeekProgressStyle")
+                ?? MenuBarWeekProgressStyle.off.rawValue,
             menuBarColorPace: userDefaults.object(forKey: "menuBarColorPace") as? Bool ?? true,
             menuBarPaceReservePositive: userDefaults.bool(forKey: "menuBarPaceReservePositive"),
             menuBarColorByProvider: userDefaults.bool(forKey: "menuBarColorByProvider"),

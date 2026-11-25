@@ -326,6 +326,11 @@ extension SettingsStore {
         set { self.setDefault(\.menuBarHidesCritters, newValue, key: "menuBarHidesCritters") }
     }
 
+    var menuBarWeekProgressStyle: MenuBarWeekProgressStyle {
+        get { MenuBarWeekProgressStyle(rawValue: self.defaultsState.menuBarWeekProgressStyleRaw) ?? .off }
+        set { self.setDefault(\.menuBarWeekProgressStyleRaw, newValue.rawValue, key: "menuBarWeekProgressStyle") }
+    }
+
     var menuBarColorPace: Bool {
         get { self.defaultsState.menuBarColorPace }
         set { self.setDefault(\.menuBarColorPace, newValue, key: "menuBarColorPace") }

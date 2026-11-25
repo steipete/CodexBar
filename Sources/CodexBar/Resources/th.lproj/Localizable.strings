@@ -2874,3 +2874,9 @@
 "MiMo is rate limiting requests. Try again later." = "MiMo กำลังจำกัดความถี่ของคำขอ ลองอีกครั้งในภายหลัง";
 "MiMo request failed. Try refreshing later." = "คำขอ MiMo ล้มเหลว ลองรีเฟรชอีกครั้งในภายหลัง";
 "Skip cost refresh" = "ข้ามการรีเฟรชค่าใช้จ่าย";
+"menu_bar_week_progress_title" = "ความคืบหน้าของสัปดาห์";
+"menu_bar_week_progress_subtitle" = "แสดงใต้แถบล่างว่าช่วงรายสัปดาห์ผ่านไปแล้วเท่าใด";
+"menu_bar_week_progress_off" = "ปิด";
+"menu_bar_week_progress_caret" = "ตัวชี้";
+"menu_bar_week_progress_line" = "เส้น";
+"menu_bar_week_progress_dotted_line" = "เส้นประ";

@@ -2874,3 +2874,9 @@
 "MiMo is rate limiting requests. Try again later." = "MiMo limita la freqüència de les sol·licituds. Torna-ho a provar més tard.";
 "MiMo request failed. Try refreshing later." = "La sol·licitud a MiMo ha fallat. Torna a actualitzar més tard.";
 "Skip cost refresh" = "Omet l’actualització dels costos";
+"menu_bar_week_progress_title" = "Progrés de la setmana";
+"menu_bar_week_progress_subtitle" = "Marca sota la barra inferior quina part de la finestra setmanal ha passat.";
+"menu_bar_week_progress_off" = "Desactivat";
+"menu_bar_week_progress_caret" = "Marcador";
+"menu_bar_week_progress_line" = "Línia";
+"menu_bar_week_progress_dotted_line" = "Línia puntejada";

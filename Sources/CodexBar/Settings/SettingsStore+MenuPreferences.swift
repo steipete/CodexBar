@@ -1,6 +1,27 @@
 import CodexBarCore
 import Foundation
 
+/// How the meter icon marks the elapsed (or remaining) time of the weekly window.
+enum MenuBarWeekProgressStyle: String, CaseIterable, Identifiable {
+    case off
+    case caret
+    case line
+    case dottedLine
+
+    var id: String {
+        self.rawValue
+    }
+
+    var label: String {
+        switch self {
+        case .off: L("menu_bar_week_progress_off")
+        case .caret: L("menu_bar_week_progress_caret")
+        case .line: L("menu_bar_week_progress_line")
+        case .dottedLine: L("menu_bar_week_progress_dotted_line")
+        }
+    }
+}
+
 enum MenuBarIconStyle: String, CaseIterable {
     case critters
     case bars

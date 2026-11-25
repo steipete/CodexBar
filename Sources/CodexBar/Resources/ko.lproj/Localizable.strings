@@ -2840,3 +2840,9 @@
 "MiMo is rate limiting requests. Try again later." = "MiMo가 요청 빈도를 제한하고 있습니다. 나중에 다시 시도하세요.";
 "MiMo request failed. Try refreshing later." = "MiMo 요청에 실패했습니다. 나중에 다시 새로 고침하세요.";
 "Skip cost refresh" = "비용 새로 고침 건너뛰기";
+"menu_bar_week_progress_title" = "주간 진행률";
+"menu_bar_week_progress_subtitle" = "아래쪽 막대 밑에 주간 창이 얼마나 지났는지 표시합니다.";
+"menu_bar_week_progress_off" = "끔";
+"menu_bar_week_progress_caret" = "마커";
+"menu_bar_week_progress_line" = "선";
+"menu_bar_week_progress_dotted_line" = "점선";

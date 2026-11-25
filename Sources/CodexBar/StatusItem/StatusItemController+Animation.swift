@@ -428,6 +428,10 @@ extension StatusItemController {
             showUsed: showUsed)
         var primary = resolved?.primary
         var weekly = resolved?.secondary
+        var weeklyTimeMarker = self.menuBarWeeklyTimeMarkerPercent(
+            provider: provider,
+            snapshot: snapshot,
+            showUsed: showUsed)
         var credits = self.menuBarCreditsRemainingForIcon(provider: provider, snapshot: snapshot)
         var stale = self.menuBarIsStale(for: provider)
         var morphProgress: Double?
@@ -443,6 +447,7 @@ extension StatusItemController {
                 morphProgress = pattern.value(phase: phase) / 100
                 primary = nil
                 weekly = nil
+                weeklyTimeMarker = nil
                 credits = nil
                 stale = false
             } else {
@@ -451,6 +456,7 @@ extension StatusItemController {
                 weekly = max(
                     pattern.value(phase: phase + pattern.secondaryOffset),
                     Self.loadingPercentEpsilon)
+                weeklyTimeMarker = nil
                 credits = nil
                 stale = false
             }
@@ -499,6 +505,8 @@ extension StatusItemController {
                 "style=\(String(describing: style))",
                 "primary=\(Self.iconSignatureValue(primary))",
                 "weekly=\(Self.iconSignatureValue(weekly))",
+                "weekProgress=\(self.settings.menuBarWeekProgressStyle.rawValue)",
+                "weekMarker=\(IconRenderer.timeMarkerPixel(weeklyTimeMarker, rectWidth: 30))",
                 "credits=\(Self.iconSignatureValue(credits))",
                 "stale=\(stale ? "1" : "0")",
                 "status=\(statusIndicator.rawValue)",
@@ -526,7 +534,9 @@ extension StatusItemController {
                 tilt: tilt,
                 statusIndicator: statusIndicator,
                 hideCritters: self.settings.menuBarHidesCritters,
-                quotaLayoutPolicy: .provider(provider, snapshot: snapshot))
+                quotaLayoutPolicy: .provider(provider, snapshot: snapshot),
+                weeklyTimeMarkerPercent: weeklyTimeMarker,
+                weeklyTimeMarkerStyle: self.settings.menuBarWeekProgressStyle)
             self.setButtonContent(
                 image: warningFlash ? Self.quotaWarningFlashImage(base: image) : image,
                 title: nil,
@@ -546,6 +556,24 @@ extension StatusItemController {
     static func iconSignatureValue(_ value: Double?) -> String {
         guard let value else { return "nil" }
         return String(format: "%.3f", value)
+    }
+
+    func menuBarWeeklyTimeMarkerPercent(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot?,
+        showUsed: Bool,
+        now: Date = Date()) -> Double?
+    {
+        guard self.settings.menuBarWeekProgressStyle != .off, let snapshot else { return nil }
+        let windows = IconRemainingResolver.resolvedWindows(
+            snapshot: snapshot,
+            style: self.store.style(for: provider),
+            secondaryOverrideWindowID: self.settings.copilotIconSecondaryWindowOverrideID(snapshot: snapshot),
+            now: now)
+        return IconRemainingResolver.secondaryTimeMarkerPercent(
+            window: windows.secondary,
+            showUsed: showUsed,
+            now: now)
     }
 
     func resolvedMenuBarIconPercents(

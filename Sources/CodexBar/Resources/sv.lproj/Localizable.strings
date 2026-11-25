@@ -2871,3 +2871,9 @@
 "MiMo is rate limiting requests. Try again later." = "MiMo begränsar antalet förfrågningar. Försök igen senare.";
 "MiMo request failed. Try refreshing later." = "MiMo-förfrågan misslyckades. Försök uppdatera senare.";
 "Skip cost refresh" = "Hoppa över kostnadsuppdatering";
+"menu_bar_week_progress_title" = "Veckans förlopp";
+"menu_bar_week_progress_subtitle" = "Visar under den nedre stapeln hur mycket av veckofönstret som har gått.";
+"menu_bar_week_progress_off" = "Av";
+"menu_bar_week_progress_caret" = "Markör";
+"menu_bar_week_progress_line" = "Linje";
+"menu_bar_week_progress_dotted_line" = "Prickad linje";

@@ -2877,3 +2877,9 @@
 "MiMo is rate limiting requests. Try again later." = "MiMo is rate limiting requests. Try again later.";
 "MiMo request failed. Try refreshing later." = "MiMo request failed. Try refreshing later.";
 "Skip cost refresh" = "Skip cost refresh";
+"menu_bar_week_progress_title" = "Week progress";
+"menu_bar_week_progress_subtitle" = "Marks how much of the weekly window has passed under the lower bar.";
+"menu_bar_week_progress_off" = "Off";
+"menu_bar_week_progress_caret" = "Caret";
+"menu_bar_week_progress_line" = "Line";
+"menu_bar_week_progress_dotted_line" = "Dotted line";

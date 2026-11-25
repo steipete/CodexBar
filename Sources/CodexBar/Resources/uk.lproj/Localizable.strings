@@ -2873,3 +2873,9 @@
 "MiMo is rate limiting requests. Try again later." = "MiMo обмежує частоту запитів. Спробуйте пізніше.";
 "MiMo request failed. Try refreshing later." = "Запит до MiMo не виконано. Спробуйте оновити пізніше.";
 "Skip cost refresh" = "Пропустити оновлення вартості";
+"menu_bar_week_progress_title" = "Поступ тижня";
+"menu_bar_week_progress_subtitle" = "Показує під нижньою смугою, яка частина тижневого вікна минула.";
+"menu_bar_week_progress_off" = "Вимк.";
+"menu_bar_week_progress_caret" = "Покажчик";
+"menu_bar_week_progress_line" = "Лінія";
+"menu_bar_week_progress_dotted_line" = "Пунктирна лінія";

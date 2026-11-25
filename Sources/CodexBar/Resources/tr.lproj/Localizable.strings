@@ -2875,3 +2875,9 @@
 "MiMo is rate limiting requests. Try again later." = "MiMo istek sıklığını sınırlıyor. Daha sonra tekrar deneyin.";
 "MiMo request failed. Try refreshing later." = "MiMo isteği başarısız oldu. Daha sonra yeniden yenileyin.";
 "Skip cost refresh" = "Maliyet yenilemeyi atla";
+"menu_bar_week_progress_title" = "Hafta ilerlemesi";
+"menu_bar_week_progress_subtitle" = "Alt çubuğun altında haftalık pencerenin ne kadarının geçtiğini gösterir.";
+"menu_bar_week_progress_off" = "Kapalı";
+"menu_bar_week_progress_caret" = "İşaretçi";
+"menu_bar_week_progress_line" = "Çizgi";
+"menu_bar_week_progress_dotted_line" = "Noktalı çizgi";

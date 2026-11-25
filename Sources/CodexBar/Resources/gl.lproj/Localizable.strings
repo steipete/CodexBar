@@ -2871,3 +2871,9 @@
 "MiMo is rate limiting requests. Try again later." = "MiMo está a limitar as solicitudes. Téntao de novo máis tarde.";
 "MiMo request failed. Try refreshing later." = "Fallou a solicitude a MiMo. Tenta actualizar máis tarde.";
 "Skip cost refresh" = "Omitir a actualización do custo";
+"menu_bar_week_progress_title" = "Progreso da semana";
+"menu_bar_week_progress_subtitle" = "Indica baixo a barra inferior canto pasou da xanela semanal.";
+"menu_bar_week_progress_off" = "Desactivado";
+"menu_bar_week_progress_caret" = "Marcador";
+"menu_bar_week_progress_line" = "Liña";
+"menu_bar_week_progress_dotted_line" = "Liña punteada";

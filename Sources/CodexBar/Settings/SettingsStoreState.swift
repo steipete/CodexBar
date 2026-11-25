@@ -38,6 +38,7 @@ struct SettingsDefaultsState {
     var highlightMenuCardsOnHover: Bool
     var menuBarShowsBrandIconWithPercent: Bool
     var menuBarHidesCritters: Bool
+    var menuBarWeekProgressStyleRaw: String
     var menuBarColorPace: Bool
     var menuBarPaceReservePositive: Bool
     var menuBarColorByProvider: Bool

@@ -24,6 +24,20 @@ enum IconRemainingResolver {
         return (primary: windows.primary, secondary: windows.secondary)
     }
 
+    /// Position of the secondary-window time marker on the meter, in the same fill direction as the bar:
+    /// time elapsed when bars show used quota, time left when they show remaining quota.
+    /// Returns nil when the window has no usable reset date or duration.
+    static func secondaryTimeMarkerPercent(window: RateWindow?, showUsed: Bool, now: Date = Date()) -> Double? {
+        guard let window, let resetsAt = window.resetsAt,
+              let minutes = window.windowMinutes, minutes > 0
+        else { return nil }
+        let duration = TimeInterval(minutes) * 60
+        let timeLeft = resetsAt.timeIntervalSince(now)
+        guard timeLeft > 0, timeLeft <= duration else { return nil }
+        let leftPercent = timeLeft / duration * 100
+        return showUsed ? 100 - leftPercent : leftPercent
+    }
+
     static func resolvedPercents(
         snapshot: UsageSnapshot,
         style: IconStyle,
