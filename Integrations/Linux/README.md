@@ -204,9 +204,11 @@ reset times, pace, and optional local cost. Providers without a bundled logo use
 window, Settings, About, or Quit. `--spending` opens its Spending tab. The full Usage & Spend window retains
 generic provider details and charts. Plan labels stay on one line and use right elision when space is limited; token counts use single thousands separators, including on Qt 6.4. Unknown values stay unknown. Identity is hidden by default. Display preferences control reset countdowns,
 absolute times, pace visibility, the Omarchy bar's detail, per-model caps and provider
-count, and low-quota colors. The tray can show two quota
-meters for the first displayed provider or a static icon. Unknown meters remain
-empty tracks. The tooltip identifies the displayed providers and stale data.
+count, and low-quota colors. In meter mode, the tray shows one centered track
+when the first displayed provider reports one quota window, or two tracks for
+its first two windows. A window at 0% displays an empty track. With no reported
+windows the tray displays two empty tracks. A static icon is also available.
+The tooltip identifies the displayed providers and stale data.
 Omarchy's popup shares the quota/reset preferences. Quick View tab meters and detailed quota bars both follow the selected used/remaining preference.
 
 Start-at-login changes apply immediately from Settings. Other preferences use Save.
