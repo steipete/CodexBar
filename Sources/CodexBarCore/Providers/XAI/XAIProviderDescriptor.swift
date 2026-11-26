@@ -16,6 +16,9 @@ public enum XAIProviderDescriptor {
             + "Prepaid balance is not treated as spend.",
         supportsTokenCost: true,
         isCostUsageUnavailable: { XAICostUsageMapping.isAnalyticsUnavailable($0) },
+        showsCostMenuSection: false,
+        showsRequestHistory: false,
+        chartCalendar: CostUsageBucketTimeZone.calendar(identifier: "UTC"),
         environmentKey: XAISettingsReader.apiKeyEnvironmentKey,
         config: ProviderConfigCapabilities(workspaceIDValidationOrder: 6),
         presentation: ProviderUsagePresentation(
@@ -31,6 +34,17 @@ public enum XAIProviderDescriptor {
                 let style: ProviderCostMenuCardStyle = showsFallback ? .generic : .prepaidCredits
                 return ProviderCostPresentation(showsGenericFallback: showsFallback, menuCardStyle: style)
             },
+            menuCard: ProviderMenuCardPresentation(
+                usesProviderCostHistoryAsPrimaryDashboard: true,
+                primaryCostHistoryResolver: { snapshot, tokenSnapshot in
+                    if let snapshot {
+                        return XAICostUsageMapping.tokenSnapshot(
+                            from: snapshot,
+                            historyDays: XAICostUsageMapping.historyDays)
+                    }
+                    return tokenSnapshot
+                },
+                supportsInlineTokenCostDashboard: true),
             optionalDetails: ProviderOptionalDetailsPresentation(costSummaryTitles: ["Billing summary"])),
         validateContext: { context in
             _ = try XAISettingsReader.validatedTeamID(environment: context.env)

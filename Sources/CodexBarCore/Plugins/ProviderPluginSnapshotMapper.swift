@@ -7,6 +7,7 @@ enum ProviderPluginSnapshotMapper {
     private struct CostUsageParsedEntry {
         let date: String
         let inputTokens: Int
+        let cacheReadTokens: Int?
         let outputTokens: Int
         let reasoningTokens: Int?
         let requests: Int
@@ -17,6 +18,8 @@ enum ProviderPluginSnapshotMapper {
 
     private struct CostUsageAccumulator {
         var inputTokens = 0
+        var cacheReadTokens = 0
+        var hasCacheReadTokens = false
         var outputTokens = 0
         var reasoningTokens = 0
         var hasReasoningTokens = false
@@ -58,7 +61,7 @@ enum ProviderPluginSnapshotMapper {
         let tertiary = try self.window(value, property: "tertiary", percentPolicy: percentPolicy)
         let extraRateWindows = try self.extraWindows(value, percentPolicy: percentPolicy)
         let providerCost = try self.cost(value, now: now)
-        let costUsage = try self.costUsage(value)
+        let costUsage = try self.costUsage(value, now: now)
         let details = try self.details(value)
         let identity = try self.identity(value, provider: provider)
         let iconProvider = try self.iconProvider(value)
@@ -370,7 +373,8 @@ enum ProviderPluginSnapshotMapper {
     }
 
     private static func costUsage(
-        _ root: any ProviderPluginValue) throws -> CostUsageTokenSnapshot?
+        _ root: any ProviderPluginValue,
+        now: Date) throws -> CostUsageTokenSnapshot?
     {
         guard let value = root.property("costUsage"), !value.isUndefined, !value.isNull else { return nil }
         guard value.isObject, !value.isArray else {
@@ -389,6 +393,11 @@ enum ProviderPluginSnapshotMapper {
             throw ProviderPluginError.invalidSnapshot("costUsage.historyDays exceeds 366")
         }
         let historyLabel = try self.optionalString(value, property: "historyLabel", path: "costUsage")
+        let includesCurrentDay = try self.optionalBoolean(
+            value,
+            property: "includesCurrentDay",
+            path: "costUsage") ?? false
+        let partial = try self.optionalBoolean(value, property: "partial", path: "costUsage") ?? false
         let windowEnd = try self.requiredString(value, property: "windowEnd", path: "costUsage")
         guard windowEnd.range(of: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", options: .regularExpression) != nil,
               let windowEndDate = CostUsageDateParser.parse("\(windowEnd)T12:00:00Z")
@@ -418,21 +427,23 @@ enum ProviderPluginSnapshotMapper {
         } else {
             .vendorMetered
         }
+        let todayEntry = includesCurrentDay ? aggregation.daily.first { $0.date == windowEnd } : nil
         return CostUsageTokenSnapshot(
-            sessionTokens: nil,
-            sessionCostUSD: nil,
-            sessionRequests: nil,
+            sessionTokens: todayEntry?.totalTokens,
+            sessionCostUSD: todayEntry?.costUSD,
+            sessionRequests: todayEntry?.requestCount,
             last30DaysTokens: aggregation.totalTokens,
             last30DaysCostUSD: aggregation.totalCost,
             last30DaysRequests: aggregation.totalRequests,
             currencyCode: currency,
             historyDays: historyDays,
-            historyCoverageIsEstablished: true,
+            historyCoverageIsEstablished: !partial,
+            historyScanIsPartial: partial,
             historyLabel: historyLabel,
             meteredCostUSD: aggregation.totalEstimatedCost > 0 && meteredCost > 0 ? meteredCost : nil,
             costProvenance: provenance,
             daily: aggregation.daily,
-            updatedAt: windowEndDate)
+            updatedAt: includesCurrentDay ? now : windowEndDate)
     }
 
     private static func costUsageEntries(
@@ -456,6 +467,10 @@ enum ProviderPluginSnapshotMapper {
                 throw ProviderPluginError.invalidSnapshot("\(path).date falls outside the declared history window")
             }
             let inputTokens = try self.requiredNonnegativeInteger(entry, property: "inputTokens", path: path)
+            let cacheReadTokens = try self.optionalNonnegativeInteger(
+                entry,
+                property: "cacheReadTokens",
+                path: path)
             let outputTokens = try self.requiredNonnegativeInteger(entry, property: "outputTokens", path: path)
             let reasoningTokens = try self.optionalNonnegativeInteger(
                 entry,
@@ -474,13 +489,12 @@ enum ProviderPluginSnapshotMapper {
                 throw ProviderPluginError.invalidSnapshot(
                     "\(path).estimatedCost must be nonnegative and no greater than cost")
             }
-            let rowTokens = inputTokens.addingReportingOverflow(outputTokens)
-            guard !rowTokens.overflow else {
-                throw ProviderPluginError.invalidSnapshot("\(path) token total overflowed")
-            }
+            let inputOutputTokens = try self.checkedSum(inputTokens, outputTokens, path: "\(path) token total")
+            _ = try self.checkedSum(inputOutputTokens, cacheReadTokens ?? 0, path: "\(path) token total")
             return try CostUsageParsedEntry(
                 date: date,
                 inputTokens: inputTokens,
+                cacheReadTokens: cacheReadTokens,
                 outputTokens: outputTokens,
                 reasoningTokens: reasoningTokens,
                 requests: requests,
@@ -499,6 +513,11 @@ enum ProviderPluginSnapshotMapper {
             var accumulator = grouped[key] ?? CostUsageAccumulator()
             accumulator.inputTokens = try self.checkedSum(
                 accumulator.inputTokens, entry.inputTokens, path: "costUsage input token total")
+            if let cacheReadTokens = entry.cacheReadTokens {
+                accumulator.cacheReadTokens = try self.checkedSum(
+                    accumulator.cacheReadTokens, cacheReadTokens, path: "costUsage cache-read token total")
+                accumulator.hasCacheReadTokens = true
+            }
             accumulator.outputTokens = try self.checkedSum(
                 accumulator.outputTokens, entry.outputTokens, path: "costUsage output token total")
             if let reasoningTokens = entry.reasoningTokens {
@@ -527,8 +546,10 @@ enum ProviderPluginSnapshotMapper {
             let date = String(parts[0])
             let model = parts.count > 1 && !parts[1].isEmpty ? String(parts[1]) : nil
             let accumulator = grouped[key]!
-            let totalTokens = try self.checkedSum(
+            let baseTokens = try self.checkedSum(
                 accumulator.inputTokens, accumulator.outputTokens, path: "costUsage token total")
+            let totalTokens = try self.checkedSum(
+                baseTokens, accumulator.cacheReadTokens, path: "costUsage token total")
             if let breakdown = model.map({
                 CostUsageDailyReport.ModelBreakdown(
                     modelName: $0,
@@ -537,6 +558,7 @@ enum ProviderPluginSnapshotMapper {
                     requestCount: accumulator.requests,
                     inputTokens: accumulator.inputTokens,
                     outputTokens: accumulator.outputTokens,
+                    cacheReadTokens: accumulator.hasCacheReadTokens ? accumulator.cacheReadTokens : nil,
                     reasoningTokens: accumulator.hasReasoningTokens ? accumulator.reasoningTokens : nil)
             }) {
                 breakdownsByDate[date, default: []].append(breakdown)
@@ -544,6 +566,9 @@ enum ProviderPluginSnapshotMapper {
             var daily = dailyGrouped[date] ?? CostUsageAccumulator()
             daily.inputTokens = try self.checkedSum(
                 daily.inputTokens, accumulator.inputTokens, path: "costUsage daily input token total")
+            daily.cacheReadTokens = try self.checkedSum(
+                daily.cacheReadTokens, accumulator.cacheReadTokens, path: "costUsage daily cache-read token total")
+            daily.hasCacheReadTokens = daily.hasCacheReadTokens || accumulator.hasCacheReadTokens
             daily.outputTokens = try self.checkedSum(
                 daily.outputTokens, accumulator.outputTokens, path: "costUsage daily output token total")
             daily.reasoningTokens = try self.checkedSum(
@@ -565,13 +590,16 @@ enum ProviderPluginSnapshotMapper {
 
         let daily = try dailyGrouped.keys.sorted().map { date in
             let accumulator = dailyGrouped[date]!
-            let totalTokens = try self.checkedSum(
+            let baseTokens = try self.checkedSum(
                 accumulator.inputTokens, accumulator.outputTokens, path: "costUsage token total")
+            let totalTokens = try self.checkedSum(
+                baseTokens, accumulator.cacheReadTokens, path: "costUsage token total")
             let breakdowns = breakdownsByDate[date]
             return CostUsageDailyReport.Entry(
                 date: date,
                 inputTokens: accumulator.inputTokens,
                 outputTokens: accumulator.outputTokens,
+                cacheReadTokens: accumulator.hasCacheReadTokens ? accumulator.cacheReadTokens : nil,
                 reasoningTokens: accumulator.hasReasoningTokens ? accumulator.reasoningTokens : nil,
                 totalTokens: totalTokens,
                 requestCount: accumulator.requests,
@@ -728,6 +756,21 @@ enum ProviderPluginSnapshotMapper {
                 "\(path).\(property) exceeds \(self.maximumStringBytes) UTF-8 bytes")
         }
         return string.isEmpty ? nil : string
+    }
+
+    private static func optionalBoolean(
+        _ value: any ProviderPluginValue,
+        property: String,
+        path: String) throws -> Bool?
+    {
+        guard let propertyValue = value.property(property),
+              !propertyValue.isUndefined,
+              !propertyValue.isNull
+        else { return nil }
+        guard propertyValue.isBoolean else {
+            throw ProviderPluginError.invalidSnapshot("\(path).\(property) must be a boolean")
+        }
+        return propertyValue.boolValue()
     }
 
     private static func optionalDate(

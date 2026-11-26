@@ -61,7 +61,10 @@ struct XAIProviderTests {
                 return Self.response(url: url, body: Self.balanceFixture)
             case "/v1/billing/teams/team-1234/postpaid/invoice/preview":
                 #expect(request.httpMethod == "GET")
-                return Self.response(url: url, body: #"{"coreInvoice":{"amountAfterVat":"350"}}"#)
+                return Self.response(
+                    url: url,
+                    body: #"{"billingCycle":{"year":2027,"month":1},"effectiveSpendingLimit":"50000","#
+                        + #""coreInvoice":{"amountAfterVat":"350","totalWithCorr":{"val":"350"}}}"#)
             case "/v1/billing/teams/team-1234/usage":
                 #expect(request.httpMethod == "POST")
                 let body = try #require(request.httpBody)
@@ -72,6 +75,10 @@ struct XAIProviderTests {
                 #expect(timeRange["endTime"] as? String == "2027-01-15 08:00:00")
                 #expect(timeRange["timezone"] as? String == "Etc/GMT")
                 #expect(analytics["timeUnit"] as? String == "TIME_UNIT_DAY")
+                let values = try #require(analytics["values"] as? [[String: String]])
+                #expect(values.map { $0["name"] } == ["usd", "units", "transactions"])
+                #expect(values.allSatisfy { $0["aggregation"] == "AGGREGATION_SUM" })
+                #expect(analytics["groupBy"] as? [String] == ["description", "unit_type"])
                 return Self.response(url: url, body: Self.usageFixture)
             default:
                 Issue.record("Unexpected request path: \(url.path)")
@@ -88,13 +95,90 @@ struct XAIProviderTests {
         #expect(snapshot.providerCost?.used == 10)
         #expect(snapshot.details.first?.rows.prefix(2).map(\.label) == ["Prepaid balance", "Live remaining (est.)"])
         #expect(snapshot.detailRow(label: "Live remaining (est.)")?.value == "$6.50")
-        #expect(snapshot.detailRow(label: "Last 30 days")?.value == "$1.76")
-        #expect(snapshot.details.first?.chart?.points.map(\.label) == [
-            "2027-01-13", "2027-01-14", "2027-01-15",
-        ])
+        #expect(snapshot.detailRow(label: "Current cycle")?.value == "$3.50")
+        #expect(snapshot.detailRow(label: "Current cycle")?.secondaryValue == "2027-01")
+        #expect(snapshot.detailRow(label: "Spending limit")?.value == "$500.00")
+        #expect(snapshot.detailRow(label: "Last 30 days")?.value == "$2.01")
+        #expect(snapshot.details.first?.chart == nil)
         #expect(snapshot.dataConfidence == .exact)
-        #expect(XAICostUsageMapping.tokenSnapshot(from: snapshot, historyDays: 30)?
-            .historyCoverageIsEstablished == true)
+
+        let costUsage = try #require(snapshot.costUsage)
+        #expect(costUsage.updatedAt == now)
+        #expect(costUsage.historyCoverageIsEstablished == true)
+        #expect(costUsage.historyScanIsPartial == false)
+        #expect(costUsage.sessionTokens == 850)
+        #expect(costUsage.sessionCostUSD == 0.25)
+        #expect(costUsage.sessionRequests == 1)
+        #expect(costUsage.last30DaysTokens == 4050)
+        #expect(costUsage.last30DaysRequests == 9)
+        #expect(abs((costUsage.last30DaysCostUSD ?? 0) - 2.00973725) < 1e-9)
+        #expect(costUsage.daily.map(\.date) == ["2027-01-13", "2027-01-14", "2027-01-15"])
+
+        let dayOne = try #require(costUsage.daily.first)
+        #expect(dayOne.inputTokens == 1000)
+        #expect(dayOne.cacheReadTokens == 500)
+        #expect(dayOne.outputTokens == 500)
+        #expect(dayOne.reasoningTokens == 200)
+        #expect(dayOne.totalTokens == 2000)
+        #expect(dayOne.requestCount == 6)
+        let grokBreakdown = try #require(dayOne.modelBreakdowns?.first { $0.modelName == "grok-4.7" })
+        #expect(grokBreakdown.inputTokens == 1000)
+        #expect(grokBreakdown.cacheReadTokens == 500)
+        #expect(grokBreakdown.outputTokens == 500)
+        #expect(grokBreakdown.reasoningTokens == 200)
+        #expect(grokBreakdown.totalTokens == 2000)
+        #expect(grokBreakdown.requestCount == 4)
+        let ttsBreakdown = try #require(dayOne.modelBreakdowns?.first { $0.modelName == "Text-to-Speech" })
+        #expect(ttsBreakdown.totalTokens == 0)
+        #expect(ttsBreakdown.requestCount == 2)
+        #expect(ttsBreakdown.costUSD == 0.5)
+        #expect(XAICostUsageMapping.tokenSnapshot(from: snapshot, historyDays: 30) == costUsage)
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `preview omits zero spending limit and handles non-token fractional units`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let usageBody = #"""
+        {
+          "timeSeries": [
+            {
+              "group": ["API grok-4.7", "Completion text tokens"],
+              "dataPoints": [{"timestamp":"2027-01-15T00:00:00Z","values":[0.12, 300, 3]}]
+            },
+            {
+              "group": ["API grok-4.7", "Reasoning text tokens"],
+              "dataPoints": [{"timestamp":"2027-01-15T00:00:00Z","values":[0.08, 200, 5]}]
+            },
+            {
+              "group": ["API Speech-to-Text", "Input audio seconds"],
+              "dataPoints": [{"timestamp":"2027-01-15T00:00:00Z","values":[0.05, 12.5, 2]}]
+            }
+          ],
+          "limitReached": false
+        }
+        """#
+        let previewBody = #"{"effectiveSpendingLimit":"0","#
+            + #""coreInvoice":{"amountAfterVat":"0","totalWithCorr":{"val":"25"}}}"#
+        let snapshot = try await Self.fetch(
+            previewBody: previewBody,
+            usageBody: usageBody,
+            engine: engine)
+        #expect(snapshot.detailRow(label: "Current cycle")?.value == "$0.25")
+        #expect(snapshot.detailRow(label: "Current cycle")?.secondaryValue == nil)
+        #expect(snapshot.detailRow(label: "Spending limit") == nil)
+
+        let costUsage = try #require(snapshot.costUsage)
+        #expect(costUsage.sessionTokens == 500)
+        #expect(costUsage.sessionRequests == 7)
+        let day = try #require(costUsage.daily.first)
+        let grok = try #require(day.modelBreakdowns?.first { $0.modelName == "grok-4.7" })
+        #expect(grok.requestCount == 5)
+        #expect(grok.outputTokens == 500)
+        #expect(grok.reasoningTokens == 200)
+        let stt = try #require(day.modelBreakdowns?.first { $0.modelName == "Speech-to-Text" })
+        #expect(stt.totalTokens == 0)
+        #expect(stt.requestCount == 2)
     }
 
     @Test(arguments: BundledPluginTestSupport.engines, [
@@ -155,7 +239,7 @@ struct XAIProviderTests {
         let snapshot = try await Self.fetch(previewBody: response.1, previewStatus: response.0, engine: engine)
         #expect(snapshot.providerCost?.used == 10)
         #expect(snapshot.detailRow(label: "Live remaining (est.)") == nil)
-        #expect(snapshot.details.first?.chart?.points.count == 3)
+        #expect(snapshot.costUsage?.daily.count == 3)
         #expect(snapshot.dataConfidence == .exact)
     }
 
@@ -173,10 +257,11 @@ struct XAIProviderTests {
         }
         let snapshot = try await Self.runtime(transport: transport, engine: engine).fetchUsage(
             settings: ["XAI_TEAM_ID": "team-1234"],
-            secrets: ["XAI_MANAGEMENT_API_KEY": "fixture-management-key"])
+            secrets: ["XAI_MANAGEMENT_API_KEY": "fixture-management-key"],
+            now: Date(timeIntervalSince1970: 1_800_000_000))
         #expect(snapshot.providerCost?.used == 10)
         #expect(snapshot.detailRow(label: "Live remaining (est.)") == nil)
-        #expect(snapshot.details.first?.chart?.points.count == 3)
+        #expect(snapshot.costUsage?.daily.count == 3)
     }
 
     @Test(arguments: [
@@ -223,6 +308,7 @@ struct XAIProviderTests {
     func `history failure preserves balance and partial history lowers confidence`() async throws {
         let degraded = try await Self.fetch(usageStatus: 500)
         #expect(degraded.providerCost?.used == 10)
+        #expect(degraded.costUsage == nil)
         #expect(degraded.details.first?.chart == nil)
         #expect(degraded.dataConfidence == .exact)
         #expect(XAICostUsageMapping.isAnalyticsUnavailable(degraded))
@@ -231,18 +317,25 @@ struct XAIProviderTests {
         let partial = try await Self.fetch(usageBody: Self.usageFixture.replacingOccurrences(
             of: #""limitReached": false"#,
             with: #""limitReached": true"#))
-        #expect(partial.detailRow(label: "Last 30 days (partial)")?.value == "$1.76")
+        #expect(partial.detailRow(label: "Last 30 days (partial)")?.value == "$2.01")
         #expect(partial.dataConfidence == .estimated)
+        #expect(partial.costUsage?.historyCoverageIsEstablished == false)
+        #expect(partial.costUsage?.historyScanIsPartial == true)
+        #expect(partial.costUsage?.historyLabel == "Last 30 days (partial)")
     }
 
     @Test
-    func `successful empty usage history emits an empty chart`() async throws {
+    func `successful empty usage history emits empty costUsage`() async throws {
         let snapshot = try await Self.fetch(usageBody: #"{"timeSeries":[],"limitReached":false}"#)
-        #expect(snapshot.details.first?.chart?.points.isEmpty == true)
+        #expect(snapshot.costUsage?.daily.isEmpty == true)
+        #expect(snapshot.details.first?.chart == nil)
         #expect(XAICostUsageMapping.isAnalyticsUnavailable(snapshot) == false)
         let mapped = try #require(XAICostUsageMapping.tokenSnapshot(from: snapshot, historyDays: 365))
         #expect(mapped.daily.isEmpty)
         #expect(mapped.last30DaysCostUSD == 0)
+        #expect(mapped.last30DaysTokens == 0)
+        #expect(mapped.last30DaysRequests == 0)
+        #expect(mapped.sessionCostUSD == nil)
         #expect(mapped.historyDays == 30)
     }
 
@@ -250,10 +343,17 @@ struct XAIProviderTests {
         #"{}"#,
         #"{"timeSeries":null,"limitReached":false}"#,
         #"{"timeSeries":[{}],"limitReached":false}"#,
-        #"{"timeSeries":[{"dataPoints":[{"timestamp":"2027-01-15T00:00:00Z"}]}],"limitReached":false}"#,
+        #"{"timeSeries":[{"group":["API grok-4.7"],"dataPoints":[]}],"limitReached":false}"#,
+        #"{"timeSeries":[{"group":["API grok-4.7","Prompt text tokens"],"#
+            + #""dataPoints":[{"timestamp":"2027-01-15T00:00:00Z","values":[0.1]}]}],"limitReached":false}"#,
+        #"{"timeSeries":[{"group":["API grok-4.7","Prompt text tokens"],"#
+            + #""dataPoints":[{"timestamp":"2027-01-15T00:00:00Z","values":[0.1, 1.5, 1]}]}],"limitReached":false}"#,
+        #"{"timeSeries":[{"group":["API grok-4.7","Prompt text tokens"],"#
+            + #""dataPoints":[{"timestamp":"2027-01-15T00:00:00Z","values":[0.1, 10, -1]}]}],"limitReached":false}"#,
     ])
     func `malformed successful usage history stays unavailable`(body: String) async throws {
         let snapshot = try await Self.fetch(usageBody: body)
+        #expect(snapshot.costUsage == nil)
         #expect(snapshot.details.first?.chart == nil)
         #expect(XAICostUsageMapping.isAnalyticsUnavailable(snapshot))
         #expect(XAICostUsageMapping.tokenSnapshot(from: snapshot, historyDays: 30) == nil)
@@ -266,8 +366,9 @@ struct XAIProviderTests {
         #expect(descriptor.fetchPlan.sourceModes == [.auto, .api])
         #expect(try #require(ProviderCatalog.implementation(for: .xai)) is PluginAPIKeyProviderImplementation)
 
-        let snapshot = try await Self.fetch(previewBody: hasPreview
-            ? #"{"coreInvoice":{"amountAfterVat":"350"}}"# : "{}")
+        let previewFixture = #"{"billingCycle":{"year":2027,"month":1},"#
+            + #""coreInvoice":{"amountAfterVat":"350","totalWithCorr":{"val":"350"}}}"#
+        let snapshot = try await Self.fetch(previewBody: hasPreview ? previewFixture : "{}")
         let model = UsageMenuCardView.Model.make(.init(
             provider: .xai,
             metadata: descriptor.metadata,
@@ -289,6 +390,12 @@ struct XAIProviderTests {
             now: Date(timeIntervalSince1970: 1_800_000_000)))
         #expect(model.providerCost?.spendLine == "Balance: $10.00")
         #expect(model.providerDetails.flatMap(\.rows).contains { $0.label == "Live remaining (est.)" } == hasPreview)
+        let dashboard = try #require(model.inlineUsageDashboard)
+        #expect(dashboard.kpis.contains { $0.title == "Today" && $0.value == "$0.25" })
+        #expect(dashboard.kpis.contains { $0.title == "30d cost" && $0.value == "$2.01" })
+        #expect(dashboard.kpis.contains { $0.title == "30d tokens" })
+        #expect(dashboard.kpis.contains { $0.title == "Requests" && $0.value == "9" })
+        #expect(dashboard.detailLines.contains { $0.contains("grok-4.7") })
 
         let text = CLIRenderer.renderText(
             provider: .xai,
@@ -302,7 +409,6 @@ struct XAIProviderTests {
         #expect(text.contains("Prepaid balance: $10.00"))
         #expect(text.contains("Live remaining (est.): $6.50") == hasPreview)
         #expect(text.contains("Plan: Management API"))
-        #expect(!text.contains("Cost:"))
 
         if let directory = ProcessInfo.processInfo.environment["CODEXBAR_XAI_PROOF_DIR"] {
             let hosting = NSHostingView(rootView: UsageMenuCardView(model: model, width: 360)
@@ -394,16 +500,43 @@ struct XAIProviderTests {
     static let usageFixture = #"""
     {
       "timeSeries": [
-        {"dataPoints": [
-          {"timestamp":"2027-01-13T00:00:00Z","values":[0.75973725]},
-          {"timestamp":"2027-01-14T00:00:00Z","values":[0.5]},
-          {"timestamp":"2027-01-15T00:00:00Z","values":[0]}
-        ]},
-        {"dataPoints": [
-          {"timestamp":"2027-01-13T00:00:00Z","values":[0.5]},
-          {"timestamp":"2027-01-14T00:00:00Z","values":[0]},
-          {"timestamp":"2027-01-15T00:00:00Z","values":[0]}
-        ]}
+        {
+          "group": ["API grok-4.7", "Prompt text tokens"],
+          "dataPoints": [
+            {"timestamp":"2027-01-13T00:00:00Z","values":[0.4, 1000, 4]},
+            {"timestamp":"2027-01-14T00:00:00Z","values":[0.3, 800, 2]},
+            {"timestamp":"2027-01-15T00:00:00Z","values":[0.15, 600, 1]}
+          ]
+        },
+        {
+          "group": ["API grok-4.7", "Cached prompt text tokens"],
+          "dataPoints": [
+            {"timestamp":"2027-01-13T00:00:00Z","values":[0.05, 500, 4]},
+            {"timestamp":"2027-01-14T00:00:00Z","values":[0, 0, 0]},
+            {"timestamp":"2027-01-15T00:00:00Z","values":[0, 0, 0]}
+          ]
+        },
+        {
+          "group": ["API grok-4.7", "Completion text tokens"],
+          "dataPoints": [
+            {"timestamp":"2027-01-13T00:00:00Z","values":[0.25, 300, 4]},
+            {"timestamp":"2027-01-14T00:00:00Z","values":[0.2, 400, 2]},
+            {"timestamp":"2027-01-15T00:00:00Z","values":[0.1, 250, 1]}
+          ]
+        },
+        {
+          "group": ["API grok-4.7", "Reasoning text tokens"],
+          "dataPoints": [
+            {"timestamp":"2027-01-13T00:00:00Z","values":[0.05973725, 200, 3]}
+          ]
+        },
+        {
+          "group": ["API Text-to-Speech", "Input characters"],
+          "dataPoints": [
+            {"timestamp":"2027-01-13T00:00:00Z","values":[0.5, 12000, 2]},
+            {"timestamp":"2027-01-14T00:00:00Z","values":[0, 0, 0]}
+          ]
+        }
       ],
       "limitReached": false
     }

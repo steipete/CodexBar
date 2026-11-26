@@ -47,14 +47,13 @@ printf '%s' "$XAI_MANAGEMENT_API_KEY" | codexbar config set-api-key --provider x
 CodexBar requests:
 
 - `GET https://management-api.x.ai/v1/billing/teams/{team_id}/prepaid/balance`
-- `GET https://management-api.x.ai/v1/billing/teams/{team_id}/postpaid/invoice/preview` as best-effort live credit enrichment.
-- `POST https://management-api.x.ai/v1/billing/teams/{team_id}/usage` with a daily, USD-summed analytics query for the
-  last 30 days (UTC), as best-effort history enrichment.
+- `GET https://management-api.x.ai/v1/billing/teams/{team_id}/postpaid/invoice/preview` as best-effort live credit and current-cycle billing enrichment.
+- `POST https://management-api.x.ai/v1/billing/teams/{team_id}/usage` with a daily analytics query (`TIME_UNIT_DAY`, `Etc/GMT`, last 30 days) requesting summed `usd`, `units`, and `transactions` grouped by `description` and `unit_type`, as best-effort usage history enrichment.
 
 All requests use the same team ID and `Authorization: Bearer <management key>`. CodexBar does not read browser cookies, console sessions,
 or inference traffic for this provider.
 
-The balance endpoint reports an inverted ledger in string USD cents — a $10 top-up appears as `"-1000"` — so the
+The balance endpoint reports an inverted ledger in string USD cents (a $10 top-up appears as `"-1000"`), so the
 remaining balance is the negated cent value. A response without a parseable total is treated as an error, never as a
 $0.00 balance.
 
@@ -73,18 +72,28 @@ exact Console match during billing updates. Only valid signed integer cent amoun
 zero is valid, an omitted or null `prepaidCreditsUsed` defaults to zero, and a negative remaining result is retained.
 Missing or malformed preview data never becomes zero spend.
 
+When present in the same invoice preview, CodexBar also displays **Current cycle** (`coreInvoice.totalWithCorr.val`,
+with the `YYYY-MM` period from `billingCycle`) and **Spending limit** (`effectiveSpendingLimit`, omitted when zero or
+prepaid-only).
+
+For daily usage analytics, CodexBar strips the leading `"API "` prefix from each `description` and maps token unit types
+(`Prompt text tokens`, `Cached prompt text tokens`, `Completion text tokens`, and `Reasoning text tokens`) onto input,
+cache-read, output, and reasoning token totals. Non-token products (such as `Input characters`, `Input audio seconds`,
+and `Generated image`) contribute to spend and request counts without inflating token totals. Chat request counts are
+deduplicated per day and model across token unit types so multi-component billing items are not overcounted.
+
 ## Display
 
-The menu card keeps the posted prepaid balance as its primary number, with **Live remaining (est.)** as the second
-billing-summary row when inline billing details are enabled and the preview is available. The estimate is labeled on
+The menu card keeps the posted prepaid balance as its primary number, with **Live remaining (est.)**, **Current cycle**,
+and **Spending limit** (when configured) under Billing summary. The estimate is labeled on
 its own row; snapshot confidence continues to describe the posted balance and usage history. The inline dashboard
-shows the last 30 days of daily platform
-spend with today/30-day totals. When xAI reports its analytics cardinality cap (`limitReached`), the history is labeled
-"Last 30 days (partial)" and the snapshot is marked estimated instead of exact. Prepaid money is not a quota, so no
-session or weekly meters are synthesized.
+shows the last 30 days of daily platform spend, tokens, requests, top model, and per-model breakdowns in UTC, with a
+Token/Cost toggle in the Cost submenu. When xAI reports its analytics cardinality cap (`limitReached`), the history is
+labeled "Last 30 days (partial)" and the snapshot is marked estimated instead of exact. Prepaid money is not a quota, so
+no session or weekly meters are synthesized.
 
-The same daily spend series is published into Settings → Usage & Spend and Overview as vendor-metered USD. The prepaid
-ledger balance is remaining credit and is never treated as spend.
+The same daily spend, token, request, and per-model series is published into Settings → Usage & Spend and Overview as
+vendor-metered USD. The prepaid ledger balance is remaining credit and is never treated as spend.
 
 ## CLI Usage
 

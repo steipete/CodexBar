@@ -47,6 +47,9 @@ public struct PluginProviderSpec: Sendable {
     public let noDataMessage: String
     public var supportsTokenCost = false
     public var isCostUsageUnavailable: @Sendable (UsageSnapshot) -> Bool = { _ in false }
+    public var showsCostMenuSection = true
+    public var showsRequestHistory = true
+    public var chartCalendar: Calendar?
     public var settingsSection: ProviderSettingsSectionRegistration?
     public var pluginResultPolicy = ProviderPluginResultPolicy()
     public var history: ProviderHistoryCapability = .optIn
@@ -156,7 +159,10 @@ public struct PluginProviderSpec: Sendable {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: self.supportsTokenCost,
                 noDataMessage: { self.noDataMessage },
-                isUsageUnavailable: self.isCostUsageUnavailable),
+                isUsageUnavailable: self.isCostUsageUnavailable,
+                showsCostMenuSection: self.showsCostMenuSection,
+                showsRequestHistory: self.showsRequestHistory,
+                chartCalendar: self.chartCalendar),
             history: self.history,
             presentation: self.presentation,
             fetchPlan: fetchPlan,
