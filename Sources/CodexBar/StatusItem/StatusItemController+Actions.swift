@@ -428,6 +428,12 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
             return HelmcodeProviderDescriptor.dashboardURL(snapshot: self.store.snapshot(for: provider.instanceID))
         }
 
+        // Provider-specific by design: Antigravity exposes its validated subscription URL on the fetched snapshot.
+        if provider == .antigravity {
+            return AntigravityProviderDescriptor.subscriptionDashboardURL(
+                from: self.store.snapshot(for: provider.instanceID))
+        }
+
         let meta = self.store.metadata(for: provider)
         let urlString: String? = if provider == .claude, self.store.isClaudeSubscription() {
             meta.subscriptionDashboardURL ?? meta.dashboardURL

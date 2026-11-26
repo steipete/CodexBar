@@ -10,43 +10,48 @@ import CSQLite3
 struct AntigravityLocalScanTests {
     private typealias Fixture = AntigravityLocalFixture
 
-    @Test(arguments: [499, 500, 501])
+    @Test(arguments: [1999, 2000, 2001])
     func `database cap distinguishes below exactly and above limit`(count: Int) throws {
         let fixture = try Fixture()
         let seed = try fixture.database("session-0")
-        // The cap counts distinct files; copy the closed empty database instead of committing 500 schemas.
+        // The cap counts distinct files; copy the closed empty database instead of committing 2000 schemas.
         for index in 1..<count {
             try FileManager.default.copyItem(
                 at: seed,
                 to: seed.deletingLastPathComponent().appendingPathComponent("session-\(index).db"))
         }
         var limits = AntigravityLocalReader.Limits()
+        #expect(limits.databases == 2000)
         limits.duration = 60
         let report = try fixture.report(limits: limits)
-        #expect(report.coverage == (count <= 500 ? .complete : .partial))
-        #expect(report.statistics.files == (count <= 500 ? count : 0))
+        #expect(report.coverage == (count <= 2000 ? .complete : .partial))
+        #expect(report.statistics.files == min(count, 2000))
         #expect(report.statistics.rows == 0)
         #expect(report.statistics.sqliteHandlesOpened == report.statistics.files)
         #expect(report.statistics.sqliteHandlesClosed == report.statistics.sqliteHandlesOpened)
     }
 
     @Test
-    func `exceeding the database cap with valid history withholds the truncated report`() throws {
+    func `exceeding the database cap retains the newest databases as partial history`() throws {
         let fixture = try Fixture()
-        try fixture.database("first", blobs: [Fixture.blob()])
+        let first = try fixture.database("first", blobs: [Fixture.blob(input: 100)])
+        try FileManager.default.setAttributes(
+            [.modificationDate: Fixture.now.addingTimeInterval(-3600)],
+            ofItemAtPath: first.path)
         var limits = AntigravityLocalReader.Limits()
         limits.databases = 1
         let exact = try fixture.report(limits: limits)
         #expect(exact.coverage == .complete)
         #expect(exact.report.summary?.totalTokens == 187)
 
-        try fixture.database("second", blobs: [Fixture.blob()])
+        let second = try fixture.database("second", blobs: [Fixture.blob(input: 110)])
+        try FileManager.default.setAttributes([.modificationDate: Fixture.now], ofItemAtPath: second.path)
         let exceeded = try fixture.report(limits: limits)
         #expect(exceeded.coverage == .partial)
-        #expect(exceeded.report.data.isEmpty)
-        #expect(exceeded.report.summary == nil)
-        #expect(exceeded.statistics.files == 0)
-        #expect(exceeded.statistics.sqliteHandlesOpened == 0)
+        #expect(exceeded.report.summary?.totalTokens == 197)
+        #expect(exceeded.statistics.files == 1)
+        #expect(exceeded.statistics.sqliteHandlesOpened == 1)
+        #expect(exceeded.statistics.sqliteHandlesClosed == 1)
     }
 
     @Test
@@ -162,36 +167,42 @@ struct AntigravityLocalScanTests {
     }
 
     @Test
-    func `hard row exhaustion across databases withholds the truncated report`() throws {
+    func `hard row exhaustion across databases retains completed newest databases as partial`() throws {
         let fixture = try Fixture()
-        try fixture.database("first", blobs: [Fixture.blob()])
-        try fixture.database("second", blobs: [Fixture.blob()])
+        let first = try fixture.database("first", blobs: [Fixture.blob(input: 100)])
+        try FileManager.default.setAttributes(
+            [.modificationDate: Fixture.now.addingTimeInterval(-3600)],
+            ofItemAtPath: first.path)
+        let second = try fixture.database("second", blobs: [Fixture.blob(input: 110)])
+        try FileManager.default.setAttributes([.modificationDate: Fixture.now], ofItemAtPath: second.path)
         var limits = AntigravityLocalReader.Limits()
         limits.rows = 1
         let report = try fixture.report(limits: limits)
-        // Hard row exhaustion must withhold — the documented contract says newly truncated reports
-        // are unavailable, even though the first database produced valid rows.
         #expect(report.coverage == .partial)
-        #expect(report.report.data.isEmpty)
-        #expect(report.report.summary == nil)
+        #expect(report.report.summary?.totalTokens == 197)
         #expect(report.statistics.files == 2)
+        #expect(report.statistics.sqliteHandlesOpened == report.statistics.sqliteHandlesClosed)
     }
 
     @Test
-    func `hard byte exhaustion across databases withholds the truncated report`() throws {
+    func `hard byte exhaustion across databases retains completed newest databases as partial`() throws {
         let fixture = try Fixture()
-        let blob = Fixture.blob()
-        try fixture.database("first", blobs: [blob])
-        try fixture.database("second", blobs: [blob])
+        let olderBlob = Fixture.blob(input: 100)
+        let newerBlob = Fixture.blob(input: 110)
+        #expect(olderBlob.count == newerBlob.count)
+        let first = try fixture.database("first", blobs: [olderBlob])
+        try FileManager.default.setAttributes(
+            [.modificationDate: Fixture.now.addingTimeInterval(-3600)],
+            ofItemAtPath: first.path)
+        let second = try fixture.database("second", blobs: [newerBlob])
+        try FileManager.default.setAttributes([.modificationDate: Fixture.now], ofItemAtPath: second.path)
         var limits = AntigravityLocalReader.Limits()
-        limits.bytes = blob.count
+        limits.bytes = newerBlob.count
         let report = try fixture.report(limits: limits)
-        // Hard byte exhaustion must withhold — the documented contract says newly truncated reports
-        // are unavailable, even though the first database produced valid rows.
         #expect(report.coverage == .partial)
-        #expect(report.report.data.isEmpty)
-        #expect(report.report.summary == nil)
+        #expect(report.report.summary?.totalTokens == 197)
         #expect(report.statistics.files == 2)
+        #expect(report.statistics.sqliteHandlesOpened == report.statistics.sqliteHandlesClosed)
     }
 
     @Test
@@ -582,6 +593,354 @@ struct AntigravityLocalScanTests {
             _ = try await fetch.value
             Issue.record("Expected cancelled production fetch")
         } catch is CancellationError {}
+    }
+
+    @Test
+    func `dayRange pre-filtering skips stale databases and keeps boundary databases`() throws {
+        let fixture = try Fixture()
+        let sinceDate = try #require(CostUsageLocalDay.date(fromKey: "2026-07-29", calendar: Fixture.calendar))
+        let oldDB = try fixture.database("old-session", blobs: [Fixture.blob(input: 100)])
+        try FileManager.default.setAttributes(
+            [.modificationDate: sinceDate.addingTimeInterval(-1)],
+            ofItemAtPath: oldDB.path)
+        let boundaryDB = try fixture.database("boundary-session", blobs: [Fixture.blob(input: 110)])
+        try FileManager.default.setAttributes(
+            [.modificationDate: sinceDate],
+            ofItemAtPath: boundaryDB.path)
+
+        let report = try fixture.report(dayRange: ("2026-07-29", "2026-08-27"))
+        #expect(report.coverage == .complete)
+        #expect(report.statistics.files == 1)
+        #expect(report.statistics.sqliteHandlesOpened == 1)
+        #expect(report.statistics.sqliteHandlesClosed == 1)
+        #expect(report.report.summary?.totalTokens == 197)
+    }
+
+    @Test
+    func `dayRange pre-filtering rescues stale database with active WAL sidecar including symlinks`() throws {
+        let fixture = try Fixture()
+        let sinceDate = try #require(CostUsageLocalDay.date(fromKey: "2026-07-29", calendar: Fixture.calendar))
+        let staleDate = sinceDate.addingTimeInterval(-86400)
+        let activeWalDate = sinceDate.addingTimeInterval(3600)
+
+        let directDB = try fixture.database("wal-active", blobs: [Fixture.blob(input: 100)])
+        let directWriter = try Fixture.open(directDB)
+        defer { sqlite3_close(directWriter) }
+        try Fixture.execute(directWriter, "PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0;")
+        try Fixture.insert(directWriter, row: 1, blob: Fixture.blob(input: 110))
+        try FileManager.default.setAttributes([.modificationDate: staleDate], ofItemAtPath: directDB.path)
+        try FileManager.default.setAttributes(
+            [.modificationDate: activeWalDate],
+            ofItemAtPath: directDB.path + "-wal")
+
+        let targetDir = fixture.root.appendingPathComponent("real-targets", isDirectory: true)
+        try FileManager.default.createDirectory(at: targetDir, withIntermediateDirectories: true)
+        let targetDB = targetDir.appendingPathComponent("target-wal.db")
+        let targetWriter = try Fixture.open(targetDB)
+        defer { sqlite3_close(targetWriter) }
+        try Fixture.execute(targetWriter, "CREATE TABLE gen_metadata (idx INTEGER PRIMARY KEY, data BLOB)")
+        try Fixture.insert(targetWriter, row: 0, blob: Fixture.blob(input: 100))
+        try Fixture.execute(targetWriter, "PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0;")
+        try Fixture.insert(targetWriter, row: 1, blob: Fixture.blob(input: 105))
+        try FileManager.default.setAttributes([.modificationDate: staleDate], ofItemAtPath: targetDB.path)
+        try FileManager.default.setAttributes(
+            [.modificationDate: activeWalDate],
+            ofItemAtPath: targetDB.path + "-wal")
+
+        let symlinkURL = fixture.context.databaseRoots[0].appendingPathComponent("symlinked-wal.db")
+        try FileManager.default.createSymbolicLink(at: symlinkURL, withDestinationURL: targetDB)
+
+        let report = try fixture.report(dayRange: ("2026-07-29", "2026-08-27"))
+        #expect(report.coverage == .complete)
+        #expect(report.statistics.files == 2)
+        #expect(report.report.summary?.totalTokens == (187 + 197) + (187 + 192))
+    }
+
+    @Test
+    func `dayRange fails open on invalid sinceKey and retains databases newer than untilKey`() async throws {
+        let fixture = try Fixture()
+        let sinceDate = try #require(CostUsageLocalDay.date(fromKey: "2026-07-29", calendar: Fixture.calendar))
+        let staleDB = try fixture.database("stale-session", blobs: [Fixture.blob(input: 100)])
+        try FileManager.default.setAttributes(
+            [.modificationDate: sinceDate.addingTimeInterval(-86400)],
+            ofItemAtPath: staleDB.path)
+
+        let afterUntilDate = try #require(CostUsageLocalDay.date(fromKey: "2026-09-15", calendar: Fixture.calendar))
+        let activeDB = try fixture.database(
+            "active-after-until",
+            blobs: [Fixture.blob(input: 110, seconds: 1_787_832_000)])
+        try FileManager.default.setAttributes([.modificationDate: afterUntilDate], ofItemAtPath: activeDB.path)
+
+        let failOpenReport = try fixture.report(dayRange: ("not-a-date", "2026-08-27"))
+        #expect(failOpenReport.coverage == .complete)
+        #expect(failOpenReport.statistics.files == 2)
+        #expect(failOpenReport.report.summary?.totalTokens == 187 + 197)
+
+        let report = try fixture.report(includeBreakdowns: true, dayRange: ("2026-07-29", "2026-08-27"))
+        #expect(report.coverage == .complete)
+        #expect(report.statistics.files == 1)
+        #expect(report.report.summary?.totalTokens == 197)
+        #expect(report.sessions.map(\.sessionID) == ["active-after-until"])
+
+        let snapshot = try await fixture.snapshot(historyDays: 30)
+        #expect(snapshot.historyCoverageIsEstablished)
+        #expect(snapshot.last30DaysTokens == 197)
+    }
+
+    @Test
+    func `all databases skipped by dayRange returns confirmed empty without tokscale fallback`() async throws {
+        let fixture = try Fixture()
+        let sinceDate = try #require(CostUsageLocalDay.date(fromKey: "2026-07-29", calendar: Fixture.calendar))
+        let oldDB = try fixture.database("old-session", blobs: [Fixture.blob(seconds: 1_700_000_000)])
+        try FileManager.default.setAttributes(
+            [.modificationDate: sinceDate.addingTimeInterval(-86400)],
+            ofItemAtPath: oldDB.path)
+        try fixture.jsonl([Fixture.cacheUsage])
+
+        let report = try fixture.report(dayRange: ("2026-07-29", "2026-08-27"))
+        #expect(report.coverage == .complete)
+        #expect(report.report.data.isEmpty)
+        #expect(report.report.summary == nil)
+        #expect(report.statistics.files == 0)
+
+        let snapshot = try await fixture.snapshot(historyDays: 30)
+        #expect(snapshot.historyCoverageIsEstablished)
+        #expect(snapshot.last30DaysTokens == 0)
+        #expect(snapshot.daily.isEmpty)
+
+        // Even with a recent foreign conversation_summaries.db alongside skipped DBs, confirmed empty holds.
+        let summaryDB = try fixture.conversationSummariesDatabase(rows: [
+            Fixture.ConversationSummaryRowFixture(
+                conversationID: "old-session",
+                title: "Old session",
+                workspaceURIsJSON: #"["file:///tmp/old-repo"]"#,
+                projectID: "",
+                parentConversationID: ""),
+        ])
+        try FileManager.default.setAttributes([.modificationDate: Fixture.now], ofItemAtPath: summaryDB.path)
+
+        let withSummaryReport = try fixture.report(includeBreakdowns: true, dayRange: ("2026-07-29", "2026-08-27"))
+        #expect(withSummaryReport.coverage == .complete)
+        #expect(withSummaryReport.report.data.isEmpty)
+        #expect(withSummaryReport.report.summary == nil)
+        #expect(withSummaryReport.statistics.foreignDatabases == 1)
+
+        let withSummarySnapshot = try await fixture.snapshot(historyDays: 30)
+        #expect(withSummarySnapshot.historyCoverageIsEstablished)
+        #expect(withSummarySnapshot.last30DaysTokens == 0)
+        #expect(withSummarySnapshot.daily.isEmpty)
+    }
+
+    @Test
+    func `graceful capping at databases rows and bytes preserves newest daily projects and sessions`() throws {
+        let fixture = try Fixture()
+        let oldestBlob = Fixture.blob(input: 100)
+        let middleBlob = Fixture.blob(input: 110)
+        let newestBlob = Fixture.blob(input: 120)
+        #expect(oldestBlob.count == middleBlob.count)
+        #expect(middleBlob.count == newestBlob.count)
+
+        let oldestMeta = Fixture.trajectoryMetadataBlob(workspaces: [.init(workspaceURI: "file:///tmp/oldest-repo")])
+        let middleMeta = Fixture.trajectoryMetadataBlob(workspaces: [.init(workspaceURI: "file:///tmp/middle-repo")])
+        let newestMeta = Fixture.trajectoryMetadataBlob(workspaces: [.init(workspaceURI: "file:///tmp/newest-repo")])
+
+        let oldest = try fixture.database("oldest", blobs: [oldestBlob], trajectoryMetadataBlob: oldestMeta)
+        let middle = try fixture.database("middle", blobs: [middleBlob], trajectoryMetadataBlob: middleMeta)
+        let newest = try fixture.database("newest", blobs: [newestBlob], trajectoryMetadataBlob: newestMeta)
+        let t0 = Fixture.now.addingTimeInterval(-120)
+        try FileManager.default.setAttributes([.modificationDate: t0], ofItemAtPath: oldest.path)
+        try FileManager.default.setAttributes([.modificationDate: t0.addingTimeInterval(60)], ofItemAtPath: middle.path)
+        try FileManager.default.setAttributes(
+            [.modificationDate: t0.addingTimeInterval(120)],
+            ofItemAtPath: newest.path)
+
+        var dbLimits = AntigravityLocalReader.Limits()
+        dbLimits.databases = 2
+        let dbReport = try fixture.report(limits: dbLimits, includeBreakdowns: true)
+        #expect(dbReport.coverage == .partial)
+        #expect(!dbReport.isComplete)
+        #expect(dbReport.statistics.files == 2)
+        #expect(dbReport.report.summary?.totalTokens == 197 + 207)
+        #expect(Set(dbReport.sessions.map(\.sessionID)) == ["middle", "newest"])
+        #expect(Set(dbReport.projects.map(\.name)) == ["middle-repo", "newest-repo"])
+
+        var rowLimits = AntigravityLocalReader.Limits()
+        rowLimits.rows = 2
+        let rowReport = try fixture.report(limits: rowLimits, includeBreakdowns: true)
+        #expect(rowReport.coverage == .partial)
+        #expect(rowReport.report.summary?.totalTokens == 197 + 207)
+        #expect(Set(rowReport.sessions.map(\.sessionID)) == ["middle", "newest"])
+        #expect(Set(rowReport.projects.map(\.name)) == ["middle-repo", "newest-repo"])
+        #expect(rowReport.statistics.sqliteHandlesOpened == rowReport.statistics.sqliteHandlesClosed)
+
+        var byteLimits = AntigravityLocalReader.Limits()
+        byteLimits.bytes = newestBlob.count + middleBlob.count
+        let byteReport = try fixture.report(limits: byteLimits, includeBreakdowns: true)
+        #expect(byteReport.coverage == .partial)
+        #expect(byteReport.report.summary?.totalTokens == 197 + 207)
+        #expect(Set(byteReport.sessions.map(\.sessionID)) == ["middle", "newest"])
+        #expect(Set(byteReport.projects.map(\.name)) == ["middle-repo", "newest-repo"])
+        #expect(byteReport.statistics.sqliteHandlesOpened == byteReport.statistics.sqliteHandlesClosed)
+    }
+}
+
+extension AntigravityLocalScanTests {
+    @Test
+    func `directoryEntries cap overflow retains prior databases and avoids tokscale fallback when empty`() throws {
+        let fixture = try Fixture()
+        let root0 = fixture.context.databaseRoots[0]
+        try FileManager.default.createDirectory(at: root0, withIntermediateDirectories: true)
+        try fixture.database("db-1", rootIndex: 0, blobs: [Fixture.blob(input: 100)])
+        try fixture.database("db-2", rootIndex: 0, blobs: [Fixture.blob(input: 110)])
+        try "extra".write(to: root0.appendingPathComponent("note-1.txt"), atomically: true, encoding: .utf8)
+        try "extra".write(to: root0.appendingPathComponent("note-2.txt"), atomically: true, encoding: .utf8)
+
+        var capLimits = AntigravityLocalReader.Limits()
+        capLimits.directoryEntries = 3
+        let budget = AntigravityLocalReader.Budget(limits: capLimits, cancellation: {})
+        let discovery = try AntigravityLocalReader.discover(
+            roots: fixture.context.databaseRoots,
+            extension: "db",
+            budget: budget)
+        #expect(!discovery.isComplete)
+        #expect(!discovery.paths.isEmpty)
+
+        let partialReport = try fixture.report(limits: capLimits, includeBreakdowns: true)
+        #expect(partialReport.coverage == .partial)
+        #expect(!partialReport.report.data.isEmpty)
+        #expect(!partialReport.sessions.isEmpty)
+
+        let emptyOverflow = try Fixture()
+        let emptyRoot = emptyOverflow.context.databaseRoots[0]
+        try FileManager.default.createDirectory(at: emptyRoot, withIntermediateDirectories: true)
+        for index in 0..<4 {
+            try "txt".write(
+                to: emptyRoot.appendingPathComponent("non-db-\(index).txt"),
+                atomically: true,
+                encoding: .utf8)
+        }
+        try emptyOverflow.jsonl([Fixture.cacheUsage])
+        let emptyPartial = try emptyOverflow.report(limits: capLimits)
+        #expect(emptyPartial.coverage == .partial)
+        #expect(emptyPartial.report.data.isEmpty)
+        #expect(emptyPartial.report.summary == nil)
+    }
+
+    @Test
+    func `duration exhaustion in conversation summaries and multi-file JSONL retains partial history`() throws {
+        let summaryFixture = try Fixture()
+        let meta = Fixture.trajectoryMetadataBlob(workspaces: [.init(workspaceURI: "file:///tmp/summary-proj")])
+        try summaryFixture.database(
+            "conv-1",
+            blobs: [Fixture.blob(input: 100)],
+            trajectoryMetadataBlob: meta)
+        try summaryFixture.conversationSummariesDatabase(rows: [])
+        var warmTicks = 0
+        let baseline = try summaryFixture.report(includeBreakdowns: true, clock: {
+            defer { warmTicks += 1 }
+            return 0
+        })
+        #expect(baseline.coverage == .complete)
+
+        let summaryURL = summaryFixture.root
+            .appendingPathComponent(".gemini/antigravity/conversation_summaries.db")
+        try? FileManager.default.removeItem(at: summaryURL)
+        try summaryFixture.conversationSummariesDatabase(rows: (0..<5).map { idx in
+            Fixture.ConversationSummaryRowFixture(
+                conversationID: idx == 0 ? "conv-1" : "other-\(idx)",
+                title: "Summary title \(idx)",
+                workspaceURIsJSON: #"["file:///tmp/summary-proj"]"#,
+                projectID: "",
+                parentConversationID: "")
+        })
+        var summaryTick = 0
+        var summaryLimits = AntigravityLocalReader.Limits()
+        summaryLimits.duration = 5
+        let summaryReport = try summaryFixture.report(
+            limits: summaryLimits,
+            includeBreakdowns: true,
+            clock: {
+                defer { summaryTick += 1 }
+                return summaryTick >= warmTicks ? 10.0 : 0.0
+            })
+        #expect(summaryReport.coverage == .partial)
+        #expect(!summaryReport.report.data.isEmpty)
+        #expect(summaryReport.sessions.map(\.sessionID) == ["conv-1"])
+
+        let jsonlFixture = try Fixture()
+        let j1 = try jsonlFixture.jsonl([Fixture.cacheUsage], session: "j1")
+        let j2Line = #"{"type":"usage","sessionId":"j2-session","input":200,"output":40,"#
+            + #""cacheRead":0,"cacheWrite":0,"reasoning":0,"timestamp":1787832100000,"responseId":null}"#
+        let j2 = try jsonlFixture.jsonl([j2Line], session: "j2")
+        try FileManager.default.setAttributes([.modificationDate: Fixture.now], ofItemAtPath: j1.path)
+        try FileManager.default.setAttributes(
+            [.modificationDate: Fixture.now.addingTimeInterval(-60)],
+            ofItemAtPath: j2.path)
+
+        var jsonlWarmTicks = 0
+        let firstOnlyBudget = AntigravityLocalReader.Budget(
+            limits: .init(),
+            clock: {
+                defer { jsonlWarmTicks += 1 }
+                return 0
+            },
+            cancellation: {})
+        _ = try AntigravityLocalReader.readJSONL([j1], budget: firstOnlyBudget)
+
+        var jsonlTick = 0
+        var jsonlLimits = AntigravityLocalReader.Limits()
+        jsonlLimits.duration = 5
+        let jsonlBudget = AntigravityLocalReader.Budget(
+            limits: jsonlLimits,
+            clock: {
+                defer { jsonlTick += 1 }
+                return jsonlTick > jsonlWarmTicks ? 10.0 : 0.0
+            },
+            cancellation: {})
+        let jsonlPartial = try AntigravityLocalReader.readJSONL([j1, j2], budget: jsonlBudget)
+        #expect(!jsonlPartial.isComplete)
+        #expect(jsonlPartial.containsHistorySource)
+        #expect(jsonlPartial.events.map(\.session) == ["cache-session"])
+    }
+
+    @Test
+    func `equal mtime across multi-root discovery breaks ties by path and marks partial`() throws {
+        let fixture = try Fixture()
+        let sharedTime = Fixture.now
+        let root0DB = try fixture.database("root0-session", rootIndex: 0, blobs: [Fixture.blob(input: 100)])
+        let root2DB = try fixture.database("root2-session", rootIndex: 2, blobs: [Fixture.blob(input: 200)])
+        try FileManager.default.setAttributes([.modificationDate: sharedTime], ofItemAtPath: root0DB.path)
+        try FileManager.default.setAttributes([.modificationDate: sharedTime], ofItemAtPath: root2DB.path)
+
+        var limits = AntigravityLocalReader.Limits()
+        limits.databases = 1
+        let discovery = try AntigravityLocalReader.discover(
+            roots: fixture.context.databaseRoots,
+            extension: "db",
+            budget: AntigravityLocalReader.Budget(limits: limits, cancellation: {}))
+        let expectedWinner = try #require([root0DB, root2DB]
+            .map { $0.standardizedFileURL.resolvingSymlinksInPath() }
+            .min { $0.path < $1.path })
+        #expect(!discovery.isComplete)
+        #expect(discovery.paths.map { $0.standardizedFileURL.resolvingSymlinksInPath() } == [expectedWinner])
+
+        let partial = try fixture.report(limits: limits, includeBreakdowns: true)
+        let tokenSnapshot = CostUsageFetcher.tokenSnapshot(
+            from: partial.report,
+            now: Fixture.now,
+            historyDays: 30,
+            useCurrentLocalDayForSession: true,
+            calendar: Fixture.calendar,
+            historyCoverageIsEstablished: partial.isComplete,
+            historyScanIsPartial: !partial.isComplete,
+            projects: partial.projects,
+            sessions: partial.sessions,
+            detailsAreComplete: partial.isComplete)
+        #expect(partial.coverage == .partial)
+        #expect(tokenSnapshot.historyScanIsPartial)
+        #expect(!tokenSnapshot.historyCoverageIsEstablished)
+        #expect(!tokenSnapshot.daily.isEmpty)
+        #expect(!tokenSnapshot.sessions.isEmpty)
     }
 }
 

@@ -146,4 +146,102 @@ struct AntigravityCLICostTests {
         #expect(text.contains("No token usage found in the selected period.") == (source == "empty"))
         if source == "valid" { #expect(text.contains("187")) }
     }
+
+    @Test
+    func `project and session text grouping work for both priced and unpriced Antigravity snapshots`() {
+        let activityDate = Date(timeIntervalSince1970: 1_750_000_000)
+        let unpricedProject = CostUsageProjectBreakdown(
+            name: "ag-unpriced",
+            path: "/Users/test/dev/ag-unpriced",
+            totalTokens: 250,
+            totalCostUSD: nil,
+            daily: [],
+            modelBreakdowns: nil)
+        let unpricedSession = CostUsageSessionBreakdown(
+            sessionID: "cascade-unpriced-123456",
+            lastActivity: activityDate,
+            inputTokens: 150,
+            cachedInputTokens: 0,
+            outputTokens: 100,
+            totalTokens: 250,
+            requestCount: 2,
+            costUSD: nil,
+            modelBreakdowns: [CostUsageDailyReport.ModelBreakdown(modelName: "gemini-2.5-pro", costUSD: nil)])
+        let unpricedSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: 250,
+            sessionCostUSD: nil,
+            last30DaysTokens: 250,
+            last30DaysCostUSD: nil,
+            historyDays: 30,
+            daily: [],
+            projects: [unpricedProject],
+            sessions: [unpricedSession],
+            updatedAt: activityDate)
+
+        let unpricedProjectsText = CodexBarCLI.renderCostText(
+            provider: .antigravity,
+            snapshot: unpricedSnapshot,
+            groupBy: .project,
+            useColor: false)
+        #expect(unpricedProjectsText.contains("Antigravity Token History"))
+        #expect(unpricedProjectsText.contains("Projects (Last 30 days):"))
+        #expect(unpricedProjectsText.contains("ag-unpriced: — · 250 tokens"))
+        #expect(unpricedProjectsText.contains("dollar costs unavailable"))
+
+        let unpricedSessionsText = CodexBarCLI.renderCostText(
+            provider: .antigravity,
+            snapshot: unpricedSnapshot,
+            groupBy: .session,
+            useColor: false)
+        #expect(unpricedSessionsText.contains("Antigravity Token History"))
+        #expect(unpricedSessionsText.contains("Conversations (Last 30 days):"))
+        #expect(unpricedSessionsText.contains("Session casc...d-123456: — · 250 tokens · 2 requests"))
+        #expect(unpricedSessionsText.contains("dollar costs unavailable"))
+
+        let pricedProject = CostUsageProjectBreakdown(
+            name: "ag-priced",
+            path: "/Users/test/dev/ag-priced",
+            totalTokens: 400,
+            totalCostUSD: 0.42,
+            daily: [],
+            modelBreakdowns: nil)
+        let pricedSession = CostUsageSessionBreakdown(
+            sessionID: "cascade-priced-987654",
+            lastActivity: activityDate,
+            inputTokens: 300,
+            cachedInputTokens: 0,
+            outputTokens: 100,
+            totalTokens: 400,
+            requestCount: 3,
+            costUSD: 0.42,
+            modelBreakdowns: [CostUsageDailyReport.ModelBreakdown(modelName: "gemini-2.5-pro", costUSD: 0.42)])
+        let pricedSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: 400,
+            sessionCostUSD: 0.42,
+            last30DaysTokens: 400,
+            last30DaysCostUSD: 0.42,
+            costProvenance: .listPriceEstimate,
+            daily: [],
+            projects: [pricedProject],
+            sessions: [pricedSession],
+            updatedAt: activityDate)
+
+        let pricedProjectsText = CodexBarCLI.renderCostText(
+            provider: .antigravity,
+            snapshot: pricedSnapshot,
+            groupBy: .project,
+            useColor: false)
+        #expect(pricedProjectsText.contains("Antigravity Cost (API-rate estimate)"))
+        #expect(pricedProjectsText.contains("Projects (Last 30 days):"))
+        #expect(pricedProjectsText.contains("ag-priced: $0.42 · 400 tokens"))
+        #expect(pricedProjectsText.contains("not Antigravity charges or credits"))
+
+        let pricedSessionsText = CodexBarCLI.renderCostText(
+            provider: .antigravity,
+            snapshot: pricedSnapshot,
+            groupBy: .session,
+            useColor: false)
+        #expect(pricedSessionsText.contains("Conversations (Last 30 days):"))
+        #expect(pricedSessionsText.contains("Session casc...d-987654: $0.42 · 400 tokens · 3 requests"))
+    }
 }

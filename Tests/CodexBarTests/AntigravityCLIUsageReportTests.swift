@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+@testable import CodexBarCLI
 @testable import CodexBarCore
 #if canImport(Darwin)
 import Darwin
@@ -786,5 +787,213 @@ extension AntigravityCLIHTTPSFetchStrategyTests {
             "command": ["name": command, "data": ["groups": [["name": "Gemini Models", "buckets": [bucket]]]]],
         ]
         return try #require(String(data: JSONSerialization.data(withJSONObject: report), encoding: .utf8))
+    }
+
+    @Test
+    func `CLI report parses group rosters into catalog details and ProviderPayload JSON`() throws {
+        let json = """
+        {
+          "status": "SUCCESS",
+          "command": {
+            "name": "usage",
+            "data": {
+              "groups": [
+                {
+                  "name": "Gemini Models",
+                  "description": "Models within this group: Gemini 3 Flash, Gemini 3.1 Pro",
+                  "buckets": [
+                    {
+                      "id": "gemini-5h",
+                      "name": "Five Hour Limit",
+                      "window": "5h",
+                      "remaining_fraction": 0.85,
+                      "remaining_amount": "170"
+                    }
+                  ]
+                },
+                {
+                  "name": "Gemini 4 Argon",
+                  "description": "For paid Pro plans, Argon quota is separate.",
+                  "buckets": [
+                    {
+                      "id": "gemini-argon-weekly",
+                      "name": "Weekly Limit",
+                      "window": "weekly",
+                      "remaining_fraction": 0.6
+                    }
+                  ]
+                }
+              ],
+              "model_availabilities": {
+                "gemini-3-flash": { "state": "MODEL_AVAILABILITY_STATE_OPERATIONAL" }
+              }
+            }
+          }
+        }
+        """
+
+        let snapshot = try AntigravityStatusProbe.parseCLIUsageReport(Data(json.utf8))
+        let usage = try snapshot.toUsageSnapshot()
+        let rosters = try #require(usage.antigravityCatalog?.quotaGroups)
+        #expect(rosters.count == 2)
+        #expect(rosters[0].displayName == "Gemini Models")
+        #expect(rosters[0].models == ["Gemini 3 Flash", "Gemini 3.1 Pro"])
+        #expect(rosters[0].bucketIds == ["gemini-5h"])
+        #expect(rosters[1].displayName == "Gemini 4 Argon")
+        #expect(rosters[1].models.isEmpty)
+        #expect(rosters[1].description == "For paid Pro plans, Argon quota is separate.")
+        #expect(usage.antigravityCatalog?.modelAvailabilities?["gemini-3-flash"]?.state
+            == "MODEL_AVAILABILITY_STATE_OPERATIONAL")
+        let groupsSection = try #require(usage.details.first { $0.title == "Quota groups" })
+        #expect(groupsSection.rows.map(\.label) == ["Gemini Models", "Gemini 4 Argon"])
+        #expect(groupsSection.rows.map(\.value) == [
+            "Gemini 3 Flash, Gemini 3.1 Pro",
+            "For paid Pro plans, Argon quota is separate.",
+        ])
+
+        let payload = ProviderPayload(
+            provider: .antigravity,
+            account: nil,
+            version: nil,
+            source: "cli",
+            status: nil,
+            usage: usage,
+            credits: nil,
+            antigravityPlanInfo: nil,
+            openaiDashboard: nil,
+            error: nil)
+        let encoded = try JSONEncoder().encode(payload)
+        let decodedJSON = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        let decodedUsage = try #require(decodedJSON["usage"] as? [String: Any])
+        let decodedCatalog = try #require(decodedUsage["antigravityCatalog"] as? [String: Any])
+        let decodedGroups = try #require(decodedCatalog["quotaGroups"] as? [[String: Any]])
+        #expect(decodedGroups.count == 2)
+    }
+
+    @Test
+    func `CLI report stops group parsing at sentence or newline and drops overflowing remaining_amount`() throws {
+        let json = """
+        {
+          "status": "SUCCESS",
+          "command": {
+            "name": "usage",
+            "data": {
+              "groups": [
+                {
+                  "name": "Gemini Models",
+                  "description": "Models within this group: Gemini 3.1 Pro, Gemini 3 Flash. Resets every 5 hours.",
+                  "buckets": [
+                    {
+                      "id": "gemini-5h",
+                      "name": "Five Hour Limit",
+                      "window": "5h",
+                      "remaining_fraction": 0.75,
+                      "remaining_amount": "99999999999999999999999"
+                    }
+                  ]
+                },
+                {
+                  "name": "Claude and GPT models",
+                  "description": "Models within this group: Claude Sonnet 4.6, GPT-OSS 120B\\nResets weekly.",
+                  "buckets": [
+                    {
+                      "id": "3p-weekly",
+                      "name": "Weekly Limit",
+                      "window": "weekly",
+                      "remaining_fraction": 0.5,
+                      "remaining_amount": "50"
+                    }
+                  ]
+                },
+                {
+                  "name": "Experimental",
+                  "description": "Models within this group: Gemini 3.5 Pro, Gemini 3.5 Flash.",
+                  "buckets": [
+                    {
+                      "id": "exp-5h",
+                      "name": "Experimental 5h",
+                      "window": "5h",
+                      "remaining_fraction": 0.9
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+        """
+
+        let snapshot = try AntigravityStatusProbe.parseCLIUsageReport(Data(json.utf8))
+        let usage = try snapshot.toUsageSnapshot()
+        let rosters = try #require(usage.antigravityCatalog?.quotaGroups)
+        #expect(rosters.count == 3)
+        #expect(rosters[0].models == ["Gemini 3.1 Pro", "Gemini 3 Flash"])
+        #expect(rosters[1].models == ["Claude Sonnet 4.6", "GPT-OSS 120B"])
+        #expect(rosters[2].models == ["Gemini 3.5 Pro", "Gemini 3.5 Flash"])
+
+        let groups = try #require(snapshot.quotaSummary?.groups)
+        #expect(groups[0].buckets.first?.remainingFraction == 0.75)
+        #expect(groups[0].buckets.first?.remainingAmount == nil)
+        #expect(groups[1].buckets.first?.remainingAmount == 50)
+    }
+
+    @Test
+    func `group description roster parsing strips leading newlines and stops at CRLF or tab dot boundaries`() throws {
+        let cliJSON = #"""
+        {
+          "status": "SUCCESS",
+          "command": {
+            "name": "usage",
+            "data": {
+              "groups": [
+                {
+                  "name": "Gemini CRLF",
+                  "description": "Models within this group: Gemini 3.1 Pro, Gemini 3 Flash\r\nResets every 5h.",
+                  "buckets": [{ "id": "g1", "window": "5h", "remaining_fraction": 0.9 }]
+                },
+                {
+                  "name": "Claude Leading LF",
+                  "description": "Models within this group:\nClaude Sonnet 4.6, GPT-OSS 120B\nResets weekly.",
+                  "buckets": [{ "id": "g2", "window": "weekly", "remaining_fraction": 0.8 }]
+                },
+                {
+                  "name": "Argon Leading CRLF",
+                  "description": "Models within this group:\r\nGemini 4 Argon, Gemini 4 Flash\r\nResets daily.",
+                  "buckets": [{ "id": "g3", "window": "5h", "remaining_fraction": 0.7 }]
+                },
+                {
+                  "name": "Tab Dot CRLF",
+                  "description": "Models:\t  Model A, Model B.\r\nFooter",
+                  "buckets": [{ "id": "g4", "window": "5h", "remaining_fraction": 0.6 }]
+                }
+              ]
+            }
+          }
+        }
+        """#
+        let cliSnapshot = try AntigravityStatusProbe.parseCLIUsageReport(Data(cliJSON.utf8))
+        let cliGroups = try #require(try cliSnapshot.toUsageSnapshot().antigravityCatalog?.quotaGroups)
+        #expect(cliGroups[0].models == ["Gemini 3.1 Pro", "Gemini 3 Flash"])
+        #expect(cliGroups[1].models == ["Claude Sonnet 4.6", "GPT-OSS 120B"])
+        #expect(cliGroups[2].models == ["Gemini 4 Argon", "Gemini 4 Flash"])
+        #expect(cliGroups[3].models == ["Model A", "Model B"])
+        for group in cliGroups {
+            #expect(group.models.allSatisfy { !$0.contains("\r") && !$0.contains("\n") && !$0.contains("Resets") })
+        }
+
+        let summaryJSON = #"""
+        {
+          "groups": [
+            {
+              "displayName": "Summary CRLF",
+              "description": "Models within this group:\r\nGemini 3.1 Pro, Gemini 3 Flash\r\nResets every 5h.",
+              "buckets": [{ "bucketId": "sg1", "window": "5h", "remainingFraction": 0.85 }]
+            }
+          ]
+        }
+        """#
+        let summarySnapshot = try AntigravityStatusProbe.parseQuotaSummaryResponse(Data(summaryJSON.utf8))
+        let summaryGroups = try #require(try summarySnapshot.toUsageSnapshot().antigravityCatalog?.quotaGroups)
+        #expect(summaryGroups.first?.models == ["Gemini 3.1 Pro", "Gemini 3 Flash"])
     }
 }

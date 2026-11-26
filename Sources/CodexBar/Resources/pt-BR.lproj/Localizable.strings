@@ -2872,3 +2872,27 @@
 "MiMo is rate limiting requests. Try again later." = "O MiMo está limitando a frequência das solicitações. Tente novamente mais tarde.";
 "MiMo request failed. Try refreshing later." = "A solicitação ao MiMo falhou. Tente atualizar mais tarde.";
 "Skip cost refresh" = "Ignorar a atualização de custos";
+
+/* Antigravity detail sections and settings */
+"Model availability" = "Model availability";
+"Bucket amounts" = "Bucket amounts";
+"Prompt credits" = "Prompt credits";
+"Flow credits" = "Flow credits";
+"Flex credits" = "Flex credits";
+"Auto top-up" = "Auto top-up";
+"Available credits" = "Available credits";
+"Google One credits" = "Google One credits";
+"Quota groups" = "Grupos de cota";
+"Model catalog" = "Catálogo de modelos";
+"Show Prompt, Flow & Flex credits" = "Show Prompt, Flow & Flex credits";
+"Display Antigravity credit balances and plan renewal details when available." = "Display Antigravity credit balances and plan renewal details when available.";
+"Scan Antigravity desktop logs" = "Scan Antigravity desktop logs";
+"Include local trajectories from ~/.gemini/antigravity." = "Include local trajectories from ~/.gemini/antigravity.";
+"Scan agy CLI logs" = "Scan agy CLI logs";
+"Include local trajectories from ~/.gemini/antigravity-cli." = "Include local trajectories from ~/.gemini/antigravity-cli.";
+"Use tokscale cache fallback" = "Use tokscale cache fallback";
+"Fall back to ~/.config/tokscale/antigravity-cache when no SQLite logs exist." = "Fall back to ~/.config/tokscale/antigravity-cache when no SQLite logs exist.";
+"Primary quota pool" = "Primary quota pool";
+"Choose which pool leads Automatic mode and the top card bar." = "Choose which pool leads Automatic mode and the top card bar.";
+"Project grouping" = "Project grouping";
+"Group local conversation costs by workspace folder or Git repository." = "Group local conversation costs by workspace folder or Git repository.";

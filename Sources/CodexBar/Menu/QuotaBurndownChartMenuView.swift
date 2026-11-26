@@ -20,33 +20,45 @@ struct QuotaBurndownChartMenuView: View {
     init(
         provider: UsageProvider,
         histories: [PlanUtilizationSeriesHistory],
+        snapshot: UsageSnapshot? = nil,
         width: CGFloat,
         referenceDate: Date = Date())
     {
-        self.series = PlanUtilizationHistoryChartMenuView.visibleSeries(
-            histories: histories, provider: provider, snapshot: nil).compactMap { series in
-            let history = series.history
-            guard [.session, .weekly, .monthly, .opus].contains(history.name),
-                  let latest = history.entries.last,
-                  let reset = latest.resetsAt,
-                  latest.capturedAt <= referenceDate,
-                  reset > referenceDate
-            else { return nil }
-            let window = ProviderDescriptorRegistry.descriptor(for: provider).pace.resolvedResetWindowForPace(
-                RateWindow(
-                    usedPercent: latest.usedPercent,
-                    windowMinutes: history.windowMinutes,
-                    resetsAt: reset,
-                    resetDescription: nil))
-            guard let model = QuotaBurndownModel(history: history, window: window, now: latest.capturedAt)
-            else { return nil }
-            return Series(
-                id: series.id,
-                title: series.title,
-                model: model,
-                lastKnownUsageMessage: LastKnownUsagePresentation.message(
-                    capturedAt: latest.capturedAt,
-                    now: referenceDate))
+        // Provider-specific by design: Antigravity pool observations have no session/weekly cadence.
+        let usesAntigravityObservations = provider == .antigravity
+            && UsageStore.antigravityHistoryUsesObservations(snapshot: snapshot, histories: histories)
+        if usesAntigravityObservations {
+            self.series = []
+        } else {
+            self.series = PlanUtilizationHistoryChartMenuView.visibleSeries(
+                histories: histories,
+                provider: provider,
+                snapshot: provider == .antigravity ? snapshot : nil,
+                useAntigravityObservations: usesAntigravityObservations).compactMap { series in
+                let history = series.history
+                guard [.session, .weekly, .monthly, .opus, .antigravityClaudeGPTSession, .antigravityClaudeGPTWeekly]
+                    .contains(history.name),
+                    let latest = history.entries.last,
+                    let reset = latest.resetsAt,
+                    latest.capturedAt <= referenceDate,
+                    reset > referenceDate
+                else { return nil }
+                let window = ProviderDescriptorRegistry.descriptor(for: provider).pace.resolvedResetWindowForPace(
+                    RateWindow(
+                        usedPercent: latest.usedPercent,
+                        windowMinutes: history.windowMinutes,
+                        resetsAt: reset,
+                        resetDescription: nil))
+                guard let model = QuotaBurndownModel(history: history, window: window, now: latest.capturedAt)
+                else { return nil }
+                return Series(
+                    id: series.id,
+                    title: series.title,
+                    model: model,
+                    lastKnownUsageMessage: LastKnownUsagePresentation.message(
+                        capturedAt: latest.capturedAt,
+                        now: referenceDate))
+            }
         }
         self.width = width
         let accent = ProviderAccentPalette.color(for: provider)

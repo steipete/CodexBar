@@ -6,24 +6,40 @@ import CSQLite3
 #endif
 
 extension AntigravityLocalReader {
-    static func readDatabases(_ paths: [URL], budget: Budget) throws -> SourceResult {
+    static func readDatabases(
+        _ paths: [URL],
+        budget: Budget,
+        includeBreakdowns: Bool = false) throws -> SourceResult
+    {
         var result = SourceResult()
         for url in paths {
+            guard budget.statistics.files < budget.limits.databases else {
+                result.isComplete = false
+                break
+            }
             do {
                 try budget.check()
                 budget.statistics.files += 1
-                guard budget.statistics.files <= budget.limits.databases else { throw ScanFailure.exhausted }
                 budget.beginDatabase()
-                let source = try self.readDatabase(url, budget: budget)
+                let source = try self.readDatabase(url, budget: budget, includeBreakdowns: includeBreakdowns)
                 result.events.append(contentsOf: source.events)
                 result.isComplete = result.isComplete && source.isComplete
                 result.containsHistorySource = result.containsHistorySource || source.containsHistorySource
                 result.evidenceIsUnstable = result.evidenceIsUnstable || source.evidenceIsUnstable
+                result.trajectoryMetadataBySession.merge(source.trajectoryMetadataBySession) { current, _ in current }
             } catch ScanFailure.schemaExhausted {
                 // Schema limits apply to each database, so an oversized schema costs only its own database.
-                // Rows from the other databases stay valid partial history. Hard row, byte, and duration
-                // limits are not caught here and continue to withhold newly truncated reports as documented.
+                // Rows from the other databases stay valid partial history.
                 result.isComplete = false
+            } catch ScanFailure.exhausted {
+                // Keep already-completed databases as partial history. Stop scanning if job-wide limits are hit.
+                result.isComplete = false
+                if budget.isJobExhausted {
+                    if !result.containsHistorySource, result.events.isEmpty {
+                        throw ScanFailure.exhausted
+                    }
+                    break
+                }
             }
         }
         return result
@@ -79,15 +95,23 @@ extension AntigravityLocalReader {
         }
     }
 
-    private static func readDatabase(_ url: URL, budget: Budget) throws -> SourceResult {
-        let attempt = try self.readDatabase(url, budget: budget, mode: .readOnly)
+    private static func readDatabase(
+        _ url: URL,
+        budget: Budget,
+        includeBreakdowns: Bool) throws -> SourceResult
+    {
+        let attempt = try self.readDatabase(url, budget: budget, mode: .readOnly, includeBreakdowns: includeBreakdowns)
         // Some SQLite builds (Apple's system library among them) decline read-only access to a WAL database
         // whose -wal and -shm sidecars are absent, because a read-only connection may not create them.
         // A cleanly closed conversation is exactly that file. An absent -wal also means no WAL connection
         // holds the database, so the main file alone carries the checkpointed state.
         guard attempt.cannotOpen, let before = SQLiteIdleDatabaseState.read(at: url) else { return attempt.source }
         budget.statistics.immutableFallbacks += 1
-        var source = try self.readDatabase(url, budget: budget, mode: .immutable).source
+        var source = try self.readDatabase(
+            url,
+            budget: budget,
+            mode: .immutable,
+            includeBreakdowns: includeBreakdowns).source
         // An immutable connection neither locks nor detects changes. A writer that appeared during the read
         // could have checkpointed pages into the main file, so the result is trusted only when the file and
         // its sidecar state are unchanged afterwards. Anything else stays incomplete, as before.
@@ -130,7 +154,12 @@ extension AntigravityLocalReader {
     }
     #endif
 
-    private static func readDatabase(_ url: URL, budget: Budget, mode: OpenMode) throws -> DatabaseAttempt {
+    private static func readDatabase(
+        _ url: URL,
+        budget: Budget,
+        mode: OpenMode,
+        includeBreakdowns: Bool) throws -> DatabaseAttempt
+    {
         #if canImport(SQLite3) || canImport(CSQLite3)
         let opened = self.openDatabase(url, mode: mode, budget: budget)
         guard let database = opened.database else {
@@ -224,41 +253,18 @@ extension AntigravityLocalReader {
         let session = url.deletingPathExtension().lastPathComponent
         var rows = try self.readRows(activeStatement, session: session, progress: progress)
         if !rows.pendingTimestampRows.isEmpty {
-            // Positional recovery is safe only when every generation row participated in the occurrence list.
-            // A malformed row can still carry a reused step UUID, so partial primary scans must not realign later rows.
-            guard rows.source.isComplete else { return DatabaseAttempt(rows.source) }
-            // Release the gen_metadata cursor before the optional steps pass reuses the same snapshot.
-            sqlite3_finalize(activeStatement)
+            try self.recoverPendingStepTimestampsIfNeeded(
+                database,
+                statement: &statement,
+                rows: &rows,
+                session: session,
+                progress: progress)
+        }
+        if includeBreakdowns {
+            sqlite3_finalize(statement)
             statement = nil
-            let hasSteps = try self.inspectSQLiteTableSupport(
-                database, table: "steps", payloadColumn: "metadata", budget: budget) == .supported
-            if let failure = progress.failure {
-                throw failure
-            }
-            if hasSteps {
-                var neededStepOccurrences: [String: [StepOccurrence]] = [:]
-                for stepUUID in Set(rows.pendingTimestampRows.map(\.stepUUID)) {
-                    neededStepOccurrences[stepUUID] = rows.stepOccurrences[stepUUID] ?? []
-                }
-                let stepScan = try self.readStepTimestamps(
-                    database,
-                    neededStepOccurrences: neededStepOccurrences,
-                    progress: progress)
-                guard stepScan.isComplete,
-                      self.embeddedTimestampsAgree(neededStepOccurrences, with: stepScan, botIDUses: rows.botIDUses)
-                else {
-                    rows.source.isComplete = false
-                    return DatabaseAttempt(rows.source)
-                }
-                let recoveredCount = self.appendRecoveredEvents(
-                    to: &rows,
-                    session: session,
-                    stepScan: stepScan)
-                if recoveredCount < rows.pendingTimestampRows.count {
-                    rows.source.isComplete = false
-                }
-            } else {
-                rows.source.isComplete = false
+            if let metadata = try self.readTrajectoryMetadataIfPresent(database, budget: budget) {
+                rows.source.trajectoryMetadataBySession[session] = metadata
             }
         }
         return DatabaseAttempt(rows.source)
@@ -266,6 +272,255 @@ extension AntigravityLocalReader {
         return DatabaseAttempt(SourceResult(isComplete: false))
         #endif
     }
+
+    #if canImport(SQLite3) || canImport(CSQLite3)
+    private static func recoverPendingStepTimestampsIfNeeded(
+        _ database: OpaquePointer,
+        statement: inout OpaquePointer?,
+        rows: inout ParsedRows,
+        session: String,
+        progress: SQLProgress) throws
+    {
+        // Positional recovery is safe only when every generation row participated in the occurrence list.
+        // A malformed row can still carry a reused step UUID, so partial primary scans must not realign later rows.
+        guard rows.source.isComplete else { return }
+        // Release the gen_metadata cursor before the optional steps pass reuses the same snapshot.
+        sqlite3_finalize(statement)
+        statement = nil
+        let hasSteps = try self.inspectSQLiteTableSupport(
+            database, table: "steps", payloadColumn: "metadata", budget: progress.budget) == .supported
+        if let failure = progress.failure {
+            throw failure
+        }
+        guard hasSteps else {
+            rows.source.isComplete = false
+            return
+        }
+        var neededStepOccurrences: [String: [StepOccurrence]] = [:]
+        for stepUUID in Set(rows.pendingTimestampRows.map(\.stepUUID)) {
+            neededStepOccurrences[stepUUID] = rows.stepOccurrences[stepUUID] ?? []
+        }
+        let stepScan = try self.readStepTimestamps(
+            database,
+            neededStepOccurrences: neededStepOccurrences,
+            progress: progress)
+        guard stepScan.isComplete,
+              self.embeddedTimestampsAgree(neededStepOccurrences, with: stepScan, botIDUses: rows.botIDUses)
+        else {
+            rows.source.isComplete = false
+            return
+        }
+        let recoveredCount = self.appendRecoveredEvents(
+            to: &rows,
+            session: session,
+            stepScan: stepScan)
+        if recoveredCount < rows.pendingTimestampRows.count {
+            rows.source.isComplete = false
+        }
+    }
+
+    private static func readTrajectoryMetadataIfPresent(
+        _ database: OpaquePointer,
+        budget: Budget) throws -> AntigravityProtoReader.TrajectoryMetadata?
+    {
+        do {
+            let support = try self.inspectSQLiteTableSupport(
+                database,
+                table: "trajectory_metadata_blob",
+                requiredColumns: ["id", "data"],
+                budget: budget)
+            guard support == .supported else { return nil }
+            var statement: OpaquePointer?
+            defer { sqlite3_finalize(statement) }
+            let query = """
+            SELECT id, CASE WHEN typeof(data) = 'blob' THEN length(data) END,
+                CASE WHEN typeof(data) = 'blob' AND length(data) <= ? THEN data END
+            FROM main.trajectory_metadata_blob NOT INDEXED
+            WHERE id = 'main'
+            LIMIT 1
+            """
+            guard sqlite3_prepare_v2(database, query, -1, &statement, nil) == SQLITE_OK,
+                  let statement
+            else { return nil }
+            sqlite3_bind_int64(statement, 1, Int64(budget.limits.blobBytes))
+            try budget.check()
+            guard sqlite3_step(statement) == SQLITE_ROW else { return nil }
+            let count = Int(sqlite3_column_int64(statement, 1))
+            let payload = SQLitePayload(statement: statement)
+            let attemptedBytes = max(count, payload.byteCount)
+            guard budget.canChargeMetadataBytes(attemptedBytes),
+                  count > 0,
+                  count <= budget.limits.blobBytes,
+                  let bytes = payload.copy(declaredCount: count, limit: budget.limits.blobBytes)
+            else { return nil }
+            return try AntigravityProtoReader.parseTrajectoryMetadata(bytes, checkCancellation: budget.check)
+        } catch let error as CancellationError {
+            throw error
+        } catch ScanFailure.schemaExhausted {
+            return nil
+        } catch ScanFailure.invalid {
+            return nil
+        }
+    }
+
+    static func readConversationSummaries(
+        urls: [URL],
+        budget: Budget) throws -> (summaries: [String: ConversationSummaryMetadata], isComplete: Bool)
+    {
+        var summaries: [String: ConversationSummaryMetadata] = [:]
+        var isComplete = true
+        for url in urls {
+            do {
+                try budget.check()
+                guard FileManager.default.fileExists(atPath: url.path) else { continue }
+                budget.beginDatabase()
+                let rows = try self.readConversationSummaryDatabase(url, budget: budget)
+                for (sessionID, summary) in rows {
+                    if let existing = summaries[sessionID] {
+                        summaries[sessionID] = ConversationSummaryMetadata(
+                            title: existing.title ?? summary.title,
+                            workspaceURIs: existing.workspaceURIs.isEmpty ? summary.workspaceURIs : existing
+                                .workspaceURIs,
+                            projectID: existing.projectID ?? summary.projectID,
+                            parentConversationID: existing.parentConversationID ?? summary.parentConversationID)
+                    } else {
+                        summaries[sessionID] = summary
+                    }
+                }
+            } catch ScanFailure.schemaExhausted {
+                isComplete = false
+                continue
+            } catch ScanFailure.exhausted {
+                isComplete = false
+                if budget.isJobExhausted {
+                    break
+                }
+            }
+        }
+        return (summaries, isComplete)
+    }
+
+    private static func readConversationSummaryDatabase(
+        _ url: URL,
+        budget: Budget) throws -> [String: ConversationSummaryMetadata]
+    {
+        let first = try self.readConversationSummaryDatabase(url, budget: budget, mode: .readOnly)
+        if !first.cannotOpen {
+            return first.summaries
+        }
+        guard let before = SQLiteIdleDatabaseState.read(at: url) else {
+            return [:]
+        }
+        let immutable = try self.readConversationSummaryDatabase(url, budget: budget, mode: .immutable)
+        guard SQLiteIdleDatabaseState.read(at: url) == before else {
+            return [:]
+        }
+        return immutable.summaries
+    }
+
+    private static func readConversationSummaryDatabase(
+        _ url: URL,
+        budget: Budget,
+        mode: OpenMode) throws -> (summaries: [String: ConversationSummaryMetadata], cannotOpen: Bool)
+    {
+        let opened = self.openDatabase(url, mode: mode, budget: budget)
+        guard let database = opened.database else {
+            return ([:], opened.status == SQLITE_CANTOPEN)
+        }
+        defer {
+            if sqlite3_close(database) == SQLITE_OK {
+                budget.statistics.sqliteHandlesClosed += 1
+            }
+        }
+        sqlite3_limit(database, SQLITE_LIMIT_LENGTH, Int32(64 * 1024))
+        let began = sqlite3_exec(database, "BEGIN DEFERRED", nil, nil, nil)
+        guard began == SQLITE_OK else {
+            return ([:], began == SQLITE_CANTOPEN)
+        }
+        defer {
+            sqlite3_exec(database, "ROLLBACK", nil, nil, nil)
+        }
+        let inspected = try self.inspectSQLiteTableColumns(
+            database,
+            table: "conversation_summaries",
+            requiredColumns: ["conversation_id", "title", "workspace_uris"],
+            budget: budget)
+        guard inspected.support == .supported else {
+            return ([:], sqlite3_errcode(database) == SQLITE_CANTOPEN)
+        }
+        let projectExpr = inspected.columns.contains("project_id") ? "project_id" : "''"
+        let parentExpr = inspected.columns.contains("parent_conversation_id") ? "parent_conversation_id" : "''"
+        let query = """
+        SELECT conversation_id, title, workspace_uris, \(projectExpr), \(parentExpr)
+        FROM main.conversation_summaries NOT INDEXED
+        LIMIT 10000
+        """
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_prepare_v2(database, query, -1, &statement, nil) == SQLITE_OK,
+              let statement
+        else {
+            return ([:], sqlite3_errcode(database) == SQLITE_CANTOPEN)
+        }
+        var results: [String: ConversationSummaryMetadata] = [:]
+        while true {
+            try budget.check()
+            let step = sqlite3_step(statement)
+            if step == SQLITE_DONE { break }
+            guard step == SQLITE_ROW else { break }
+            guard let conversationID = self.sqliteColumnText(statement, column: 0)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+                !conversationID.isEmpty
+            else { continue }
+            let rawTitle = self.sqliteColumnText(statement, column: 1)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let title = (rawTitle?.isEmpty == false) ? rawTitle : nil
+            let rawURIs = self.sqliteColumnText(statement, column: 2) ?? ""
+            let workspaceURIs = self.parseWorkspaceURIs(rawURIs)
+            let rawProjectID = self.sqliteColumnText(statement, column: 3)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let projectID = (rawProjectID?.isEmpty == false) ? rawProjectID : nil
+            let rawParentID = self.sqliteColumnText(statement, column: 4)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let parentID = (rawParentID?.isEmpty == false) ? rawParentID : nil
+            results[conversationID] = ConversationSummaryMetadata(
+                title: title,
+                workspaceURIs: workspaceURIs,
+                projectID: projectID,
+                parentConversationID: parentID)
+        }
+        return (results, false)
+    }
+
+    private static func sqliteColumnText(_ statement: OpaquePointer, column: Int32) -> String? {
+        guard sqlite3_column_type(statement, column) == SQLITE_TEXT,
+              let pointer = sqlite3_column_text(statement, column)
+        else { return nil }
+        let count = Int(sqlite3_column_bytes(statement, column))
+        return String(bytes: UnsafeBufferPointer(start: pointer, count: count), encoding: .utf8)
+    }
+
+    private static func parseWorkspaceURIs(_ raw: String) -> [String] {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        if trimmed.hasPrefix("["),
+           let data = trimmed.data(using: .utf8),
+           let decoded = try? JSONDecoder().decode([String].self, from: data)
+        {
+            return decoded
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        }
+        return [trimmed]
+    }
+    #else
+    static func readConversationSummaries(
+        urls _: [URL],
+        budget _: Budget) throws -> (summaries: [String: ConversationSummaryMetadata], isComplete: Bool)
+    {
+        ([:], true)
+    }
+    #endif
 
     #if canImport(SQLite3) || canImport(CSQLite3)
     private struct PendingTimestampRow {

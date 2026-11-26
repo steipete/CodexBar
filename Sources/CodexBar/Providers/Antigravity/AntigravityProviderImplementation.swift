@@ -18,7 +18,18 @@ struct AntigravityProviderImplementation: ProviderImplementation {
         _ = settings.antigravityAdditionalProfileHomes
         _ = settings.antigravityUsageDataSource
         _ = settings.antigravityPrioritizeExhaustedQuotas
+        _ = settings.antigravityPrimaryPoolPreference
+        _ = settings.antigravityShowCredits
+        _ = settings.antigravityScanDesktopEnabled
+        _ = settings.antigravityScanCLIEnabled
+        _ = settings.antigravityTokscaleFallbackEnabled
+        _ = settings.antigravityProjectGrouping
         _ = settings.tokenAccountsData(for: .antigravity)
+    }
+
+    @MainActor
+    func settingsSnapshot(context: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution? {
+        .antigravity(context.settings.antigravitySettingsSnapshot())
     }
 
     @MainActor
@@ -50,6 +61,50 @@ struct AntigravityProviderImplementation: ProviderImplementation {
                 onChange: nil,
                 onAppDidBecomeActive: nil,
                 onAppearWhenEnabled: nil),
+            ProviderSettingsToggleDescriptor(
+                id: "antigravity-show-credits",
+                title: "Show Prompt, Flow & Flex credits",
+                subtitle: "Display Antigravity credit balances and plan renewal details when available.",
+                binding: context.binding(\.antigravityShowCredits),
+                statusText: nil,
+                actions: [],
+                isVisible: nil,
+                onChange: nil,
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
+            ProviderSettingsToggleDescriptor(
+                id: "antigravity-scan-desktop",
+                title: "Scan Antigravity desktop logs",
+                subtitle: "Include local trajectories from ~/.gemini/antigravity.",
+                binding: context.binding(\.antigravityScanDesktopEnabled),
+                statusText: nil,
+                actions: [],
+                isVisible: nil,
+                onChange: nil,
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
+            ProviderSettingsToggleDescriptor(
+                id: "antigravity-scan-cli",
+                title: "Scan agy CLI logs",
+                subtitle: "Include local trajectories from ~/.gemini/antigravity-cli.",
+                binding: context.binding(\.antigravityScanCLIEnabled),
+                statusText: nil,
+                actions: [],
+                isVisible: nil,
+                onChange: nil,
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
+            ProviderSettingsToggleDescriptor(
+                id: "antigravity-tokscale-fallback",
+                title: "Use tokscale cache fallback",
+                subtitle: "Fall back to ~/.config/tokscale/antigravity-cache when no SQLite logs exist.",
+                binding: context.binding(\.antigravityTokscaleFallbackEnabled),
+                statusText: nil,
+                actions: [],
+                isVisible: nil,
+                onChange: nil,
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
         ]
     }
 
@@ -72,6 +127,26 @@ struct AntigravityProviderImplementation: ProviderImplementation {
                     let label = context.store.sourceLabel(for: .antigravity)
                     return label == "auto" ? nil : label
                 }),
+            ProviderSettingsPickerDescriptor(
+                id: "antigravity-primary-pool",
+                title: "Primary quota pool",
+                subtitle: "Choose which pool leads Automatic mode and the top card bar.",
+                binding: context.rawValueBinding(\.antigravityPrimaryPoolPreference, fallback: .auto),
+                options: AntigravityPrimaryPoolPreference.allCases.map {
+                    ProviderSettingsPickerOption(id: $0.rawValue, title: $0.displayName)
+                },
+                isVisible: nil,
+                onChange: nil),
+            ProviderSettingsPickerDescriptor(
+                id: "antigravity-project-grouping",
+                title: "Project grouping",
+                subtitle: "Group local conversation costs by workspace folder or Git repository.",
+                binding: context.rawValueBinding(\.antigravityProjectGrouping, fallback: .workspace),
+                options: AntigravityProjectGrouping.allCases.map {
+                    ProviderSettingsPickerOption(id: $0.rawValue, title: $0.displayName)
+                },
+                isVisible: nil,
+                onChange: nil),
         ]
     }
 

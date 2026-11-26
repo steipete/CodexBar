@@ -8,6 +8,7 @@ enum MenuBarMetricWindowResolver {
         snapshot: UsageSnapshot?,
         supportsAverage: Bool,
         antigravityPrioritizeExhaustedQuotas: Bool = false,
+        antigravityPrimaryPool: AntigravityPrimaryPoolPreference = .auto,
         now: Date = Date())
         -> RateWindow?
     {
@@ -19,6 +20,7 @@ enum MenuBarMetricWindowResolver {
             snapshot: snapshot,
             supportsAverage: supportsAverage,
             prioritizesExhaustedQuotas: antigravityPrioritizeExhaustedQuotas,
+            antigravityPrimaryPool: antigravityPrimaryPool,
             now: now))
         {
         case let .resolved(window):

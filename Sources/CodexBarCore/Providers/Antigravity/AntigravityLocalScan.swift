@@ -1,26 +1,63 @@
 import Foundation
 
 extension AntigravityLocalReader {
+    typealias ScanOptions = AntigravityLocalScanOptions
+
     struct Context: Sendable {
         let home: URL
         let additionalProfileHomes: [String]
+        let scanOptions: ScanOptions
         @ProcessEnvironment private(set) var environment: [String: String]
 
-        init(environment: [String: String], additionalProfileHomes: [String] = []) {
+        init(
+            environment: [String: String],
+            additionalProfileHomes: [String] = [],
+            scanOptions: ScanOptions = .defaultOptions)
+        {
             self.additionalProfileHomes = additionalProfileHomes
+            self.scanOptions = scanOptions
             self.environment = environment
             self.home = environment["HOME"].map { URL(fileURLWithPath: $0, isDirectory: true) }
                 ?? FileManager.default.homeDirectoryForCurrentUser
         }
 
-        var databaseRoots: [URL] {
+        var geminiHomes: [URL] {
             AntigravityOfflineStore.geminiHomeDirectories(
                 home: self.home, env: self.environment, additionalProfileHomes: self.additionalProfileHomes)
-                .flatMap { home in
-                    ["antigravity-cli/conversations", "antigravity", "antigravity/conversations"].map {
-                        home.appendingPathComponent($0, isDirectory: true)
-                    }
-                }
+        }
+
+        var databaseRoots: [URL] {
+            var relativeRoots: [String] = []
+            if self.scanOptions.includeCLIDatabases {
+                relativeRoots.append("antigravity-cli/conversations")
+            }
+            if self.scanOptions.includeDesktopDatabases {
+                relativeRoots.append("antigravity")
+                relativeRoots.append("antigravity/conversations")
+            }
+            return self.geminiHomes.flatMap { home in
+                relativeRoots.map { home.appendingPathComponent($0, isDirectory: true) }
+            }
+        }
+
+        var conversationSummaryDatabases: [URL] {
+            var relativeFiles: [String] = []
+            if self.scanOptions.includeDesktopDatabases {
+                relativeFiles.append("antigravity/conversation_summaries.db")
+            }
+            if self.scanOptions.includeCLIDatabases {
+                relativeFiles.append("antigravity-cli/conversation_summaries.db")
+            }
+            var candidates = self.geminiHomes.flatMap { home in
+                relativeFiles.map { home.appendingPathComponent($0, isDirectory: false) }
+            }
+            candidates.append(contentsOf: self.databaseRoots.map {
+                $0.appendingPathComponent("conversation_summaries.db", isDirectory: false)
+            })
+            var seen = Set<String>()
+            return candidates.filter { url in
+                seen.insert(url.standardizedFileURL.resolvingSymlinksInPath().path).inserted
+            }
         }
 
         var cacheRoot: URL {
@@ -32,17 +69,17 @@ extension AntigravityLocalReader {
     }
 
     struct Limits: Sendable {
-        var databases = 500
-        var directoryEntries = 10000
+        var databases = 2000
+        var directoryEntries = 20000
         var rowsPerDatabase = 10000
-        var rows = 100_000
+        var rows = 500_000
         var blobBytes = 16 * 1024 * 1024
         var databaseBytes = 64 * 1024 * 1024
-        var bytes = 512 * 1024 * 1024
+        var bytes = 2 * 1024 * 1024 * 1024
         var schemaEntries = 128
         var schemaColumns = 64
         var schemaBytes = 64 * 1024
-        var duration: TimeInterval = 30
+        var duration: TimeInterval = 120
     }
 
     struct Statistics: Sendable {
@@ -80,6 +117,16 @@ extension AntigravityLocalReader {
         /// Schema text inspected in the current database. The schema allowance applies to each database,
         /// like the entry and column limits, so a long history of small schemas never adds up to it.
         private(set) var databaseSchemaBytes = 0
+        /// Tracks optional breakdown metadata (`trajectory_metadata_blob`, `conversation_summaries.db`)
+        /// separately so large opaque fields never exhaust the token-history `bytes` allowance.
+        var metadataBytes = 0
+        private(set) var durationExhausted = false
+
+        var isJobExhausted: Bool {
+            self.statistics.rows >= self.limits.rows
+                || self.statistics.attemptedBytes >= self.limits.bytes
+                || self.durationExhausted
+        }
 
         init(
             limits: Limits,
@@ -94,7 +141,19 @@ extension AntigravityLocalReader {
 
         func check() throws {
             try self.cancellation()
-            guard self.clock() - self.started < self.limits.duration else { throw ScanFailure.exhausted }
+            guard self.clock() - self.started < self.limits.duration else {
+                self.durationExhausted = true
+                throw ScanFailure.exhausted
+            }
+        }
+
+        func canChargeMetadataBytes(_ count: Int) -> Bool {
+            guard count >= 0, count <= self.limits.blobBytes else { return false }
+            let cap = max(self.limits.bytes, 256 * 1024 * 1024)
+            let (sum, overflow) = self.metadataBytes.addingReportingOverflow(count)
+            guard !overflow, sum <= cap else { return false }
+            self.metadataBytes = sum
+            return true
         }
 
         func chargeBytes(_ count: Int) throws {
@@ -127,10 +186,21 @@ extension AntigravityLocalReader {
     struct Discovery {
         var paths: [URL] = []
         var isComplete = true
+        var skippedOldDatabases = 0
     }
 
-    static func discover(roots: [URL], extension suffix: String, budget: Budget) throws -> Discovery {
+    static func discover(
+        roots: [URL],
+        extension suffix: String,
+        budget: Budget,
+        dayRange: (sinceKey: String, untilKey: String)? = nil,
+        calendar: Calendar = .current) throws -> Discovery
+    {
         var result = Discovery()
+        var candidates: [(url: URL, modifiedAt: Date?)] = []
+        let sinceDate = dayRange.flatMap { CostUsageLocalDay.date(fromKey: $0.sinceKey, calendar: calendar) }
+        var hitDirectoryEntryLimit = false
+
         for root in roots {
             try budget.check()
             do {
@@ -148,7 +218,7 @@ extension AntigravityLocalReader {
             var enumerationFailed = false
             guard let enumerator = FileManager.default.enumerator(
                 at: root.resolvingSymlinksInPath(),
-                includingPropertiesForKeys: [.isRegularFileKey],
+                includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey],
                 options: [.skipsSubdirectoryDescendants],
                 errorHandler: { _, _ in
                     enumerationFailed = true
@@ -162,39 +232,96 @@ extension AntigravityLocalReader {
                 try budget.check()
                 guard let url = enumerator.nextObject() as? URL else { break }
                 budget.statistics.directoryEntries += 1
-                guard budget.statistics.directoryEntries <= budget.limits.directoryEntries else {
-                    throw ScanFailure.exhausted
+                if budget.statistics.directoryEntries > budget.limits.directoryEntries {
+                    result.isComplete = false
+                    hitDirectoryEntryLimit = true
+                    break
                 }
                 guard !url.lastPathComponent.hasPrefix("."), url.pathExtension.lowercased() == suffix else { continue }
-                guard result.paths.count < budget.limits.databases else {
-                    throw ScanFailure.exhausted
-                }
                 do {
-                    let values = try url.resolvingSymlinksInPath().resourceValues(forKeys: [.isRegularFileKey])
+                    let resolvedURL = url.resolvingSymlinksInPath()
+                    let values = try resolvedURL.resourceValues(
+                        forKeys: [.isRegularFileKey, .contentModificationDateKey])
                     guard values.isRegularFile == true else {
                         result.isComplete = false
                         continue
                     }
-                    result.paths.append(url)
+                    let effectiveMtime = self.effectiveModificationDate(
+                        resolvedURL: resolvedURL,
+                        fileMtime: values.contentModificationDate,
+                        extension: suffix)
+                    if let sinceDate, let effectiveMtime, effectiveMtime < sinceDate {
+                        if url.lastPathComponent != "conversation_summaries.db" {
+                            result.skippedOldDatabases += 1
+                        }
+                        continue
+                    }
+                    candidates.append((url: url, modifiedAt: effectiveMtime))
                 } catch {
                     result.isComplete = false
                 }
             }
             if enumerationFailed { result.isComplete = false }
+            if hitDirectoryEntryLimit { break }
         }
-        result.paths.sort { $0.path < $1.path }
+
+        candidates.sort { lhs, rhs in
+            let lhsDate = lhs.modifiedAt ?? .distantPast
+            let rhsDate = rhs.modifiedAt ?? .distantPast
+            if lhsDate != rhsDate {
+                return lhsDate > rhsDate
+            }
+            return lhs.url.path < rhs.url.path
+        }
+        let limit = max(0, budget.limits.databases)
+        if candidates.count > limit {
+            result.isComplete = false
+            result.paths = candidates.prefix(limit).map(\.url)
+        } else {
+            result.paths = candidates.map(\.url)
+        }
         return result
+    }
+
+    private static func effectiveModificationDate(
+        resolvedURL: URL,
+        fileMtime: Date?,
+        extension suffix: String) -> Date?
+    {
+        guard suffix == "db" else { return fileMtime }
+        let walPath = resolvedURL.path + "-wal"
+        let walMtime = (try? FileManager.default.attributesOfItem(atPath: walPath))?[.modificationDate] as? Date
+        switch (fileMtime, walMtime) {
+        case let (.some(dbDate), .some(walDate)):
+            return max(dbDate, walDate)
+        case let (.some(dbDate), .none):
+            return dbDate
+        case let (.none, .some(walDate)):
+            return walDate
+        case (.none, .none):
+            return nil
+        }
     }
 }
 
 extension CostUsageFetcher {
     package static func antigravityHistoryScope(
-        environment: [String: String], additionalProfileHomes: [String]) -> String
+        environment: [String: String],
+        additionalProfileHomes: [String],
+        scanOptions: AntigravityLocalScanOptions = .defaultOptions) -> String
     {
         let context = AntigravityLocalReader.Context(
-            environment: environment, additionalProfileHomes: additionalProfileHomes)
-        return Set((context.databaseRoots + [context.cacheRoot])
-            .map { $0.standardizedFileURL.resolvingSymlinksInPath().path })
-            .sorted().joined(separator: "\0")
+            environment: environment,
+            additionalProfileHomes: additionalProfileHomes,
+            scanOptions: scanOptions)
+        var roots = context.databaseRoots
+        if scanOptions.includeTokscaleFallback {
+            roots.append(context.cacheRoot)
+        }
+        let paths = Set(roots.map { $0.standardizedFileURL.resolvingSymlinksInPath().path })
+            .sorted()
+            .joined(separator: "\0")
+        return "\(paths)|desktop=\(scanOptions.includeDesktopDatabases)|cli=\(scanOptions.includeCLIDatabases)|" +
+            "tokscale=\(scanOptions.includeTokscaleFallback)|grouping=\(scanOptions.projectGrouping.rawValue)"
     }
 }

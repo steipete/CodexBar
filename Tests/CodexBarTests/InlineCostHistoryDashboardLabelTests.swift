@@ -1005,6 +1005,320 @@ extension InlineCostHistoryDashboardLabelTests {
         #expect(dashboard.detailLines.contains { $0.contains("Previous window") } == false)
     }
 
+    @Test
+    func `Antigravity with last30DaysRequests keeps 6 KPI layout 30d cost title and exact quota windows`() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let now = try #require(calendar.date(from: DateComponents(
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 7,
+            day: 15,
+            hour: 12)))
+        let resetAt = try #require(calendar.date(from: DateComponents(
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 7,
+            day: 18,
+            hour: 15)))
+        let metadata = try #require(ProviderDefaults.metadata[.antigravity])
+        let sliceTimestamp = try #require(calendar.date(from: DateComponents(
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 7,
+            day: 13,
+            hour: 12)))
+        let tokenSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: 1000,
+            sessionCostUSD: 10,
+            last30DaysTokens: 1400,
+            last30DaysCostUSD: 14,
+            last30DaysRequests: 12,
+            historyDays: 30,
+            costProvenance: .listPriceEstimate,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-07-08",
+                    inputTokens: 300,
+                    outputTokens: 100,
+                    totalTokens: 400,
+                    requestCount: 4,
+                    costUSD: 4,
+                    modelsUsed: ["gemini-2.5-pro"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gemini-2.5-pro",
+                            costUSD: 4,
+                            totalTokens: 400),
+                    ]),
+                CostUsageDailyReport.Entry(
+                    date: "2026-07-13",
+                    inputTokens: 800,
+                    outputTokens: 200,
+                    totalTokens: 1000,
+                    requestCount: 8,
+                    costUSD: 10,
+                    modelsUsed: ["gemini-2.5-pro"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gemini-2.5-pro",
+                            costUSD: 10,
+                            totalTokens: 1000),
+                    ]),
+            ],
+            quotaSlices: [
+                CostUsageTimedEntry(timestamp: sliceTimestamp, totalTokens: 1000, costUSD: 10),
+            ],
+            updatedAt: now)
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .antigravity,
+            metadata: metadata,
+            snapshot: UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                extraRateWindows: [
+                    NamedRateWindow(
+                        id: "antigravity-quota-summary-gemini",
+                        title: "Gemini",
+                        window: RateWindow(
+                            usedPercent: 40,
+                            windowMinutes: CostUsageTokenSnapshot.quotaWeekMinutes,
+                            resetsAt: resetAt,
+                            resetDescription: nil)),
+                ],
+                updatedAt: now),
+            credits: nil,
+            creditsError: nil,
+            dashboardError: nil,
+            tokenSnapshot: tokenSnapshot,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            costUsageBucketCalendar: calendar,
+            now: now))
+
+        let dashboard = try #require(model.inlineUsageDashboard)
+        #expect(dashboard.kpis.map(\.title) == [
+            "Today",
+            "Est. Current window",
+            "Latest tokens",
+            "Est. Current window tokens",
+            "30d cost",
+            "30d tokens",
+        ])
+        #expect(dashboard.kpis.map(\.value) == [
+            "$10.00",
+            "$10.00",
+            "1K",
+            "1K",
+            "$14.00",
+            "1.4K",
+        ])
+        #expect(dashboard.quotaWindows.first?.title == "Current window")
+        #expect(dashboard.quotaWindows.first?.value == "$10.00 · 1K")
+        #expect(!dashboard.detailLines.contains { $0.contains("Partial estimate") })
+        #expect(dashboard.detailLines.contains("30d requests: 12 requests"))
+        #expect(dashboard.detailLines.contains(L("antigravity_cost_estimate_hint")))
+    }
+
+    @Test
+    func `topCostModel returns nil when model breakdowns have no monetary cost`() throws {
+        let now = Date(timeIntervalSince1970: 1_750_000_000)
+        let metadata = try #require(ProviderDefaults.metadata[.antigravity])
+        let tokenSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: 500,
+            sessionCostUSD: nil,
+            last30DaysTokens: 500,
+            last30DaysCostUSD: nil,
+            historyDays: 30,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2025-06-12",
+                    inputTokens: 300,
+                    outputTokens: 200,
+                    totalTokens: 500,
+                    costUSD: nil,
+                    modelsUsed: ["gemini-2.5-pro"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gemini-2.5-pro",
+                            costUSD: nil,
+                            totalTokens: 500),
+                    ]),
+            ],
+            updatedAt: now)
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .antigravity,
+            metadata: metadata,
+            snapshot: nil,
+            credits: nil,
+            creditsError: nil,
+            dashboardError: nil,
+            tokenSnapshot: tokenSnapshot,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        let dashboard = try #require(model.inlineUsageDashboard)
+        #expect(!dashboard.detailLines.contains { $0.contains("Top model") })
+    }
+
+    @Test
+    func `topCostModel suppresses mixed priced and unpriced breakdowns even when unpricedRequestCount is nil`() throws {
+        let now = Date(timeIntervalSince1970: 1_750_000_000)
+        let metadata = try #require(ProviderDefaults.metadata[.antigravity])
+        let tokenSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: 600,
+            sessionCostUSD: 1.5,
+            last30DaysTokens: 600,
+            last30DaysCostUSD: 1.5,
+            historyDays: 30,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2025-06-12",
+                    inputTokens: 400,
+                    outputTokens: 200,
+                    totalTokens: 600,
+                    costUSD: 1.5,
+                    modelsUsed: ["gemini-2.5-pro", "unpriced-preview"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gemini-2.5-pro",
+                            costUSD: 1.5,
+                            totalTokens: 100),
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "unpriced-preview",
+                            costUSD: nil,
+                            totalTokens: 500),
+                    ],
+                    unpricedRequestCount: nil),
+            ],
+            updatedAt: now)
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .antigravity,
+            metadata: metadata,
+            snapshot: nil,
+            credits: nil,
+            creditsError: nil,
+            dashboardError: nil,
+            tokenSnapshot: tokenSnapshot,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        let dashboard = try #require(model.inlineUsageDashboard)
+        #expect(!dashboard.detailLines.contains { $0.contains("Top model") })
+    }
+
+    @Test
+    func `Antigravity seven day history with requests preserves Latest tokens KPI`() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let now = try #require(calendar.date(from: DateComponents(
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 7,
+            day: 15,
+            hour: 12)))
+        let resetAt = try #require(calendar.date(from: DateComponents(
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 7,
+            day: 18,
+            hour: 15)))
+        let metadata = try #require(ProviderDefaults.metadata[.antigravity])
+        let tokenSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: 1000,
+            sessionCostUSD: 10,
+            last30DaysTokens: 1000,
+            last30DaysCostUSD: 10,
+            last30DaysRequests: 7,
+            historyDays: 7,
+            costProvenance: .listPriceEstimate,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-07-13",
+                    inputTokens: 800,
+                    outputTokens: 200,
+                    totalTokens: 1000,
+                    requestCount: 7,
+                    costUSD: 10,
+                    modelsUsed: ["gemini-2.5-pro"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gemini-2.5-pro",
+                            costUSD: 10,
+                            totalTokens: 1000),
+                    ]),
+            ],
+            updatedAt: now)
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .antigravity,
+            metadata: metadata,
+            snapshot: UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                extraRateWindows: [
+                    NamedRateWindow(
+                        id: "antigravity-quota-summary-gemini",
+                        title: "Gemini",
+                        window: RateWindow(
+                            usedPercent: 40,
+                            windowMinutes: CostUsageTokenSnapshot.quotaWeekMinutes,
+                            resetsAt: resetAt,
+                            resetDescription: nil)),
+                ],
+                updatedAt: now),
+            credits: nil,
+            creditsError: nil,
+            dashboardError: nil,
+            tokenSnapshot: tokenSnapshot,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            costUsageBucketCalendar: calendar,
+            now: now))
+
+        let dashboard = try #require(model.inlineUsageDashboard)
+        #expect(dashboard.kpis.map(\.title) == [
+            "Today",
+            "Est. Current window",
+            "Latest tokens",
+            "Est. Current window tokens",
+        ])
+        #expect(dashboard.detailLines.contains("Last 7 days requests: 7 requests"))
+    }
+
     private static func normalizedDateText(_ value: String) -> String {
         value
             .replacingOccurrences(of: "\u{202F}", with: " ")

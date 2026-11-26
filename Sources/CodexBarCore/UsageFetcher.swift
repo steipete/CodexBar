@@ -195,6 +195,9 @@ public struct UsageSnapshot: Codable, Sendable {
     /// Live-only display inventory. Claude grant identifiers are never decoded.
     public let claudeResetCredits: ClaudeRateLimitResetCreditsSnapshot?
     public let mistralUsage: MistralUsageSnapshot?
+    public let antigravityCredits: AntigravityCreditsSnapshot?
+    public let antigravityAccountMetadata: AntigravityAccountMetadata?
+    public let antigravityCatalog: AntigravityCatalogSnapshot?
     /// Retains an observed zero when a metered Copilot seat has no visible credit row.
     public let copilotMeteredZeroCredits: Bool
     /// Cursor API explicitly designated the primary window as the unified weekly pool.
@@ -229,6 +232,9 @@ public struct UsageSnapshot: Codable, Sendable {
         case openAIAPIUsage
         case codexResetCredits
         case mistralUsage
+        case antigravityCredits
+        case antigravityAccountMetadata
+        case antigravityCatalog
         case copilotMeteredZeroCredits
         case cursorHasUnifiedWeeklyPool
         case subscriptionExpiresAt
@@ -265,6 +271,9 @@ public struct UsageSnapshot: Codable, Sendable {
         grokResetCredits: GrokRateLimitResetCreditsSnapshot? = nil,
         claudeResetCredits: ClaudeRateLimitResetCreditsSnapshot? = nil,
         mistralUsage: MistralUsageSnapshot? = nil,
+        antigravityCredits: AntigravityCreditsSnapshot? = nil,
+        antigravityAccountMetadata: AntigravityAccountMetadata? = nil,
+        antigravityCatalog: AntigravityCatalogSnapshot? = nil,
         copilotMeteredZeroCredits: Bool = false,
         cursorHasUnifiedWeeklyPool: Bool = false,
         commandCodeSubscriptionEnrichmentUnavailable: Bool = false,
@@ -303,6 +312,9 @@ public struct UsageSnapshot: Codable, Sendable {
         self.grokResetCredits = grokResetCredits
         self.claudeResetCredits = claudeResetCredits
         self.mistralUsage = mistralUsage
+        self.antigravityCredits = antigravityCredits
+        self.antigravityAccountMetadata = antigravityAccountMetadata
+        self.antigravityCatalog = antigravityCatalog
         self.copilotMeteredZeroCredits = copilotMeteredZeroCredits
         self.cursorHasUnifiedWeeklyPool = cursorHasUnifiedWeeklyPool
         self.commandCodeSubscriptionEnrichmentUnavailable = commandCodeSubscriptionEnrichmentUnavailable
@@ -422,6 +434,15 @@ public struct UsageSnapshot: Codable, Sendable {
         self.grokResetCredits = nil // Live-only inventory; refresh without persisting redemption state.
         self.claudeResetCredits = nil // Live-only inventory; a reset used on claude.ai must not reappear.
         self.mistralUsage = try container.decodeIfPresent(MistralUsageSnapshot.self, forKey: .mistralUsage)
+        self.antigravityCredits = try? container.decodeIfPresent(
+            AntigravityCreditsSnapshot.self,
+            forKey: .antigravityCredits)
+        self.antigravityAccountMetadata = try? container.decodeIfPresent(
+            AntigravityAccountMetadata.self,
+            forKey: .antigravityAccountMetadata)
+        self.antigravityCatalog = try? container.decodeIfPresent(
+            AntigravityCatalogSnapshot.self,
+            forKey: .antigravityCatalog)
         self.copilotMeteredZeroCredits = try container
             .decodeIfPresent(Bool.self, forKey: .copilotMeteredZeroCredits) ?? false
         self.cursorHasUnifiedWeeklyPool = try container
@@ -467,6 +488,9 @@ public struct UsageSnapshot: Codable, Sendable {
         try container.encodeIfPresent(self.openAIAPIUsage, forKey: .openAIAPIUsage)
         try container.encodeIfPresent(self.codexResetCredits, forKey: .codexResetCredits)
         try container.encodeIfPresent(self.mistralUsage, forKey: .mistralUsage)
+        try container.encodeIfPresent(self.antigravityCredits, forKey: .antigravityCredits)
+        try container.encodeIfPresent(self.antigravityAccountMetadata, forKey: .antigravityAccountMetadata)
+        try container.encodeIfPresent(self.antigravityCatalog, forKey: .antigravityCatalog)
         if self.copilotMeteredZeroCredits {
             try container.encode(true, forKey: .copilotMeteredZeroCredits)
         }
@@ -652,6 +676,9 @@ public struct UsageSnapshot: Codable, Sendable {
         browserSessionOwner: Replacement<ProviderBrowserSessionOwner?> = .unchanged,
         codexResetCredits: Replacement<CodexRateLimitResetCreditsSnapshot?> = .unchanged,
         grokResetCredits: Replacement<GrokRateLimitResetCreditsSnapshot?> = .unchanged,
+        antigravityCredits: Replacement<AntigravityCreditsSnapshot?> = .unchanged,
+        antigravityAccountMetadata: Replacement<AntigravityAccountMetadata?> = .unchanged,
+        antigravityCatalog: Replacement<AntigravityCatalogSnapshot?> = .unchanged,
         subscriptionExpiresAt: Replacement<Date?> = .unchanged,
         subscriptionRenewsAt: Replacement<Date?> = .unchanged,
         subscriptionRenewsAtIsDateOnly: Replacement<Bool> = .unchanged,
@@ -680,6 +707,9 @@ public struct UsageSnapshot: Codable, Sendable {
             grokResetCredits: grokResetCredits.resolving(self.grokResetCredits),
             claudeResetCredits: self.claudeResetCredits,
             mistralUsage: self.mistralUsage,
+            antigravityCredits: antigravityCredits.resolving(self.antigravityCredits),
+            antigravityAccountMetadata: antigravityAccountMetadata.resolving(self.antigravityAccountMetadata),
+            antigravityCatalog: antigravityCatalog.resolving(self.antigravityCatalog),
             copilotMeteredZeroCredits: self.copilotMeteredZeroCredits,
             cursorHasUnifiedWeeklyPool: self.cursorHasUnifiedWeeklyPool,
             commandCodeSubscriptionEnrichmentUnavailable: self.commandCodeSubscriptionEnrichmentUnavailable,

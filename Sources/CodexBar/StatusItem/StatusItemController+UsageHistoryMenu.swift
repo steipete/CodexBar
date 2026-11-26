@@ -37,11 +37,13 @@ extension StatusItemController {
             return true
         }
 
-        // Provider-specific by design: this menu burndown currently targets Codex, Claude, and Kiro quota histories.
-        if provider == .codex || provider == .claude || provider == .kiro {
+        // Provider-specific by design: this menu burndown targets Codex, Claude, Kiro, and Antigravity quota
+        // histories.
+        if provider == .codex || provider == .claude || provider == .kiro || provider == .antigravity {
             let burndownView = QuotaBurndownChartMenuView(
                 provider: provider,
                 histories: selection.histories,
+                snapshot: snapshot,
                 width: width)
             if burndownView.hasSeries {
                 self.appendHistoryChart(burndownView, to: submenu, provider: provider, width: width)

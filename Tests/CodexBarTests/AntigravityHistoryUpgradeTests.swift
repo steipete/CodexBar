@@ -89,8 +89,8 @@ struct AntigravityHistoryUpgradeTests {
         #expect(restarted.planUtilizationHistory[UsageProvider.antigravity.instanceID] == expected)
         for (snapshot, names) in [
             (pool, ["antigravityGemini:0", "antigravityClaudeGPT:0"]),
-            // Structured chart presentation intentionally shows the weekly lane; session remains persisted.
-            (structured, ["weekly:10080"]),
+            // Structured Antigravity summary snapshots expose both Session and Weekly tabs.
+            (structured, ["session:300", "weekly:10080"]),
         ] {
             let chart = PlanUtilizationHistoryChartMenuView._modelSnapshotForTesting(
                 histories: histories, provider: .antigravity, snapshot: snapshot, referenceDate: now)

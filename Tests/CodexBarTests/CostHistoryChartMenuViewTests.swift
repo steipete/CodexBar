@@ -1486,6 +1486,29 @@ extension CostHistoryChartMenuViewTests {
         #expect(base != Self.fingerprint(sessions: [session(input: 100, cached: 10, output: 10)]))
         #expect(base != Self.fingerprint(sessions: [session(input: 100, cached: 20, output: 20)]))
     }
+
+    @Test
+    @MainActor
+    func `antigravity render fingerprint includes projects and sessions`() {
+        let session = CostUsageSessionBreakdown(
+            sessionID: "session-ag",
+            lastActivity: Date(timeIntervalSince1970: 1_750_000_000),
+            inputTokens: 100,
+            cachedInputTokens: 0,
+            outputTokens: 20,
+            totalTokens: 120,
+            requestCount: 1,
+            costUSD: 0.05,
+            modelBreakdowns: [],
+            title: "Workspace analysis")
+        let project = Self.project(path: "/Users/test/projects/app", sourcePath: "/Users/test/projects/app")
+        #expect(CostHistoryChartMenuView.showsLocalBreakdowns(provider: .antigravity))
+        let fp = Self.fingerprint(projects: [project], sessions: [session], provider: .antigravity)
+        #expect(fp.projects.count == 1)
+        #expect(fp.sessions.map(\.sessionID) == ["session-ag"])
+        #expect(fp != Self.fingerprint(projects: [project], sessions: [], provider: .antigravity))
+        #expect(fp != Self.fingerprint(projects: [], sessions: [session], provider: .antigravity))
+    }
 }
 
 extension CostHistoryChartMenuView {

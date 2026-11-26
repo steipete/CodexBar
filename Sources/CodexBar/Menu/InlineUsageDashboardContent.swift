@@ -215,8 +215,8 @@ extension UsageMenuCardView.Model {
         }
         return CostHistoryQuotaPresentation(
             rows: rows,
-            insertsKPIs: currentWeek != nil && historyDays > 7 && snapshot.last30DaysRequests == nil,
-            relabelsHistory: currentWeek != nil && historyDays == 7 && snapshot.last30DaysRequests == nil,
+            insertsKPIs: currentWeek != nil && historyDays > 7,
+            relabelsHistory: currentWeek != nil && historyDays == 7,
             boundariesAreEstimated: currentWeek?.boundariesAreEstimated == true,
             costValue: Self.quotaMetricValue(
                 currentWeek?.totalCostUSD.map(convertedString), complete: currentWeek?.costIsComplete == true),
@@ -363,20 +363,24 @@ extension UsageMenuCardView.Model {
                 ? quota.tokenValue
                 : (snapshot.last30DaysTokens.map(UsageFormatter.tokenCountString) ?? "—") + historySuffix,
             emphasis: false)
-        let trailingKPIs = Self.costHistoryTrailingKPIs(snapshot: snapshot, latest: latest)
+        let showRequestsKPI = !tokenCost.showsRequestHistory && snapshot.last30DaysRequests != nil
+        let trailingKPIs = Self.costHistoryTrailingKPIs(
+            snapshot: snapshot,
+            latest: latest,
+            showRequestsKPI: showRequestsKPI)
         var kpis: [InlineUsageDashboardModel.KPI]
-        if quota.insertsKPIs, let latestTokensKPI = trailingKPIs.first {
+        if quota.insertsKPIs {
             kpis = [
                 todayKPI,
                 .init(title: weekCostTitle, value: quota.costValue, emphasis: true),
-                latestTokensKPI,
+                Self.latestTokensKPI(latest: latest),
                 .init(title: weekTokenTitle, value: quota.tokenValue, emphasis: false),
                 historyCostKPI,
                 tokenHistoryKPI,
             ]
         } else {
             kpis = [todayKPI, historyCostKPI]
-            if snapshot.last30DaysRequests == nil {
+            if !showRequestsKPI {
                 kpis.append(contentsOf: trailingKPIs)
                 kpis.append(tokenHistoryKPI)
             } else {
@@ -523,12 +527,21 @@ extension UsageMenuCardView.Model {
             detailLines: details)
     }
 
+    private static func latestTokensKPI(latest: CostUsageDailyReport.Entry?) -> InlineUsageDashboardModel.KPI {
+        .init(
+            title: L("Latest tokens"),
+            value: (latest?.totalTokens.map(UsageFormatter.tokenCountString) ?? "—")
+                + UsageFormatter.incompleteUsageSuffix(latest?.incompleteRequestCount ?? 0),
+            emphasis: false)
+    }
+
     private static func costHistoryTrailingKPIs(
         snapshot: CostUsageTokenSnapshot,
-        latest: CostUsageDailyReport.Entry?)
+        latest: CostUsageDailyReport.Entry?,
+        showRequestsKPI: Bool)
         -> [InlineUsageDashboardModel.KPI]
     {
-        if let requests = snapshot.last30DaysRequests {
+        if showRequestsKPI, let requests = snapshot.last30DaysRequests {
             return [
                 .init(
                     title: L("Requests"),
@@ -536,13 +549,7 @@ extension UsageMenuCardView.Model {
                     emphasis: false),
             ]
         }
-        return [
-            .init(
-                title: L("Latest tokens"),
-                value: (latest?.totalTokens.map(UsageFormatter.tokenCountString) ?? "—")
-                    + UsageFormatter.incompleteUsageSuffix(latest?.incompleteRequestCount ?? 0),
-                emphasis: false),
-        ]
+        return [Self.latestTokensKPI(latest: latest)]
     }
 
     private static func costString(_ value: Double, currencyCode: String) -> String {
@@ -665,17 +672,24 @@ extension UsageMenuCardView.Model {
                 && $0.coverageCounts.unpriced == 0
                 && $0.coverageCounts.unmetered == 0
         }) else { return nil }
+        var hasPricedBreakdown = false
         var scores: [String: (cost: Double, tokens: Int)] = [:]
         for entry in entries {
             for model in entry.modelBreakdowns ?? [] {
+                guard let costUSD = model.costUSD else {
+                    if model.totalTokens != 0 { return nil }
+                    continue
+                }
+                hasPricedBreakdown = true
                 var score = scores[model.modelName] ?? (0, 0)
-                score.cost += model.costUSD ?? 0
+                score.cost += costUSD
                 let addition = score.tokens.addingReportingOverflow(model.totalTokens ?? 0)
                 guard !addition.overflow else { return nil }
                 score.tokens = addition.partialValue
                 scores[model.modelName] = score
             }
         }
+        guard hasPricedBreakdown else { return nil }
         return scores.max {
             if $0.value.cost == $1.value.cost {
                 return $0.value.tokens < $1.value.tokens

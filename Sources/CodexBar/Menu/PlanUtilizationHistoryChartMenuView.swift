@@ -183,12 +183,15 @@ struct PlanUtilizationHistoryChartMenuView: View {
     nonisolated static func visibleSeries(
         histories: [PlanUtilizationSeriesHistory],
         provider: UsageProvider,
-        snapshot: UsageSnapshot?) -> [VisibleSeries]
+        snapshot: UsageSnapshot?,
+        useAntigravityObservations: Bool? = nil) -> [VisibleSeries]
     {
         let metadata = ProviderDescriptorRegistry.metadata[provider]
         // Provider-specific by design: Antigravity pool observations have no session/weekly cadence.
-        let usesObservations = provider == .antigravity && UsageStore.antigravityHistoryUsesObservations(
-            snapshot: snapshot, histories: histories)
+        let usesObservations = provider == .antigravity && (useAntigravityObservations ?? UsageStore
+            .antigravityHistoryUsesObservations(
+                snapshot: snapshot,
+                histories: histories))
         let allowedNames = usesObservations ? nil : self.visibleSeriesNames(provider: provider, snapshot: snapshot)
         var historiesBySelection: [SeriesSelection: PlanUtilizationSeriesHistory] = [:]
         for history in histories {
@@ -276,6 +279,8 @@ struct PlanUtilizationHistoryChartMenuView: View {
         switch series {
         case .session: .session
         case .weekly: .weekly
+        case .antigravityClaudeGPTSession: .supplementarySession
+        case .antigravityClaudeGPTWeekly: .supplementaryWeekly
         case .opus: .tertiary
         case .monthly: .monthly
         default: .weekly
@@ -288,6 +293,8 @@ struct PlanUtilizationHistoryChartMenuView: View {
         switch series {
         case .session: .session
         case .weekly: .weekly
+        case .supplementarySession: .antigravityClaudeGPTSession
+        case .supplementaryWeekly: .antigravityClaudeGPTWeekly
         case .tertiary: .opus
         case .monthly: .monthly
         }
@@ -620,15 +627,23 @@ struct PlanUtilizationHistoryChartMenuView: View {
         metadata: ProviderMetadata?,
         windowMinutes: Int) -> String
     {
-        switch name {
+        // Provider-specific by design: Antigravity metadata labels name model pools rather than session/weekly windows.
+        let isAntigravity = metadata?.id == .antigravity
+        return switch name {
         case .antigravityGemini:
             metadata?.sessionLabel ?? "Gemini"
         case .antigravityClaudeGPT:
             metadata?.weeklyLabel ?? "Claude + GPT"
         case .session:
-            localizedSessionQuotaLabel(metadata?.sessionLabel ?? "Session", windowMinutes: windowMinutes)
+            localizedSessionQuotaLabel(
+                isAntigravity ? "Session" : (metadata?.sessionLabel ?? "Session"),
+                windowMinutes: windowMinutes)
         case .weekly:
-            L(metadata?.weeklyLabel ?? "Weekly")
+            L(isAntigravity ? "Weekly" : (metadata?.weeklyLabel ?? "Weekly"))
+        case .antigravityClaudeGPTSession:
+            "Claude/GPT 5h"
+        case .antigravityClaudeGPTWeekly:
+            "Claude/GPT \(L("Weekly"))"
         case .monthly:
             metadata?.opusLabel ?? "Monthly"
         case .opus:
@@ -651,10 +666,12 @@ struct PlanUtilizationHistoryChartMenuView: View {
             0
         case .weekly, .antigravityClaudeGPT:
             1
-        case .monthly:
+        case .antigravityClaudeGPTSession:
             2
-        case .opus:
-            2
+        case .antigravityClaudeGPTWeekly:
+            3
+        case .monthly, .opus:
+            4
         default:
             100
         }

@@ -208,6 +208,7 @@ public struct CostUsageFetcher: Sendable {
         provider: UsageProvider,
         environment: [String: String] = ProcessInfo.processInfo.environment,
         antigravityAdditionalProfileHomes: [String] = [],
+        antigravityScanOptions: AntigravityLocalScanOptions = .defaultOptions,
         now: Date = Date(),
         forceRefresh: Bool = false,
         allowVertexClaudeFallback: Bool = false,
@@ -226,6 +227,7 @@ public struct CostUsageFetcher: Sendable {
             provider: provider,
             environment: environment,
             antigravityAdditionalProfileHomes: antigravityAdditionalProfileHomes,
+            antigravityScanOptions: antigravityScanOptions,
             now: now,
             forceRefresh: forceRefresh,
             allowVertexClaudeFallback: allowVertexClaudeFallback,
@@ -246,6 +248,7 @@ public struct CostUsageFetcher: Sendable {
         claudeConfigDirectory: String? = nil,
         environment: [String: String] = ProcessInfo.processInfo.environment,
         antigravityAdditionalProfileHomes: [String] = [],
+        antigravityScanOptions: AntigravityLocalScanOptions = .defaultOptions,
         now: Date = Date(),
         forceRefresh: Bool = false,
         allowVertexClaudeFallback: Bool = false,
@@ -277,6 +280,7 @@ public struct CostUsageFetcher: Sendable {
             provider: provider,
             environment: environment,
             antigravityAdditionalProfileHomes: antigravityAdditionalProfileHomes,
+            antigravityScanOptions: antigravityScanOptions,
             now: now,
             forceRefresh: forceRefresh,
             allowVertexClaudeFallback: allowVertexClaudeFallback,
@@ -449,6 +453,7 @@ public struct CostUsageFetcher: Sendable {
         provider: UsageProvider,
         environment: [String: String] = ProcessInfo.processInfo.environment,
         antigravityAdditionalProfileHomes: [String] = [],
+        antigravityScanOptions: AntigravityLocalScanOptions = .defaultOptions,
         now: Date = Date(),
         forceRefresh: Bool = false,
         allowVertexClaudeFallback: Bool = false,
@@ -471,6 +476,7 @@ public struct CostUsageFetcher: Sendable {
             provider: provider,
             environment: environment,
             antigravityAdditionalProfileHomes: antigravityAdditionalProfileHomes,
+            antigravityScanOptions: antigravityScanOptions,
             now: now,
             forceRefresh: forceRefresh,
             allowVertexClaudeFallback: allowVertexClaudeFallback,
@@ -494,6 +500,7 @@ public struct CostUsageFetcher: Sendable {
         provider: UsageProvider,
         environment: [String: String] = ProcessInfo.processInfo.environment,
         antigravityAdditionalProfileHomes: [String] = [],
+        antigravityScanOptions: AntigravityLocalScanOptions = .defaultOptions,
         now: Date = Date(),
         forceRefresh: Bool = false,
         allowVertexClaudeFallback: Bool = false,
@@ -601,7 +608,10 @@ public struct CostUsageFetcher: Sendable {
                     inBackground: refreshPricingInBackground || !forceRefresh),
                 client: modelsDevClient)
             if let local = try await self.loadPricedAntigravityLocalSnapshot(
-                context: .init(environment: environment, additionalProfileHomes: antigravityAdditionalProfileHomes),
+                context: .init(
+                    environment: environment,
+                    additionalProfileHomes: antigravityAdditionalProfileHomes,
+                    scanOptions: antigravityScanOptions),
                 now: now,
                 historyDays: clampedHistoryDays,
                 calendar: fallbackCalendar,
@@ -1791,12 +1801,19 @@ public struct CostUsageFetcher: Sendable {
         calendar: Calendar = .current,
         pricingCacheRoot: URL?) async throws -> CostUsageTokenSnapshot?
     {
+        let bounds = CostReportingPeriod.rolling(days: historyDays).bounds(now: now, calendar: calendar)
+        let sinceKey = CostUsageLocalDay.key(from: bounds.lowerBound, calendar: calendar)
+        let untilKey = CostUsageLocalDay.key(from: bounds.upperBound, calendar: calendar)
+        let limits = AntigravityLocalReader.Limits()
         let reportResult = try await CostUsageScanExecutor.run { checkCancellation in
             try AntigravityLocalReader.makeDailyReportWithStatus(
                 context: context,
                 calendar: calendar,
                 estimateCost: true,
                 pricingCacheRoot: pricingCacheRoot,
+                limits: limits,
+                includeBreakdowns: true,
+                dayRange: (sinceKey: sinceKey, untilKey: untilKey),
                 checkCancellation: checkCancellation)
         }
         // A scan can be partial when an old Antigravity database has a missing WAL sidecar or the
@@ -1822,20 +1839,35 @@ public struct CostUsageFetcher: Sendable {
             // bound, which is what separates "read part of it" from "could not read it".
             historyCoverageIsEstablished: reportResult.isComplete,
             historyScanIsPartial: !reportResult.isComplete,
-            costProvenance: daily.summary?.totalCostUSD == nil ? .unknown : .listPriceEstimate)
+            costProvenance: daily.summary?.totalCostUSD == nil ? .unknown : .listPriceEstimate,
+            projects: reportResult.projects,
+            sessions: reportResult.sessions,
+            detailsAreComplete: reportResult.isComplete)
     }
 
-    private static func windowedDailyReport(
+    static func windowedDailyReport(
         _ report: CostUsageDailyReport, historyDays: Int, now: Date, calendar: Calendar) -> CostUsageDailyReport
     {
-        let entries = CostReportingPeriod.rolling(days: historyDays).entries(report.data, now: now, calendar: calendar)
+        let period = CostReportingPeriod.rolling(days: historyDays)
+        let entries = period.entries(report.data, now: now, calendar: calendar)
+        let bounds = period.bounds(now: now, calendar: calendar)
+        let startKey = CostUsageLocalDay.key(from: bounds.lowerBound, calendar: calendar)
+        let endKey = CostUsageLocalDay.key(from: bounds.upperBound, calendar: calendar)
+        let hourly = report.hourly.filter { entry in
+            let key = CostUsageLocalDay.key(from: entry.hour, calendar: calendar)
+            return key >= startKey && key <= endKey
+        }
+        let quotaSlices = report.quotaSlices.filter { entry in
+            let key = CostUsageLocalDay.key(from: entry.timestamp, calendar: calendar)
+            return key >= startKey && key <= endKey
+        }
         let costs = entries.compactMap(\.costUSD)
         let summary: CostUsageDailyReport.Summary? = entries.isEmpty ? nil : .init(
             totalInputTokens: nil,
             totalOutputTokens: nil,
             totalTokens: CheckedSum.integers(entries.compactMap(\.totalTokens)),
             totalCostUSD: costs.isEmpty ? nil : costs.reduce(0, +))
-        return CostUsageDailyReport(data: entries, summary: summary)
+        return CostUsageDailyReport(data: entries, summary: summary, hourly: hourly, quotaSlices: quotaSlices)
     }
 
     static func tokenSnapshot(
