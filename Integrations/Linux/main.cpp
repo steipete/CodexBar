@@ -171,8 +171,10 @@ int main(int argc, char **argv) {
         QPixmap pixmap(64, 64); pixmap.fill(Qt::transparent);
         QPainter painter(&pixmap); painter.setRenderHint(QPainter::Antialiasing);
         painter.setPen(Qt::NoPen);
-        for (int index = 0; index < 2; ++index) {
-            const QRectF track(5, 12 + index * 25, 54, 15);
+        const int trackCount = windows.size() == 1 ? 1 : 2;
+        for (int index = 0; index < trackCount; ++index) {
+            const qreal top = trackCount == 1 ? (pixmap.height() - 15) / 2.0 : 12 + index * 25;
+            const QRectF track(5, top, 54, 15);
             painter.setBrush(QColor("#777777")); painter.drawRoundedRect(track, 4, 4);
             if (index >= windows.size()) continue;
             const double remaining = qBound(0.0, windows[index].toMap().value("remaining").toDouble(), 100.0);
