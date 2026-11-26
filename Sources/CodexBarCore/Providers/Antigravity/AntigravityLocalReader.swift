@@ -148,6 +148,7 @@ enum AntigravityLocalReader {
         calendar: Calendar = .current,
         estimateCost: Bool = false,
         pricingCacheRoot: URL? = nil,
+        dayRange: (sinceKey: String, untilKey: String)? = nil,
         limits: Limits = Limits(),
         clock: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
         checkCancellation: @escaping () throws -> Void = {}) throws -> DailyReportResult
@@ -155,10 +156,25 @@ enum AntigravityLocalReader {
         let budget = Budget(limits: limits, clock: clock, cancellation: checkCancellation)
         let pricing = estimateCost ? CostUsagePricing.ClaudeResolver(now: Date(), cacheRoot: pricingCacheRoot) : nil
         do {
-            let databases = try self.discover(roots: context.databaseRoots, extension: "db", budget: budget)
-            // A discovery error is not absence and never authorizes a cache replacement.
-            if !databases.paths.isEmpty || !databases.isComplete {
-                let source = try self.readDatabases(databases.paths, budget: budget)
+            let databases = try self.discover(
+                roots: context.databaseRoots,
+                extension: "db",
+                budget: budget,
+                dayRange: dayRange,
+                calendar: calendar)
+            // Any discovered SQLite database (including old mtime-filtered ones) or discovery error
+            // is not absence and never authorizes a cache replacement.
+            if !databases.paths.isEmpty || !databases.skippedOldPaths.isEmpty || !databases.isComplete {
+                var source = try self.readDatabases(databases.paths, budget: budget)
+                if databases.isComplete, source.isComplete, !source.containsHistorySource,
+                   !databases.skippedOldPaths.isEmpty
+                {
+                    let probed = try self.probeSkippedDatabasesForHistorySource(
+                        databases.skippedOldPaths,
+                        budget: budget)
+                    source.containsHistorySource = probed.containsHistorySource
+                    source.isComplete = source.isComplete && probed.isComplete
+                }
                 return try self.aggregate(
                     source,
                     discoveryComplete: databases.isComplete,
@@ -201,7 +217,7 @@ enum AntigravityLocalReader {
         var models: [LabelIdentity: String] = [:]
         var conflicts = Set<LabelIdentity>()
         for event in source.events {
-            try budget.check()
+            try budget.cancellation()
             if let label = event.turn.label, let model = event.turn.model {
                 let key = LabelIdentity(session: event.session, label: label)
                 if let prior = models[key], prior != model {
@@ -216,7 +232,7 @@ enum AntigravityLocalReader {
         var responses: [ResponseIdentity: Event] = [:]
         var entries: [String: CostUsageDailyReport.Entry] = [:]
         for event in source.events {
-            try budget.check()
+            try budget.cancellation()
             let row = RowIdentity(session: event.session, row: event.row)
             guard let entry = self.entry(
                 event, models: models, conflicts: conflicts, calendar: calendar, pricing: pricing)

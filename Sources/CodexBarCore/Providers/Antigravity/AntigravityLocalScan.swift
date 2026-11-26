@@ -32,17 +32,17 @@ extension AntigravityLocalReader {
     }
 
     struct Limits: Sendable {
-        var databases = 500
-        var directoryEntries = 10000
+        var databases = 2000
+        var directoryEntries = 20000
         var rowsPerDatabase = 10000
-        var rows = 100_000
+        var rows = 500_000
         var blobBytes = 16 * 1024 * 1024
         var databaseBytes = 64 * 1024 * 1024
-        var bytes = 512 * 1024 * 1024
+        var bytes = 2 * 1024 * 1024 * 1024
         var schemaEntries = 128
         var schemaColumns = 64
         var schemaBytes = 64 * 1024
-        var duration: TimeInterval = 30
+        var duration: TimeInterval = 120
     }
 
     struct Statistics: Sendable {
@@ -80,6 +80,13 @@ extension AntigravityLocalReader {
         /// Schema text inspected in the current database. The schema allowance applies to each database,
         /// like the entry and column limits, so a long history of small schemas never adds up to it.
         private(set) var databaseSchemaBytes = 0
+        private(set) var durationExhausted = false
+
+        var isJobExhausted: Bool {
+            self.statistics.rows >= self.limits.rows
+                || self.statistics.attemptedBytes >= self.limits.bytes
+                || self.durationExhausted
+        }
 
         init(
             limits: Limits,
@@ -94,7 +101,10 @@ extension AntigravityLocalReader {
 
         func check() throws {
             try self.cancellation()
-            guard self.clock() - self.started < self.limits.duration else { throw ScanFailure.exhausted }
+            guard self.clock() - self.started < self.limits.duration else {
+                self.durationExhausted = true
+                throw ScanFailure.exhausted
+            }
         }
 
         func chargeBytes(_ count: Int) throws {
@@ -126,11 +136,23 @@ extension AntigravityLocalReader {
 
     struct Discovery {
         var paths: [URL] = []
+        var skippedOldPaths: [URL] = []
         var isComplete = true
     }
 
-    static func discover(roots: [URL], extension suffix: String, budget: Budget) throws -> Discovery {
+    static func discover(
+        roots: [URL],
+        extension suffix: String,
+        budget: Budget,
+        dayRange: (sinceKey: String, untilKey: String)? = nil,
+        calendar: Calendar = .current) throws -> Discovery
+    {
         var result = Discovery()
+        var candidates: [(url: URL, modifiedAt: Date?)] = []
+        var skippedCandidates: [(url: URL, modifiedAt: Date?)] = []
+        let sinceDate = dayRange.flatMap { CostUsageLocalDay.date(fromKey: $0.sinceKey, calendar: calendar) }
+        var hitDirectoryEntryLimit = false
+
         for root in roots {
             try budget.check()
             do {
@@ -148,7 +170,7 @@ extension AntigravityLocalReader {
             var enumerationFailed = false
             guard let enumerator = FileManager.default.enumerator(
                 at: root.resolvingSymlinksInPath(),
-                includingPropertiesForKeys: [.isRegularFileKey],
+                includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey],
                 options: [.skipsSubdirectoryDescendants],
                 errorHandler: { _, _ in
                     enumerationFailed = true
@@ -162,28 +184,76 @@ extension AntigravityLocalReader {
                 try budget.check()
                 guard let url = enumerator.nextObject() as? URL else { break }
                 budget.statistics.directoryEntries += 1
-                guard budget.statistics.directoryEntries <= budget.limits.directoryEntries else {
-                    throw ScanFailure.exhausted
+                if budget.statistics.directoryEntries > budget.limits.directoryEntries {
+                    result.isComplete = false
+                    hitDirectoryEntryLimit = true
+                    break
                 }
                 guard !url.lastPathComponent.hasPrefix("."), url.pathExtension.lowercased() == suffix else { continue }
-                guard result.paths.count < budget.limits.databases else {
-                    throw ScanFailure.exhausted
-                }
                 do {
-                    let values = try url.resolvingSymlinksInPath().resourceValues(forKeys: [.isRegularFileKey])
+                    let resolvedURL = url.resolvingSymlinksInPath()
+                    let values = try resolvedURL.resourceValues(
+                        forKeys: [.isRegularFileKey, .contentModificationDateKey])
                     guard values.isRegularFile == true else {
                         result.isComplete = false
                         continue
                     }
-                    result.paths.append(url)
+                    let effectiveMtime = self.effectiveModificationDate(
+                        resolvedURL: resolvedURL,
+                        fileMtime: values.contentModificationDate,
+                        extension: suffix)
+                    if let sinceDate, let effectiveMtime, effectiveMtime < sinceDate {
+                        skippedCandidates.append((url: url, modifiedAt: effectiveMtime))
+                        continue
+                    }
+                    candidates.append((url: url, modifiedAt: effectiveMtime))
                 } catch {
                     result.isComplete = false
                 }
             }
             if enumerationFailed { result.isComplete = false }
+            if hitDirectoryEntryLimit { break }
         }
-        result.paths.sort { $0.path < $1.path }
+
+        let sortCandidates: ((url: URL, modifiedAt: Date?), (url: URL, modifiedAt: Date?)) -> Bool = { lhs, rhs in
+            let lhsDate = lhs.modifiedAt ?? .distantPast
+            let rhsDate = rhs.modifiedAt ?? .distantPast
+            if lhsDate != rhsDate {
+                return lhsDate > rhsDate
+            }
+            return lhs.url.path < rhs.url.path
+        }
+        candidates.sort(by: sortCandidates)
+        skippedCandidates.sort(by: sortCandidates)
+        result.skippedOldPaths = skippedCandidates.map(\.url)
+        let limit = max(0, budget.limits.databases)
+        if candidates.count > limit {
+            result.isComplete = false
+            result.paths = candidates.prefix(limit).map(\.url)
+        } else {
+            result.paths = candidates.map(\.url)
+        }
         return result
+    }
+
+    private static func effectiveModificationDate(
+        resolvedURL: URL,
+        fileMtime: Date?,
+        extension suffix: String) -> Date?
+    {
+        guard suffix == "db" else { return fileMtime }
+        let walPath = resolvedURL.path + "-wal"
+        let walMtime = (try? FileManager.default.attributesOfItem(atPath: walPath))?[.modificationDate] as? Date
+        switch (fileMtime, walMtime) {
+        case let (.some(dbDate), .some(walDate)):
+            return max(dbDate, walDate)
+        case let (.some(dbDate), .none):
+            return dbDate
+        case let (.none, .some(walDate)):
+            return walDate
+        case (.none, .none):
+            return nil
+        }
     }
 }
 

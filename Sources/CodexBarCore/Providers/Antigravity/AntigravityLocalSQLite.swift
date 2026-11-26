@@ -9,10 +9,13 @@ extension AntigravityLocalReader {
     static func readDatabases(_ paths: [URL], budget: Budget) throws -> SourceResult {
         var result = SourceResult()
         for url in paths {
+            guard budget.statistics.files < budget.limits.databases else {
+                result.isComplete = false
+                break
+            }
             do {
                 try budget.check()
                 budget.statistics.files += 1
-                guard budget.statistics.files <= budget.limits.databases else { throw ScanFailure.exhausted }
                 budget.beginDatabase()
                 let source = try self.readDatabase(url, budget: budget)
                 result.events.append(contentsOf: source.events)
@@ -21,13 +24,137 @@ extension AntigravityLocalReader {
                 result.evidenceIsUnstable = result.evidenceIsUnstable || source.evidenceIsUnstable
             } catch ScanFailure.schemaExhausted {
                 // Schema limits apply to each database, so an oversized schema costs only its own database.
-                // Rows from the other databases stay valid partial history. Hard row, byte, and duration
-                // limits are not caught here and continue to withhold newly truncated reports as documented.
+                // Rows from the other databases stay valid partial history.
                 result.isComplete = false
+            } catch ScanFailure.exhausted {
+                // Keep already-completed databases as partial history. Stop scanning if job-wide limits are hit.
+                result.isComplete = false
+                if budget.isJobExhausted {
+                    if !result.containsHistorySource, result.events.isEmpty {
+                        throw ScanFailure.exhausted
+                    }
+                    break
+                }
             }
         }
         return result
     }
+
+    /// Verifies whether any mtime-skipped SQLite database contains a supported Antigravity history table
+    /// without scanning payload rows, so rolling-window scans preserve foreign-only `.unavailable` semantics
+    /// and drifted or unsupported schemas keep coverage `.partial`.
+    static func probeSkippedDatabasesForHistorySource(
+        _ paths: [URL],
+        budget: Budget) throws -> (containsHistorySource: Bool, isComplete: Bool)
+    {
+        #if canImport(SQLite3) || canImport(CSQLite3)
+        var probed = 0
+        var foundSupported = false
+        var sawUnsupported = false
+        for url in paths {
+            guard budget.statistics.files + probed < budget.limits.databases else {
+                return (containsHistorySource: foundSupported, isComplete: false)
+            }
+            do {
+                try budget.check()
+                probed += 1
+                budget.beginDatabase()
+                let support = try self.probeDatabaseSchemaSupport(url, budget: budget)
+                switch support {
+                case .supported:
+                    foundSupported = true
+                case .foreign:
+                    budget.statistics.foreignDatabases += 1
+                case .unsupported:
+                    sawUnsupported = true
+                }
+            } catch ScanFailure.schemaExhausted {
+                sawUnsupported = true
+            } catch ScanFailure.exhausted {
+                return (containsHistorySource: foundSupported, isComplete: false)
+            }
+            if foundSupported, sawUnsupported {
+                return (containsHistorySource: true, isComplete: false)
+            }
+        }
+        return (containsHistorySource: foundSupported, isComplete: !sawUnsupported)
+        #else
+        return (containsHistorySource: false, isComplete: paths.isEmpty)
+        #endif
+    }
+
+    #if canImport(SQLite3) || canImport(CSQLite3)
+    private struct SchemaProbeAttempt {
+        let support: SQLiteTableSupport
+        let cannotOpen: Bool
+
+        init(_ support: SQLiteTableSupport, cannotOpen: Bool = false) {
+            self.support = support
+            self.cannotOpen = cannotOpen
+        }
+    }
+
+    private static func probeDatabaseSchemaSupport(_ url: URL, budget: Budget) throws -> SQLiteTableSupport {
+        let attempt = try self.probeDatabaseSchemaSupport(url, budget: budget, mode: .readOnly)
+        guard attempt.cannotOpen, let before = SQLiteIdleDatabaseState.read(at: url) else {
+            return attempt.support
+        }
+        budget.statistics.immutableFallbacks += 1
+        let immutable = try self.probeDatabaseSchemaSupport(url, budget: budget, mode: .immutable)
+        guard SQLiteIdleDatabaseState.read(at: url) == before else {
+            return .unsupported
+        }
+        return immutable.support
+    }
+
+    private static func probeDatabaseSchemaSupport(
+        _ url: URL,
+        budget: Budget,
+        mode: OpenMode) throws -> SchemaProbeAttempt
+    {
+        let opened = self.openDatabase(url, mode: mode, budget: budget)
+        guard let database = opened.database else {
+            return SchemaProbeAttempt(.unsupported, cannotOpen: opened.status == SQLITE_CANTOPEN)
+        }
+        defer {
+            if sqlite3_close(database) == SQLITE_OK {
+                budget.statistics.sqliteHandlesClosed += 1
+            }
+        }
+        let progress = SQLProgress(budget: budget)
+        let maximumValueBytes = min(budget.limits.blobBytes, 16 * 1024 * 1024) + 1024
+        sqlite3_limit(database, SQLITE_LIMIT_LENGTH, Int32(min(maximumValueBytes, 64 * 1024)))
+        sqlite3_progress_handler(
+            database,
+            1000,
+            { pointer in
+                guard let pointer else { return 1 }
+                return Unmanaged<SQLProgress>.fromOpaque(pointer).takeUnretainedValue().advance()
+            },
+            Unmanaged.passUnretained(progress).toOpaque())
+        defer {
+            withExtendedLifetime(progress) {
+                sqlite3_progress_handler(database, 0, nil, nil)
+                sqlite3_exec(database, "ROLLBACK", nil, nil, nil)
+            }
+        }
+        let began = sqlite3_exec(database, "BEGIN DEFERRED", nil, nil, nil)
+        guard began == SQLITE_OK else {
+            if let failure = progress.failure {
+                throw failure
+            }
+            return SchemaProbeAttempt(.unsupported, cannotOpen: began == SQLITE_CANTOPEN)
+        }
+        let support = try self.inspectSQLiteTableSupport(database, budget: budget)
+        if let failure = progress.failure {
+            throw failure
+        }
+        if support == .unsupported {
+            return SchemaProbeAttempt(.unsupported, cannotOpen: sqlite3_errcode(database) == SQLITE_CANTOPEN)
+        }
+        return SchemaProbeAttempt(support)
+    }
+    #endif
 
     #if canImport(SQLite3) || canImport(CSQLite3)
     private final class SQLProgress {

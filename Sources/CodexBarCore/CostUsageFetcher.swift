@@ -1791,12 +1791,16 @@ public struct CostUsageFetcher: Sendable {
         calendar: Calendar = .current,
         pricingCacheRoot: URL?) async throws -> CostUsageTokenSnapshot?
     {
+        let bounds = CostReportingPeriod.rolling(days: historyDays).bounds(now: now, calendar: calendar)
+        let sinceKey = CostUsageLocalDay.key(from: bounds.lowerBound, calendar: calendar)
+        let untilKey = CostUsageLocalDay.key(from: bounds.upperBound, calendar: calendar)
         let reportResult = try await CostUsageScanExecutor.run { checkCancellation in
             try AntigravityLocalReader.makeDailyReportWithStatus(
                 context: context,
                 calendar: calendar,
                 estimateCost: true,
                 pricingCacheRoot: pricingCacheRoot,
+                dayRange: (sinceKey: sinceKey, untilKey: untilKey),
                 checkCancellation: checkCancellation)
         }
         // A scan can be partial when an old Antigravity database has a missing WAL sidecar or the
