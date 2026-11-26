@@ -9,10 +9,13 @@ extension AntigravityLocalReader {
     static func readDatabases(_ paths: [URL], budget: Budget) throws -> SourceResult {
         var result = SourceResult()
         for url in paths {
+            guard budget.statistics.files < budget.limits.databases else {
+                result.isComplete = false
+                break
+            }
             do {
                 try budget.check()
                 budget.statistics.files += 1
-                guard budget.statistics.files <= budget.limits.databases else { throw ScanFailure.exhausted }
                 budget.beginDatabase()
                 let source = try self.readDatabase(url, budget: budget)
                 result.events.append(contentsOf: source.events)
@@ -21,9 +24,17 @@ extension AntigravityLocalReader {
                 result.evidenceIsUnstable = result.evidenceIsUnstable || source.evidenceIsUnstable
             } catch ScanFailure.schemaExhausted {
                 // Schema limits apply to each database, so an oversized schema costs only its own database.
-                // Rows from the other databases stay valid partial history. Hard row, byte, and duration
-                // limits are not caught here and continue to withhold newly truncated reports as documented.
+                // Rows from the other databases stay valid partial history.
                 result.isComplete = false
+            } catch ScanFailure.exhausted {
+                // Keep already-completed databases as partial history. Stop scanning if job-wide limits are hit.
+                result.isComplete = false
+                if budget.isJobExhausted {
+                    if !result.containsHistorySource, result.events.isEmpty {
+                        throw ScanFailure.exhausted
+                    }
+                    break
+                }
             }
         }
         return result

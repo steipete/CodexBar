@@ -10,13 +10,26 @@ extension AntigravityLocalReader {
     static func readJSONL(_ paths: [URL], budget: Budget) throws -> SourceResult {
         var result = SourceResult()
         for url in paths {
-            try budget.check()
-            budget.statistics.files += 1
-            guard budget.statistics.files <= budget.limits.databases else { throw ScanFailure.exhausted }
-            let source = try self.readJSONLFile(url, budget: budget)
-            result.events.append(contentsOf: source.events)
-            result.isComplete = result.isComplete && source.isComplete
-            result.containsHistorySource = result.containsHistorySource || source.containsHistorySource
+            guard budget.statistics.files < budget.limits.databases else {
+                result.isComplete = false
+                break
+            }
+            do {
+                try budget.check()
+                budget.statistics.files += 1
+                let source = try self.readJSONLFile(url, budget: budget)
+                result.events.append(contentsOf: source.events)
+                result.isComplete = result.isComplete && source.isComplete
+                result.containsHistorySource = result.containsHistorySource || source.containsHistorySource
+            } catch ScanFailure.exhausted {
+                result.isComplete = false
+                if budget.isJobExhausted {
+                    if !result.containsHistorySource, result.events.isEmpty {
+                        throw ScanFailure.exhausted
+                    }
+                    break
+                }
+            }
         }
         return result
     }
