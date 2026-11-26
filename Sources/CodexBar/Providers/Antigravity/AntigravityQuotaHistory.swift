@@ -68,18 +68,14 @@ extension UsageStore {
         }
         guard !summaryRows.isEmpty else { return [] }
 
-        // Provider-specific by design: KnownFamily.gemini classifies an Antigravity quota family.
-        let geminiRows = summaryRows.filter {
-            AntigravityQuotaFamilyVisibility.knownFamily(windowID: $0.id, title: $0.title) == .gemini
+        // Provider-specific by design: pin .session and .weekly strictly to the canonical gemini family
+        // matching antigravitySessionEquivalentWindows so secondary pools such as Argon never overwrite Gemini history.
+        let canonicalGeminiRows = summaryRows.filter {
+            Self.antigravityQuotaFamilyKey($0.id) == "gemini"
         }
         let claudeGPTRows = summaryRows.filter {
             AntigravityQuotaFamilyVisibility.knownFamily(windowID: $0.id, title: $0.title) == .claudeGPT
         }
-        let primaryRows = geminiRows.isEmpty
-            ? summaryRows.filter {
-                AntigravityQuotaFamilyVisibility.knownFamily(windowID: $0.id, title: $0.title) != .claudeGPT
-            }
-            : geminiRows
 
         func mostConstrained(_ rows: [NamedRateWindow], minutes: Int) -> RateWindow? {
             rows
@@ -94,10 +90,10 @@ extension UsageStore {
         }
 
         var result: [(name: PlanUtilizationSeriesName, window: RateWindow)] = []
-        if let session = mostConstrained(primaryRows, minutes: Self.sessionWindowMinutes) {
+        if let session = mostConstrained(canonicalGeminiRows, minutes: Self.sessionWindowMinutes) {
             result.append((.session, session))
         }
-        if let weekly = mostConstrained(primaryRows, minutes: Self.weeklyWindowMinutes) {
+        if let weekly = mostConstrained(canonicalGeminiRows, minutes: Self.weeklyWindowMinutes) {
             result.append((.weekly, weekly))
         }
         if let claudeSession = mostConstrained(claudeGPTRows, minutes: Self.sessionWindowMinutes) {

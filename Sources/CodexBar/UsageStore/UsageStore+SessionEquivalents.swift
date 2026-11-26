@@ -423,7 +423,7 @@ extension UsageStore {
         return family.isEmpty ? nil : String(family)
     }
 
-    private nonisolated static func antigravityQuotaFamilyKey(_ id: String) -> String {
+    nonisolated static func antigravityQuotaFamilyKey(_ id: String) -> String {
         var key = String(id.dropFirst("antigravity-quota-summary-".count)).lowercased()
         let suffixes = [
             "-5h limit", "_5h_limit", "-weekly", "_weekly", " weekly",

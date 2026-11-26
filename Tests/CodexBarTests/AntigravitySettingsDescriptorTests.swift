@@ -408,4 +408,39 @@ struct AntigravitySettingsDescriptorTests {
         #expect(applied.antigravityTokscaleFallbackEnabled == false)
         #expect(applied.resolvedAntigravityProjectGrouping == .gitRepository)
     }
+
+    @Test
+    func `ProviderIntentPayload syncs Antigravity resets to defaults while preserving legacy nil payloads`() throws {
+        var receiving = ProviderConfig(id: .antigravity)
+        receiving.antigravityPrimaryPoolPreference = AntigravityPrimaryPoolPreference.claudeGPTWeekly.rawValue
+        receiving.antigravityProjectGrouping = AntigravityProjectGrouping.gitRepository.rawValue
+
+        // Resetting back to Auto / Workspace stores nil in ProviderConfig, so the payload must encode
+        // explicit defaults.
+        let resetSender = ProviderConfig(id: .antigravity)
+        #expect(resetSender.antigravityPrimaryPoolPreference == nil)
+        #expect(resetSender.antigravityProjectGrouping == nil)
+
+        let resetPayload = ProviderIntentPayload(config: resetSender)
+        #expect(resetPayload.antigravityPrimaryPoolPreference == AntigravityPrimaryPoolPreference.auto.rawValue)
+        #expect(resetPayload.antigravityProjectGrouping == AntigravityProjectGrouping.workspace.rawValue)
+
+        let encoded = try JSONEncoder().encode(resetPayload)
+        let decoded = try JSONDecoder().decode(ProviderIntentPayload.self, from: encoded)
+        let appliedReset = try decoded.applying(to: receiving, secretFields: [:], canEnable: { _, _ in true })
+        #expect(appliedReset.antigravityPrimaryPoolPreference == nil)
+        #expect(appliedReset.resolvedAntigravityPrimaryPoolPreference == .auto)
+        #expect(appliedReset.antigravityProjectGrouping == nil)
+        #expect(appliedReset.resolvedAntigravityProjectGrouping == .workspace)
+
+        // Older senders omit these fields entirely; decoding nil must preserve the receiving Mac's values.
+        let legacyJSON = #"{"schemaVersion":1,"provider":"antigravity"}"#
+        let legacyPayload = try JSONDecoder().decode(ProviderIntentPayload.self, from: Data(legacyJSON.utf8))
+        #expect(legacyPayload.antigravityPrimaryPoolPreference == nil)
+        #expect(legacyPayload.antigravityProjectGrouping == nil)
+
+        let appliedLegacy = try legacyPayload.applying(to: receiving, secretFields: [:], canEnable: { _, _ in true })
+        #expect(appliedLegacy.resolvedAntigravityPrimaryPoolPreference == .claudeGPTWeekly)
+        #expect(appliedLegacy.resolvedAntigravityProjectGrouping == .gitRepository)
+    }
 }

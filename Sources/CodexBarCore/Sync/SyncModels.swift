@@ -67,12 +67,19 @@ public struct ProviderIntentPayload: Codable, Sendable {
         self.claudeSwapEnabled = config.claudeSwapEnabled
         self.claudeSwapShowSingleAccount = config.claudeSwapShowSingleAccount
         self.antigravityPrioritizeExhaustedQuotas = config.antigravityPrioritizeExhaustedQuotas
-        self.antigravityPrimaryPoolPreference = config.antigravityPrimaryPoolPreference
+        // Provider-specific by design: encode explicit Antigravity defaults so resets to Auto or Workspace
+        // propagate across Macs, while reserving nil for older senders that omit these fields.
+        if config.id == .antigravity {
+            self.antigravityPrimaryPoolPreference = config.resolvedAntigravityPrimaryPoolPreference.rawValue
+            self.antigravityProjectGrouping = config.resolvedAntigravityProjectGrouping.rawValue
+        } else {
+            self.antigravityPrimaryPoolPreference = config.antigravityPrimaryPoolPreference
+            self.antigravityProjectGrouping = config.antigravityProjectGrouping
+        }
         self.antigravityShowCredits = config.antigravityShowCredits
         self.antigravityScanDesktopEnabled = config.antigravityScanDesktopEnabled
         self.antigravityScanCLIEnabled = config.antigravityScanCLIEnabled
         self.antigravityTokscaleFallbackEnabled = config.antigravityTokscaleFallbackEnabled
-        self.antigravityProjectGrouping = config.antigravityProjectGrouping
         self.quotaWarnings = config.quotaWarnings
         // Always report, so that clearing an override propagates as an empty string.
         self.accentColor = config.accentColor ?? ""
@@ -161,7 +168,10 @@ public struct ProviderIntentPayload: Codable, Sendable {
     private func applyAntigravitySettings(to result: inout ProviderConfig) {
         result.antigravityPrioritizeExhaustedQuotas = self.antigravityPrioritizeExhaustedQuotas
         if let antigravityPrimaryPoolPreference = self.antigravityPrimaryPoolPreference {
-            result.antigravityPrimaryPoolPreference = antigravityPrimaryPoolPreference
+            result.antigravityPrimaryPoolPreference =
+                antigravityPrimaryPoolPreference == AntigravityPrimaryPoolPreference.auto.rawValue
+                    ? nil
+                    : antigravityPrimaryPoolPreference
         }
         if let antigravityShowCredits = self.antigravityShowCredits {
             result.antigravityShowCredits = antigravityShowCredits
@@ -176,7 +186,10 @@ public struct ProviderIntentPayload: Codable, Sendable {
             result.antigravityTokscaleFallbackEnabled = antigravityTokscaleFallbackEnabled
         }
         if let antigravityProjectGrouping = self.antigravityProjectGrouping {
-            result.antigravityProjectGrouping = antigravityProjectGrouping
+            result.antigravityProjectGrouping =
+                antigravityProjectGrouping == AntigravityProjectGrouping.workspace.rawValue
+                    ? nil
+                    : antigravityProjectGrouping
         }
     }
 

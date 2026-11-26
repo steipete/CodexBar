@@ -54,7 +54,7 @@ struct AntigravityParityTier5Tests {
     }
 
     @Test
-    func `tier5_t5_1_cliUsageSourceCLIProducesCatalogDetailsAndOperationalAvailability`() throws {
+    func `CLI usage source produces catalog details and operational availability`() throws {
         let root = try Self.makeTempRoot("ag-t5-cli-usage")
         defer { try? FileManager.default.removeItem(at: root) }
 
@@ -150,7 +150,7 @@ struct AntigravityParityTier5Tests {
     }
 
     @Test(arguments: ["missing-credentials", "invalid-credentials-json"])
-    func `tier5_t5_1_cliUsageSourceOAuthFailsClosedWithoutKeychainPrompt`(mode: String) throws {
+    func `CLI usage OAuth source fails closed without Keychain prompt`(mode: String) throws {
         let root = try Self.makeTempRoot("ag-t5-oauth-fail")
         defer { try? FileManager.default.removeItem(at: root) }
 
@@ -175,7 +175,7 @@ struct AntigravityParityTier5Tests {
     }
 
     @Test
-    func `tier5_crossCutting_oauthEmptyQuotaSnapshotPreservesCatalogCreditsAndMetadata`() throws {
+    func `OAuth empty quota snapshot preserves catalog credits and metadata`() throws {
         let credits = AntigravityCreditsSnapshot(
             prompt: nil,
             flow: nil,

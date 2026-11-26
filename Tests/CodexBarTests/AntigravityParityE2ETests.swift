@@ -630,7 +630,7 @@ struct AntigravityParityE2ETests {
 
     // MARK: Tier 1: F1, F2, & F3
 
-    @Test @MainActor func `tier1_f1_oauthFourQuotaWindowsAndResetTimes`() async throws {
+    @Test @MainActor func `OAuth returns four quota windows and reset times`() async throws {
         let summary = Harness.fourBucketSummary(g5h: 0.72, gw: 0.61, c5h: 0.85, cw: 0.40)
         try await Harness.runRefresh(summaryDict: summary) { _, snap in
             let wins = try #require(snap.extraRateWindows)
@@ -644,7 +644,7 @@ struct AntigravityParityE2ETests {
         }
     }
 
-    @Test @MainActor func `tier1_f1_menuCardCLITextAndDashboardRenderFourLanes`() async throws {
+    @Test @MainActor func `menu card CLI text and dashboard render four quota lanes`() async throws {
         let now = Date()
         try await Harness.runRefresh(summaryDict: Harness.fourBucketSummary(now: now)) { ctx, snap in
             let card = Harness.card(ctx, now: now)
@@ -659,7 +659,7 @@ struct AntigravityParityE2ETests {
 
     @Test(arguments: ["session", "5h", "5-hour", "five-hour"])
     @MainActor
-    func `tier1_f1_cadenceAliasesNormalizeToFiveHourWindow`(alias: String) async throws {
+    func `cadence aliases normalize to five hour window`(alias: String) async throws {
         let sum = Harness.singleSummary(cadence: alias, frac: 0.65, resetOffset: nil)
         try await Harness.runRefresh(summary: sum) { _, s in
             let window = try #require(s.extraRateWindows?.first)
@@ -667,7 +667,7 @@ struct AntigravityParityE2ETests {
         }
     }
 
-    @Test @MainActor func `tier1_f1_primaryPoolPreferenceReordersCardLead`() async throws {
+    @Test @MainActor func `primary pool preference reorders menu card lead metric`() async throws {
         try await Harness.withStore { ctx in
             ctx.settings.antigravityPrimaryPoolPreference = .claudeGPTWeekly
             try await Harness.refresh(ctx)
@@ -675,7 +675,7 @@ struct AntigravityParityE2ETests {
         }
     }
 
-    @Test @MainActor func `tier1_f2_multiRefreshPersistsFourSeriesAndRendersCharts`() async throws {
+    @Test @MainActor func `multi refresh persists four series and renders utilization charts`() async throws {
         try await Harness.withStore { ctx in
             let now = Date()
             let priorData = GeminiAPITestHelpers.jsonData(
@@ -699,7 +699,7 @@ struct AntigravityParityE2ETests {
 
     @Test(arguments: ["5h", "weekly"])
     @MainActor
-    func `tier1_f2_singleCadenceGeminiRecordsIndependently`(cadence: String) async throws {
+    func `single cadence Gemini snapshots record independently`(cadence: String) async throws {
         try await Harness.withStore { ctx in
             let isSession = cadence == "5h"
             try await Harness.refresh(ctx, summary: Harness.singleSummary(cadence: cadence))
@@ -712,7 +712,7 @@ struct AntigravityParityE2ETests {
 
     @Test(arguments: ["transition", "reload"])
     @MainActor
-    func `tier1_f2_claudeGPTTransitionsAndDiskReloadsDriveCharts`(mode: String) async throws {
+    func `Claude GPT transitions and disk reloads drive utilization charts`(mode: String) async throws {
         try await Harness.withStore { ctx in
             try await Harness.refresh(ctx, summaryDict: Harness.fourBucketSummary(c5h: 1.0, cw: 1.0))
             #expect(Harness.visibleSeries(ctx) == ["session:300", "weekly:10080"])
@@ -737,7 +737,7 @@ struct AntigravityParityE2ETests {
         ("GOOGLE_ONE_HELIUM", "Google AI Ultra"),
     ])
     @MainActor
-    func `tier1_f3_tierMappingFlowsToStoreCardAndJSON`(tierID: String, expected: String) async throws {
+    func `subscription tier mapping flows to store card and JSON`(tierID: String, expected: String) async throws {
         let load = tierID == "GOOGLE_ONE_HELIUM"
             ? #"{"g1Tier":"GOOGLE_ONE_HELIUM","currentTier":{"id":"standard-tier"}}"#
             : #"{"paidTier":{"id":"\#(tierID)"}}"#
@@ -748,7 +748,7 @@ struct AntigravityParityE2ETests {
         }
     }
 
-    @Test @MainActor func `tier1_f3_manageAndUpgradeURISurfaceDashboardEmailAndCredits`() async throws {
+    @Test @MainActor func `manage and upgrade URIs surface dashboard email and credits`() async throws {
         try await Harness.withStore(email: "ultra-e2e@example.com") { ctx in
             let load = #"{"paidTier":{"id":"g1-ultra-tier","#
                 + #""manageSubscriptionUri":"https://one.google.com/subscriptions","#
@@ -765,7 +765,7 @@ struct AntigravityParityE2ETests {
 
     // MARK: Tier 1: F4, F5, F6, F7, & F8
 
-    @Test @MainActor func `tier1_f4_remainingAmountAndAvailabilitiesFlowToCardCLIAndJSON`() async throws {
+    @Test @MainActor func `remaining amount and model availabilities flow to card CLI and JSON`() async throws {
         let avail: [String: Any] = [
             "gemini-3-flash": ["state": "MODEL_AVAILABILITY_STATE_OPERATIONAL"],
             "gemini-3.1-pro": ["state": "MODEL_AVAILABILITY_STATE_CONGESTED", "explanation": "Regional load"],
@@ -790,7 +790,7 @@ struct AntigravityParityE2ETests {
 
     @Test(arguments: ["oneof", "cli-snake-case", "403-fallback", "verified-merge"])
     @MainActor
-    func `tier1_f4_remainingAmountDecodesAcrossSummaryAndFallbackModes`(mode: String) async throws {
+    func `remaining amount decodes across summary and fallback modes`(mode: String) async throws {
         switch mode {
         case "oneof":
             let sum = #"{"buckets":[{"bucketId":"g5h","displayName":"5h","refreshWindowLabel":"5h","#
@@ -826,7 +826,7 @@ struct AntigravityParityE2ETests {
         ("2", "MODEL_PRICING_TYPE_API", "API"), ("3", "MODEL_PRICING_TYPE_BYOK", "BYOK"),
     ])
     @MainActor
-    func `tier1_f5_pricingCodesAndCatalogAttributesFlowToCard`(
+    func `pricing codes and catalog attributes flow to menu card`(
         raw: String, canonical: String, humanized: String) async throws
     {
         let m = Harness.mod(#""g3p":{"displayName":"Gemini 3 Pro","creditMultiplier":1.5,"#
@@ -843,7 +843,7 @@ struct AntigravityParityE2ETests {
 
     @Test(arguments: ["local-configs", "with-identity", "oauth-snake-case"])
     @MainActor
-    func `tier1_f5_catalogAttributesDecodeAndMergeAcrossSources`(mode: String) async throws {
+    func `catalog attributes decode and merge across sources`(mode: String) async throws {
         switch mode {
         case "local-configs":
             let json = #"{"clientModelConfigs":[{"label":"Claude Opus 4.6","#
@@ -881,7 +881,7 @@ struct AntigravityParityE2ETests {
     }
 
     @Test(arguments: ["sorted-rosters", "models-vs-prose", "cli-flags"])
-    func `tier1_f6_agySubprocessParsesGroupRostersAcrossFormats`(mode: String) async throws {
+    func `agy subprocess parses group rosters across formats`(mode: String) async throws {
         func b(_ id: String, _ frac: Double) -> String {
             #"{"id":"\#(id)","window":"5h","remaining_fraction":\#(frac)}"#
         }
@@ -913,7 +913,7 @@ struct AntigravityParityE2ETests {
 
     @Test(arguments: [false, true])
     @MainActor
-    func `tier1_f6_optionalDetailsToggleGatesCardWhileCLIRemainsFull`(showOptional: Bool) async throws {
+    func `optional details toggle gates menu card while CLI remains full`(showOptional: Bool) async throws {
         let load = #"{"paidTier":{"id":"g1-ultra-tier","availableCredits":"#
             + #"[{"creditType":"GOOGLE_ONE_AI","creditAmount":"250"}]}}"#
         let av: [String: Any] = ["gemini-3.1-pro": ["state": "MODEL_AVAILABILITY_STATE_CONGESTED"]]
@@ -935,7 +935,7 @@ struct AntigravityParityE2ETests {
     }
 
     @Test(arguments: ["limits", "day-range", "wal-rescue", "multi-root"])
-    func `tier1_f7_localScanLimitsDayRangeWALAndMultiRoot`(mode: String) throws {
+    func `local scan honors limits day range WAL rescue and multi root`(mode: String) throws {
         let limits = AntigravityLocalReader.Limits()
         if mode == "limits" {
             #expect(limits.databases == 2000 && limits.directoryEntries == 20000)
@@ -959,7 +959,7 @@ struct AntigravityParityE2ETests {
         #expect(report.report.summary?.totalTokens == (mode == "multi-root" ? 207 + 187 : 207))
     }
 
-    @Test func `tier1_f7_cliCostSubprocessScansSyntheticHomeWithPricingCache`() throws {
+    @Test func `CLI cost subprocess scans synthetic home with pricing cache`() throws {
         let fixture = try AntigravityLocalFixture()
         let nowSec = UInt64(Date().timeIntervalSince1970)
         try Harness.db(fixture, "priced-cli", seconds: nowSec, ws: "file:///tmp/parity-proj")
@@ -971,7 +971,7 @@ struct AntigravityParityE2ETests {
     }
 
     @Test(arguments: ["databases", "rows", "bytes"])
-    func `tier1_f8_gracefulCappingModesPreserveNewestBreakdowns`(mode: String) throws {
+    func `graceful capping modes preserve newest local breakdowns`(mode: String) throws {
         let fixture = try AntigravityLocalFixture()
         let base = AntigravityLocalFixture.now.addingTimeInterval(-300)
         let blobSize = AntigravityLocalFixture.blob(input: 100).count
@@ -993,7 +993,7 @@ struct AntigravityParityE2ETests {
     }
 
     @Test(arguments: ["project", "session"])
-    func `tier1_f8_cliCostGroupByProjectAndSessionOutput`(groupBy: String) throws {
+    func `CLI cost outputs project and session groupings`(groupBy: String) throws {
         let fixture = try AntigravityLocalFixture()
         let sec = UInt64(Date().timeIntervalSince1970)
         try Harness.db(fixture, "cascade-session-abcdef", seconds: sec, ws: "file:///tmp/e2e-project")
@@ -1016,7 +1016,7 @@ extension AntigravityParityE2ETests {
 
     @Test(arguments: ["5h", "weekly"])
     @MainActor
-    func `tier2_f1_singleCadenceGeminiShapesPrimaryAndPace`(cadence: String) async throws {
+    func `single cadence Gemini shapes primary window and pace visibility`(cadence: String) async throws {
         let isSession = cadence == "5h"
         try await Harness.runRefresh(summary: Harness.singleSummary(cadence: cadence, frac: 0.6, resetOffset: nil)) {
             #expect($1.extraRateWindows?.count == 1 && $1.secondary == nil)
@@ -1026,7 +1026,7 @@ extension AntigravityParityE2ETests {
     }
 
     @Test(arguments: ["disabled", "unknown-cadence", "all-idle"])
-    func `tier2_f1_disabledUnknownCadenceAndAllIdleBoundaries`(mode: String) throws {
+    func `disabled buckets unknown cadence and all idle snapshots hold boundaries`(mode: String) throws {
         switch mode {
         case "disabled":
             let d = #"{"groups":[{"displayName":"Gemini Models","buckets":"#
@@ -1047,7 +1047,7 @@ extension AntigravityParityE2ETests {
         }
     }
 
-    @Test @MainActor func `tier2_f2_preFeatureWeeklyDroppedWhenStructuredSessionArrives`() async throws {
+    @Test @MainActor func `pre feature weekly history drops when structured session arrives`() async throws {
         try await Harness.withStore { ctx in
             try Harness.seedPreFeatureWeekly(ctx, now: Date(), used: 90)
             try await Harness.refresh(ctx, summaryDict: Harness.fourBucketSummary(g5h: 0.75, gw: 0.80))
@@ -1058,7 +1058,7 @@ extension AntigravityParityE2ETests {
 
     @Test(arguments: ["5h", "weekly"])
     @MainActor
-    func `tier2_f2_structuredSingleCadenceSuppressesObsAndDisablesForecast`(cadence: String) async throws {
+    func `structured single cadence suppresses observations and disables forecast`(cadence: String) async throws {
         try await Harness.withStore { ctx in
             let now = Date()
             try await Harness.refresh(
@@ -1079,7 +1079,7 @@ extension AntigravityParityE2ETests {
 
     @Test(arguments: ["idle-persisted", "expired-reset"])
     @MainActor
-    func `tier2_f2_idleClaudeGPTPersistsAndExpiredResetExcludesFromBurndown`(mode: String) async throws {
+    func `idle Claude GPT persists and expired resets exclude from burndown`(mode: String) async throws {
         try await Harness.withStore { ctx in
             let now = Date()
             try await Harness.refresh(ctx, summaryDict: Harness.fourBucketSummary(c5h: 1.0, cw: 1.0, now: now))
@@ -1105,7 +1105,7 @@ extension AntigravityParityE2ETests {
 
     @Test(arguments: ["Pro", "Google AI Pro", "Paid"])
     @MainActor
-    func `tier2_f3_ultraTierOverridesGenericPaidTierNames`(rawName: String) async throws {
+    func `Ultra tier overrides generic paid tier display names`(rawName: String) async throws {
         let load = #"{"g1Tier":"G1_ULTRA_TIER","paidTier":{"id":"g1-ultra-tier","name":"\#(rawName)"}}"#
         try await Harness.runRefresh(load: load) { ctx, snap in
             #expect(snap.identity?.loginMethod == "Google AI Ultra" && Harness.card(ctx).planText == "Google AI Ultra")
@@ -1113,7 +1113,8 @@ extension AntigravityParityE2ETests {
         }
     }
 
-    @Test @MainActor func `tier2_f3_freeTierWithFiveHourWindowStripsFreePlanAndG1TierFallbackApplies`() async throws {
+    @Test @MainActor
+    func `free tier with five hour window strips free plan and applies G1 tier fallback`() async throws {
         try await Harness.withStore { ctx in
             let sum = #"{"groups":[{"displayName":"Gemini Models","buckets":[{"bucketId":"g-5h","window":"5h","#
                 + #""remainingFraction":0.5},{"bucketId":"g-w","window":"weekly","remainingFraction":0.75}]}]}"#
@@ -1130,7 +1131,7 @@ extension AntigravityParityE2ETests {
         "http://one.google.com/insecure", "javascript:alert(1)", "https://:443/path", "https://user@/path",
     ])
     @MainActor
-    func `tier2_f3_invalidManageURIFallsBackToHTTPSUpgradeOrHidesDashboard`(invalidURI: String) async throws {
+    func `invalid manage URI falls back to HTTPS upgrade or hides dashboard`(invalidURI: String) async throws {
         try await Harness.withStore { ctx in
             try await Harness.refresh(
                 ctx, load: #"{"paidTier":{"id":"g1-pro-tier","manageSubscriptionUri":"\#(invalidURI)"}}"#)
@@ -1146,7 +1147,7 @@ extension AntigravityParityE2ETests {
         "overflow-amount", "all-operational", "unspecified-numeric", "non-numeric-fallback", "empty-groups-fallback",
     ])
     @MainActor
-    func `tier2_f4_quotaSummaryAndFallbackBoundaries`(mode: String) async throws {
+    func `quota summary and fallback handle overflow and edge boundaries`(mode: String) async throws {
         switch mode {
         case "overflow-amount":
             let s = Harness.fourBucketSummary(g5hAmt: "99999999999999999999999", c5hAmt: "50")
@@ -1187,7 +1188,7 @@ extension AntigravityParityE2ETests {
 
     @Test(arguments: ["nan-inf-bad", "extreme-1e30", "quotaless", "http-500", "unspecified-omitted"])
     @MainActor
-    func `tier2_f5_catalogResilienceAndEdgeCases`(mode: String) async throws {
+    func `catalog parsing handles non finite multipliers and error boundaries`(mode: String) async throws {
         switch mode {
         case "nan-inf-bad":
             let m = Harness.mod(#""m-ok":{"displayName":"OK","creditMultiplier":"1.5"},"#
@@ -1220,7 +1221,7 @@ extension AntigravityParityE2ETests {
     }
 
     @Test(arguments: ["section-caps", "decimals-sentence", "empty-desc", "no-marker-desc", "agy-unsupported-stderr"])
-    func `tier2_f6_rosterCapsDecimalsAndAgyErrorBoundaries`(mode: String) async throws {
+    func `roster caps decimal versions and agy CLI errors hold boundaries`(mode: String) async throws {
         typealias Avail = AntigravityModelAvailability
         typealias Amt = AntigravityQuotaBucketAmount
         typealias Roster = AntigravityQuotaGroupRoster
@@ -1274,7 +1275,7 @@ extension AntigravityParityE2ETests {
     }
 
     @Test(arguments: ["symlink-wal", "after-until", "invalid-since", "all-old-confirmed-empty", "summary-db-excluded"])
-    func `tier2_f7_localScanDayRangeBoundaries`(mode: String) async throws {
+    func `local scan day range handles symlinks future files and empty summaries`(mode: String) async throws {
         let fixture = try AntigravityLocalFixture()
         let sinceDate = try Harness.calDate("2026-07-29")
         switch mode {
@@ -1311,7 +1312,7 @@ extension AntigravityParityE2ETests {
     }
 
     @Test(arguments: ["schema-exhausted", "duration-exhausted", "jsonl-exhausted", "cli-empty", "cli-unpriced"])
-    func `tier2_f8_exhaustionAndCLICostBoundaries`(mode: String) throws {
+    func `resource exhaustion and CLI cost handle empty and unpriced boundaries`(mode: String) throws {
         let fixture = try AntigravityLocalFixture()
         switch mode {
         case "schema-exhausted":
@@ -1357,7 +1358,7 @@ extension AntigravityParityE2ETests {
 extension AntigravityParityE2ETests {
     // MARK: Tier 3: Cross-Feature Pairwise Combinations (R1 to R5)
 
-    @Test @MainActor func `tier3_pair_r1_r2_ultraTierDashboardAndFourCharts`() async throws {
+    @Test @MainActor func `Ultra tier dashboard links pair with four utilization charts`() async throws {
         let load = #"{"paidTier":{"id":"g1-ultra-tier","manageSubscriptionUri":"https://one.google.com/subscriptions"}}"#
         try await Harness.runRefresh(load: load) { ctx, _ in
             #expect(Harness.card(ctx).planText == "Google AI Ultra")
@@ -1365,7 +1366,7 @@ extension AntigravityParityE2ETests {
         }
     }
 
-    @Test @MainActor func `tier3_pair_r1_r3_fourWindowsWithRemainingAmountAndAvailability`() async throws {
+    @Test @MainActor func `four quota windows pair with remaining amounts and model availability`() async throws {
         let av: [String: Any] = ["claude-sonnet-4-6": ["state": "MODEL_AVAILABILITY_STATE_DEGRADED"]]
         try await Harness.runRefresh(summaryDict: Harness.fourBucketSummary(g5hAmt: "200", avail: av)) {
             #expect($0.store.planUtilizationHistory(for: .antigravity).count == 4)
@@ -1374,7 +1375,7 @@ extension AntigravityParityE2ETests {
         }
     }
 
-    @Test @MainActor func `tier3_pair_r1_r4_fourWindowsPreservedWhenOptionalDetailsToggled`() async throws {
+    @Test @MainActor func `four quota windows remain preserved when optional details toggle`() async throws {
         let m = Harness.mod(#""gemini-3.1-pro":{"displayName":"Gemini 3.1 Pro","isPremium":true}"#)
         try await Harness.runRefresh(showOptional: false, models: m) { ctx, _ in
             #expect(Harness.card(ctx).metrics.count == 4 && Harness.card(ctx).providerDetails.isEmpty)
@@ -1384,7 +1385,7 @@ extension AntigravityParityE2ETests {
         }
     }
 
-    @Test @MainActor func `tier3_pair_r1_r5_usageStorePairsRemoteQuotasWithLocalCostSnapshot`() async throws {
+    @Test @MainActor func `usage store pairs remote quotas with local cost snapshot`() async throws {
         let fixture = try AntigravityLocalFixture()
         let ref = AntigravityLocalFixture.now
         let blob = AntigravityLocalFixture.blob(model: "gemini-2.5-pro", seconds: 1_787_832_000)
@@ -1399,7 +1400,7 @@ extension AntigravityParityE2ETests {
         }
     }
 
-    @Test @MainActor func `tier3_pair_r2_r3_ultraLiteFallbackPreservesRemainingAmountAndDashboard`() async throws {
+    @Test @MainActor func `Ultra Lite fallback preserves remaining amount and dashboard link`() async throws {
         let load = #"{"paidTier":{"id":"g1-ultra-lite-tier","#
             + #""manageSubscriptionUri":"https://one.google.com/subscriptions"}}"#
         let quota = #"{"buckets":[{"modelId":"g3p","remainingFraction":0.5,"remainingAmount":"60"}]}"#
@@ -1413,7 +1414,7 @@ extension AntigravityParityE2ETests {
         }
     }
 
-    @Test @MainActor func `tier3_pair_r2_r4_proTierUpgradeLinkAndCatalogAttributesFlowToJSON`() async throws {
+    @Test @MainActor func `Pro tier upgrade link and catalog attributes flow to JSON`() async throws {
         let load = #"{"paidTier":{"id":"g1-pro-tier","upgradeSubscriptionUri":"https://one.google.com/upgrade"}}"#
         let models = Harness.mod(#""gemini-3.1-pro":{"displayName":"Gemini 3.1 Pro","creditMultiplier":1.5,"#
             + #""pricingType":"1","isPremium":true,"tagTitle":"Flagship"}"#)
@@ -1425,7 +1426,7 @@ extension AntigravityParityE2ETests {
         }
     }
 
-    @Test @MainActor func `tier3_pair_r2_r5_cliCostSubprocessIgnoresOAuthWhileStoreResolvesUltra`() async throws {
+    @Test @MainActor func `CLI cost subprocess ignores OAuth while store resolves Ultra tier`() async throws {
         try await Harness.withStore { ctx in
             let dbDir = ctx.root.appendingPathComponent(".gemini/antigravity/conversations", isDirectory: true)
             try FileManager.default.createDirectory(at: dbDir, withIntermediateDirectories: true)
@@ -1441,7 +1442,7 @@ extension AntigravityParityE2ETests {
         }
     }
 
-    @Test func `tier3_pair_r3_r4_agyReportMergesBucketAmountsAvailabilitiesAndRosters`() async throws {
+    @Test func `agy report merges bucket amounts availabilities and group rosters`() async throws {
         let b = #"{"id":"g5h","name":"5h","window":"5h","remaining_fraction":0.75,"remaining_amount":"150"}"#
         let av = #"{"gemini-3-flash":{"state":"MODEL_AVAILABILITY_STATE_OPERATIONAL"},"#
             + #""gemini-3.1-pro":{"state":"MODEL_AVAILABILITY_STATE_CONGESTED","explanation":"Busy"}}"#
@@ -1457,7 +1458,7 @@ extension AntigravityParityE2ETests {
         #expect(fetched.result.usage.details.map(\.title) == ["Model availability", "Bucket amounts", "Quota groups"])
     }
 
-    @Test @MainActor func `tier3_pair_r3_r5_remoteQuotaAmountsCoexistWithCappedLocalScan`() async throws {
+    @Test @MainActor func `remote quota amounts coexist with capped local scan`() async throws {
         try await Harness.runRefresh(summaryDict: Harness.fourBucketSummary(g5hAmt: "99")) { _, snap in
             let fixture = try AntigravityLocalFixture()
             let base = AntigravityLocalFixture.now.addingTimeInterval(-120)
@@ -1469,7 +1470,7 @@ extension AntigravityParityE2ETests {
         }
     }
 
-    @Test func `tier3_pair_r4_r5_groupRosterModelsAndLocalVertexPricingInCLICost`() async throws {
+    @Test func `group roster models pair with local Vertex pricing in CLI cost`() async throws {
         let desc = "Models within this group: Claude Sonnet 4.6, gpt-oss-120b-medium"
         let b = #"{"id":"3p-5h","name":"5h","window":"5h","remaining_fraction":0.9}"#
         let usageRes = try await Harness.fetchAgyJSON(Harness.agyUsage([("Claude and GPT models", desc, b)]))
@@ -1482,7 +1483,7 @@ extension AntigravityParityE2ETests {
         #expect(try (Harness.costJSON(in: fixture.root)["last30DaysCostUSD"] as? Double ?? 0) > 0)
     }
 
-    @Test @MainActor func `tier4_scenario1_googleAIUltraMultiRefreshBurndownCardDashboardAndJSON`() async throws {
+    @Test @MainActor func `Google AI Ultra multi refresh populates burndown card dashboard and JSON`() async throws {
         try await Harness.withStore(email: "ultra-workload@example.com") { ctx in
             let t0 = Date()
             let priorRaw = Harness.fourBucketSummary(g5h: 0.92, gw: 0.88, c5h: 0.90, cw: 0.82, now: t0)
@@ -1510,7 +1511,7 @@ extension AntigravityParityE2ETests {
         }
     }
 
-    @Test @MainActor func `tier4_scenario2_singleCadenceGeminiIdleToActiveClaudeGPTTransition`() async throws {
+    @Test @MainActor func `single cadence Gemini transitions smoothly when Claude GPT becomes active`() async throws {
         try await Harness.withStore { ctx in
             let t0 = Date()
             try Harness.seedPreFeatureWeekly(ctx, now: t0, used: 95)
@@ -1525,7 +1526,7 @@ extension AntigravityParityE2ETests {
     }
 
     @Test @MainActor
-    func `tier4_scenario3_oauthSummary403FallbackToRetrieveUserQuotaWithPartialCatalog`() async throws {
+    func `OAuth summary 403 falls back to retrieveUserQuota with partial catalog`() async throws {
         let load = #"{"paidTier":{"id":"g1-pro-tier","upgradeSubscriptionUri":"https://one.google.com/upgrade"}}"#
         let models = Harness.mod(#""gemini-3-pro":{"displayName":"Gemini 3 Pro","creditMultiplier":"1.5","#
             + #""quotaInfo":{"remainingFraction":1.0}},"gemini-nan":{"displayName":"Gemini NaN","#
@@ -1546,7 +1547,7 @@ extension AntigravityParityE2ETests {
         }
     }
 
-    @Test func `tier4_scenario4_agyCLISubprocessMultiGroupRostersAndOptionalToggle`() async throws {
+    @Test func `agy CLI subprocess renders multi group rosters with optional toggle`() async throws {
         let gB = #"{"id":"g5h","name":"5h","window":"5h","remaining_fraction":0.85,"remaining_amount":"170"},"#
             + #"{"id":"gw","name":"Weekly","window":"weekly","remaining_fraction":0.70}"#
         let cB = #"{"id":"c5h","name":"5h","window":"5h","remaining_fraction":0.60,"remaining_amount":"60"},"#
@@ -1568,7 +1569,7 @@ extension AntigravityParityE2ETests {
         #expect(text.contains("170 remaining") && text.contains("Gemini 3.1 Pro, Gemini 3 Flash"))
     }
 
-    @Test func `tier4_scenario5_largeMultiRootLocalScanCLICostSubprocessWithWALRescue`() throws {
+    @Test func `multi root local scan CLI cost subprocess rescues WAL databases`() throws {
         let fixture = try AntigravityLocalFixture()
         let now = Date()
         let nowSec = UInt64(now.timeIntervalSince1970)
@@ -1587,7 +1588,7 @@ extension AntigravityParityE2ETests {
         #expect(Set(projNames) == ["wal-project", "desktop-project"])
     }
 
-    @Test func `tier4_scenario6_ceilingExceededLocalScanNewestFirstCappingPreservesBreakdowns`() throws {
+    @Test func `ceiling exceeded local scan caps newest first while preserving breakdowns`() throws {
         let fixture = try AntigravityLocalFixture()
         let base = AntigravityLocalFixture.now.addingTimeInterval(-600)
         for idx in 0..<6 {

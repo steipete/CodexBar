@@ -406,7 +406,7 @@ struct AntigravityQuotaHistoryTests {
 
     @MainActor
     @Test
-    func `idle Gemini with active Claude GPT and custom non-Gemini group map all four structured series`() async {
+    func `idle Gemini with active Claude GPT maps all four series while Argon alone stays off Gemini keys`() async {
         let idleGeminiSnapshot = UsageSnapshot(
             primary: nil,
             secondary: nil,
@@ -491,15 +491,94 @@ struct AntigravityQuotaHistoryTests {
 
         let customSeries = UsageStore.antigravityStructuredSeriesWindows(snapshot: customSnapshot)
         #expect(Set(customSeries.map(\.name)) == [
-            .session,
-            .weekly,
             .antigravityClaudeGPTSession,
             .antigravityClaudeGPTWeekly,
         ])
-        #expect(customSeries.first { $0.name == .session }?.window.usedPercent == 18)
-        #expect(customSeries.first { $0.name == .weekly }?.window.usedPercent == 32)
         #expect(customSeries.first { $0.name == .antigravityClaudeGPTSession }?.window.usedPercent == 44)
         #expect(customSeries.first { $0.name == .antigravityClaudeGPTWeekly }?.window.usedPercent == 61)
+    }
+
+    @MainActor
+    @Test
+    func `higher usage Argon buckets do not overwrite canonical Gemini session or weekly history`() async throws {
+        let geminiSessionReset = self.now.addingTimeInterval(4 * 3600)
+        let geminiWeeklyReset = self.now.addingTimeInterval(5 * 86400)
+        let argonSessionReset = self.now.addingTimeInterval(2 * 3600)
+        let argonWeeklyReset = self.now.addingTimeInterval(2 * 86400)
+
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            extraRateWindows: [
+                .init(
+                    id: "antigravity-quota-summary-gemini-5h",
+                    title: "Gemini 5-hour",
+                    window: .init(
+                        usedPercent: 15,
+                        windowMinutes: 300,
+                        resetsAt: geminiSessionReset,
+                        resetDescription: nil)),
+                .init(
+                    id: "antigravity-quota-summary-gemini-weekly",
+                    title: "Gemini weekly",
+                    window: .init(
+                        usedPercent: 25,
+                        windowMinutes: 10080,
+                        resetsAt: geminiWeeklyReset,
+                        resetDescription: nil)),
+                .init(
+                    id: "antigravity-quota-summary-gemini-argon-5h",
+                    title: "Gemini Argon 5-hour",
+                    window: .init(
+                        usedPercent: 85,
+                        windowMinutes: 300,
+                        resetsAt: argonSessionReset,
+                        resetDescription: nil)),
+                .init(
+                    id: "antigravity-quota-summary-gemini-argon-weekly",
+                    title: "Gemini Argon weekly",
+                    window: .init(
+                        usedPercent: 95,
+                        windowMinutes: 10080,
+                        resetsAt: argonWeeklyReset,
+                        resetDescription: nil)),
+                .init(
+                    id: "antigravity-quota-summary-argon-5h",
+                    title: "Argon 5-hour",
+                    window: .init(
+                        usedPercent: 90,
+                        windowMinutes: 300,
+                        resetsAt: argonSessionReset,
+                        resetDescription: nil)),
+                .init(
+                    id: "antigravity-quota-summary-argon-weekly",
+                    title: "Argon weekly",
+                    window: .init(
+                        usedPercent: 99,
+                        windowMinutes: 10080,
+                        resetsAt: argonWeeklyReset,
+                        resetDescription: nil)),
+            ],
+            updatedAt: self.now)
+
+        let series = UsageStore.antigravityStructuredSeriesWindows(snapshot: snapshot)
+        #expect(Set(series.map(\.name)) == [.session, .weekly])
+        let sessionWindow = try #require(series.first { $0.name == .session }?.window)
+        let weeklyWindow = try #require(series.first { $0.name == .weekly }?.window)
+        #expect(sessionWindow.usedPercent == 15)
+        #expect(sessionWindow.resetsAt == geminiSessionReset)
+        #expect(weeklyWindow.usedPercent == 25)
+        #expect(weeklyWindow.resetsAt == geminiWeeklyReset)
+
+        let store = UsageStorePlanUtilizationTests.makeStore()
+        await store.recordPlanUtilizationHistorySample(provider: .antigravity, snapshot: snapshot, now: self.now)
+        let histories = store.planUtilizationHistory(for: .antigravity)
+        let sessionEntry = try #require(histories.first { $0.name == .session }?.entries.last)
+        let weeklyEntry = try #require(histories.first { $0.name == .weekly }?.entries.last)
+        #expect(sessionEntry.usedPercent == 15)
+        #expect(sessionEntry.resetsAt == geminiSessionReset)
+        #expect(weeklyEntry.usedPercent == 25)
+        #expect(weeklyEntry.resetsAt == geminiWeeklyReset)
     }
 
     private func poolSnapshot() -> UsageSnapshot {
