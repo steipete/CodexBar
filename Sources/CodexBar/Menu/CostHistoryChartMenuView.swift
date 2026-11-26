@@ -773,10 +773,10 @@ struct CostHistoryChartMenuView: View {
     }
 
     private static func bucketCalendar(provider: UsageProvider, displayCalendar: Calendar) -> Calendar {
-        if let chartCalendar = ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.chartCalendar {
-            return chartCalendar
-        }
-        return displayCalendar
+        // Provider-specific by design: Mistral uses UTC day buckets mapped into local display days;
+        // other UTC-bucketed providers (OpenAI, xAI) keep their UTC day labels across timezones.
+        guard provider == .mistral else { return displayCalendar }
+        return self.gregorianCalendar(timeZone: TimeZone(secondsFromGMT: 0) ?? .gmt)
     }
 
     private static func defaultMetric(provider: UsageProvider, daily: [DailyEntry]) -> ChartMetric {

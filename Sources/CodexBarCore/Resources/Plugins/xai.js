@@ -183,7 +183,7 @@ defineProvider({
                 completionTokens: 0,
                 reasoningTokens: 0,
                 hasReasoningTokens: false,
-                promptTx: undefined,
+                promptTx: 0,
                 maxTokenTx: 0,
                 nonTokenTx: 0,
               };
@@ -195,7 +195,7 @@ defineProvider({
             }
             if (tokenKind === "input") {
               bucket.inputTokens += units;
-              bucket.promptTx = (bucket.promptTx || 0) + transactions;
+              bucket.promptTx += transactions;
               if (transactions > bucket.maxTokenTx) bucket.maxTokenTx = transactions;
             } else if (tokenKind === "cacheRead") {
               bucket.cacheReadTokens += units;
@@ -218,7 +218,7 @@ defineProvider({
         for (const key of sortedKeys) {
           const bucket = buckets.get(key);
           const outputTokens = bucket.completionTokens + bucket.reasoningTokens;
-          const tokenRequests = bucket.promptTx !== undefined ? bucket.promptTx : bucket.maxTokenTx;
+          const tokenRequests = Math.max(bucket.promptTx, bucket.maxTokenTx);
           const requests = tokenRequests + bucket.nonTokenTx;
           if (
             !Number.isSafeInteger(bucket.inputTokens) ||

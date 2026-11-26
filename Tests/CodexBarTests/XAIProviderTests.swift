@@ -181,6 +181,39 @@ struct XAIProviderTests {
         #expect(stt.requestCount == 2)
     }
 
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `deduplicated token requests retain larger cached and completion counts`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let usageBody = #"""
+        {
+          "timeSeries": [
+            {
+              "group": ["API grok-4.7", "Prompt text tokens"],
+              "dataPoints": [{"timestamp":"2027-01-15T00:00:00Z","values":[0.10, 200, 1]}]
+            },
+            {
+              "group": ["API grok-4.7", "Cached prompt text tokens"],
+              "dataPoints": [{"timestamp":"2027-01-15T00:00:00Z","values":[0.02, 400, 2]}]
+            },
+            {
+              "group": ["API grok-4.7", "Completion text tokens"],
+              "dataPoints": [{"timestamp":"2027-01-15T00:00:00Z","values":[0.08, 150, 2]}]
+            }
+          ],
+          "limitReached": false
+        }
+        """#
+        let snapshot = try await Self.fetch(usageBody: usageBody, engine: engine)
+        let costUsage = try #require(snapshot.costUsage)
+        #expect(costUsage.sessionRequests == 2)
+        #expect(costUsage.last30DaysRequests == 2)
+        let day = try #require(costUsage.daily.first)
+        #expect(day.requestCount == 2)
+        let grok = try #require(day.modelBreakdowns?.first { $0.modelName == "grok-4.7" })
+        #expect(grok.requestCount == 2)
+    }
+
     @Test(arguments: BundledPluginTestSupport.engines, [
         ("13364", "$141.17"),
         ("0", "$274.81"),
@@ -439,6 +472,72 @@ struct XAIProviderTests {
             now: Date(timeIntervalSince1970: 1_800_000_000)))
         #expect(model.inlineUsageDashboard == nil)
         #expect(model.tokenUsage != nil)
+    }
+
+    @Test @MainActor
+    func `primary cost history preserves prefiltered reporting period when snapshot is present`() async throws {
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .xai)
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let snapshot = try await Self.fetch()
+        let mtdTokenSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: 850,
+            sessionCostUSD: 0.25,
+            sessionRequests: 1,
+            last30DaysTokens: 850,
+            last30DaysCostUSD: 0.25,
+            last30DaysRequests: 1,
+            historyDays: 15,
+            historyCoverageIsEstablished: true,
+            historyLabel: "Month to date",
+            costProvenance: .vendorMetered,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2027-01-15",
+                    inputTokens: 600,
+                    outputTokens: 250,
+                    cacheReadTokens: 0,
+                    totalTokens: 850,
+                    requestCount: 1,
+                    costUSD: 0.25,
+                    modelsUsed: ["grok-4.7"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "grok-4.7",
+                            costUSD: 0.25,
+                            totalTokens: 850,
+                            requestCount: 1),
+                    ]),
+            ],
+            updatedAt: now)
+
+        let resolved = descriptor.presentation.menuCard.primaryCostHistory(
+            snapshot: snapshot,
+            tokenSnapshot: mtdTokenSnapshot)
+        #expect(resolved == mtdTokenSnapshot)
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .xai,
+            metadata: descriptor.metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboardError: nil,
+            tokenSnapshot: mtdTokenSnapshot,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: true,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            costSummaryInlineEnabled: true,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+        let dashboard = try #require(model.inlineUsageDashboard)
+        #expect(dashboard.kpis.contains { $0.title == "Requests" && $0.value == "1" })
+        #expect(dashboard.kpis.contains { $0.value == "$0.25" })
+        #expect(dashboard.kpis.contains { $0.value == "$2.01" } == false)
     }
 
     @Test @MainActor

@@ -211,6 +211,22 @@ struct CostHistoryChartMenuViewTests {
             day: 13))
     }
 
+    @Test(arguments: [UsageProvider.xai, .openai])
+    func `UTC bucket day keys preserve calendar day west of UTC`(provider: UsageProvider) throws {
+        let losAngeles = try #require(TimeZone(identifier: "America/Los_Angeles"))
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = losAngeles
+        let date = try #require(CostHistoryChartMenuView._dateFromDayKeyForTesting(
+            "2027-01-15",
+            provider: provider,
+            calendar: calendar))
+
+        #expect(calendar.dateComponents([.year, .month, .day], from: date) == DateComponents(
+            year: 2027,
+            month: 1,
+            day: 15))
+    }
+
     @Test
     func `incomplete-only Claude usage remains selectable and labeled`() throws {
         let day = try #require(Calendar.current.date(from: DateComponents(year: 2026, month: 8, day: 12, hour: 12)))

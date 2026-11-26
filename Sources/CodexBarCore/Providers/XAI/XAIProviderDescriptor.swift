@@ -36,12 +36,13 @@ public enum XAIProviderDescriptor {
             menuCard: ProviderMenuCardPresentation(
                 usesProviderCostHistoryAsPrimaryDashboard: true,
                 primaryCostHistoryResolver: { snapshot, tokenSnapshot in
-                    if let snapshot {
-                        return XAICostUsageMapping.tokenSnapshot(
-                            from: snapshot,
-                            historyDays: XAICostUsageMapping.historyDays)
+                    if let tokenSnapshot {
+                        return tokenSnapshot
                     }
-                    return tokenSnapshot
+                    guard let snapshot else { return nil }
+                    return XAICostUsageMapping.tokenSnapshot(
+                        from: snapshot,
+                        historyDays: XAICostUsageMapping.historyDays)
                 },
                 supportsInlineTokenCostDashboard: true),
             optionalDetails: ProviderOptionalDetailsPresentation(costSummaryTitles: ["Billing summary"])),
