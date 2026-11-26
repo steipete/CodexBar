@@ -356,9 +356,11 @@ extension CostUsageStore {
                     calendar: calendar) else { break }
                 catchUpRequired = true
             }
-            // Unchanged native saves use SQLite's normal WAL checkpoint policy.
+            // Under-budget native saves leave free pages available for the next append.
             // Reclamation still checkpoints, and live page counts include uncheckpointed growth.
-            if try forceCheckpoint || Self.scalarInt(database, "PRAGMA freelist_count") > 0 {
+            if try forceCheckpoint || (initialBytes > byteLimit || catchUpRequired)
+                && Self.scalarInt(database, "PRAGMA freelist_count") > 0
+            {
                 try Self.reclaimFreePages(database)
             }
 

@@ -25,6 +25,7 @@ extension CostUsageStore {
     struct CodexPersistenceState {
         var metadata: CostUsageStoreMetadata
         var files: [CostUsageStoreFile]
+        let dayAggregates: [CostUsageStoreDayAggregate]
         var snapshotCounts: [String: Int]
         var rowCounts: [String: Int]
 
@@ -34,6 +35,7 @@ extension CostUsageStore {
             rowCounts: [String: Int]? = nil)
         {
             self.metadata = snapshot.metadata
+            self.dayAggregates = snapshot.dayAggregates
             self.files = snapshot.files.map { file in
                 var file = file
                 // Detailed payloads already belong to the typed cache; unloaded snapshot

@@ -76,6 +76,7 @@ struct CostUsageClaudeWriteAmplificationTests {
                 sourceInventory: memo.sourceInventory,
                 reportKey: memo.reportKey,
                 report: memo.report,
+                appendBoundaries: memo.appendBoundaries,
                 hasWindowScopedRows: memo.hasWindowScopedRows)
         }
         #expect(try fixture.stamps(context: .regular) == before)
@@ -128,8 +129,8 @@ struct CostUsageClaudeWriteAmplificationTests {
             }
         }
         #expect(recorder.snapshot().cacheEncodes == 1)
-        #expect(recorder.persistenceSnapshot().reads == 0)
-        #expect(recorder.persistenceSnapshot().writes == 1)
+        #expect(recorder.persistenceSnapshot().reads == 2)
+        #expect(recorder.persistenceSnapshot().writes == 0)
         #expect(CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: fixture.env.cacheRoot).usage == cache.usage)
     }
 
@@ -167,6 +168,7 @@ struct CostUsageClaudeWriteAmplificationTests {
                     sourceInventory: inventory,
                     reportKey: memo.reportKey,
                     report: memo.report,
+                    appendBoundaries: memo.appendBoundaries,
                     hasWindowScopedRows: memo.hasWindowScopedRows)
             }
         }
@@ -214,6 +216,7 @@ struct CostUsageClaudeWriteAmplificationTests {
                 sourceInventory: memo.sourceInventory,
                 reportKey: memo.reportKey,
                 report: memo.report,
+                appendBoundaries: memo.appendBoundaries,
                 hasWindowScopedRows: memo.hasWindowScopedRows)
         }
         #expect(recorder.snapshot().cacheEncodes == 1)
@@ -251,7 +254,8 @@ struct CostUsageClaudeWriteAmplificationTests {
         }
         #expect(recorder.snapshot().cacheEncodes == 1)
         #expect(recorder.persistenceSnapshot().writes == 1)
-        #expect(recorder.persistenceSnapshot().reads == 0)
+        // Cold migration compares the existing shard and legacy manifest once.
+        #expect(recorder.persistenceSnapshot().reads == 2)
         #expect(CostUsageClaudeFileStamp.read(at: url) != before)
         #expect(try encoder.encode(CostUsageClaudeCacheIO.load(
             provider: .claude, cacheRoot: fixture.env.cacheRoot)) == legacyBytes)
@@ -665,6 +669,7 @@ extension CostUsageClaudeWriteAmplificationTests {
                 sourceInventory: memo.sourceInventory,
                 reportKey: memo.reportKey,
                 report: memo.report,
+                appendBoundaries: memo.appendBoundaries,
                 hasWindowScopedRows: memo.hasWindowScopedRows)
         }
         #expect(!file.isAlive)
@@ -683,6 +688,7 @@ extension CostUsageClaudeWriteAmplificationTests {
                 sourceInventory: memo.sourceInventory,
                 reportKey: memo.reportKey,
                 report: memo.report,
+                appendBoundaries: memo.appendBoundaries,
                 hasWindowScopedRows: memo.hasWindowScopedRows)
         }
         #expect(work.snapshot() == CostUsageScanner.ClaudeScanWorkMetrics())

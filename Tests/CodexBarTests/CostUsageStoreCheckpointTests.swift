@@ -5,6 +5,44 @@ import Testing
 @Suite(.serialized)
 struct CostUsageStoreCheckpointTests {
     @Test
+    func `changed refresh updates only changed buckets without forcing a checkpoint`() async throws {
+        let fixture = try ReadWorkFixture(fileCount: 2, rowsPerFile: 4)
+        defer { fixture.remove() }
+        var seed = fixture.canonical
+        for index in 0..<100 {
+            seed.days["2026-07-01", default: [:]]["model-\(index)"] = [10, 0, 1]
+        }
+        try #require(!fixture.save(seed).catchUpRequired)
+        let connection = try BaselineSQLiteConnection(url: fixture.store.databaseURL)
+        // Reject writes to any untouched bucket, independently of writes to other tables.
+        for (operation, row) in [("DELETE", "OLD"), ("INSERT", "NEW"), ("UPDATE", "OLD")] {
+            try connection.execute("""
+            CREATE TRIGGER protect_unchanged_\(operation) BEFORE \(operation) ON day_aggregates
+            WHEN \(row).day != '2026-07-01' OR \(row).model NOT IN ('model-1', 'model-2', 'new')
+            BEGIN SELECT RAISE(ABORT, 'rewrote unchanged bucket'); END
+            """)
+        }
+        let loaded = fixture.store.syncLoadCodexScan(calendar: fixture.calendar)
+        defer { loaded.release() }
+        var updated = loaded.cache
+        updated.days["2026-07-01"]?["model-1"] = nil
+        updated.days["2026-07-01"]?["model-2"] = [30, 1, 2]
+        updated.days["2026-07-01"]?["new"] = [15, 0, 2]
+        let candidate = updated
+        let (saved, work) = try await fixture.store.measureSQLWork { store in
+            store.saveCodexCache(
+                candidate,
+                calendar: fixture.calendar,
+                requestedScanWindow: (sinceKey: fixture.range.scanSinceKey, untilKey: fixture.range.scanUntilKey),
+                skipIdenticalContent: true,
+                receipt: loaded.receipt)
+        }
+        #expect(!saved.catchUpRequired)
+        #expect(work.checkpoints == 0)
+        #expect(fixture.store.syncLoadCodexCache(calendar: fixture.calendar).days == updated.days)
+    }
+
+    @Test
     func `unchanged refreshes persist freshness without forced checkpoints`() async throws {
         let fixture = try ReadWorkFixture(fileCount: 2, rowsPerFile: 4)
         defer { fixture.remove() }

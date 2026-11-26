@@ -17,15 +17,59 @@ enum PiSessionCostCacheIO {
             .appendingPathComponent("pi-sessions-v\(Self.artifactVersion).json", isDirectory: false)
     }
 
+    private struct Freshness: Codable {
+        let artifact: CostUsageClaudeFileStamp
+        let lastScanUnixMs: Int64
+    }
+
     static func load(cacheRoot: URL? = nil) -> PiSessionCostCache {
+        self.loadSnapshot(cacheRoot: cacheRoot).cache
+    }
+
+    static func loadSnapshot(cacheRoot: URL?) -> (cache: PiSessionCostCache, stamp: CostUsageClaudeFileStamp?) {
         let url = self.cacheFileURL(cacheRoot: cacheRoot)
+        let stamp = CostUsageClaudeFileStamp.read(at: url)
         guard let data = try? Data(contentsOf: url),
-              let decoded = try? JSONDecoder().decode(PiSessionCostCache.self, from: data),
+              var decoded = try? JSONDecoder().decode(PiSessionCostCache.self, from: data),
               decoded.version == Self.artifactVersion
         else {
-            return PiSessionCostCache(version: Self.artifactVersion)
+            return (PiSessionCostCache(version: Self.artifactVersion), nil)
         }
-        return decoded
+        if let stamp, CostUsageClaudeFileStamp.read(at: url) == stamp {
+            if let bytes = try? Data(contentsOf: url.appendingPathExtension("freshness")),
+               let freshness = try? JSONDecoder().decode(Freshness.self, from: bytes),
+               freshness.artifact == stamp
+            {
+                decoded.lastScanUnixMs = max(decoded.lastScanUnixMs, freshness.lastScanUnixMs)
+            }
+            return (decoded, stamp)
+        }
+        return (decoded, nil)
+    }
+
+    /// A stale sidecar cannot certify a replacement artifact. A lost update only schedules a refresh sooner.
+    static func saveRefresh(
+        _ cache: PiSessionCostCache,
+        previous: (cache: PiSessionCostCache, stamp: CostUsageClaudeFileStamp?),
+        filesChanged: Bool,
+        cacheRoot: URL?,
+        calendar: Calendar)
+    {
+        guard let stamp = previous.stamp, !filesChanged,
+              previous.cache.timeZoneIdentifier == calendar.timeZone.identifier,
+              previous.cache.scanSinceKey == cache.scanSinceKey, previous.cache.scanUntilKey == cache.scanUntilKey,
+              previous.cache.sessionRootsFingerprint == cache.sessionRootsFingerprint,
+              previous.cache.pricingKey == cache.pricingKey, previous.cache.sessions == cache.sessions,
+              previous.cache.daysByProvider == cache.daysByProvider
+        else {
+            self.save(cache: cache, cacheRoot: cacheRoot, calendar: calendar)
+            return
+        }
+        guard previous.cache.lastScanUnixMs != cache.lastScanUnixMs else { return }
+        let url = self.cacheFileURL(cacheRoot: cacheRoot).appendingPathExtension("freshness")
+        let freshness = Freshness(artifact: stamp, lastScanUnixMs: cache.lastScanUnixMs)
+        guard let bytes = try? JSONEncoder().encode(freshness) else { return }
+        try? bytes.write(to: url, options: .atomic)
     }
 
     static func save(

@@ -7,6 +7,33 @@ struct CostUsageClaudeIncrementalPersistenceTests {
     private typealias Fixture = CostUsageClaudeWriteAmplificationTests.Fixture
 
     @Test
+    func `large file shards migrate from a shared parent and rejoin after truncation`() throws {
+        let fixture = try Fixture(rowCount: 1)
+        defer { fixture.env.cleanup() }
+        let url = fixture.cacheURL(context: .regular)
+        let fragments = CostUsageClaudeFragments()
+        var files = ["/project/active": 512, "/project/idle": 1]
+        _ = try fragments.save(header: 1, values: files, at: url)
+        #expect(try self.shards(url).count == 1)
+        func saveAndReload() throws {
+            _ = try fragments.save(header: 1, values: files, at: url, separateFile: { $0 >= 512 })
+            fragments.evict(at: url)
+            let restored: (Int, [String: Int]) = try fragments
+                .load(at: url) { _ in throw CocoaError(.fileReadCorruptFile) }
+            #expect(restored.1 == files)
+        }
+        try saveAndReload()
+        let split = try self.shards(url)
+        #expect(split.count == 2)
+        files["/project/active"] = 513
+        try saveAndReload()
+        #expect(try Set(split.values).intersection(self.shards(url).values).count == 1)
+        files["/project/active"] = 1
+        try saveAndReload()
+        #expect(try self.shards(url).count == 1)
+    }
+
+    @Test
     func `changed refresh reuses unchanged immutable file records`() throws {
         var cache = CostUsageClaudeCache()
         for path in ["/synthetic/changed", "/synthetic/unchanged"] {

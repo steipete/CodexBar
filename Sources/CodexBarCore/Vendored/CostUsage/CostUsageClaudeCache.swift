@@ -106,6 +106,9 @@ final class CostUsageClaudeReportMemo: @unchecked Sendable {
         /// Established by a full rebuild or continuation of certified rows for this memo's scan window.
         let hasWindowScopedRows: Bool
 
+        var appendBoundaries: [String: ClaudeAppendBoundary] = [:]
+        let ignoredAppends = ClaudeIgnoredAppends()
+
         func certifiesWindow(reportKey: CostUsageClaudeReportMemoKey, cache: CostUsageCache) -> Bool {
             self.certifiesStoredWindow(reportKey: reportKey, cache: cache)
                 && self.reportKey.scanSinceKey == reportKey.scanSinceKey
@@ -135,13 +138,37 @@ final class CostUsageClaudeReportMemo: @unchecked Sendable {
     private struct PersistedEnvelope: Codable {
         var version: Int
         var reportSemanticsVersion: Int
-        var sourceInventory: [String: CostUsageClaudeFileStamp]
+        var sourceInventory: [String: Source]
         var reportKey: CostUsageClaudeReportMemoKey
         var report: CostUsageDailyReport
         var hourly: [CostUsageCodexPreviousReport.HourlyEntry]?
         var quotaSlices: QuotaSlices?
         var hasWindowScopedRows: Bool?
         var breakdowns: ClaudeReportBreakdowns?
+    }
+
+    /// Extends the existing inventory shard in place. Older readers decode the stamp fields.
+    private struct Source: Codable, Equatable {
+        let stamp: CostUsageClaudeFileStamp
+        let boundary: ClaudeAppendBoundary?
+        private enum CodingKeys: String, CodingKey { case boundary }
+
+        init(stamp: CostUsageClaudeFileStamp, boundary: ClaudeAppendBoundary?) {
+            self.stamp = stamp
+            self.boundary = boundary
+        }
+
+        init(from decoder: any Decoder) throws {
+            self.stamp = try CostUsageClaudeFileStamp(from: decoder)
+            self.boundary = try decoder.container(keyedBy: CodingKeys.self)
+                .decodeIfPresent(ClaudeAppendBoundary.self, forKey: .boundary)
+        }
+
+        func encode(to encoder: any Encoder) throws {
+            try self.stamp.encode(to: encoder)
+            var fields = encoder.container(keyedBy: CodingKeys.self)
+            try fields.encodeIfPresent(self.boundary, forKey: .boundary)
+        }
     }
 
     private struct QuotaSlices: Codable {
@@ -201,6 +228,7 @@ final class CostUsageClaudeReportMemo: @unchecked Sendable {
         reportKey: CostUsageClaudeReportMemoKey,
         report: CostUsageDailyReport,
         breakdowns: ClaudeReportBreakdowns? = nil,
+        appendBoundaries: [String: ClaudeAppendBoundary] = [:],
         hasWindowScopedRows: Bool = false) -> Entry
     {
         let key = "\(provider.rawValue)|\(canonicalCachePath)"
@@ -209,7 +237,8 @@ final class CostUsageClaudeReportMemo: @unchecked Sendable {
             reportKey: reportKey,
             report: report,
             breakdowns: breakdowns,
-            hasWindowScopedRows: hasWindowScopedRows)
+            hasWindowScopedRows: hasWindowScopedRows,
+            appendBoundaries: appendBoundaries)
         let shared = self.lock.withLock { self.installUnlocked(key: key, entry: entry) }
         Self.persist(shared, canonicalCachePath: canonicalCachePath)
         CostUsageClaudeFragments.shared.evict(at: URL(fileURLWithPath: canonicalCachePath))
@@ -246,7 +275,8 @@ final class CostUsageClaudeReportMemo: @unchecked Sendable {
                     hourly: entry.report.hourly,
                     quotaSlices: prior.report.quotaSlices),
                 breakdowns: entry.breakdowns,
-                hasWindowScopedRows: entry.hasWindowScopedRows)
+                hasWindowScopedRows: entry.hasWindowScopedRows,
+                appendBoundaries: entry.appendBoundaries)
         }
         self.entries.removeAll { $0.key == key }
         self.entries.append((key: key, entry: shared))
@@ -267,14 +297,13 @@ final class CostUsageClaudeReportMemo: @unchecked Sendable {
             return (envelope, inventory)
         }) else { return nil }
         defer { CostUsageClaudeFragments.shared.discardDecodedHeader(at: url) }
-        var envelope: PersistedEnvelope = loaded.0
-        envelope.sourceInventory = loaded.1
+        let envelope: PersistedEnvelope = loaded.0
         guard envelope.version == Self.persistedVersion,
               envelope.reportSemanticsVersion == Self.reportSemanticsVersion,
               Self.hasValidIncompleteCounts(envelope.report)
         else { return nil }
         return Entry(
-            sourceInventory: envelope.sourceInventory,
+            sourceInventory: loaded.1.mapValues(\.stamp),
             reportKey: envelope.reportKey,
             report: CostUsageDailyReport(
                 data: envelope.report.data,
@@ -282,7 +311,8 @@ final class CostUsageClaudeReportMemo: @unchecked Sendable {
                 hourly: (envelope.hourly ?? []).map(\.hourlyValue),
                 quotaSlices: envelope.quotaSlices?.values ?? []),
             breakdowns: envelope.breakdowns,
-            hasWindowScopedRows: envelope.hasWindowScopedRows == true)
+            hasWindowScopedRows: envelope.hasWindowScopedRows == true,
+            appendBoundaries: loaded.1.compactMapValues(\.boundary))
     }
 
     private static func hasValidIncompleteCounts(_ report: CostUsageDailyReport) -> Bool {
@@ -302,8 +332,10 @@ final class CostUsageClaudeReportMemo: @unchecked Sendable {
             quotaSlices: QuotaSlices(values: entry.report.quotaSlices),
             hasWindowScopedRows: entry.hasWindowScopedRows,
             breakdowns: entry.breakdowns)
-        _ = try? CostUsageClaudeFragments.shared.save(
-            header: envelope, values: entry.sourceInventory, at: url)
+        let sources = entry.sourceInventory.reduce(into: [String: Source]()) { sources, item in
+            sources[item.key] = Source(stamp: item.value, boundary: entry.appendBoundaries[item.key])
+        }
+        _ = try? CostUsageClaudeFragments.shared.save(header: envelope, values: sources, at: url)
     }
 }
 
@@ -583,7 +615,12 @@ enum CostUsageClaudeCacheIO {
         #endif
         let (header, files) = try cache.split()
         return try CostUsageClaudeFragments.shared.save(
-            header: header, values: files, at: key, contentID: cache.contentID, checkCancellation: checkCancellation)
+            header: header,
+            values: files,
+            at: key,
+            contentID: cache.contentID,
+            separateFile: { ($0.usage?.claudeRows?.count ?? 0) >= 512 },
+            checkCancellation: checkCancellation)
     }
 
     static func read(at url: URL, options: Data.ReadingOptions = []) -> Data? {

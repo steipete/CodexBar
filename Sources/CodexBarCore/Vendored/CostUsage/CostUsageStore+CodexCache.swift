@@ -169,8 +169,18 @@ extension CostUsageStore {
                 return retry
             }
         } else {
-            _ = self.replaceDayAggregates(Self.globalAggregates(
-                cache: cache, recorder: self.scopedReadWorkRecorderForTesting))
+            let after = Self.globalAggregates(cache: cache, recorder: self.scopedReadWorkRecorderForTesting)
+            guard self.withDatabase(default: false, { database in
+                try Self.updateDayAggregates(
+                    database,
+                    previous: previous.dayAggregates,
+                    current: after,
+                    home: self.home)
+                return true
+            }) else {
+                _ = self.rollbackSaveTransaction()
+                return retry
+            }
         }
         _ = self.setMetadata(Self.metadata(cache: cache, calendar: calendar))
         _ = self.setDiscoveryState(Self.discoveryState(cache.codexSessionDiscovery))
@@ -182,7 +192,8 @@ extension CostUsageStore {
             maxFileBytes: fileBudgetBytes,
             requestedSinceDay: budgetProtectionWindow.sinceKey,
             requestedUntilDay: budgetProtectionWindow.untilKey,
-            calendar: calendar)
+            calendar: calendar,
+            forceCheckpoint: false)
         if result.catchUpRequired, self.fetchMetadata().previousReportPayload == nil,
            let previous = Self.previousReport(cache: cache, calendar: calendar, reportWindow: reportWindow)
         {

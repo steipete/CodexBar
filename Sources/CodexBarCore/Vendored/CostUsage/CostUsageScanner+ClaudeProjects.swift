@@ -291,7 +291,7 @@ extension CostUsageScanner {
         if let index = components.lastIndex(of: "subagents"), index > 1 {
             return components[index - 1]
         }
-        return url.deletingPathExtension().lastPathComponent
+        return (Self.claudeTranscriptName(url) ?? url).deletingPathExtension().lastPathComponent
     }
 
     private static func claudeProjectKey(cwd: String) -> String {

@@ -147,17 +147,37 @@ extension CostUsageScanner {
 }
 
 /// Reconstitute the legacy memo envelope for schema-mutation regression fixtures.
+func claudeFragmentHeaderForTesting(_ manifest: [String: Any], at url: URL) throws -> Data {
+    if let descriptor = manifest["headerBlocks"] as? [String: Any] {
+        return try claudeFragmentDataForTesting(descriptor, at: url)
+    }
+    let encoded = try #require(manifest["header"] as? String)
+    return try #require(Data(base64Encoded: encoded))
+}
+
+private func claudeFragmentDataForTesting(_ descriptor: [String: Any], at url: URL) throws -> Data {
+    let directory = url.appendingPathExtension("fragments")
+    if let blocks = descriptor["blocks"] as? [String] {
+        var data = Data()
+        for block in blocks {
+            try data.append(Data(contentsOf: directory.appendingPathComponent(block + ".block")))
+        }
+        return data
+    }
+    let digest = try #require(descriptor["digest"] as? String)
+    return try Data(contentsOf: directory.appendingPathComponent(digest + ".json"))
+}
+
 func claudeMemoObjectForTesting(at url: URL) throws -> [String: Any] {
     let raw = try Data(contentsOf: url)
     let object = try #require(JSONSerialization.jsonObject(with: raw) as? [String: Any])
-    guard let encoded = object["header"] as? String, let header = Data(base64Encoded: encoded) else { return object }
+    guard object["header"] != nil else { return object }
+    let header = try claudeFragmentHeaderForTesting(object, at: url)
     var envelope = try #require(JSONSerialization.jsonObject(with: header) as? [String: Any])
     let shards = object["shards"] as? [String: [String: Any]] ?? [:]
     var inventory: [String: Any] = [:]
     for shard in shards.values {
-        let digest = try #require(shard["digest"] as? String)
-        let data = try Data(contentsOf: url.appendingPathExtension("fragments")
-            .appendingPathComponent(digest + ".json"))
+        let data = try claudeFragmentDataForTesting(shard, at: url)
         let entries = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
         inventory.merge(entries) { _, new in new }
     }

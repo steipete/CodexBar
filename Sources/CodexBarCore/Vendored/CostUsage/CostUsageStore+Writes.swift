@@ -372,6 +372,48 @@ extension CostUsageStore {
         }
     }
 
+    /// Both inputs belong to the snapshot validated under the outer save transaction.
+    static func updateDayAggregates(
+        _ database: OpaquePointer,
+        previous: [CostUsageStoreDayAggregate],
+        current: [CostUsageStoreDayAggregate],
+        home: String) throws
+    {
+        // SQLite's TEXT primary key uses binary collation, including for canonically equivalent names.
+        struct Key: Hashable {
+            let day: Data
+            let model: Data
+            init(_ row: CostUsageStoreDayAggregate) {
+                self.day = Data(row.day.utf8)
+                self.model = Data(row.model.utf8)
+            }
+        }
+        var removed = Dictionary(uniqueKeysWithValues: previous.map { (Key($0), $0) })
+        var inserted: [CostUsageStoreDayAggregate] = []
+        for row in current {
+            let key = Key(row)
+            if removed[key] == row {
+                removed.removeValue(forKey: key)
+            } else {
+                inserted.append(row)
+            }
+        }
+        if !removed.isEmpty {
+            let delete = try self.prepare(
+                database,
+                "DELETE FROM day_aggregates WHERE home = ? AND day = ? AND model = ?")
+            defer { sqlite3_finalize(delete) }
+            for row in removed.values {
+                sqlite3_reset(delete)
+                self.bind(home, to: delete, at: 1)
+                self.bind(row.day, to: delete, at: 2)
+                self.bind(row.model, to: delete, at: 3)
+                try self.stepDone(delete, database: database)
+            }
+        }
+        if !inserted.isEmpty { try self.insertDayAggregates(database, aggregates: inserted, home: home) }
+    }
+
     @discardableResult
     func replaceDayAggregates(_ aggregates: [CostUsageStoreDayAggregate]) -> Bool {
         self.withDatabase(default: false) { database in
