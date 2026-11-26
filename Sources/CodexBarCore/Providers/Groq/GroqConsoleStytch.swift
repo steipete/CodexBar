@@ -69,12 +69,27 @@ enum GroqConsoleStytch {
             throw GroqConsoleError.apiError("Stytch HTTP \(response.statusCode): \(summary)")
         }
 
-        guard let jwt = (try? JSONDecoder().decode(AuthenticateResponse.self, from: response.data))?
-            .data?.sessionJWT?.trimmingCharacters(in: .whitespacesAndNewlines), !jwt.isEmpty
-        else {
+        guard let jwt = self.sessionJWT(from: response, url: url) else {
             throw GroqConsoleError.parseFailed("Stytch response missing session_jwt")
         }
         return jwt
+    }
+
+    /// Stytch now returns an empty `session_jwt` in the body and delivers the
+    /// JWT only as a `stytch_session_jwt` Set-Cookie, so fall back to that.
+    static func sessionJWT(from response: ProviderHTTPResponse, url: URL) -> String? {
+        let bodyJWT = (try? JSONDecoder().decode(AuthenticateResponse.self, from: response.data))?
+            .data?.sessionJWT?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let bodyJWT, !bodyJWT.isEmpty { return bodyJWT }
+
+        let headers = response.response.allHeaderFields.reduce(into: [String: String]()) { result, field in
+            if let key = field.key as? String, let value = field.value as? String { result[key] = value }
+        }
+        let cookieJWT = HTTPCookie.cookies(withResponseHeaderFields: headers, for: url)
+            .first { $0.name == "stytch_session_jwt" }?.value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let cookieJWT, !cookieJWT.isEmpty else { return nil }
+        return cookieJWT
     }
 
     /// Base64 telemetry blob the Stytch SDK expects; identifies the calling app
