@@ -4,6 +4,10 @@ public enum VertexAIProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
     public static let estimateHintKey = "vertexai_cost_estimate_hint"
     public static let cloudEstimateHintKey = "vertexai_cloud_cost_estimate_hint"
+    public static let estimateHintText =
+        "Estimated from Cloud Monitoring and Claude-on-Vertex logs · may differ from your GCP bill"
+    public static let cloudEstimateHintText =
+        "Estimated from Cloud Monitoring token_count × public API rates · excludes dedicated throughput"
 
     static func estimateHintKey(forHistoryLabel historyLabel: String?) -> String? {
         guard let historyLabel else { return nil }

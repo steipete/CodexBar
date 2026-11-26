@@ -294,4 +294,77 @@ struct QuotaBurndownChartMenuViewTests {
             referenceDate: now)
         #expect(!staleStructuredWithLiveObservationSnapshot.hasSeries)
     }
+
+    @Test
+    func `antigravity live structured snapshot keeps burndown when histories contain newer observation entry`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let mixedHistories = [
+            PlanUtilizationSeriesHistory(
+                name: .session,
+                windowMinutes: 300,
+                entries: [
+                    .init(
+                        capturedAt: now.addingTimeInterval(-1800),
+                        usedPercent: 20,
+                        resetsAt: now.addingTimeInterval(4 * 3600)),
+                ]),
+            PlanUtilizationSeriesHistory(
+                name: .weekly,
+                windowMinutes: 10080,
+                entries: [
+                    .init(
+                        capturedAt: now.addingTimeInterval(-1800),
+                        usedPercent: 35,
+                        resetsAt: now.addingTimeInterval(5 * 86400)),
+                ]),
+            PlanUtilizationSeriesHistory(
+                name: .antigravityGemini,
+                windowMinutes: 0,
+                entries: [
+                    .init(
+                        capturedAt: now.addingTimeInterval(-60),
+                        usedPercent: 50,
+                        resetsAt: now.addingTimeInterval(3600)),
+                ]),
+        ]
+        let structuredSnapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-gemini-session",
+                    title: "Gemini",
+                    window: RateWindow(
+                        usedPercent: 20,
+                        windowMinutes: 300,
+                        resetsAt: now.addingTimeInterval(4 * 3600),
+                        resetDescription: nil)),
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-gemini-weekly",
+                    title: "Gemini",
+                    window: RateWindow(
+                        usedPercent: 35,
+                        windowMinutes: 10080,
+                        resetsAt: now.addingTimeInterval(5 * 86400),
+                        resetDescription: nil)),
+            ],
+            updatedAt: now)
+
+        let view = QuotaBurndownChartMenuView(
+            provider: .antigravity,
+            histories: mixedHistories,
+            snapshot: structuredSnapshot,
+            width: 400,
+            referenceDate: now)
+
+        #expect(view.hasSeries)
+        #expect(view._seriesTitlesForTesting == [
+            "session:300": L("Session"),
+            "weekly:10080": L("Weekly"),
+        ])
+        #expect(view._seriesRemainingForTesting == [
+            "session:300": 80,
+            "weekly:10080": 65,
+        ])
+    }
 }

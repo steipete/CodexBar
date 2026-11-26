@@ -25,13 +25,16 @@ struct QuotaBurndownChartMenuView: View {
         referenceDate: Date = Date())
     {
         // Provider-specific by design: Antigravity pool observations have no session/weekly cadence.
-        let suppressForAntigravityObservations = provider == .antigravity
+        let usesAntigravityObservations = provider == .antigravity
             && UsageStore.antigravityHistoryUsesObservations(snapshot: snapshot, histories: histories)
-        if suppressForAntigravityObservations {
+        if usesAntigravityObservations {
             self.series = []
         } else {
             self.series = PlanUtilizationHistoryChartMenuView.visibleSeries(
-                histories: histories, provider: provider, snapshot: nil).compactMap { series in
+                histories: histories,
+                provider: provider,
+                snapshot: provider == .antigravity ? snapshot : nil,
+                useAntigravityObservations: usesAntigravityObservations).compactMap { series in
                 let history = series.history
                 guard [.session, .weekly, .monthly, .opus].contains(history.name),
                       let latest = history.entries.last,

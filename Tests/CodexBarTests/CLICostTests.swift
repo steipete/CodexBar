@@ -1004,6 +1004,48 @@ extension CLICostTests {
         #expect(sessionText.contains("Conversations (Last 30 days):"))
         #expect(sessionText.contains("Session vert...ef123456: $0.75 · 500 tokens · 4 requests"))
     }
+
+    @Test
+    func `vertexai CLI cost text uses dynamic cloud estimate footer`() {
+        let now = Date(timeIntervalSince1970: 1_750_000_000)
+        let cloudSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: 500,
+            sessionCostUSD: 0.75,
+            last30DaysTokens: 500,
+            last30DaysCostUSD: 0.75,
+            historyDays: 30,
+            historyLabel: "Last 30 days (Cloud est.)",
+            daily: [],
+            updatedAt: now)
+        let cloudOutput = CodexBarCLI.renderCostText(provider: .vertexai, snapshot: cloudSnapshot, useColor: false)
+        #expect(cloudOutput.contains(VertexAIProviderDescriptor.cloudEstimateHintText))
+        #expect(!cloudOutput.contains(UsageFormatter.costEstimateHint))
+
+        let combinedSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: 500,
+            sessionCostUSD: 0.75,
+            last30DaysTokens: 500,
+            last30DaysCostUSD: 0.75,
+            historyDays: 30,
+            historyLabel: "Last 30 days (Cloud + Local est.)",
+            daily: [],
+            updatedAt: now)
+        let combinedOutput = CodexBarCLI.renderCostText(
+            provider: .vertexai, snapshot: combinedSnapshot, useColor: false)
+        #expect(combinedOutput.contains(VertexAIProviderDescriptor.estimateHintText))
+
+        let localSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: 500,
+            sessionCostUSD: 0.75,
+            last30DaysTokens: 500,
+            last30DaysCostUSD: 0.75,
+            historyDays: 30,
+            historyLabel: nil,
+            daily: [],
+            updatedAt: now)
+        let localOutput = CodexBarCLI.renderCostText(provider: .vertexai, snapshot: localSnapshot, useColor: false)
+        #expect(localOutput.contains(UsageFormatter.costEstimateHint))
+    }
 }
 
 private func sessionTimestamp(_ date: Date) -> String {

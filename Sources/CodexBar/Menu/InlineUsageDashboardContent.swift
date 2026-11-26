@@ -363,7 +363,11 @@ extension UsageMenuCardView.Model {
                 ? quota.tokenValue
                 : (snapshot.last30DaysTokens.map(UsageFormatter.tokenCountString) ?? "—") + historySuffix,
             emphasis: false)
-        let trailingKPIs = Self.costHistoryTrailingKPIs(snapshot: snapshot, latest: latest)
+        let showRequestsKPI = !tokenCost.showsRequestHistory && snapshot.last30DaysRequests != nil
+        let trailingKPIs = Self.costHistoryTrailingKPIs(
+            snapshot: snapshot,
+            latest: latest,
+            showRequestsKPI: showRequestsKPI)
         var kpis: [InlineUsageDashboardModel.KPI]
         if quota.insertsKPIs {
             kpis = [
@@ -376,7 +380,7 @@ extension UsageMenuCardView.Model {
             ]
         } else {
             kpis = [todayKPI, historyCostKPI]
-            if snapshot.last30DaysRequests == nil {
+            if !showRequestsKPI {
                 kpis.append(contentsOf: trailingKPIs)
                 kpis.append(tokenHistoryKPI)
             } else {
@@ -533,10 +537,11 @@ extension UsageMenuCardView.Model {
 
     private static func costHistoryTrailingKPIs(
         snapshot: CostUsageTokenSnapshot,
-        latest: CostUsageDailyReport.Entry?)
+        latest: CostUsageDailyReport.Entry?,
+        showRequestsKPI: Bool)
         -> [InlineUsageDashboardModel.KPI]
     {
-        if let requests = snapshot.last30DaysRequests {
+        if showRequestsKPI, let requests = snapshot.last30DaysRequests {
             return [
                 .init(
                     title: L("Requests"),
@@ -671,9 +676,13 @@ extension UsageMenuCardView.Model {
         var scores: [String: (cost: Double, tokens: Int)] = [:]
         for entry in entries {
             for model in entry.modelBreakdowns ?? [] {
-                if model.costUSD != nil { hasPricedBreakdown = true }
+                guard let costUSD = model.costUSD else {
+                    if model.totalTokens != 0 { return nil }
+                    continue
+                }
+                hasPricedBreakdown = true
                 var score = scores[model.modelName] ?? (0, 0)
-                score.cost += model.costUSD ?? 0
+                score.cost += costUSD
                 let addition = score.tokens.addingReportingOverflow(model.totalTokens ?? 0)
                 guard !addition.overflow else { return nil }
                 score.tokens = addition.partialValue

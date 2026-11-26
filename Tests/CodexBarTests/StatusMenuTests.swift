@@ -235,18 +235,19 @@ struct StatusMenuTests {
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
 
-        #expect(controller.dashboardURL(for: .antigravity) == nil)
-
-        store._setSnapshotForTesting(
-            UsageSnapshot(
-                primary: nil,
-                secondary: nil,
-                antigravityAccountMetadata: AntigravityAccountMetadata(
-                    manageSubscriptionURI: "http://insecure.example.com",
-                    upgradeSubscriptionURI: "https://one.google.com/upgrade"),
-                updatedAt: Date()),
-            provider: .antigravity)
-        #expect(controller.dashboardURL(for: .antigravity)?.absoluteString == "https://one.google.com/upgrade")
+        for (manageURI, upgradeURI, expected) in [
+            (nil, nil, nil),
+            ("https://:443/path", "https://user@/path", nil),
+            ("http://insecure.example.com", "https://one.google.com/upgrade", "https://one.google.com/upgrade"),
+        ] as [(String?, String?, String?)] {
+            let metadata = manageURI == nil && upgradeURI == nil ? nil : AntigravityAccountMetadata(
+                manageSubscriptionURI: manageURI,
+                upgradeSubscriptionURI: upgradeURI)
+            store._setSnapshotForTesting(
+                UsageSnapshot(primary: nil, secondary: nil, antigravityAccountMetadata: metadata, updatedAt: Date()),
+                provider: .antigravity)
+            #expect(controller.dashboardURL(for: .antigravity)?.absoluteString == expected)
+        }
     }
 
     @Test

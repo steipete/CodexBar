@@ -203,5 +203,7 @@ struct MenuDescriptorAntigravityTests {
         #expect(try !hasDashboardAction(manageURI: nil, upgradeURI: nil))
         #expect(try !hasDashboardAction(manageURI: "http://one.google.com/insecure"))
         #expect(try !hasDashboardAction(manageURI: "javascript:alert(1)"))
+        #expect(try !hasDashboardAction(manageURI: "https://:443/path"))
+        #expect(try !hasDashboardAction(manageURI: "https://user@/path"))
     }
 }

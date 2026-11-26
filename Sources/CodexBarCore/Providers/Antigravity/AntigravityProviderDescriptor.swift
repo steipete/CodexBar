@@ -86,6 +86,7 @@ public enum AntigravityProviderDescriptor {
                 ],
                 automaticSelectionPrioritizesExhaustedWindow: false,
                 menuBarWindowResolver: self.menuBarWindow,
+                planUtilizationSeriesResolver: self.planUtilizationSeries,
                 widgetRowLimitResolver: { rows, family in
                     guard rows?.contains(where: { $0.id.hasPrefix(Self.quotaSummaryPrefix) }) == true else {
                         return nil
@@ -130,7 +131,7 @@ public enum AntigravityProviderDescriptor {
                   !trimmed.isEmpty,
                   let url = URL(string: trimmed),
                   url.scheme?.lowercased() == "https",
-                  url.host != nil
+                  url.host?.isEmpty == false
             else { continue }
             return url
         }
@@ -160,6 +161,20 @@ public enum AntigravityProviderDescriptor {
         return ProviderSemanticWindows(
             session: self.mostConstrained(windows: known, minutes: 300),
             weekly: self.mostConstrained(windows: known, minutes: 7 * 24 * 60))
+    }
+
+    private static func planUtilizationSeries(
+        snapshot: UsageSnapshot) -> Set<ProviderPlanUtilizationSeries>?
+    {
+        let semantic = self.semanticWindows(snapshot: snapshot)
+        var series: Set<ProviderPlanUtilizationSeries> = []
+        if semantic.session != nil {
+            series.insert(.session)
+        }
+        if semantic.weekly != nil {
+            series.insert(.weekly)
+        }
+        return series.isEmpty ? nil : series
     }
 
     private static func iconWindows(context: ProviderIconWindowContext) -> ProviderUsageWindowPair {

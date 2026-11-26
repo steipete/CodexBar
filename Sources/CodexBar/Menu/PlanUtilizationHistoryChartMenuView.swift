@@ -183,12 +183,15 @@ struct PlanUtilizationHistoryChartMenuView: View {
     nonisolated static func visibleSeries(
         histories: [PlanUtilizationSeriesHistory],
         provider: UsageProvider,
-        snapshot: UsageSnapshot?) -> [VisibleSeries]
+        snapshot: UsageSnapshot?,
+        useAntigravityObservations: Bool? = nil) -> [VisibleSeries]
     {
         let metadata = ProviderDescriptorRegistry.metadata[provider]
         // Provider-specific by design: Antigravity pool observations have no session/weekly cadence.
-        let usesObservations = provider == .antigravity && UsageStore.antigravityHistoryUsesObservations(
-            snapshot: snapshot, histories: histories)
+        let usesObservations = provider == .antigravity && (useAntigravityObservations ?? UsageStore
+            .antigravityHistoryUsesObservations(
+                snapshot: snapshot,
+                histories: histories))
         let allowedNames = usesObservations ? nil : self.visibleSeriesNames(provider: provider, snapshot: snapshot)
         var historiesBySelection: [SeriesSelection: PlanUtilizationSeriesHistory] = [:]
         for history in histories {

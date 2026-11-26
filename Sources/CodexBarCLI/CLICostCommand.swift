@@ -285,7 +285,7 @@ extension CodexBarCLI {
                 calendar: calendar,
                 useColor: useColor))
         }
-        lines.append(Self.costEstimateHint(provider: provider))
+        lines.append(Self.costEstimateHint(provider: provider, snapshot: snapshot))
         return lines.compactMap(\.self).joined(separator: "\n")
     }
 
@@ -508,7 +508,7 @@ extension CodexBarCLI {
         let historyLabel = snapshot.periodLabel
         let footer = costIsUnknown
             ? "Local token history · dollar costs unavailable"
-            : Self.costEstimateHint(provider: provider)
+            : Self.costEstimateHint(provider: provider, snapshot: snapshot)
         var lines = [header, "Projects (\(historyLabel)):"]
         guard !snapshot.projects.isEmpty else {
             lines.append("—")
@@ -551,7 +551,7 @@ extension CodexBarCLI {
         let historyLabel = snapshot.periodLabel
         let footer = costIsUnknown
             ? "Local token history · dollar costs unavailable"
-            : Self.costEstimateHint(provider: provider)
+            : Self.costEstimateHint(provider: provider, snapshot: snapshot)
         var lines = [header, "Conversations (\(historyLabel)):"]
         let historyIncomplete = snapshot.historyCoverageIsEstablished == false
         if historyIncomplete {
@@ -608,10 +608,41 @@ extension CodexBarCLI {
         return formatter.string(from: date)
     }
 
-    private static func costEstimateHint(provider: UsageProvider) -> String {
+    private static func costEstimateHint(provider: UsageProvider, snapshot: CostUsageTokenSnapshot) -> String {
+        let tokenCost = ProviderDescriptorRegistry.descriptor(for: provider).tokenCost
+        if tokenCost.menuHintLinesResolver != nil {
+            let resolved = tokenCost.resolvedMenuHintLines(for: snapshot).map { hint -> String in
+                switch hint {
+                case let .localized(key):
+                    Self.cliLocalizedHintText(key: key, provider: provider)
+                case .estimate:
+                    UsageFormatter.costEstimateHint(provider: provider)
+                case let .literal(text):
+                    text
+                }
+            }
+            if !resolved.isEmpty {
+                return resolved.joined(separator: "\n")
+            }
+        }
+        return Self.defaultCostEstimateHint(provider: provider)
+    }
+
+    private static func defaultCostEstimateHint(provider: UsageProvider) -> String {
         provider == .codex
             ? "Not a subscription bill or plan value · local usage × public API prices"
             : UsageFormatter.costEstimateHint(provider: provider)
+    }
+
+    private static func cliLocalizedHintText(key: String, provider: UsageProvider) -> String {
+        switch key {
+        case VertexAIProviderDescriptor.cloudEstimateHintKey:
+            VertexAIProviderDescriptor.cloudEstimateHintText
+        case VertexAIProviderDescriptor.estimateHintKey:
+            VertexAIProviderDescriptor.estimateHintText
+        default:
+            UsageFormatter.costEstimateHint(provider: provider)
+        }
     }
 
     private static func costHeaderLine(_ header: String, useColor: Bool) -> String {

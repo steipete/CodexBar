@@ -229,4 +229,57 @@ struct PlanUtilizationHistoryChartMenuViewTests {
         #expect(model.visibleSeries == ["weekly:10080"])
         #expect(model.selectedSeries == "weekly:10080")
     }
+
+    @Test
+    func `antigravity structured summary exposes session and weekly tabs matching claude parity`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let histories = [
+            PlanUtilizationSeriesHistory(
+                name: .session,
+                windowMinutes: 300,
+                entries: [PlanUtilizationHistoryEntry(capturedAt: now, usedPercent: 25, resetsAt: nil)]),
+            PlanUtilizationSeriesHistory(
+                name: .weekly,
+                windowMinutes: 10080,
+                entries: [PlanUtilizationHistoryEntry(capturedAt: now, usedPercent: 45, resetsAt: nil)]),
+        ]
+        let sessionWindow = RateWindow(
+            usedPercent: 25, windowMinutes: 300, resetsAt: now.addingTimeInterval(3600), resetDescription: nil)
+        let weeklyWindow = RateWindow(
+            usedPercent: 45, windowMinutes: 10080, resetsAt: now.addingTimeInterval(86400), resetDescription: nil)
+
+        let fullSnapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-gemini-5h", title: "Gemini 5-hour", window: sessionWindow),
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-gemini-weekly", title: "Gemini weekly", window: weeklyWindow),
+            ],
+            updatedAt: now)
+        let fullModel = PlanUtilizationHistoryChartMenuView._modelSnapshotForTesting(
+            histories: histories,
+            provider: .antigravity,
+            snapshot: fullSnapshot,
+            referenceDate: now)
+        #expect(fullModel.visibleSeries == ["session:300", "weekly:10080"])
+        #expect(fullModel.visibleSeriesTitles == [L("Session"), L("Weekly")])
+
+        let weeklyOnlySnapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-gemini-weekly", title: "Gemini weekly", window: weeklyWindow),
+            ],
+            updatedAt: now)
+        let weeklyOnlyModel = PlanUtilizationHistoryChartMenuView._modelSnapshotForTesting(
+            histories: histories,
+            provider: .antigravity,
+            snapshot: weeklyOnlySnapshot,
+            referenceDate: now)
+        #expect(weeklyOnlyModel.visibleSeries == ["weekly:10080"])
+        #expect(weeklyOnlyModel.visibleSeriesTitles == [L("Weekly")])
+    }
 }
