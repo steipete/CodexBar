@@ -164,7 +164,11 @@ struct ProviderPluginExtensionParityTests {
             if request.url?.path.hasSuffix("/prepaid/balance") == true {
                 return #"{"total":{"val":"-1000"}}"#
             }
-            return #"{"timeSeries":[{"dataPoints":[{"timestamp":"2027-01-15T00:00:00Z","values":[1.5]}]}],"limitReached":false}"#
+            if request.url?.path.hasSuffix("/postpaid/invoice/preview") == true {
+                return #"{}"#
+            }
+            return #"{"timeSeries":[{"group":["API grok-4.7","Prompt text tokens"],"#
+                + #""dataPoints":[{"timestamp":"2027-01-15T00:00:00Z","values":[1.5,1000,2]}]}],"limitReached":false}"#
         }
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let script = try await ProviderPluginRuntime(bundledPlugin: "xai", transport: transport)
@@ -187,7 +191,12 @@ struct ProviderPluginExtensionParityTests {
         #expect(details.title == "Billing summary")
         #expect(try details.rows.first == .init(label: "Prepaid balance", value: "$10.00"))
         #expect(try details.rows.last == .init(label: "Last 30 days", value: "$1.50"))
-        #expect(try details.chart?.points == [.init(label: "2027-01-15", value: 1.5)])
+        #expect(details.chart == nil)
+        let entry = try #require(script.costUsage?.daily.first)
+        #expect(entry.date == "2027-01-15")
+        #expect(entry.costUSD == 1.5)
+        #expect(entry.totalTokens == 1000)
+        #expect(entry.requestCount == 2)
     }
 
     private static func transport(

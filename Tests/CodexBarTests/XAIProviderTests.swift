@@ -409,8 +409,65 @@ struct XAIProviderTests {
         #expect(text.contains("Prepaid balance: $10.00"))
         #expect(text.contains("Live remaining (est.): $6.50") == hasPreview)
         #expect(text.contains("Plan: Management API"))
+    }
 
-        if let directory = ProcessInfo.processInfo.environment["CODEXBAR_XAI_PROOF_DIR"] {
+    @Test @MainActor
+    func `submenu-only cost summary mode retains xAI tokenUsage history`() async throws {
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .xai)
+        #expect(descriptor.tokenCost.showsCostMenuSection == true)
+
+        let snapshot = try await Self.fetch()
+        let tokenSnapshot = try #require(XAICostUsageMapping.tokenSnapshot(from: snapshot, historyDays: 30))
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .xai,
+            metadata: descriptor.metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboardError: nil,
+            tokenSnapshot: tokenSnapshot,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: true,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            costSummaryInlineEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: Date(timeIntervalSince1970: 1_800_000_000)))
+        #expect(model.inlineUsageDashboard == nil)
+        #expect(model.tokenUsage != nil)
+    }
+
+    @Test @MainActor
+    func `descriptor registry menu card proof capture`() async throws {
+        guard let directory = ProcessInfo.processInfo.environment["CODEXBAR_XAI_PROOF_DIR"] else { return }
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .xai)
+        for hasPreview in [false, true] {
+            let previewFixture = #"{"billingCycle":{"year":2027,"month":1},"#
+                + #""coreInvoice":{"amountAfterVat":"350","totalWithCorr":{"val":"350"}}}"#
+            let snapshot = try await Self.fetch(previewBody: hasPreview ? previewFixture : "{}")
+            let model = UsageMenuCardView.Model.make(.init(
+                provider: .xai,
+                metadata: descriptor.metadata,
+                snapshot: snapshot,
+                credits: nil,
+                creditsError: nil,
+                dashboardError: nil,
+                tokenSnapshot: nil,
+                tokenError: nil,
+                account: AccountInfo(email: nil, plan: nil),
+                isRefreshing: false,
+                lastError: nil,
+                usageBarsShowUsed: true,
+                resetTimeDisplayStyle: .countdown,
+                tokenCostUsageEnabled: false,
+                costSummaryInlineEnabled: true,
+                showOptionalCreditsAndExtraUsage: true,
+                hidePersonalInfo: false,
+                now: Date(timeIntervalSince1970: 1_800_000_000)))
             let hosting = NSHostingView(rootView: UsageMenuCardView(model: model, width: 360)
                 .padding(16)
                 .frame(width: 392)

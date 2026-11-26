@@ -16,7 +16,6 @@ public enum XAIProviderDescriptor {
             + "Prepaid balance is not treated as spend.",
         supportsTokenCost: true,
         isCostUsageUnavailable: { XAICostUsageMapping.isAnalyticsUnavailable($0) },
-        showsCostMenuSection: false,
         showsRequestHistory: false,
         chartCalendar: CostUsageBucketTimeZone.calendar(identifier: "UTC"),
         environmentKey: XAISettingsReader.apiKeyEnvironmentKey,
