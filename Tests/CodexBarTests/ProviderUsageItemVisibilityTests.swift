@@ -493,6 +493,12 @@ struct ProviderUsageItemVisibilityTests {
                 ProviderDetailSection(title: "Bucket amounts", rows: [
                     .init(label: "Standard pool", value: "750 remaining"),
                 ]),
+                ProviderDetailSection(title: "Quota groups", rows: [
+                    .init(label: "Gemini Models", value: "Gemini Flash, Gemini Pro"),
+                ]),
+                ProviderDetailSection(title: "Model catalog", rows: [
+                    .init(label: "Gemini 3.1 Pro", value: "1.5× · Static credit"),
+                ]),
             ],
             updatedAt: now,
             identity: ProviderIdentitySnapshot(
@@ -528,11 +534,22 @@ struct ProviderUsageItemVisibilityTests {
             .detailSection("Credits"),
             .detailSection("Model availability"),
             .detailSection("Bucket amounts"),
+            .detailSection("Quota groups"),
+            .detailSection("Model catalog"),
         ])
-        #expect(detailItems.filter(\.requiresOptionalUsage).map(\.id) == [.detailSection("Credits")])
+        #expect(detailItems.filter(\.requiresOptionalUsage).map(\.id) == [
+            .detailSection("Credits"),
+            .detailSection("Quota groups"),
+            .detailSection("Model catalog"),
+        ])
 
         let hiddenCredits = fullModel.applyingUsageItemVisibility(hiddenItemIDs: [.detailSection("Credits")])
-        #expect(hiddenCredits.providerDetails.map(\.title) == ["Model availability", "Bucket amounts"])
+        #expect(hiddenCredits.providerDetails.map(\.title) == [
+            "Model availability",
+            "Bucket amounts",
+            "Quota groups",
+            "Model catalog",
+        ])
 
         let withoutOptional = try makeModel(showOptionalCreditsAndExtraUsage: false)
         #expect(!withoutOptional.providerDetails.contains { $0.title == "Credits" })

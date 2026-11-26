@@ -241,6 +241,37 @@ private struct QuotaSummaryBucketPayload: Decodable {
     let resetTime: String?
     let window: String?
     let refreshWindowLabel: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case bucketId
+        case id
+        case displayName
+        case name
+        case description
+        case disabled
+        case remainingFraction
+        case remainingAmount
+        case remaining
+        case resetTime
+        case window
+        case refreshWindowLabel
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.bucketId = try container.decodeIfPresent(String.self, forKey: .bucketId)
+        self.id = try container.decodeIfPresent(String.self, forKey: .id)
+        self.displayName = try container.decodeIfPresent(String.self, forKey: .displayName)
+        self.name = try container.decodeIfPresent(String.self, forKey: .name)
+        self.description = try container.decodeIfPresent(String.self, forKey: .description)
+        self.disabled = try container.decodeIfPresent(Bool.self, forKey: .disabled)
+        self.remainingFraction = try container.decodeIfPresent(Double.self, forKey: .remainingFraction)
+        self.remainingAmount = try? container.decodeIfPresent(FlexibleInt.self, forKey: .remainingAmount)
+        self.remaining = try container.decodeIfPresent(QuotaSummaryRemainingPayload.self, forKey: .remaining)
+        self.resetTime = try container.decodeIfPresent(String.self, forKey: .resetTime)
+        self.window = try container.decodeIfPresent(String.self, forKey: .window)
+        self.refreshWindowLabel = try container.decodeIfPresent(String.self, forKey: .refreshWindowLabel)
+    }
 }
 
 private struct QuotaSummaryModelAvailabilityPayload: Decodable {
@@ -262,7 +293,7 @@ private struct QuotaSummaryRemainingPayload: Decodable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let directFraction = try container.decodeIfPresent(Double.self, forKey: .remainingFraction)
-        let directAmount = try container.decodeIfPresent(FlexibleInt.self, forKey: .remainingAmount)
+        let directAmount = try? container.decodeIfPresent(FlexibleInt.self, forKey: .remainingAmount)
         if directFraction != nil || directAmount != nil {
             self.remainingFraction = directFraction
             self.remainingAmount = directAmount
@@ -275,7 +306,7 @@ private struct QuotaSummaryRemainingPayload: Decodable {
             self.remainingAmount = nil
         case "remainingAmount", "remaining_amount":
             self.remainingFraction = nil
-            self.remainingAmount = try container.decodeIfPresent(FlexibleInt.self, forKey: .value)
+            self.remainingAmount = try? container.decodeIfPresent(FlexibleInt.self, forKey: .value)
         default:
             self.remainingFraction = nil
             self.remainingAmount = nil

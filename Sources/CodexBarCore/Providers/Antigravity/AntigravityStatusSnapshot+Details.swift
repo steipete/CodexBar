@@ -53,6 +53,7 @@ extension AntigravityStatusSnapshot {
 
     static func detailSections(
         quotaSummary: AntigravityQuotaSummary?,
+        catalog: AntigravityCatalogSnapshot? = nil,
         credits: AntigravityCreditsSnapshot?,
         showCredits: Bool) -> [ProviderDetailSection]
     {
@@ -60,13 +61,23 @@ extension AntigravityStatusSnapshot {
         if showCredits, let credits, let section = Self.creditsDetailSection(from: credits) {
             sections.append(section)
         }
-        if let quotaSummary {
-            if let availabilitySection = Self.modelAvailabilityDetailSection(from: quotaSummary) {
-                sections.append(availabilitySection)
-            }
-            if let amountSection = Self.bucketAmountDetailSection(from: quotaSummary) {
-                sections.append(amountSection)
-            }
+        if let quotaSummary, let availabilitySection = Self.modelAvailabilityDetailSection(from: quotaSummary) {
+            sections.append(availabilitySection)
+        }
+        if let bucketAmounts = catalog?.bucketAmounts,
+           let amountSection = Self.bucketAmountDetailSection(from: bucketAmounts)
+        {
+            sections.append(amountSection)
+        }
+        if let quotaGroups = catalog?.quotaGroups,
+           let groupSection = Self.quotaGroupsDetailSection(from: quotaGroups)
+        {
+            sections.append(groupSection)
+        }
+        if let modelCatalog = catalog?.modelCatalog,
+           let catalogSection = Self.modelCatalogDetailSection(from: modelCatalog)
+        {
+            sections.append(catalogSection)
         }
         return Array(sections.prefix(ProviderDetailSection.maximumSectionsPerSnapshot))
     }
@@ -222,27 +233,109 @@ extension AntigravityStatusSnapshot {
     }
 
     private static func bucketAmountDetailSection(
-        from quotaSummary: AntigravityQuotaSummary) -> ProviderDetailSection?
+        from bucketAmounts: [AntigravityQuotaBucketAmount]) -> ProviderDetailSection?
     {
-        var rows: [ProviderDetailSection.Row] = []
-        for group in quotaSummary.groups {
-            let groupTitle = Self.displayTitle(forQuotaGroup: group)
-            for bucket in group.buckets {
-                guard let remainingAmount = bucket.remainingAmount else { continue }
-                let bucketTitle = Self.displayTitle(forQuotaBucket: bucket)
-                rows.append(.makeRow(
-                    id: "antigravity-amount-\(bucket.bucketId)",
-                    label: "\(groupTitle) \(bucketTitle)",
-                    value: "\(remainingAmount) remaining",
-                    usageValue: Double(remainingAmount)))
-            }
+        let rows = bucketAmounts.prefix(ProviderDetailSection.maximumRowsPerSection).map { bucket in
+            let label = bucket.groupName.map { "\($0) \(bucket.displayName)" } ?? bucket.displayName
+            return ProviderDetailSection.Row.makeRow(
+                id: "antigravity-amount-\(bucket.bucketId)",
+                label: label,
+                value: "\(bucket.remainingAmount) remaining",
+                usageValue: Double(bucket.remainingAmount))
         }
         guard !rows.isEmpty else { return nil }
         return ProviderDetailSection.makeSection(title: "Bucket amounts", rows: rows)
     }
+
+    private static func quotaGroupsDetailSection(
+        from quotaGroups: [AntigravityQuotaGroupRoster]) -> ProviderDetailSection?
+    {
+        let rows = quotaGroups.prefix(ProviderDetailSection.maximumRowsPerSection).enumerated().map { index, group in
+            let value = group.models.isEmpty ? group.description : group.models.joined(separator: ", ")
+            return ProviderDetailSection.Row.makeRow(
+                id: "antigravity-group-\(index)",
+                label: group.displayName,
+                value: value)
+        }
+        guard !rows.isEmpty else { return nil }
+        return ProviderDetailSection.makeSection(title: "Quota groups", rows: rows)
+    }
+
+    private static func modelCatalogDetailSection(
+        from modelCatalog: [AntigravityModelCatalogEntry]) -> ProviderDetailSection?
+    {
+        let rows = modelCatalog.prefix(ProviderDetailSection.maximumRowsPerSection).map { entry in
+            let multiplierText = Self.formattedMultiplier(entry.creditMultiplier)
+            let pricingText = Self.humanizedPricingType(entry.pricingType)
+            let primaryParts = [multiplierText, pricingText].compactMap(\.self)
+            let hasPrimary = !primaryParts.isEmpty
+            let tagTitle = entry.tagTitle?.trimmedNonEmpty
+            let value = hasPrimary
+                ? primaryParts.joined(separator: " · ")
+                : (tagTitle ?? (entry.isPremium == true ? "Premium" : "Standard"))
+            let secondaryParts = [
+                (hasPrimary || tagTitle != nil) && entry.isPremium == true ? "Premium" : nil,
+                hasPrimary ? tagTitle : nil,
+            ].compactMap(\.self)
+            let secondaryValue = secondaryParts.isEmpty ? nil : secondaryParts.joined(separator: " · ")
+            return ProviderDetailSection.Row.makeRow(
+                id: "antigravity-catalog-\(entry.modelId)",
+                label: entry.label,
+                value: value,
+                secondaryValue: secondaryValue)
+        }
+        guard !rows.isEmpty else { return nil }
+        return ProviderDetailSection.makeSection(title: "Model catalog", rows: rows)
+    }
+
+    private static func formattedMultiplier(_ multiplier: Double?) -> String? {
+        guard let multiplier, multiplier.isFinite else { return nil }
+        if let whole = Int(exactly: multiplier) {
+            return "\(whole)×"
+        }
+        if multiplier.rounded() == multiplier {
+            return "\(String(format: "%g", multiplier))×"
+        }
+        let formatted = String(format: "%.2f", multiplier)
+            .replacingOccurrences(of: #"0+$"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"\.$"#, with: "", options: .regularExpression)
+        return "\(formatted)×"
+    }
+
+    private static func humanizedPricingType(_ raw: String?) -> String? {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+        let prefix = "MODEL_PRICING_TYPE_"
+        let stripped = trimmed.uppercased().hasPrefix(prefix)
+            ? String(trimmed.dropFirst(prefix.count))
+            : trimmed
+        switch stripped.uppercased() {
+        case "API":
+            return "API"
+        case "BYOK":
+            return "BYOK"
+        case "STATIC_CREDIT":
+            return "Static credit"
+        default:
+            let words = stripped.split(separator: "_").map { $0.lowercased() }
+            guard let first = words.first else { return trimmed }
+            return ([first.prefix(1).uppercased() + first.dropFirst()] + words.dropFirst()).joined(separator: " ")
+        }
+    }
 }
 
 extension AntigravityStatusProbe {
+    static func catalogEntry(from config: ModelConfig) -> AntigravityModelCatalogEntry? {
+        AntigravityModelCatalogEntry(
+            modelId: config.modelOrAlias.model,
+            label: config.label,
+            creditMultiplier: config.creditMultiplier?.value,
+            pricingType: config.pricingType?.rawValue,
+            isPremium: config.isPremium,
+            tagTitle: config.tagTitle).normalizedIfAttributed
+    }
+
     static func creditsSnapshot(
         from userStatus: UserStatus,
         planInfo: PlanInfo?) -> AntigravityCreditsSnapshot?

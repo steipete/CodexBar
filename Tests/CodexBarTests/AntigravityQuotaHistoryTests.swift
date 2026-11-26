@@ -311,6 +311,197 @@ struct AntigravityQuotaHistoryTests {
         #expect(session.latestCapturedAt == hour.addingTimeInterval(10 * 60))
     }
 
+    @MainActor
+    @Test
+    func `single cadence Gemini summary snapshots record their active series`() async {
+        let weeklyStore = UsageStorePlanUtilizationTests.makeStore()
+        let weekly = RateWindow(
+            usedPercent: 25,
+            windowMinutes: 10080,
+            resetsAt: self.now.addingTimeInterval(5 * 86400),
+            resetDescription: nil)
+        let weeklySnapshot = UsageSnapshot(
+            primary: weekly,
+            secondary: nil,
+            extraRateWindows: [
+                .init(id: "antigravity-quota-summary-gemini-weekly", title: "Gemini weekly", window: weekly),
+            ],
+            updatedAt: self.now)
+        await weeklyStore.recordPlanUtilizationHistorySample(
+            provider: .antigravity,
+            snapshot: weeklySnapshot,
+            now: self.now)
+        let weeklyHistories = weeklyStore.planUtilizationHistory(for: .antigravity)
+        #expect(weeklyHistories.map(\.name) == [.weekly])
+        #expect(weeklyHistories.first?.entries.last?.usedPercent == 25)
+
+        let sessionStore = UsageStorePlanUtilizationTests.makeStore()
+        let session = RateWindow(
+            usedPercent: 40,
+            windowMinutes: 300,
+            resetsAt: self.now.addingTimeInterval(3 * 3600),
+            resetDescription: nil)
+        let sessionSnapshot = UsageSnapshot(
+            primary: session,
+            secondary: nil,
+            extraRateWindows: [
+                .init(id: "antigravity-quota-summary-gemini-5h", title: "Gemini 5-hour", window: session),
+            ],
+            updatedAt: self.now)
+        await sessionStore.recordPlanUtilizationHistorySample(
+            provider: .antigravity,
+            snapshot: sessionSnapshot,
+            now: self.now)
+        let sessionHistories = sessionStore.planUtilizationHistory(for: .antigravity)
+        #expect(sessionHistories.map(\.name) == [.session])
+        #expect(sessionHistories.first?.entries.last?.usedPercent == 40)
+    }
+
+    @MainActor
+    @Test
+    func `four lane summary snapshot records Gemini and Claude GPT session and weekly series`() async {
+        let store = UsageStorePlanUtilizationTests.makeStore()
+        let geminiSession = RateWindow(
+            usedPercent: 15,
+            windowMinutes: 300,
+            resetsAt: self.now.addingTimeInterval(4 * 3600),
+            resetDescription: nil)
+        let geminiWeekly = RateWindow(
+            usedPercent: 30,
+            windowMinutes: 10080,
+            resetsAt: self.now.addingTimeInterval(5 * 86400),
+            resetDescription: nil)
+        let claudeSession = RateWindow(
+            usedPercent: 55,
+            windowMinutes: 300,
+            resetsAt: self.now.addingTimeInterval(2 * 3600),
+            resetDescription: nil)
+        let claudeWeekly = RateWindow(
+            usedPercent: 70,
+            windowMinutes: 10080,
+            resetsAt: self.now.addingTimeInterval(6 * 86400),
+            resetDescription: nil)
+        let snapshot = UsageSnapshot(
+            primary: geminiWeekly,
+            secondary: claudeWeekly,
+            extraRateWindows: [
+                .init(id: "antigravity-quota-summary-gemini-5h", title: "Gemini 5-hour", window: geminiSession),
+                .init(id: "antigravity-quota-summary-gemini-weekly", title: "Gemini weekly", window: geminiWeekly),
+                .init(id: "antigravity-quota-summary-3p-5h", title: "Claude/GPT 5-hour", window: claudeSession),
+                .init(id: "antigravity-quota-summary-3p-weekly", title: "Claude/GPT weekly", window: claudeWeekly),
+            ],
+            updatedAt: self.now)
+        await store.recordPlanUtilizationHistorySample(provider: .antigravity, snapshot: snapshot, now: self.now)
+
+        let histories = store.planUtilizationHistory(for: .antigravity)
+        #expect(Set(histories.map(\.name)) == [
+            .session,
+            .weekly,
+            .antigravityClaudeGPTSession,
+            .antigravityClaudeGPTWeekly,
+        ])
+        #expect(histories.first { $0.name == .antigravityClaudeGPTSession }?.entries.last?.usedPercent == 55)
+        #expect(histories.first { $0.name == .antigravityClaudeGPTWeekly }?.entries.last?.usedPercent == 70)
+    }
+
+    @MainActor
+    @Test
+    func `idle Gemini with active Claude GPT and custom non-Gemini group map all four structured series`() async {
+        let idleGeminiSnapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            extraRateWindows: [
+                .init(
+                    id: "antigravity-quota-summary-gemini-5h",
+                    title: "Gemini 5-hour",
+                    window: .init(
+                        usedPercent: 0,
+                        windowMinutes: 300,
+                        resetsAt: self.now.addingTimeInterval(4 * 3600),
+                        resetDescription: nil)),
+                .init(
+                    id: "antigravity-quota-summary-gemini-weekly",
+                    title: "Gemini weekly",
+                    window: .init(
+                        usedPercent: 0,
+                        windowMinutes: 10080,
+                        resetsAt: self.now.addingTimeInterval(5 * 86400),
+                        resetDescription: nil)),
+                .init(
+                    id: "antigravity-quota-summary-3p-5h",
+                    title: "Claude/GPT 5-hour",
+                    window: .init(
+                        usedPercent: 40,
+                        windowMinutes: 300,
+                        resetsAt: self.now.addingTimeInterval(2 * 3600),
+                        resetDescription: nil)),
+                .init(
+                    id: "antigravity-quota-summary-3p-weekly",
+                    title: "Claude/GPT weekly",
+                    window: .init(
+                        usedPercent: 55,
+                        windowMinutes: 10080,
+                        resetsAt: self.now.addingTimeInterval(6 * 86400),
+                        resetDescription: nil)),
+            ],
+            updatedAt: self.now)
+
+        let idleGeminiSeries = UsageStore.antigravityStructuredSeriesWindows(snapshot: idleGeminiSnapshot)
+        #expect(Set(idleGeminiSeries.map(\.name)) == [
+            .session,
+            .weekly,
+            .antigravityClaudeGPTSession,
+            .antigravityClaudeGPTWeekly,
+        ])
+        #expect(idleGeminiSeries.first { $0.name == .session }?.window.usedPercent == 0)
+        #expect(idleGeminiSeries.first { $0.name == .antigravityClaudeGPTSession }?.window.usedPercent == 40)
+
+        let store = UsageStorePlanUtilizationTests.makeStore()
+        await store.recordPlanUtilizationHistorySample(
+            provider: .antigravity, snapshot: idleGeminiSnapshot, now: self.now)
+        #expect(Set(store.planUtilizationHistory(for: .antigravity).map(\.name)) == [
+            .session,
+            .weekly,
+            .antigravityClaudeGPTSession,
+            .antigravityClaudeGPTWeekly,
+        ])
+
+        let customSnapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            extraRateWindows: [
+                .init(
+                    id: "antigravity-quota-summary-argon-5h",
+                    title: "Argon 5-hour",
+                    window: .init(usedPercent: 18, windowMinutes: 300, resetsAt: nil, resetDescription: nil)),
+                .init(
+                    id: "antigravity-quota-summary-argon-weekly",
+                    title: "Argon weekly",
+                    window: .init(usedPercent: 32, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)),
+                .init(
+                    id: "antigravity-quota-summary-3p-5h",
+                    title: "Claude/GPT 5-hour",
+                    window: .init(usedPercent: 44, windowMinutes: 300, resetsAt: nil, resetDescription: nil)),
+                .init(
+                    id: "antigravity-quota-summary-3p-weekly",
+                    title: "Claude/GPT weekly",
+                    window: .init(usedPercent: 61, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)),
+            ],
+            updatedAt: self.now)
+
+        let customSeries = UsageStore.antigravityStructuredSeriesWindows(snapshot: customSnapshot)
+        #expect(Set(customSeries.map(\.name)) == [
+            .session,
+            .weekly,
+            .antigravityClaudeGPTSession,
+            .antigravityClaudeGPTWeekly,
+        ])
+        #expect(customSeries.first { $0.name == .session }?.window.usedPercent == 18)
+        #expect(customSeries.first { $0.name == .weekly }?.window.usedPercent == 32)
+        #expect(customSeries.first { $0.name == .antigravityClaudeGPTSession }?.window.usedPercent == 44)
+        #expect(customSeries.first { $0.name == .antigravityClaudeGPTWeekly }?.window.usedPercent == 61)
+    }
+
     private func poolSnapshot() -> UsageSnapshot {
         UsageSnapshot(
             primary: .init(usedPercent: 82, windowMinutes: nil, resetsAt: self.now, resetDescription: nil),

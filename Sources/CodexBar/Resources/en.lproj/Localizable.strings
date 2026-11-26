@@ -2927,3 +2927,5 @@
 "Optional. Include non-Vertex Claude Code logs from ~/.claude/projects when computing Vertex AI token and cost breakdowns." = "Optional. Include non-Vertex Claude Code logs from ~/.claude/projects when computing Vertex AI token and cost breakdowns.";
 "Estimate USD cost from Cloud Monitoring tokens" = "Estimate USD cost from Cloud Monitoring tokens";
 "Optional. Estimate USD spend from Cloud Monitoring token_count using public API list prices for shared pay-as-you-go traffic." = "Optional. Estimate USD spend from Cloud Monitoring token_count using public API list prices for shared pay-as-you-go traffic.";
+"Quota groups" = "Quota groups";
+"Model catalog" = "Model catalog";

@@ -210,6 +210,8 @@ public enum ProviderMenuBarWindowResolution: Sendable {
 public enum ProviderPlanUtilizationSeries: Sendable, Hashable {
     case session
     case weekly
+    case supplementarySession
+    case supplementaryWeekly
     case tertiary
     case monthly
 }

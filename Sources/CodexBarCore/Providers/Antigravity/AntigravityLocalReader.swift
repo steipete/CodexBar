@@ -172,7 +172,12 @@ enum AntigravityLocalReader {
         let budget = Budget(limits: limits, clock: clock, cancellation: checkCancellation)
         let pricing = estimateCost ? CostUsagePricing.ClaudeResolver(now: Date(), cacheRoot: pricingCacheRoot) : nil
         do {
-            let databases = try self.discover(roots: context.databaseRoots, extension: "db", budget: budget)
+            let databases = try self.discover(
+                roots: context.databaseRoots,
+                extension: "db",
+                budget: budget,
+                dayRange: dayRange,
+                calendar: calendar)
             // A discovery error is not absence and never authorizes a cache replacement.
             if !databases.paths.isEmpty || !databases.isComplete {
                 var source = try self.readDatabases(
@@ -180,19 +185,26 @@ enum AntigravityLocalReader {
                     budget: budget,
                     includeBreakdowns: includeBreakdowns)
                 if includeBreakdowns {
-                    source.conversationSummariesBySession = try self.readConversationSummaries(
+                    let summaries = try self.readConversationSummaries(
                         urls: context.conversationSummaryDatabases,
                         budget: budget)
+                    source.conversationSummariesBySession = summaries.summaries
+                    source.isComplete = source.isComplete && summaries.isComplete
                 }
                 return try self.aggregate(
                     source,
                     discoveryComplete: databases.isComplete,
+                    skippedOldDatabases: databases.skippedOldDatabases,
                     calendar: calendar,
                     budget: budget,
                     pricing: pricing,
                     includeBreakdowns: includeBreakdowns,
                     dayRange: dayRange,
                     projectGrouping: context.scanOptions.projectGrouping)
+            }
+            if databases.skippedOldDatabases > 0 {
+                return DailyReportResult(
+                    report: .init(data: [], summary: nil), coverage: .complete, statistics: budget.statistics)
             }
             guard context.scanOptions.includeTokscaleFallback else {
                 return DailyReportResult(
@@ -227,6 +239,7 @@ enum AntigravityLocalReader {
     private static func aggregate(
         _ source: SourceResult,
         discoveryComplete: Bool,
+        skippedOldDatabases: Int = 0,
         calendar: Calendar,
         budget: Budget,
         pricing: CostUsagePricing.ClaudeResolver?,
@@ -239,12 +252,14 @@ enum AntigravityLocalReader {
         var contradicted = false
         if isComplete, !source.containsHistorySource {
             return DailyReportResult(
-                report: .init(data: [], summary: nil), coverage: .unavailable, statistics: budget.statistics)
+                report: .init(data: [], summary: nil),
+                coverage: skippedOldDatabases > 0 ? .complete : .unavailable,
+                statistics: budget.statistics)
         }
         var models: [LabelIdentity: String] = [:]
         var conflicts = Set<LabelIdentity>()
         for event in source.events {
-            try budget.check()
+            try budget.cancellation()
             if let label = event.turn.label, let model = event.turn.model {
                 let key = LabelIdentity(session: event.session, label: label)
                 if let prior = models[key], prior != model {
@@ -262,7 +277,7 @@ enum AntigravityLocalReader {
         var sliceBuckets: [Date: CostUsageTemporalTotals] = [:]
         var acceptedEvents: [AcceptedEvent] = []
         for event in source.events {
-            try budget.check()
+            try budget.cancellation()
             let row = RowIdentity(session: event.session, row: event.row)
             guard let entry = self.entry(
                 event, models: models, conflicts: conflicts, calendar: calendar, pricing: pricing)

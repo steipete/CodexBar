@@ -113,8 +113,8 @@ struct AntigravityHubIdentityTests {
 
         let requests = await capture.values()
         let cloudRequests = requests.filter { $0.url?.host == "cloudcode-pa.googleapis.com" }
-        let expectedCloudPaths = ["loadCodeAssist", "onboardUser"] +
-            (summaryAvailable ? [] : ["fetchAvailableModels", "retrieveUserQuota"])
+        let expectedCloudPaths = ["loadCodeAssist", "onboardUser", "fetchAvailableModels"] +
+            (summaryAvailable ? [] : ["retrieveUserQuota"])
         #expect(cloudRequests.map { $0.url?.path } == expectedCloudPaths.map { "/v1internal:\($0)" })
         let dailyRequests = requests.filter { $0.url?.host == "daily-cloudcode-pa.googleapis.com" }
         #expect(dailyRequests.map { $0.url?.path } == ["/v1internal:retrieveUserQuotaSummary"])

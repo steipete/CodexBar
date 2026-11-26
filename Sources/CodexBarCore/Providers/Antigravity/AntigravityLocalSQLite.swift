@@ -13,10 +13,13 @@ extension AntigravityLocalReader {
     {
         var result = SourceResult()
         for url in paths {
+            guard budget.statistics.files < budget.limits.databases else {
+                result.isComplete = false
+                break
+            }
             do {
                 try budget.check()
                 budget.statistics.files += 1
-                guard budget.statistics.files <= budget.limits.databases else { throw ScanFailure.exhausted }
                 budget.beginDatabase()
                 let source = try self.readDatabase(url, budget: budget, includeBreakdowns: includeBreakdowns)
                 result.events.append(contentsOf: source.events)
@@ -26,9 +29,17 @@ extension AntigravityLocalReader {
                 result.trajectoryMetadataBySession.merge(source.trajectoryMetadataBySession) { current, _ in current }
             } catch ScanFailure.schemaExhausted {
                 // Schema limits apply to each database, so an oversized schema costs only its own database.
-                // Rows from the other databases stay valid partial history. Hard row, byte, and duration
-                // limits are not caught here and continue to withhold newly truncated reports as documented.
+                // Rows from the other databases stay valid partial history.
                 result.isComplete = false
+            } catch ScanFailure.exhausted {
+                // Keep already-completed databases as partial history. Stop scanning if job-wide limits are hit.
+                result.isComplete = false
+                if budget.isJobExhausted {
+                    if !result.containsHistorySource, result.events.isEmpty {
+                        throw ScanFailure.exhausted
+                    }
+                    break
+                }
             }
         }
         return result
@@ -354,13 +365,14 @@ extension AntigravityLocalReader {
 
     static func readConversationSummaries(
         urls: [URL],
-        budget: Budget) throws -> [String: ConversationSummaryMetadata]
+        budget: Budget) throws -> (summaries: [String: ConversationSummaryMetadata], isComplete: Bool)
     {
         var summaries: [String: ConversationSummaryMetadata] = [:]
+        var isComplete = true
         for url in urls {
-            try budget.check()
-            guard FileManager.default.fileExists(atPath: url.path) else { continue }
             do {
+                try budget.check()
+                guard FileManager.default.fileExists(atPath: url.path) else { continue }
                 budget.beginDatabase()
                 let rows = try self.readConversationSummaryDatabase(url, budget: budget)
                 for (sessionID, summary) in rows {
@@ -375,17 +387,17 @@ extension AntigravityLocalReader {
                         summaries[sessionID] = summary
                     }
                 }
-            } catch let error as CancellationError {
-                throw error
             } catch ScanFailure.schemaExhausted {
+                isComplete = false
                 continue
             } catch ScanFailure.exhausted {
-                throw ScanFailure.exhausted
-            } catch {
-                continue
+                isComplete = false
+                if budget.isJobExhausted {
+                    break
+                }
             }
         }
-        return summaries
+        return (summaries, isComplete)
     }
 
     private static func readConversationSummaryDatabase(
@@ -504,9 +516,9 @@ extension AntigravityLocalReader {
     #else
     static func readConversationSummaries(
         urls _: [URL],
-        budget _: Budget) throws -> [String: ConversationSummaryMetadata]
+        budget _: Budget) throws -> (summaries: [String: ConversationSummaryMetadata], isComplete: Bool)
     {
-        [:]
+        ([:], true)
     }
     #endif
 

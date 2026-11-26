@@ -9,19 +9,22 @@ public struct AntigravityModelQuota: Sendable {
     public let remainingFraction: Double?
     public let resetTime: Date?
     public let resetDescription: String?
+    public let remainingAmount: Int?
 
     public init(
         label: String,
         modelId: String,
         remainingFraction: Double?,
         resetTime: Date?,
-        resetDescription: String?)
+        resetDescription: String?,
+        remainingAmount: Int? = nil)
     {
         self.label = label
         self.modelId = modelId
         self.remainingFraction = remainingFraction
         self.resetTime = resetTime
         self.resetDescription = resetDescription
+        self.remainingAmount = remainingAmount
     }
 
     public var remainingPercent: Double {
@@ -90,6 +93,7 @@ public struct AntigravityStatusSnapshot: Sendable {
     let quotaSummary: AntigravityQuotaSummary?
     public let credits: AntigravityCreditsSnapshot?
     public let accountMetadata: AntigravityAccountMetadata?
+    public let modelCatalog: [AntigravityModelCatalogEntry]
 
     var hasKnownQuotaSummary: Bool {
         self.quotaSummary?.groups.contains { group in
@@ -103,7 +107,8 @@ public struct AntigravityStatusSnapshot: Sendable {
         accountPlan: String?,
         source: AntigravityModelQuotaSource = .remote,
         credits: AntigravityCreditsSnapshot? = nil,
-        accountMetadata: AntigravityAccountMetadata? = nil)
+        accountMetadata: AntigravityAccountMetadata? = nil,
+        modelCatalog: [AntigravityModelCatalogEntry] = [])
     {
         self.modelQuotas = modelQuotas
         self.accountEmail = accountEmail
@@ -112,6 +117,7 @@ public struct AntigravityStatusSnapshot: Sendable {
         self.quotaSummary = nil
         self.credits = credits
         self.accountMetadata = accountMetadata
+        self.modelCatalog = modelCatalog
     }
 
     init(
@@ -120,7 +126,8 @@ public struct AntigravityStatusSnapshot: Sendable {
         accountPlan: String?,
         source: AntigravityModelQuotaSource = .local,
         credits: AntigravityCreditsSnapshot? = nil,
-        accountMetadata: AntigravityAccountMetadata? = nil)
+        accountMetadata: AntigravityAccountMetadata? = nil,
+        modelCatalog: [AntigravityModelCatalogEntry] = [])
     {
         self.modelQuotas = []
         self.accountEmail = accountEmail
@@ -129,6 +136,7 @@ public struct AntigravityStatusSnapshot: Sendable {
         self.quotaSummary = quotaSummary
         self.credits = credits
         self.accountMetadata = accountMetadata
+        self.modelCatalog = modelCatalog
     }
 
     public func toUsageSnapshot(
@@ -180,8 +188,10 @@ public struct AntigravityStatusSnapshot: Sendable {
             accountEmail: self.accountEmail,
             accountOrganization: nil,
             loginMethod: self.accountPlan)
+        let catalog = self.catalogSnapshot
         let details = Self.detailSections(
             quotaSummary: nil,
+            catalog: catalog,
             credits: self.credits,
             showCredits: showCredits)
         let subscriptionDates = Self.subscriptionDates(
@@ -196,10 +206,75 @@ public struct AntigravityStatusSnapshot: Sendable {
             details: details,
             antigravityCredits: self.credits,
             antigravityAccountMetadata: self.accountMetadata,
+            antigravityCatalog: catalog,
             subscriptionExpiresAt: subscriptionDates.expiresAt,
             subscriptionRenewsAt: subscriptionDates.renewsAt,
             updatedAt: Date(),
             identity: identity)
+    }
+
+    var catalogSnapshot: AntigravityCatalogSnapshot? {
+        let catalogEntries = self.modelCatalog.isEmpty ? nil : self.modelCatalog
+        let snapshot: AntigravityCatalogSnapshot
+        if let quotaSummary {
+            let bucketAmounts: [AntigravityQuotaBucketAmount] = quotaSummary.groups.flatMap { group in
+                let groupName = Self.displayTitle(forQuotaGroup: group)
+                return group.buckets.compactMap { bucket -> AntigravityQuotaBucketAmount? in
+                    guard let remainingAmount = bucket.remainingAmount else { return nil }
+                    return AntigravityQuotaBucketAmount(
+                        bucketId: bucket.bucketId,
+                        displayName: Self.displayTitle(forQuotaBucket: bucket),
+                        groupName: groupName,
+                        remainingAmount: remainingAmount,
+                        remainingFraction: bucket.remainingFraction,
+                        resetsAt: bucket.resetTime)
+                }
+            }
+            snapshot = AntigravityCatalogSnapshot(
+                bucketAmounts: bucketAmounts,
+                modelAvailabilities: quotaSummary.modelAvailabilities,
+                quotaGroups: Self.quotaGroupRosters(from: quotaSummary),
+                modelCatalog: catalogEntries)
+        } else {
+            let bucketAmounts = self.modelQuotas.compactMap { quota -> AntigravityQuotaBucketAmount? in
+                guard let remainingAmount = quota.remainingAmount else { return nil }
+                return AntigravityQuotaBucketAmount(
+                    bucketId: quota.modelId,
+                    displayName: Self.quotaDisplayLabel(quota),
+                    groupName: nil,
+                    remainingAmount: remainingAmount,
+                    remainingFraction: quota.remainingFraction,
+                    resetsAt: quota.resetTime)
+            }
+            snapshot = AntigravityCatalogSnapshot(
+                bucketAmounts: bucketAmounts,
+                modelAvailabilities: nil,
+                quotaGroups: nil,
+                modelCatalog: catalogEntries)
+        }
+        return snapshot.isEmpty ? nil : snapshot
+    }
+
+    func withModelCatalog(_ catalog: [AntigravityModelCatalogEntry]) -> AntigravityStatusSnapshot {
+        let merged = Self.mergedModelCatalog(self.modelCatalog, catalog)
+        if let quotaSummary {
+            return AntigravityStatusSnapshot(
+                quotaSummary: quotaSummary,
+                accountEmail: self.accountEmail,
+                accountPlan: self.accountPlan,
+                source: self.source,
+                credits: self.credits,
+                accountMetadata: self.accountMetadata,
+                modelCatalog: merged)
+        }
+        return AntigravityStatusSnapshot(
+            modelQuotas: self.modelQuotas,
+            accountEmail: self.accountEmail,
+            accountPlan: self.accountPlan,
+            source: self.source,
+            credits: self.credits,
+            accountMetadata: self.accountMetadata,
+            modelCatalog: merged)
     }
 
     func withIdentity(from snapshot: AntigravityStatusSnapshot?) -> AntigravityStatusSnapshot {
@@ -208,6 +283,7 @@ public struct AntigravityStatusSnapshot: Sendable {
         let accountPlan = snapshot.accountPlan ?? self.accountPlan
         let mergedCredits = self.credits?.merging(snapshot.credits) ?? snapshot.credits
         let mergedMetadata = self.accountMetadata?.merging(snapshot.accountMetadata) ?? snapshot.accountMetadata
+        let mergedCatalog = Self.mergedModelCatalog(self.modelCatalog, snapshot.modelCatalog)
         if let quotaSummary {
             return AntigravityStatusSnapshot(
                 quotaSummary: quotaSummary,
@@ -215,7 +291,8 @@ public struct AntigravityStatusSnapshot: Sendable {
                 accountPlan: accountPlan,
                 source: self.source,
                 credits: mergedCredits,
-                accountMetadata: mergedMetadata)
+                accountMetadata: mergedMetadata,
+                modelCatalog: mergedCatalog)
         }
         return AntigravityStatusSnapshot(
             modelQuotas: self.modelQuotas,
@@ -223,7 +300,33 @@ public struct AntigravityStatusSnapshot: Sendable {
             accountPlan: accountPlan,
             source: self.source,
             credits: mergedCredits,
-            accountMetadata: mergedMetadata)
+            accountMetadata: mergedMetadata,
+            modelCatalog: mergedCatalog)
+    }
+
+    private static func mergedModelCatalog(
+        _ primary: [AntigravityModelCatalogEntry],
+        _ secondary: [AntigravityModelCatalogEntry]) -> [AntigravityModelCatalogEntry]
+    {
+        guard !secondary.isEmpty else { return primary }
+        guard !primary.isEmpty else { return secondary }
+        var secondaryByKey: [String: AntigravityModelCatalogEntry] = [:]
+        for entry in secondary {
+            let key = entry.modelId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if secondaryByKey[key] == nil {
+                secondaryByKey[key] = entry
+            }
+        }
+        var merged = primary.map { entry -> AntigravityModelCatalogEntry in
+            let key = entry.modelId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard let fallback = secondaryByKey.removeValue(forKey: key) else { return entry }
+            return entry.merging(fallback)
+        }
+        let remaining = secondaryByKey.values.sorted { lhs, rhs in
+            lhs.modelId.localizedCaseInsensitiveCompare(rhs.modelId) == .orderedAscending
+        }
+        merged.append(contentsOf: remaining)
+        return merged
     }
 
     private static func usageSnapshot(
@@ -251,8 +354,10 @@ public struct AntigravityStatusSnapshot: Sendable {
             accountEmail: snapshot.accountEmail,
             accountOrganization: nil,
             loginMethod: snapshot.accountPlan)
+        let catalog = snapshot.catalogSnapshot
         let details = Self.detailSections(
             quotaSummary: quotaSummary,
+            catalog: catalog,
             credits: snapshot.credits,
             showCredits: showCredits)
         let subscriptionDates = Self.subscriptionDates(
@@ -267,6 +372,7 @@ public struct AntigravityStatusSnapshot: Sendable {
             details: details,
             antigravityCredits: snapshot.credits,
             antigravityAccountMetadata: snapshot.accountMetadata,
+            antigravityCatalog: catalog,
             subscriptionExpiresAt: subscriptionDates.expiresAt,
             subscriptionRenewsAt: subscriptionDates.renewsAt,
             updatedAt: Date(),
@@ -298,6 +404,51 @@ public struct AntigravityStatusSnapshot: Sendable {
                 return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedDescending
             }?
             .window
+    }
+
+    static func quotaGroupRosters(from quotaSummary: AntigravityQuotaSummary) -> [AntigravityQuotaGroupRoster] {
+        let sortedGroups = quotaSummary.groups.sorted {
+            Self.quotaGroupSortRank($0) < Self.quotaGroupSortRank($1)
+        }
+        return sortedGroups.compactMap { group in
+            guard let description = group.description?.trimmedNonEmpty else { return nil }
+            let displayName = group.displayName.trimmedNonEmpty ?? Self.displayTitle(forQuotaGroup: group)
+            let models = Self.parsedModelsFromGroupDescription(description)
+            return AntigravityQuotaGroupRoster(
+                displayName: displayName,
+                description: description,
+                models: models,
+                bucketIds: group.buckets.map(\.bucketId))
+        }
+    }
+
+    private static func parsedModelsFromGroupDescription(_ description: String) -> [String] {
+        let markers = ["models within this group:", "models:"]
+        for marker in markers {
+            guard let range = description.range(of: marker, options: .caseInsensitive) else { continue }
+            var tail = String(description[range.upperBound...])
+            while let first = tail.first, first.isWhitespace {
+                tail.removeFirst()
+            }
+            if let boundary = tail.range(of: #"\.\s|\r\n|\r|\n"#, options: .regularExpression) {
+                tail = String(tail[..<boundary.lowerBound])
+            }
+            let models = tail
+                .split(separator: ",")
+                .map { entry -> String in
+                    var value = entry.trimmingCharacters(in: .whitespacesAndNewlines)
+                    while value.hasSuffix(".") {
+                        value.removeLast()
+                        value = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
+                    return value
+                }
+                .filter { !$0.isEmpty }
+            if !models.isEmpty {
+                return models
+            }
+        }
+        return []
     }
 
     private static func quotaSummaryWindows(from quotaSummary: AntigravityQuotaSummary) -> [NamedRateWindow] {
@@ -1031,10 +1182,14 @@ public struct AntigravityStatusProbe: Sendable {
 
         let modelConfigs = userStatus.cascadeModelConfigData?.clientModelConfigs ?? []
         let models = modelConfigs.compactMap(Self.quotaFromConfig(_:))
+        let catalog = modelConfigs.compactMap(Self.catalogEntry(from:))
         let email = userStatus.email
         let resolvedPlanInfo = userStatus.planStatus?.planInfo ?? userStatus.planInfo
-        // Prefer userTier.name (actual subscription tier) over planInfo (shows "Pro" for Ultra users)
-        let planName = userStatus.userTier?.preferredName ?? resolvedPlanInfo?.preferredName
+        // Prefer userTier.name / tier ID / g1Tier over planInfo (which can show "Pro" for Ultra users)
+        let planName = AntigravityAccountMetadata.resolvedG1TierDisplayName(
+            tierID: userStatus.userTier?.id,
+            g1Tier: userStatus.g1Tier,
+            rawName: userStatus.userTier?.preferredName) ?? resolvedPlanInfo?.preferredName
         let credits = Self.creditsSnapshot(from: userStatus, planInfo: resolvedPlanInfo)
         let accountMetadata = Self.accountMetadata(from: userStatus, planInfo: resolvedPlanInfo)
 
@@ -1044,7 +1199,8 @@ public struct AntigravityStatusProbe: Sendable {
             accountPlan: planName,
             source: .local,
             credits: credits,
-            accountMetadata: accountMetadata)
+            accountMetadata: accountMetadata,
+            modelCatalog: catalog)
     }
 
     static func parsePlanInfoSummary(_ data: Data) throws -> AntigravityPlanInfoSummary? {
@@ -1073,7 +1229,13 @@ public struct AntigravityStatusProbe: Sendable {
         }
         let modelConfigs = response.clientModelConfigs ?? []
         let models = modelConfigs.compactMap(Self.quotaFromConfig(_:))
-        return AntigravityStatusSnapshot(modelQuotas: models, accountEmail: nil, accountPlan: nil, source: .local)
+        let catalog = modelConfigs.compactMap(Self.catalogEntry(from:))
+        return AntigravityStatusSnapshot(
+            modelQuotas: models,
+            accountEmail: nil,
+            accountPlan: nil,
+            source: .local,
+            modelCatalog: catalog)
     }
 
     private static func quotaFromConfig(_ config: ModelConfig) -> AntigravityModelQuota? {

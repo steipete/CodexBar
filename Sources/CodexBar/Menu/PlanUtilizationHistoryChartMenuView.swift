@@ -279,6 +279,8 @@ struct PlanUtilizationHistoryChartMenuView: View {
         switch series {
         case .session: .session
         case .weekly: .weekly
+        case .antigravityClaudeGPTSession: .supplementarySession
+        case .antigravityClaudeGPTWeekly: .supplementaryWeekly
         case .opus: .tertiary
         case .monthly: .monthly
         default: .weekly
@@ -291,6 +293,8 @@ struct PlanUtilizationHistoryChartMenuView: View {
         switch series {
         case .session: .session
         case .weekly: .weekly
+        case .supplementarySession: .antigravityClaudeGPTSession
+        case .supplementaryWeekly: .antigravityClaudeGPTWeekly
         case .tertiary: .opus
         case .monthly: .monthly
         }
@@ -636,6 +640,10 @@ struct PlanUtilizationHistoryChartMenuView: View {
                 windowMinutes: windowMinutes)
         case .weekly:
             L(isAntigravity ? "Weekly" : (metadata?.weeklyLabel ?? "Weekly"))
+        case .antigravityClaudeGPTSession:
+            "Claude/GPT 5h"
+        case .antigravityClaudeGPTWeekly:
+            "Claude/GPT \(L("Weekly"))"
         case .monthly:
             metadata?.opusLabel ?? "Monthly"
         case .opus:
@@ -658,10 +666,12 @@ struct PlanUtilizationHistoryChartMenuView: View {
             0
         case .weekly, .antigravityClaudeGPT:
             1
-        case .monthly:
+        case .antigravityClaudeGPTSession:
             2
-        case .opus:
-            2
+        case .antigravityClaudeGPTWeekly:
+            3
+        case .monthly, .opus:
+            4
         default:
             100
         }

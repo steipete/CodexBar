@@ -36,11 +36,12 @@ struct QuotaBurndownChartMenuView: View {
                 snapshot: provider == .antigravity ? snapshot : nil,
                 useAntigravityObservations: usesAntigravityObservations).compactMap { series in
                 let history = series.history
-                guard [.session, .weekly, .monthly, .opus].contains(history.name),
-                      let latest = history.entries.last,
-                      let reset = latest.resetsAt,
-                      latest.capturedAt <= referenceDate,
-                      reset > referenceDate
+                guard [.session, .weekly, .monthly, .opus, .antigravityClaudeGPTSession, .antigravityClaudeGPTWeekly]
+                    .contains(history.name),
+                    let latest = history.entries.last,
+                    let reset = latest.resetsAt,
+                    latest.capturedAt <= referenceDate,
+                    reset > referenceDate
                 else { return nil }
                 let window = ProviderDescriptorRegistry.descriptor(for: provider).pace.resolvedResetWindowForPace(
                     RateWindow(

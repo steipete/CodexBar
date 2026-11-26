@@ -104,7 +104,7 @@ public enum AntigravityProviderDescriptor {
                     // observations name unrelated families' resets and must not become boundaries.
                     ignoresObservedQuotaResetBoundaries: true),
                 optionalDetails: ProviderOptionalDetailsPresentation(
-                    hiddenTitlesWithoutOptionalUsage: ["Credits"])),
+                    hiddenTitlesWithoutOptionalUsage: ["Credits", "Quota groups", "Model catalog"])),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .cli, .oauth],
                 pipeline: ProviderFetchPipeline(
@@ -166,13 +166,57 @@ public enum AntigravityProviderDescriptor {
     private static func planUtilizationSeries(
         snapshot: UsageSnapshot) -> Set<ProviderPlanUtilizationSeries>?
     {
-        let semantic = self.semanticWindows(snapshot: snapshot)
+        let summaryRows = (snapshot.extraRateWindows ?? []).filter {
+            $0.usageKnown && $0.id.hasPrefix(self.quotaSummaryPrefix)
+        }
+        guard !summaryRows.isEmpty else {
+            let semantic = self.semanticWindows(snapshot: snapshot)
+            var series: Set<ProviderPlanUtilizationSeries> = []
+            if semantic.session != nil {
+                series.insert(.session)
+            }
+            if semantic.weekly != nil {
+                series.insert(.weekly)
+            }
+            return series.isEmpty ? nil : series
+        }
+
+        let idleIDs = AntigravityQuotaFamilyVisibility.idleWindowIDs(in: snapshot)
+        // Provider-specific by design: KnownFamily.gemini classifies an Antigravity quota family.
+        let geminiRows = summaryRows.filter {
+            AntigravityQuotaFamilyVisibility.knownFamily(windowID: $0.id, title: $0.title) == .gemini
+        }
+        let claudeGPTRows = summaryRows.filter {
+            AntigravityQuotaFamilyVisibility.knownFamily(windowID: $0.id, title: $0.title) == .claudeGPT
+        }
+        let primaryRows = geminiRows.isEmpty
+            ? summaryRows.filter {
+                AntigravityQuotaFamilyVisibility.knownFamily(windowID: $0.id, title: $0.title) != .claudeGPT
+            }
+            : geminiRows
+
         var series: Set<ProviderPlanUtilizationSeries> = []
-        if semantic.session != nil {
+        if self.mostConstrained(windows: primaryRows, minutes: 300) != nil {
             series.insert(.session)
         }
-        if semantic.weekly != nil {
+        if self.mostConstrained(windows: primaryRows, minutes: 7 * 24 * 60) != nil {
             series.insert(.weekly)
+        }
+        let activeClaudeGPTRows = claudeGPTRows.filter { !idleIDs.contains($0.id) }
+        if self.mostConstrained(windows: activeClaudeGPTRows, minutes: 300) != nil {
+            series.insert(.supplementarySession)
+        }
+        if self.mostConstrained(windows: activeClaudeGPTRows, minutes: 7 * 24 * 60) != nil {
+            series.insert(.supplementaryWeekly)
+        }
+        if series.isEmpty {
+            let semantic = self.semanticWindows(snapshot: snapshot)
+            if semantic.session != nil {
+                series.insert(.session)
+            }
+            if semantic.weekly != nil {
+                series.insert(.weekly)
+            }
         }
         return series.isEmpty ? nil : series
     }
@@ -1115,12 +1159,20 @@ struct AntigravityOAuthFetchStrategy: ProviderFetchStrategy {
         showCredits: Bool = true) throws -> UsageSnapshot
     {
         if snapshot.modelQuotas.isEmpty, snapshot.quotaSummary == nil {
+            let catalog = snapshot.catalogSnapshot
+            let details = AntigravityStatusSnapshot.detailSections(
+                quotaSummary: nil,
+                catalog: catalog,
+                credits: snapshot.credits,
+                showCredits: showCredits)
             return UsageSnapshot(
                 primary: nil,
                 secondary: nil,
                 tertiary: nil,
+                details: details,
                 antigravityCredits: snapshot.credits,
                 antigravityAccountMetadata: snapshot.accountMetadata,
+                antigravityCatalog: catalog,
                 updatedAt: updatedAt,
                 identity: ProviderIdentitySnapshot(
                     providerID: .antigravity,

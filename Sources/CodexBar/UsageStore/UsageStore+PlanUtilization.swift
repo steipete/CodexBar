@@ -630,11 +630,9 @@ extension UsageStore {
             }
         case .antigravity:
             if forSessionEquivalents {
-                guard let windows = self.sessionEquivalentWindows(provider: provider, snapshot: snapshot) else {
-                    return []
+                for sample in Self.antigravityStructuredSeriesWindows(snapshot: snapshot) {
+                    appendWindow(sample.window, name: sample.name)
                 }
-                appendWindow(windows.session, name: .session)
-                appendWindow(windows.weekly, name: .weekly)
             } else {
                 let namedWeeklyWindows = snapshot.extraRateWindows?
                     .filter {

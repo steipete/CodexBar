@@ -367,4 +367,131 @@ struct QuotaBurndownChartMenuViewTests {
             "weekly:10080": 65,
         ])
     }
+
+    @Test
+    func `antigravity active Claude GPT histories render burndown alongside Gemini and stay hidden when idle`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let histories = [
+            PlanUtilizationSeriesHistory(
+                name: .session,
+                windowMinutes: 300,
+                entries: [
+                    .init(
+                        capturedAt: now.addingTimeInterval(-3600),
+                        usedPercent: 10,
+                        resetsAt: now.addingTimeInterval(4 * 3600)),
+                    .init(capturedAt: now, usedPercent: 25, resetsAt: now.addingTimeInterval(4 * 3600)),
+                ]),
+            PlanUtilizationSeriesHistory(
+                name: .weekly,
+                windowMinutes: 10080,
+                entries: [
+                    .init(
+                        capturedAt: now.addingTimeInterval(-3600),
+                        usedPercent: 20,
+                        resetsAt: now.addingTimeInterval(5 * 86400)),
+                    .init(capturedAt: now, usedPercent: 30, resetsAt: now.addingTimeInterval(5 * 86400)),
+                ]),
+            PlanUtilizationSeriesHistory(
+                name: .antigravityClaudeGPTSession,
+                windowMinutes: 300,
+                entries: [
+                    .init(
+                        capturedAt: now.addingTimeInterval(-3600),
+                        usedPercent: 15,
+                        resetsAt: now.addingTimeInterval(3 * 3600)),
+                    .init(capturedAt: now, usedPercent: 40, resetsAt: now.addingTimeInterval(3 * 3600)),
+                ]),
+            PlanUtilizationSeriesHistory(
+                name: .antigravityClaudeGPTWeekly,
+                windowMinutes: 10080,
+                entries: [
+                    .init(
+                        capturedAt: now.addingTimeInterval(-3600),
+                        usedPercent: 30,
+                        resetsAt: now.addingTimeInterval(6 * 86400)),
+                    .init(capturedAt: now, usedPercent: 55, resetsAt: now.addingTimeInterval(6 * 86400)),
+                ]),
+        ]
+
+        func makeWindow(used: Double, minutes: Int, resetsAt: Date) -> RateWindow {
+            RateWindow(
+                usedPercent: used,
+                windowMinutes: minutes,
+                resetsAt: resetsAt,
+                resetDescription: nil)
+        }
+
+        let activeSnapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-gemini-5h",
+                    title: "Gemini 5-hour",
+                    window: makeWindow(used: 25, minutes: 300, resetsAt: now.addingTimeInterval(4 * 3600))),
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-gemini-weekly",
+                    title: "Gemini weekly",
+                    window: makeWindow(used: 30, minutes: 10080, resetsAt: now.addingTimeInterval(5 * 86400))),
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-3p-5h",
+                    title: "Claude/GPT 5-hour",
+                    window: makeWindow(used: 40, minutes: 300, resetsAt: now.addingTimeInterval(3 * 3600))),
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-3p-weekly",
+                    title: "Claude/GPT weekly",
+                    window: makeWindow(used: 55, minutes: 10080, resetsAt: now.addingTimeInterval(6 * 86400))),
+            ],
+            updatedAt: now)
+
+        let activeView = QuotaBurndownChartMenuView(
+            provider: .antigravity,
+            histories: histories,
+            snapshot: activeSnapshot,
+            width: 400,
+            referenceDate: now)
+        #expect(activeView._seriesTitlesForTesting == [
+            "session:300": L("Session"),
+            "weekly:10080": L("Weekly"),
+            "antigravityClaudeGPTSession:300": "Claude/GPT 5h",
+            "antigravityClaudeGPTWeekly:10080": "Claude/GPT \(L("Weekly"))",
+        ])
+        #expect(activeView._seriesRemainingForTesting["antigravityClaudeGPTSession:300"] == 60)
+        #expect(activeView._seriesRemainingForTesting["antigravityClaudeGPTWeekly:10080"] == 45)
+
+        let idleSnapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-gemini-5h",
+                    title: "Gemini 5-hour",
+                    window: makeWindow(used: 25, minutes: 300, resetsAt: now.addingTimeInterval(4 * 3600))),
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-gemini-weekly",
+                    title: "Gemini weekly",
+                    window: makeWindow(used: 30, minutes: 10080, resetsAt: now.addingTimeInterval(5 * 86400))),
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-3p-5h",
+                    title: "Claude/GPT 5-hour",
+                    window: makeWindow(used: 0, minutes: 300, resetsAt: now.addingTimeInterval(3 * 3600))),
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-3p-weekly",
+                    title: "Claude/GPT weekly",
+                    window: makeWindow(used: 0, minutes: 10080, resetsAt: now.addingTimeInterval(6 * 86400))),
+            ],
+            updatedAt: now)
+
+        let idleView = QuotaBurndownChartMenuView(
+            provider: .antigravity,
+            histories: histories,
+            snapshot: idleSnapshot,
+            width: 400,
+            referenceDate: now)
+        #expect(idleView._seriesTitlesForTesting == [
+            "session:300": L("Session"),
+            "weekly:10080": L("Weekly"),
+        ])
+    }
 }

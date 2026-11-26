@@ -98,6 +98,48 @@ struct ModelConfig: Decodable {
     let label: String
     let modelOrAlias: ModelAlias
     let quotaInfo: QuotaInfo?
+    let creditMultiplier: FlexibleDouble?
+    let pricingType: CodeValue?
+    let isPremium: Bool?
+    let tagTitle: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case label
+        case modelOrAlias
+        case modelOrAliasSnake = "model_or_alias"
+        case quotaInfo
+        case quotaInfoSnake = "quota_info"
+        case creditMultiplier
+        case creditMultiplierSnake = "credit_multiplier"
+        case pricingType
+        case pricingTypeSnake = "pricing_type"
+        case isPremium
+        case isPremiumSnake = "is_premium"
+        case premium
+        case tagTitle
+        case tagTitleSnake = "tag_title"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.label = try container.decode(String.self, forKey: .label)
+        if let alias = try container.decodeIfPresent(ModelAlias.self, forKey: .modelOrAlias) {
+            self.modelOrAlias = alias
+        } else {
+            self.modelOrAlias = try container.decode(ModelAlias.self, forKey: .modelOrAliasSnake)
+        }
+        self.quotaInfo = try container.decodeIfPresent(QuotaInfo.self, forKey: .quotaInfo)
+            ?? container.decodeIfPresent(QuotaInfo.self, forKey: .quotaInfoSnake)
+        self.creditMultiplier = (try? container.decodeIfPresent(FlexibleDouble.self, forKey: .creditMultiplier))
+            ?? (try? container.decodeIfPresent(FlexibleDouble.self, forKey: .creditMultiplierSnake))
+        self.pricingType = (try? container.decodeIfPresent(CodeValue.self, forKey: .pricingType))
+            ?? (try? container.decodeIfPresent(CodeValue.self, forKey: .pricingTypeSnake))
+        self.isPremium = (try? container.decodeIfPresent(Bool.self, forKey: .isPremium))
+            ?? (try? container.decodeIfPresent(Bool.self, forKey: .isPremiumSnake))
+            ?? (try? container.decodeIfPresent(Bool.self, forKey: .premium))
+        self.tagTitle = (try? container.decodeIfPresent(String.self, forKey: .tagTitle))
+            ?? (try? container.decodeIfPresent(String.self, forKey: .tagTitleSnake))
+    }
 }
 
 struct ModelAlias: Decodable {
@@ -107,6 +149,21 @@ struct ModelAlias: Decodable {
 struct QuotaInfo: Decodable {
     let remainingFraction: Double?
     let resetTime: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case remainingFraction
+        case remainingFractionSnake = "remaining_fraction"
+        case resetTime
+        case resetTimeSnake = "reset_time"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.remainingFraction = try container.decodeIfPresent(Double.self, forKey: .remainingFraction)
+            ?? container.decodeIfPresent(Double.self, forKey: .remainingFractionSnake)
+        self.resetTime = try container.decodeIfPresent(String.self, forKey: .resetTime)
+            ?? container.decodeIfPresent(String.self, forKey: .resetTimeSnake)
+    }
 }
 
 enum CodeValue: Decodable {
@@ -184,5 +241,34 @@ struct FlexibleInt: Decodable, Sendable, Equatable {
             }
         }
         throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unsupported integer value")
+    }
+}
+
+/// Decodes floating-point JSON values serialized as numbers or quoted numeric strings.
+struct FlexibleDouble: Decodable, Sendable, Equatable {
+    let value: Double
+
+    init(_ value: Double) {
+        self.value = value
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let doubleValue = try? container.decode(Double.self), doubleValue.isFinite {
+            self.value = doubleValue
+            return
+        }
+        if let intValue = try? container.decode(Int.self) {
+            self.value = Double(intValue)
+            return
+        }
+        if let stringValue = try? container.decode(String.self) {
+            let trimmed = stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let doubleValue = Double(trimmed), doubleValue.isFinite {
+                self.value = doubleValue
+                return
+            }
+        }
+        throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unsupported numeric value")
     }
 }

@@ -137,6 +137,116 @@ public struct AntigravityModelAvailability: Codable, Sendable, Equatable {
     }
 }
 
+public struct AntigravityQuotaBucketAmount: Codable, Sendable, Equatable {
+    public let bucketId: String
+    public let displayName: String
+    public let groupName: String?
+    public let remainingAmount: Int
+    public let remainingFraction: Double?
+    public let resetsAt: Date?
+
+    public init(
+        bucketId: String,
+        displayName: String,
+        groupName: String? = nil,
+        remainingAmount: Int,
+        remainingFraction: Double? = nil,
+        resetsAt: Date? = nil)
+    {
+        self.bucketId = bucketId
+        self.displayName = displayName
+        self.groupName = groupName
+        self.remainingAmount = remainingAmount
+        self.remainingFraction = remainingFraction
+        self.resetsAt = resetsAt
+    }
+}
+
+public struct AntigravityQuotaGroupRoster: Codable, Sendable, Equatable {
+    public let displayName: String
+    public let description: String
+    public let models: [String]
+    public let bucketIds: [String]
+
+    public init(
+        displayName: String,
+        description: String,
+        models: [String] = [],
+        bucketIds: [String] = [])
+    {
+        self.displayName = displayName
+        self.description = description
+        self.models = models
+        self.bucketIds = bucketIds
+    }
+}
+
+public struct AntigravityModelCatalogEntry: Codable, Sendable, Equatable {
+    public let modelId: String
+    public let label: String
+    public let creditMultiplier: Double?
+    public let pricingType: String?
+    public let isPremium: Bool?
+    public let tagTitle: String?
+
+    public init(
+        modelId: String,
+        label: String,
+        creditMultiplier: Double? = nil,
+        pricingType: String? = nil,
+        isPremium: Bool? = nil,
+        tagTitle: String? = nil)
+    {
+        self.modelId = modelId
+        self.label = label
+        self.creditMultiplier = creditMultiplier
+        self.pricingType = pricingType
+        self.isPremium = isPremium
+        self.tagTitle = tagTitle
+    }
+
+    var hasAttributes: Bool {
+        self.creditMultiplier != nil || self.pricingType != nil ||
+            self.isPremium != nil || self.tagTitle != nil
+    }
+
+    func merging(_ fallback: AntigravityModelCatalogEntry) -> AntigravityModelCatalogEntry {
+        AntigravityModelCatalogEntry(
+            modelId: self.modelId,
+            label: self.label.trimmedNonEmpty ?? fallback.label,
+            creditMultiplier: self.creditMultiplier ?? fallback.creditMultiplier,
+            pricingType: self.pricingType ?? fallback.pricingType,
+            isPremium: self.isPremium ?? fallback.isPremium,
+            tagTitle: self.tagTitle ?? fallback.tagTitle)
+    }
+}
+
+public struct AntigravityCatalogSnapshot: Codable, Sendable, Equatable {
+    public let bucketAmounts: [AntigravityQuotaBucketAmount]?
+    public let modelAvailabilities: [String: AntigravityModelAvailability]?
+    public let quotaGroups: [AntigravityQuotaGroupRoster]?
+    public let modelCatalog: [AntigravityModelCatalogEntry]?
+
+    public init(
+        bucketAmounts: [AntigravityQuotaBucketAmount]? = nil,
+        modelAvailabilities: [String: AntigravityModelAvailability]? = nil,
+        quotaGroups: [AntigravityQuotaGroupRoster]? = nil,
+        modelCatalog: [AntigravityModelCatalogEntry]? = nil)
+    {
+        self.bucketAmounts = bucketAmounts?.isEmpty == false ? bucketAmounts : nil
+        self.modelAvailabilities = modelAvailabilities?.isEmpty == false ? modelAvailabilities : nil
+        self.quotaGroups = quotaGroups?.isEmpty == false ? quotaGroups : nil
+        self.modelCatalog = modelCatalog?.isEmpty == false ? modelCatalog : nil
+    }
+
+    var isEmpty: Bool {
+        self.bucketAmounts == nil &&
+            self.modelAvailabilities == nil &&
+            self.quotaGroups == nil &&
+            self.modelCatalog == nil
+    }
+}
+
 public struct AntigravityAccountMetadata: Codable, Sendable, Equatable {
     public let g1Tier: String?
     public let teamsTier: String?
@@ -184,5 +294,70 @@ public struct AntigravityAccountMetadata: Codable, Sendable, Equatable {
             teamStatus: self.teamStatus ?? other.teamStatus,
             manageSubscriptionURI: self.manageSubscriptionURI ?? other.manageSubscriptionURI,
             upgradeSubscriptionURI: self.upgradeSubscriptionURI ?? other.upgradeSubscriptionURI)
+    }
+
+    static func resolvedG1TierDisplayName(
+        tierID: String?,
+        g1Tier: String?,
+        rawName: String?) -> String?
+    {
+        let mappedFromTierID = Self.canonicalG1TierDisplayName(tierID)
+        let mappedFromG1Tier = Self.canonicalG1TierDisplayName(g1Tier)
+        let trimmedName = rawName?.trimmedNonEmpty
+        return mappedFromTierID ?? mappedFromG1Tier ?? trimmedName
+    }
+
+    private static func canonicalG1TierDisplayName(_ rawToken: String?) -> String? {
+        guard let trimmed = rawToken?.trimmedNonEmpty else { return nil }
+        let normalized = trimmed.uppercased().replacingOccurrences(of: "-", with: "_")
+        switch normalized {
+        case "G1_ULTRA_TIER", "G1_ULTRA", "GOOGLE_ONE_HELIUM":
+            return "Google AI Ultra"
+        case "G1_ULTRA_LITE_TIER", "G1_ULTRA_LITE":
+            return "Google AI Ultra Lite"
+        case "G1_PRO_TIER", "G1_PRO", "GOOGLE_ONE_AI":
+            return "Google AI Pro"
+        case "G1_PLUS_TIER", "G1_PLUS":
+            return "Google AI Plus"
+        default:
+            return nil
+        }
+    }
+}
+
+extension AntigravityModelCatalogEntry {
+    static func normalizedPricingType(_ raw: String?) -> String? {
+        guard let trimmed = raw?.trimmedNonEmpty else { return nil }
+        let upper = trimmed.uppercased()
+        if upper == "0" || upper == "UNSPECIFIED" || upper == "MODEL_PRICING_TYPE_UNSPECIFIED" {
+            return nil
+        }
+        switch trimmed {
+        case "1":
+            return "MODEL_PRICING_TYPE_STATIC_CREDIT"
+        case "2":
+            return "MODEL_PRICING_TYPE_API"
+        case "3":
+            return "MODEL_PRICING_TYPE_BYOK"
+        default:
+            return trimmed
+        }
+    }
+
+    var normalizedIfAttributed: AntigravityModelCatalogEntry? {
+        let normalizedID = self.modelId.trimmedNonEmpty ?? self.modelId
+        guard !normalizedID.isEmpty else { return nil }
+        let resolvedLabel = self.label.trimmedNonEmpty ?? normalizedID
+        let multiplier = self.creditMultiplier.flatMap { $0.isFinite ? $0 : nil }
+        let normalizedPricing = Self.normalizedPricingType(self.pricingType)
+        let resolvedTag = self.tagTitle?.trimmedNonEmpty
+        let entry = AntigravityModelCatalogEntry(
+            modelId: normalizedID,
+            label: resolvedLabel,
+            creditMultiplier: multiplier,
+            pricingType: normalizedPricing,
+            isPremium: self.isPremium,
+            tagTitle: resolvedTag)
+        return entry.hasAttributes ? entry : nil
     }
 }

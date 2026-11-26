@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import CodexBar
+@testable import CodexBarCLI
 @testable import CodexBarCore
 
 struct AntigravityExtendedMetadataTests {
@@ -426,7 +427,7 @@ struct AntigravityExtendedMetadataTests {
         #expect(!reorderedUsage.details.contains { $0.title == "Credits" })
 
         let metadata = try #require(ProviderDefaults.metadata[.antigravity])
-        func cardDetailsCount(showOptional: Bool) -> Int {
+        func cardDetails(showOptional: Bool) -> [ProviderDetailSection] {
             UsageMenuCardView.Model.make(.init(
                 provider: .antigravity,
                 metadata: metadata,
@@ -444,11 +445,13 @@ struct AntigravityExtendedMetadataTests {
                 tokenCostUsageEnabled: false,
                 showOptionalCreditsAndExtraUsage: showOptional,
                 hidePersonalInfo: false,
-                now: now)).providerDetails.count
+                now: now)).providerDetails
         }
 
-        #expect(cardDetailsCount(showOptional: true) == 1)
-        #expect(cardDetailsCount(showOptional: false) == 0)
+        let visibleWithOptional = cardDetails(showOptional: true)
+        #expect(visibleWithOptional.count == 2)
+        #expect(visibleWithOptional.map(\.title) == ["Credits", "Quota groups"])
+        #expect(cardDetails(showOptional: false).isEmpty)
     }
 
     @Test
@@ -487,5 +490,380 @@ struct AntigravityExtendedMetadataTests {
         let legacyDecoded = try JSONDecoder().decode(UsageSnapshot.self, from: Data(legacyJSON.utf8))
         #expect(legacyDecoded.antigravityCredits == nil)
         #expect(legacyDecoded.antigravityAccountMetadata == nil)
+        #expect(legacyDecoded.antigravityCatalog == nil)
+
+        let fullCatalog = AntigravityCatalogSnapshot(
+            bucketAmounts: [
+                AntigravityQuotaBucketAmount(
+                    bucketId: "gemini-5h",
+                    displayName: "5-hour",
+                    groupName: "Gemini",
+                    remainingAmount: 42,
+                    remainingFraction: 0.7,
+                    resetsAt: now.addingTimeInterval(3600)),
+            ],
+            modelAvailabilities: [
+                "gemini-3.7-flash": AntigravityModelAvailability(state: "MODEL_AVAILABILITY_STATE_OPERATIONAL"),
+                "gemini-3.1-pro-preview": AntigravityModelAvailability(
+                    state: "MODEL_AVAILABILITY_STATE_CONGESTED",
+                    explanation: "Busy"),
+            ],
+            quotaGroups: [
+                AntigravityQuotaGroupRoster(
+                    displayName: "Gemini Models",
+                    description: "Models within this group: Gemini Flash, Gemini Pro",
+                    models: ["Gemini Flash", "Gemini Pro"],
+                    bucketIds: ["gemini-5h"]),
+            ],
+            modelCatalog: [
+                AntigravityModelCatalogEntry(
+                    modelId: "gemini-3.1-pro-preview",
+                    label: "Gemini 3.1 Pro",
+                    creditMultiplier: 1.5,
+                    pricingType: "MODEL_PRICING_TYPE_STATIC_CREDIT",
+                    isPremium: true,
+                    tagTitle: "New"),
+            ])
+        let catalogSnapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 30, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            antigravityCatalog: fullCatalog,
+            updatedAt: now)
+        let catalogEncoded = try JSONEncoder().encode(catalogSnapshot)
+        let catalogDecoded = try JSONDecoder().decode(UsageSnapshot.self, from: catalogEncoded)
+        #expect(catalogDecoded.antigravityCatalog == fullCatalog)
+    }
+
+    @Test
+    func `GetUserStatus resolves Ultra tier over generic Pro name and extracts catalog attributes`() throws {
+        let userStatusJSON = """
+        {
+          "code": 0,
+          "userStatus": {
+            "email": "ultra@example.com",
+            "g1Tier": "G1_ULTRA_TIER",
+            "userTier": {
+              "id": "g1-ultra-tier",
+              "name": "Pro"
+            },
+            "cascadeModelConfigData": {
+              "clientModelConfigs": [
+                {
+                  "label": "Gemini 3.1 Pro",
+                  "modelOrAlias": { "model": "gemini-3.1-pro" },
+                  "quotaInfo": { "remainingFraction": 0.8 },
+                  "creditMultiplier": "1.5",
+                  "pricingType": "MODEL_PRICING_TYPE_STATIC_CREDIT",
+                  "isPremium": true,
+                  "tagTitle": "Flagship"
+                },
+                {
+                  "label": "Claude Opus 4.6",
+                  "model_or_alias": { "model": "claude-opus-4-6" },
+                  "credit_multiplier": 2,
+                  "pricing_type": 2,
+                  "premium": true,
+                  "tag_title": "Thinking"
+                }
+              ]
+            }
+          }
+        }
+        """
+
+        let identity = try AntigravityStatusProbe.parseUserStatusResponse(Data(userStatusJSON.utf8))
+        #expect(identity.accountPlan == "Google AI Ultra")
+        #expect(identity.modelCatalog.count == 2)
+        #expect(identity.modelCatalog.first { $0.modelId == "gemini-3.1-pro" } == AntigravityModelCatalogEntry(
+            modelId: "gemini-3.1-pro",
+            label: "Gemini 3.1 Pro",
+            creditMultiplier: 1.5,
+            pricingType: "MODEL_PRICING_TYPE_STATIC_CREDIT",
+            isPremium: true,
+            tagTitle: "Flagship"))
+        #expect(identity.modelCatalog.first { $0.modelId == "claude-opus-4-6" } == AntigravityModelCatalogEntry(
+            modelId: "claude-opus-4-6",
+            label: "Claude Opus 4.6",
+            creditMultiplier: 2,
+            pricingType: "MODEL_PRICING_TYPE_API",
+            isPremium: true,
+            tagTitle: "Thinking"))
+
+        let summaryData = Data(antigravityQuotaSummaryJSON().utf8)
+        let summary = try AntigravityStatusProbe.parseQuotaSummaryResponse(summaryData)
+        let merged = summary.withIdentity(from: identity)
+        #expect(merged.accountPlan == "Google AI Ultra")
+        #expect(merged.modelCatalog.count == 2)
+
+        let usage = try merged.toUsageSnapshot()
+        #expect(usage.antigravityCatalog?.modelCatalog?.count == 2)
+        #expect(usage.antigravityCatalog?.quotaGroups?.count == 2)
+        let catalogSection = try #require(usage.details.first { $0.title == "Model catalog" })
+        #expect(catalogSection.rows.count == 2)
+        #expect(catalogSection.rows.first?.value == "1.5× · Static credit")
+        #expect(catalogSection.rows.first?.secondaryValue == "Premium · Flagship")
+        #expect(usage.details.contains { $0.title == "Quota groups" })
+    }
+
+    @Test
+    func `quota summary UsageSnapshot preserves operational modelAvailabilities and bucketAmounts`() throws {
+        let json = """
+        {
+          "buckets": [
+            {
+              "bucketId": "gemini-allowance",
+              "displayName": "Allowance",
+              "refreshWindowLabel": "weekly",
+              "remainingFraction": 0.6,
+              "remainingAmount": "300"
+            },
+            {
+              "bucketId": "3p-allowance",
+              "displayName": "Third Party",
+              "refreshWindowLabel": "5h",
+              "remainingFraction": 0.8,
+              "remainingAmount": 40
+            }
+          ],
+          "modelAvailabilities": {
+            "gemini-3.1-pro-preview": {
+              "state": "MODEL_AVAILABILITY_STATE_CONGESTED",
+              "explanation": "High demand in region"
+            },
+            "gemini-3.7-flash": {
+              "state": "MODEL_AVAILABILITY_STATE_OPERATIONAL"
+            }
+          }
+        }
+        """
+
+        let usage = try AntigravityStatusProbe.parseQuotaSummaryResponse(Data(json.utf8)).toUsageSnapshot()
+        let catalog = try #require(usage.antigravityCatalog)
+        #expect(catalog.bucketAmounts?.map(\.remainingAmount) == [300, 40])
+        #expect(catalog.modelAvailabilities?["gemini-3.7-flash"]?.state == "MODEL_AVAILABILITY_STATE_OPERATIONAL")
+        #expect(catalog.modelAvailabilities?["gemini-3.1-pro-preview"]?.state == "MODEL_AVAILABILITY_STATE_CONGESTED")
+
+        let availabilitySection = try #require(usage.details.first { $0.title == "Model availability" })
+        #expect(availabilitySection.rows.count == 1)
+    }
+
+    @Test
+    func `GetUserStatus and GetCommandModelConfigs drop malformed creditMultiplier while preserving siblings`() throws {
+        let userStatusJSON = """
+        {
+          "code": 0,
+          "userStatus": {
+            "email": "resilient@example.com",
+            "g1Tier": "G1_ULTRA_TIER",
+            "userTier": {
+              "id": "g1-ultra-tier",
+              "name": "Google AI Pro"
+            },
+            "cascadeModelConfigData": {
+              "clientModelConfigs": [
+                {
+                  "label": "Gemini 3.1 Pro",
+                  "modelOrAlias": { "model": "gemini-3.1-pro" },
+                  "quotaInfo": { "remainingFraction": 0.75 },
+                  "creditMultiplier": "1.5",
+                  "pricingType": "MODEL_PRICING_TYPE_STATIC_CREDIT",
+                  "isPremium": true,
+                  "tagTitle": "Flagship"
+                },
+                {
+                  "label": "Gemini 3 NaN",
+                  "modelOrAlias": { "model": "gemini-3-nan" },
+                  "quotaInfo": { "remainingFraction": 0.5 },
+                  "creditMultiplier": "NaN",
+                  "pricingType": "MODEL_PRICING_TYPE_API"
+                },
+                {
+                  "label": "Gemini 3 Infinity",
+                  "modelOrAlias": { "model": "gemini-3-inf" },
+                  "creditMultiplier": "Infinity"
+                }
+              ]
+            }
+          }
+        }
+        """
+
+        let userStatus = try AntigravityStatusProbe.parseUserStatusResponse(Data(userStatusJSON.utf8))
+        #expect(userStatus.accountPlan == "Google AI Ultra")
+        #expect(userStatus.modelQuotas.count == 2)
+        #expect(userStatus.modelCatalog.count == 2)
+        #expect(userStatus.modelCatalog.first { $0.modelId == "gemini-3.1-pro" }?.creditMultiplier == 1.5)
+        let nanEntry = try #require(userStatus.modelCatalog.first { $0.modelId == "gemini-3-nan" })
+        #expect(nanEntry.creditMultiplier == nil)
+        #expect(nanEntry.pricingType == "MODEL_PRICING_TYPE_API")
+        #expect(!userStatus.modelCatalog.contains { $0.modelId == "gemini-3-inf" })
+
+        let commandJSON = """
+        {
+          "code": 0,
+          "clientModelConfigs": [
+            {
+              "label": "Claude Opus 4.6",
+              "model_or_alias": { "model": "claude-opus-4-6" },
+              "quota_info": { "remaining_fraction": 0.6 },
+              "credit_multiplier": 2
+            },
+            {
+              "label": "Broken Multiplier",
+              "model_or_alias": { "model": "broken-model" },
+              "quota_info": { "remaining_fraction": 0.4 },
+              "credit_multiplier": "not-a-number"
+            }
+          ]
+        }
+        """
+
+        let commandSnapshot = try AntigravityStatusProbe.parseCommandModelResponse(Data(commandJSON.utf8))
+        #expect(commandSnapshot.modelQuotas.count == 2)
+        #expect(commandSnapshot.modelCatalog.count == 1)
+        #expect(commandSnapshot.modelCatalog.first?.modelId == "claude-opus-4-6")
+        #expect(commandSnapshot.modelCatalog.first?.creditMultiplier == 2)
+    }
+
+    @Test
+    func `toUsageSnapshot formats huge finite creditMultiplier without trapping`() throws {
+        let snapshot = AntigravityStatusSnapshot(
+            modelQuotas: [
+                AntigravityModelQuota(
+                    label: "Huge Multiplier",
+                    modelId: "huge-mult",
+                    remainingFraction: 0.8,
+                    resetTime: nil,
+                    resetDescription: nil),
+            ],
+            accountEmail: nil,
+            accountPlan: nil,
+            source: .local,
+            modelCatalog: [
+                AntigravityModelCatalogEntry(
+                    modelId: "huge-mult",
+                    label: "Huge Multiplier",
+                    creditMultiplier: 1e30),
+                AntigravityModelCatalogEntry(
+                    modelId: "normal-mult",
+                    label: "Normal Multiplier",
+                    creditMultiplier: 1.5),
+            ])
+
+        let usage = try snapshot.toUsageSnapshot()
+        let catalogSection = try #require(usage.details.first { $0.title == "Model catalog" })
+        #expect(catalogSection.rows.count == 2)
+        #expect(catalogSection.rows.first { $0.id == "antigravity-catalog-huge-mult" }?.value == "1e+30×")
+        #expect(catalogSection.rows.first { $0.id == "antigravity-catalog-normal-mult" }?.value == "1.5×")
+    }
+
+    @Test
+    func `quota summary drops overflowing remainingAmount without aborting response`() throws {
+        let json = """
+        {
+          "buckets": [
+            {
+              "bucketId": "gemini-overflow",
+              "displayName": "Overflow",
+              "refreshWindowLabel": "5h",
+              "remainingFraction": 0.65,
+              "remainingAmount": "99999999999999999999999"
+            },
+            {
+              "bucketId": "gemini-oneof-overflow",
+              "displayName": "Oneof Overflow",
+              "refreshWindowLabel": "weekly",
+              "remainingFraction": 0.5,
+              "remaining": { "case": "remainingAmount", "value": "99999999999999999999999" }
+            },
+            {
+              "bucketId": "3p-valid",
+              "displayName": "Valid",
+              "refreshWindowLabel": "5h",
+              "remainingFraction": 0.8,
+              "remainingAmount": "42"
+            }
+          ]
+        }
+        """
+
+        let snapshot = try AntigravityStatusProbe.parseQuotaSummaryResponse(Data(json.utf8))
+        let buckets = try #require(snapshot.quotaSummary?.groups.first?.buckets)
+        #expect(buckets.count == 3)
+        #expect(buckets[0].remainingFraction == 0.65)
+        #expect(buckets[0].remainingAmount == nil)
+        #expect(buckets[1].remainingFraction == 0.5)
+        #expect(buckets[1].remainingAmount == nil)
+        #expect(buckets[2].remainingAmount == 42)
+    }
+}
+
+extension AntigravityExtendedMetadataTests {
+    @Test
+    func `modelCatalogDetailSection deduplicates Premium-only rows and formats multiplier boundaries`() throws {
+        let snapshot = AntigravityStatusSnapshot(
+            modelQuotas: [
+                AntigravityModelQuota(
+                    label: "Gemini 3.1 Pro",
+                    modelId: "gemini-3.1-pro",
+                    remainingFraction: 0.8,
+                    resetTime: nil,
+                    resetDescription: nil),
+            ],
+            accountEmail: nil,
+            accountPlan: nil,
+            source: .local,
+            modelCatalog: [
+                AntigravityModelCatalogEntry(
+                    modelId: "premium-only",
+                    label: "Premium Only",
+                    isPremium: true),
+                AntigravityModelCatalogEntry(
+                    modelId: "standard-only",
+                    label: "Standard Only",
+                    isPremium: false),
+                AntigravityModelCatalogEntry(
+                    modelId: "tagged-premium",
+                    label: "Tagged Premium",
+                    isPremium: true,
+                    tagTitle: "New"),
+                AntigravityModelCatalogEntry(
+                    modelId: "zero-mult",
+                    label: "Zero Mult",
+                    creditMultiplier: 0),
+                AntigravityModelCatalogEntry(
+                    modelId: "quarter-mult",
+                    label: "Quarter Mult",
+                    creditMultiplier: 1.25),
+            ])
+
+        let usage = try snapshot.toUsageSnapshot()
+        let catalogSection = try #require(usage.details.first { $0.title == "Model catalog" })
+        let byID = Dictionary(uniqueKeysWithValues: catalogSection.rows.map { ($0.id, $0) })
+
+        let premiumOnly = try #require(byID["antigravity-catalog-premium-only"])
+        #expect(premiumOnly.value == "Premium")
+        #expect(premiumOnly.secondaryValue == nil)
+
+        let standardOnly = try #require(byID["antigravity-catalog-standard-only"])
+        #expect(standardOnly.value == "Standard")
+        #expect(standardOnly.secondaryValue == nil)
+
+        let taggedPremium = try #require(byID["antigravity-catalog-tagged-premium"])
+        #expect(taggedPremium.value == "New")
+        #expect(taggedPremium.secondaryValue == "Premium")
+
+        #expect(byID["antigravity-catalog-zero-mult"]?.value == "0×")
+        #expect(byID["antigravity-catalog-quarter-mult"]?.value == "1.25×")
+
+        let context = RenderContext(header: "AG", status: nil, useColor: false, resetStyle: .countdown)
+        let rendered = CLIRenderer.renderText(
+            provider: .antigravity,
+            snapshot: usage,
+            credits: nil,
+            context: context,
+            now: Date())
+        #expect(rendered.contains("Premium Only: Premium"))
+        #expect(!rendered.contains("Premium · Premium"))
     }
 }

@@ -1820,12 +1820,7 @@ public struct CostUsageFetcher: Sendable {
         let bounds = CostReportingPeriod.rolling(days: historyDays).bounds(now: now, calendar: calendar)
         let sinceKey = CostUsageLocalDay.key(from: bounds.lowerBound, calendar: calendar)
         let untilKey = CostUsageLocalDay.key(from: bounds.upperBound, calendar: calendar)
-        let limits: AntigravityLocalReader.Limits = {
-            var limits = AntigravityLocalReader.Limits()
-            limits.databases = 2000
-            limits.bytes = 1024 * 1024 * 1024
-            return limits
-        }()
+        let limits = AntigravityLocalReader.Limits()
         let reportResult = try await CostUsageScanExecutor.run { checkCancellation in
             try AntigravityLocalReader.makeDailyReportWithStatus(
                 context: context,

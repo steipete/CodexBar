@@ -2920,3 +2920,5 @@
 "GCP Project ID override" = "GCP Project ID override";
 "Use tokscale cache fallback" = "Use tokscale cache fallback";
 "gcloud config_default / env" = "gcloud config_default / env";
+"Quota groups" = "Grups de quota";
+"Model catalog" = "Catàleg de models";
