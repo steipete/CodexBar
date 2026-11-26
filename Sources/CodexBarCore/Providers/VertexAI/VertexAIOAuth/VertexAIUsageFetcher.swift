@@ -232,6 +232,8 @@ public enum VertexAIUsageFetcher {
                 projectId: projectId,
                 query: query,
                 transport: transport)
+        } catch is CancellationError {
+            throw CancellationError()
         } catch let error as VertexAIFetchError {
             switch error {
             case .unauthorized, .forbidden, .networkError:
@@ -240,6 +242,9 @@ public enum VertexAIUsageFetcher {
                 Self.log.debug("Optional rate/net_usage query unavailable: \(error.localizedDescription)")
                 return []
             }
+        } catch {
+            Self.log.debug("Optional rate/net_usage query degraded gracefully: \(error.localizedDescription)")
+            return []
         }
     }
 

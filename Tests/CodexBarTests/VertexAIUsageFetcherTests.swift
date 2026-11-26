@@ -482,7 +482,7 @@ struct VertexAIUsageFetcherTests {
         }
     }
 
-    private static func routerTransport(
+    fileprivate static func routerTransport(
         handler: @escaping @Sendable (URL, String) -> (Int, String)) -> ProviderHTTPTransportStub
     {
         ProviderHTTPTransportStub { request in
@@ -532,6 +532,357 @@ struct VertexAIUsageFetcherTests {
             forResource: name,
             withExtension: "json",
             subdirectory: "Fixtures/Providers/VertexAI")))
+    }
+}
+
+struct VertexAIUsageSnapshotEdgeCaseTests {
+    @Test
+    func `makeSnapshotUsageResponse sorts 24 tied zero-percent buckets deterministically`() throws {
+        var allocationSeries: [VertexAIUsageFetcher.MonitoringTimeSeries] = []
+        var limitSeries: [VertexAIUsageFetcher.MonitoringTimeSeries] = []
+        let zeroPoint = VertexAIUsageFetcher.MonitoringPoint(
+            interval: nil,
+            value: VertexAIUsageFetcher.MonitoringValue(doubleValue: 0, int64Value: nil, boolValue: nil))
+        let limitPoint = VertexAIUsageFetcher.MonitoringPoint(
+            interval: nil,
+            value: VertexAIUsageFetcher.MonitoringValue(doubleValue: 100, int64Value: nil, boolValue: nil))
+
+        for idx in 0..<24 {
+            let metric = "aiplatform.googleapis.com/quota_metric_\(idx % 3)"
+            let limitName = "Limit_\(idx % 4)"
+            let location = "region-\(idx % 2)-\(idx)"
+            let seriesMetric = VertexAIUsageFetcher.MonitoringMetric(
+                type: nil,
+                labels: ["quota_metric": metric, "limit_name": limitName])
+            let seriesResource = VertexAIUsageFetcher.MonitoringResource(
+                type: nil,
+                labels: ["location": location])
+            allocationSeries.append(.init(metric: seriesMetric, resource: seriesResource, points: [zeroPoint]))
+            limitSeries.append(.init(metric: seriesMetric, resource: seriesResource, points: [limitPoint]))
+        }
+
+        let forward = try VertexAIUsageFetcher.makeSnapshotUsageResponse(.init(
+            allocationSeries: allocationSeries,
+            rateSeries: [],
+            limitSeries: limitSeries,
+            exceededSeries: [],
+            consumerMetrics: [],
+            onlineServingSummary: nil,
+            options: VertexAIQueryOptions(),
+            now: Date(timeIntervalSince1970: 1_795_653_000)))
+        let reversed = try VertexAIUsageFetcher.makeSnapshotUsageResponse(.init(
+            allocationSeries: allocationSeries.reversed(),
+            rateSeries: [],
+            limitSeries: limitSeries.reversed(),
+            exceededSeries: [],
+            consumerMetrics: [],
+            onlineServingSummary: nil,
+            options: VertexAIQueryOptions(),
+            now: Date(timeIntervalSince1970: 1_795_653_000)))
+
+        #expect(forward.allocationQuotas.count == 24)
+        #expect(forward.allocationQuotas == reversed.allocationQuotas)
+        #expect(forward.allocationQuotas.first == forward.highestAllocationQuota)
+    }
+
+    @Test
+    func `fetchUsageSnapshot merges multi-page consumerQuotaMetrics entries for the same metric`() async throws {
+        let rateMetric = "aiplatform.googleapis.com/generate_content_requests_per_minute_per_project_per_base_model"
+        let prefix = "projects/p/services/aiplatform.googleapis.com/consumerQuotaMetrics/\(rateMetric)"
+        let transport = VertexAIUsageFetcherTests.routerTransport { url, filter in
+            if url.host == "serviceusage.googleapis.com" {
+                let pageToken = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                    .queryItems?.first { $0.name == "pageToken" }?.value
+                if pageToken == nil {
+                    return (200, """
+                    {
+                      "metrics": [
+                        {
+                          "metric": "\(rateMetric)",
+                          "displayName": "Generate content requests",
+                          "consumerQuotaLimits": [
+                            {
+                              "name": "\(prefix)/limits/PerMinute",
+                              "unit": "1/min/{project}",
+                              "quotaBuckets": [
+                                {"effectiveLimit": "40", "dimensions": {"region": "us-central1"}}
+                              ]
+                            }
+                          ]
+                        }
+                      ],
+                      "nextPageToken": "page-2"
+                    }
+                    """)
+                }
+                return (200, """
+                {
+                  "metrics": [
+                    {
+                      "metric": "\(rateMetric)",
+                      "displayName": "",
+                      "consumerQuotaLimits": [
+                        {
+                          "name": "\(prefix)/limits/PerDay",
+                          "unit": "1/d/{project}",
+                          "quotaBuckets": [
+                            {"effectiveLimit": "1000", "dimensions": {"region": "us-central1"}}
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """)
+            }
+            if filter.contains("quota/rate/net_usage") {
+                return (200, """
+                {
+                  "timeSeries": [
+                    {
+                      "metric": {"labels": {"quota_metric": "\(rateMetric)", "method": "GenerateContent"}},
+                      "resource": {"labels": {"location": "us-central1"}},
+                      "points": [
+                        {"interval": {"startTime": "2026-11-26T00:10:00Z"}, "value": {"int64Value": "20"}}
+                      ]
+                    }
+                  ]
+                }
+                """)
+            }
+            return (200, #"{"timeSeries":[]}"#)
+        }
+
+        let now = Date(timeIntervalSince1970: 1_795_653_000)
+        let response = try await VertexAIUsageFetcher.fetchUsageSnapshot(
+            accessToken: "token",
+            projectId: "proj-1",
+            options: VertexAIQueryOptions(locationFilter: "us-central1"),
+            now: now,
+            transport: transport)
+        let perMinute = try #require(response.rateQuotas.first { $0.cadence == .perMinute })
+        let perDay = try #require(response.rateQuotas.first { $0.cadence == .perDay })
+        #expect(response.rateQuotas.count == 2)
+        #expect(perMinute.limit == 40)
+        #expect(perMinute.usedPercent == 50)
+        #expect(perMinute.displayName == "Generate content requests")
+        #expect(perDay.limit == 1000)
+        #expect(perDay.usedPercent == 2)
+        #expect(perDay.displayName == "Generate content requests")
+    }
+
+    @Test
+    func `fetchUsageSnapshot degrades gracefully when rate net_usage returns malformed JSON`() async throws {
+        let transport = VertexAIUsageFetcherTests.routerTransport { _, filter in
+            if filter.contains("quota/rate/net_usage") {
+                return (200, "{ not valid json !!!")
+            }
+            if filter.contains("quota/allocation/usage") {
+                return (200, """
+                {"timeSeries":[{"metric":{"labels":{"quota_metric":"alloc-m","limit_name":"L1"}},
+                "resource":{"labels":{"location":"global"}},"points":[{"value":{"doubleValue":30}}]}]}
+                """)
+            }
+            if filter.contains("quota/limit") {
+                return (200, """
+                {"timeSeries":[{"metric":{"labels":{"quota_metric":"alloc-m","limit_name":"L1"}},
+                "resource":{"labels":{"location":"global"}},"points":[{"value":{"doubleValue":100}}]}]}
+                """)
+            }
+            return (200, #"{"timeSeries":[]}"#)
+        }
+
+        let response = try await VertexAIUsageFetcher.fetchUsageSnapshot(
+            accessToken: "token",
+            projectId: "proj-1",
+            transport: transport)
+        #expect(response.rateQuotas.isEmpty)
+        #expect(response.highestAllocationQuota?.usedPercent == 30)
+        #expect(response.requestsUsedPercent == 30)
+    }
+
+    @Test
+    func `fetchUsageSnapshot prefers non-model bucket when baseModelFilter is nil`() async throws {
+        let allocMetric = "aiplatform.googleapis.com/regional_alloc"
+        let rateMetric = "aiplatform.googleapis.com/regional_rate"
+        let allocPrefix = "projects/p/services/aiplatform.googleapis.com/consumerQuotaMetrics/\(allocMetric)"
+        let ratePrefix = "projects/p/services/aiplatform.googleapis.com/consumerQuotaMetrics/\(rateMetric)"
+
+        let transport = VertexAIUsageFetcherTests.routerTransport { url, filter in
+            if url.host == "serviceusage.googleapis.com" {
+                return (200, """
+                {
+                  "metrics": [
+                    {
+                      "metric": "\(allocMetric)",
+                      "displayName": "Regional allocation",
+                      "consumerQuotaLimits": [
+                        {
+                          "name": "\(allocPrefix)/limits/Alloc",
+                          "quotaBuckets": [
+                            {"effectiveLimit": "500", "dimensions": {"region": "us-central1"}},
+                            {
+                              "effectiveLimit": "100",
+                              "dimensions": {"region": "us-central1", "base_model": "gemini-2.5-pro"}
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "metric": "\(rateMetric)",
+                      "displayName": "Regional rate",
+                      "consumerQuotaLimits": [
+                        {
+                          "name": "\(ratePrefix)/limits/PerMinute",
+                          "unit": "1/min/{project}",
+                          "quotaBuckets": [
+                            {"effectiveLimit": "500", "dimensions": {"region": "us-central1"}},
+                            {
+                              "effectiveLimit": "100",
+                              "dimensions": {"region": "us-central1", "base_model": "gemini-2.5-pro"}
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """)
+            }
+            if filter.contains("quota/allocation/usage") {
+                return (200, """
+                {"timeSeries":[{"metric":{"labels":{"quota_metric":"\(allocMetric)","limit_name":"Alloc"}},
+                "resource":{"labels":{"location":"us-central1"}},"points":[{"value":{"doubleValue":50}}]}]}
+                """)
+            }
+            if filter.contains("quota/limit") {
+                return (200, """
+                {"timeSeries":[{"metric":{"labels":{"quota_metric":"\(allocMetric)","limit_name":"Alloc"}},
+                "resource":{"labels":{"location":"us-central1"}},"points":[{"value":{"doubleValue":500}}]}]}
+                """)
+            }
+            if filter.contains("quota/rate/net_usage") {
+                return (200, """
+                {"timeSeries":[{"metric":{"labels":{"quota_metric":"\(rateMetric)","method":"GenerateContent"}},
+                "resource":{"labels":{"location":"us-central1"}},
+                "points":[{"interval":{"startTime":"2026-11-26T00:10:00Z"},"value":{"int64Value":"50"}}]}]}
+                """)
+            }
+            return (200, #"{"timeSeries":[]}"#)
+        }
+
+        let now = Date(timeIntervalSince1970: 1_795_653_000)
+        let response = try await VertexAIUsageFetcher.fetchUsageSnapshot(
+            accessToken: "token",
+            projectId: "proj-1",
+            options: VertexAIQueryOptions(locationFilter: "us-central1", baseModelFilter: nil),
+            now: now,
+            transport: transport)
+
+        let alloc = try #require(response.allocationQuotas.first)
+        #expect(alloc.limit == 500)
+        #expect(alloc.usedPercent == 10)
+        #expect(alloc.baseModel == nil)
+
+        #expect(response.rateQuotas.count == 1)
+        let rate = try #require(response.rateQuotas.first)
+        #expect(rate.limit == 500)
+        #expect(rate.usedPercent == 10)
+        #expect(rate.baseModel == nil)
+    }
+
+    @Test
+    func `fetchUsageSnapshot scopes totalExceededCount by locationFilter and isolates rate limit_name`()
+        async throws
+    {
+        let rateMetric = "aiplatform.googleapis.com/generate_content_requests"
+        let prefix = "projects/p/services/aiplatform.googleapis.com/consumerQuotaMetrics/\(rateMetric)"
+        let transport = VertexAIUsageFetcherTests.routerTransport { url, filter in
+            if url.host == "serviceusage.googleapis.com" {
+                return (200, """
+                {
+                  "metrics": [
+                    {
+                      "metric": "\(rateMetric)",
+                      "displayName": "Requests",
+                      "consumerQuotaLimits": [
+                        {
+                          "name": "\(prefix)/limits/PerMinute",
+                          "unit": "1/min/{project}",
+                          "quotaBuckets": [
+                            {"effectiveLimit": "100", "dimensions": {"region": "us-central1"}}
+                          ]
+                        },
+                        {
+                          "name": "\(prefix)/limits/PerDay",
+                          "unit": "1/d/{project}",
+                          "quotaBuckets": [
+                            {"effectiveLimit": "1000", "dimensions": {"region": "us-central1"}}
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """)
+            }
+            if filter.contains("quota/rate/net_usage") {
+                return (200, """
+                {
+                  "timeSeries": [
+                    {
+                      "metric": {"labels": {"quota_metric": "\(rateMetric)", "limit_name": "PerMinute"}},
+                      "resource": {"labels": {"location": "us-central1"}},
+                      "points": [
+                        {"interval": {"startTime": "2026-11-26T00:10:00Z"}, "value": {"int64Value": "40"}}
+                      ]
+                    },
+                    {
+                      "metric": {"labels": {"quota_metric": "\(rateMetric)", "limit_name": "PerDay"}},
+                      "resource": {"labels": {"location": "us-central1"}},
+                      "points": [
+                        {"interval": {"startTime": "2026-11-26T00:10:00Z"}, "value": {"int64Value": "40"}}
+                      ]
+                    }
+                  ]
+                }
+                """)
+            }
+            if filter.contains("quota/exceeded") {
+                return (200, """
+                {
+                  "timeSeries": [
+                    {
+                      "metric": {"labels": {"quota_metric": "\(rateMetric)", "limit_name": "PerMinute"}},
+                      "resource": {"labels": {"location": "us-central1"}},
+                      "points": [{"value": {"int64Value": "1"}}]
+                    },
+                    {
+                      "metric": {"labels": {"quota_metric": "\(rateMetric)", "limit_name": "PerMinute"}},
+                      "resource": {"labels": {"location": "us-east5"}},
+                      "points": [{"value": {"int64Value": "7"}}]
+                    }
+                  ]
+                }
+                """)
+            }
+            return (200, #"{"timeSeries":[]}"#)
+        }
+
+        let now = Date(timeIntervalSince1970: 1_795_653_000)
+        let response = try await VertexAIUsageFetcher.fetchUsageSnapshot(
+            accessToken: "token",
+            projectId: "proj-1",
+            options: VertexAIQueryOptions(locationFilter: "us-central1"),
+            now: now,
+            transport: transport)
+
+        #expect(response.totalExceededCount == 1)
+        let perMinute = try #require(response.rateQuotas.first { $0.cadence == .perMinute })
+        let perDay = try #require(response.rateQuotas.first { $0.cadence == .perDay })
+        #expect(perMinute.usage == 40)
+        #expect(perDay.usage == 40)
     }
 }
 

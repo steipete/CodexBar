@@ -68,7 +68,7 @@ extension VertexAIUsageFetcher {
         let dimensions: [String: String]?
     }
 
-    struct ConsumerQuotaBucketInfo {
+    struct ConsumerQuotaBucketInfo: Equatable {
         let limitName: String
         let unit: String?
         let region: String?
@@ -91,7 +91,14 @@ extension VertexAIUsageFetcher {
                     && (bucket.region == nil || bucket.region?.caseInsensitiveCompare(location) == .orderedSame)
                     && VertexAIUsageFetcher.matchesModelFilter(bucket.baseModel, filter: baseModelFilter)
             }
-            return matching.max { lhs, rhs in
+            let candidates: [ConsumerQuotaBucketInfo]
+            if baseModelFilter == nil {
+                let nonModel = matching.filter { $0.baseModel == nil }
+                candidates = nonModel.isEmpty ? matching : nonModel
+            } else {
+                candidates = matching
+            }
+            return candidates.max { lhs, rhs in
                 let lhsScore = (lhs.region != nil ? 2 : 0) + (lhs.baseModel != nil ? 1 : 0)
                 let rhsScore = (rhs.region != nil ? 2 : 0) + (rhs.baseModel != nil ? 1 : 0)
                 return lhsScore < rhsScore
@@ -111,8 +118,15 @@ extension VertexAIUsageFetcher {
                 (bucket.region == nil || bucket.region?.caseInsensitiveCompare(location) == .orderedSame)
                     && VertexAIUsageFetcher.matchesModelFilter(bucket.baseModel, filter: baseModelFilter)
             }
+            let scoped: [ConsumerQuotaBucketInfo]
+            if baseModelFilter == nil {
+                let nonModel = filtered.filter { $0.baseModel == nil }
+                scoped = nonModel.isEmpty ? filtered : nonModel
+            } else {
+                scoped = filtered
+            }
             var bestByKey: [String: ConsumerQuotaBucketInfo] = [:]
-            for bucket in filtered {
+            for bucket in scoped {
                 let key = "\(bucket.limitName)|\(bucket.baseModel ?? "")"
                 let existing = bestByKey[key]
                 let candidateSpecificity = (bucket.region != nil ? 2 : 0) + (bucket.baseModel != nil ? 1 : 0)
@@ -228,7 +242,12 @@ extension VertexAIUsageFetcher {
         let tokenPercent = rateBuckets
             .filter(\.isTokenQuota)
             .max { Self.bucketRank($0, $1) }?.usedPercent
-        let totalExceeded = context.exceededByKey.values.reduce(0) { $0 + Int($1.rounded()) }
+        let totalExceeded = context.exceededByKey.reduce(0) { partial, entry in
+            guard Self.matchesLocationFilter(entry.key.location, filter: context.options.locationFilter) else {
+                return partial
+            }
+            return partial + Int(entry.value.rounded())
+        }
 
         return VertexAIUsageResponse(
             requestsUsedPercent: overallPercent,
@@ -236,8 +255,8 @@ extension VertexAIUsageFetcher {
             resetsAt: highestRate?.resetsAt,
             resetDescription: nil,
             rawData: nil,
-            rateQuotas: rateBuckets.sorted { !Self.bucketRank($0, $1) },
-            allocationQuotas: allocationBuckets.sorted { !Self.bucketRank($0, $1) },
+            rateQuotas: rateBuckets.sorted { Self.bucketRank($1, $0) },
+            allocationQuotas: allocationBuckets.sorted { Self.bucketRank($1, $0) },
             highestRateQuota: highestRate,
             highestAllocationQuota: highestAllocation,
             totalExceededCount: totalExceeded,
@@ -245,13 +264,29 @@ extension VertexAIUsageFetcher {
     }
 
     private static func bucketRank(_ lhs: VertexAIQuotaBucketUsage, _ rhs: VertexAIQuotaBucketUsage) -> Bool {
-        if lhs.usedPercent != rhs.usedPercent {
-            return lhs.usedPercent < rhs.usedPercent
+        let lhsPercent = lhs.usedPercent.isFinite ? lhs.usedPercent : -Double.infinity
+        let rhsPercent = rhs.usedPercent.isFinite ? rhs.usedPercent : -Double.infinity
+        if lhsPercent != rhsPercent {
+            return lhsPercent < rhsPercent
         }
         if lhs.exceededCount != rhs.exceededCount {
             return lhs.exceededCount < rhs.exceededCount
         }
-        return lhs.quotaMetric > rhs.quotaMetric
+        if lhs.quotaMetric != rhs.quotaMetric {
+            return lhs.quotaMetric > rhs.quotaMetric
+        }
+        if lhs.limitName != rhs.limitName {
+            return lhs.limitName > rhs.limitName
+        }
+        if lhs.location != rhs.location {
+            return lhs.location > rhs.location
+        }
+        let lhsModel = lhs.baseModel ?? ""
+        let rhsModel = rhs.baseModel ?? ""
+        if lhsModel != rhsModel {
+            return lhsModel > rhsModel
+        }
+        return lhs.cadence.rawValue > rhs.cadence.rawValue
     }
 
     private static func buildAllocationBuckets(
@@ -296,8 +331,9 @@ extension VertexAIUsageFetcher {
         return results
     }
 
-    private struct MetricLocation: Hashable {
+    private struct RateSeriesKey: Hashable {
         let quotaMetric: String
+        let limitName: String
         let location: String
     }
 
@@ -317,7 +353,7 @@ extension VertexAIUsageFetcher {
         let nextPacificMidnight = Self.nextPacificMidnight(after: context.now)
         var results: [VertexAIQuotaBucketUsage] = []
 
-        for (metricLocation, buckets) in summedByBucket {
+        for (rateKey, buckets) in summedByBucket {
             let peakPerMinute = buckets.values.map(\.value).max() ?? 0
             let pacificDailySum = buckets.values.reduce(0.0) { partial, point in
                 if let date = point.date, date < startOfPacificDay {
@@ -326,31 +362,34 @@ extension VertexAIUsageFetcher {
                 return partial + point.value
             }
 
-            let meta = context.metadataIndex[metricLocation.quotaMetric]
+            let meta = context.metadataIndex[rateKey.quotaMetric]
             let consumerCandidates = meta?.rateCandidates(
-                location: metricLocation.location,
+                location: rateKey.location,
                 baseModelFilter: context.options.baseModelFilter) ?? []
 
             if !consumerCandidates.isEmpty {
-                for candidate in consumerCandidates {
+                let matchingCandidates = consumerCandidates.filter { candidate in
+                    rateKey.limitName.isEmpty || rateKey.limitName == candidate.limitName
+                }
+                for candidate in matchingCandidates {
                     let monitoringLimit = Self.matchingMonitoringLimit(
-                        quotaMetric: metricLocation.quotaMetric,
+                        quotaMetric: rateKey.quotaMetric,
                         limitName: candidate.limitName,
-                        location: metricLocation.location,
+                        location: rateKey.location,
                         in: context.limitByKey)
                     let resolvedLimit = monitoringLimit ?? candidate.effectiveLimit
                     guard resolvedLimit > 0 else { continue }
                     let usage = candidate.cadence == .perDay ? pacificDailySum : peakPerMinute
                     let exceeded = Self.matchingExceeded(
-                        quotaMetric: metricLocation.quotaMetric,
+                        quotaMetric: rateKey.quotaMetric,
                         limitName: candidate.limitName,
-                        location: metricLocation.location,
+                        location: rateKey.location,
                         in: context.exceededByKey)
                     results.append(VertexAIQuotaBucketUsage(
-                        quotaMetric: metricLocation.quotaMetric,
+                        quotaMetric: rateKey.quotaMetric,
                         limitName: candidate.limitName,
                         displayName: meta?.displayName,
-                        location: metricLocation.location,
+                        location: rateKey.location,
                         baseModel: candidate.baseModel,
                         cadence: candidate.cadence,
                         usage: usage,
@@ -367,22 +406,23 @@ extension VertexAIUsageFetcher {
 
             let matchingLimits = context.limitByKey.filter { key, limit in
                 limit > 0
-                    && key.quotaMetric == metricLocation.quotaMetric
-                    && key.location == metricLocation.location
+                    && key.quotaMetric == rateKey.quotaMetric
+                    && key.location == rateKey.location
+                    && (rateKey.limitName.isEmpty || rateKey.limitName == key.limitName)
             }
             for (limitKey, limit) in matchingLimits {
                 let cadence = Self.inferredCadence(unit: nil, limitName: limitKey.limitName)
                 let usage = cadence == .perDay ? pacificDailySum : peakPerMinute
                 let exceeded = Self.matchingExceeded(
-                    quotaMetric: metricLocation.quotaMetric,
+                    quotaMetric: rateKey.quotaMetric,
                     limitName: limitKey.limitName,
-                    location: metricLocation.location,
+                    location: rateKey.location,
                     in: context.exceededByKey)
                 results.append(VertexAIQuotaBucketUsage(
-                    quotaMetric: metricLocation.quotaMetric,
+                    quotaMetric: rateKey.quotaMetric,
                     limitName: limitKey.limitName,
                     displayName: meta?.displayName,
-                    location: metricLocation.location,
+                    location: rateKey.location,
                     baseModel: nil,
                     cadence: cadence,
                     usage: usage,
@@ -398,9 +438,9 @@ extension VertexAIUsageFetcher {
 
     private static func summedRateBuckets(
         rateSeries: [MonitoringTimeSeries],
-        locationFilter: String?) -> [MetricLocation: [String: RateBucketPoint]]
+        locationFilter: String?) -> [RateSeriesKey: [String: RateBucketPoint]]
     {
-        var summedByBucket: [MetricLocation: [String: RateBucketPoint]] = [:]
+        var summedByBucket: [RateSeriesKey: [String: RateBucketPoint]] = [:]
         for series in rateSeries {
             let metricLabels = series.metric.labels ?? [:]
             let resourceLabels = series.resource.labels ?? [:]
@@ -410,7 +450,8 @@ extension VertexAIUsageFetcher {
             let location = resourceLabels["location"] ?? "global"
             guard Self.matchesLocationFilter(location, filter: locationFilter) else { continue }
 
-            let key = MetricLocation(quotaMetric: quotaMetric, location: location)
+            let limitName = metricLabels["limit_name"] ?? ""
+            let key = RateSeriesKey(quotaMetric: quotaMetric, limitName: limitName, location: location)
             for (index, point) in series.points.enumerated() {
                 guard let value = Self.pointValue(from: point), value.isFinite else { continue }
                 let date = Self.pointDate(from: point)
@@ -510,7 +551,21 @@ extension VertexAIUsageFetcher {
                         cadence: cadence))
                 }
             }
-            index[metricName] = ConsumerQuotaMetricInfo(displayName: metric.displayName, buckets: buckets)
+            let existing = index[metricName]
+            let existingDisplayName = existing?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let incomingDisplayName = metric.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let mergedDisplayName: String? = if let existingDisplayName, !existingDisplayName.isEmpty {
+                existing?.displayName
+            } else if let incomingDisplayName, !incomingDisplayName.isEmpty {
+                metric.displayName
+            } else {
+                existing?.displayName ?? metric.displayName
+            }
+            var mergedBuckets = existing?.buckets ?? []
+            for bucket in buckets where !mergedBuckets.contains(bucket) {
+                mergedBuckets.append(bucket)
+            }
+            index[metricName] = ConsumerQuotaMetricInfo(displayName: mergedDisplayName, buckets: mergedBuckets)
         }
         return index
     }

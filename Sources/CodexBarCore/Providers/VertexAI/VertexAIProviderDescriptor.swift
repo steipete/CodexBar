@@ -3,7 +3,8 @@ import Foundation
 public enum VertexAIProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
     static let estimateHintKey = "vertexai_cost_estimate_hint"
-    static let cloudEstimateHintKey = "vertexai_cloud_cost_estimate_hint"
+    /// Reserved for M3 CostHistoryChartMenuView when telemetryCostSource is cloudMonitoringOnly.
+    public static let cloudEstimateHintKey = "vertexai_cloud_cost_estimate_hint"
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
@@ -198,9 +199,9 @@ struct VertexAIOAuthFetchStrategy: ProviderFetchStrategy {
             }
             return (rate ?? allocation, nil)
         case .rateQuota:
-            return (rate, allocation)
+            return (rate ?? allocation, rate != nil ? allocation : nil)
         case .allocationQuota:
-            return (allocation, rate)
+            return (allocation ?? rate, allocation != nil ? rate : nil)
         }
     }
 
@@ -252,10 +253,18 @@ struct VertexAIOAuthFetchStrategy: ProviderFetchStrategy {
 
         let combinedQuotas = (response.rateQuotas + response.allocationQuotas)
             .sorted { lhs, rhs in
-                if lhs.usedPercent != rhs.usedPercent {
-                    return lhs.usedPercent > rhs.usedPercent
+                let lhsPercent = lhs.usedPercent.isFinite ? lhs.usedPercent : -Double.infinity
+                let rhsPercent = rhs.usedPercent.isFinite ? rhs.usedPercent : -Double.infinity
+                if lhsPercent != rhsPercent {
+                    return lhsPercent > rhsPercent
                 }
-                return lhs.exceededCount > rhs.exceededCount
+                if lhs.exceededCount != rhs.exceededCount {
+                    return lhs.exceededCount > rhs.exceededCount
+                }
+                if lhs.quotaMetric != rhs.quotaMetric {
+                    return lhs.quotaMetric < rhs.quotaMetric
+                }
+                return lhs.limitName < rhs.limitName
             }
         if !combinedQuotas.isEmpty {
             let rows = combinedQuotas.prefix(8).map { bucket in

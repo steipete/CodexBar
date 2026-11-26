@@ -229,4 +229,68 @@ struct VertexAIProviderDescriptorTests {
         #expect(result.usage.primary == nil)
         #expect(result.usage.identity?.accountOrganization == "local-only-proj")
     }
+
+    @Test
+    func `selectBuckets falls back primary when preferred rateQuota or allocationQuota category is absent`() {
+        let credentials = VertexAIOAuthCredentials(
+            accessToken: "token",
+            refreshToken: "refresh",
+            clientId: "client",
+            clientSecret: "secret",
+            projectId: "proj-1",
+            email: "dev@example.com",
+            expiryDate: Date().addingTimeInterval(3600))
+        let rateBucket = VertexAIQuotaBucketUsage(
+            quotaMetric: "aiplatform.googleapis.com/generate_content_requests_per_minute",
+            limitName: "PerMinute",
+            location: "us-central1",
+            cadence: .perMinute,
+            usage: 25,
+            limit: 100,
+            usedPercent: 25)
+        let allocBucket = VertexAIQuotaBucketUsage(
+            quotaMetric: "aiplatform.googleapis.com/concurrent_requests",
+            limitName: "Concurrent",
+            location: "global",
+            cadence: .allocation,
+            usage: 60,
+            limit: 100,
+            usedPercent: 60)
+
+        let allocOnlyResponse = VertexAIUsageResponse(
+            requestsUsedPercent: 60,
+            tokensUsedPercent: nil,
+            resetsAt: nil,
+            resetDescription: nil,
+            rawData: nil,
+            rateQuotas: [],
+            allocationQuotas: [allocBucket],
+            highestRateQuota: nil,
+            highestAllocationQuota: allocBucket)
+        let rateFallback = VertexAIOAuthFetchStrategy.mapUsage(
+            allocOnlyResponse,
+            credentials: credentials,
+            settings: VertexAIProviderSettings(primaryBarMetric: .rateQuota))
+        #expect(rateFallback.primary?.title == "Allocation quota")
+        #expect(rateFallback.primary?.usedPercent == 60)
+        #expect(rateFallback.secondary == nil)
+
+        let rateOnlyResponse = VertexAIUsageResponse(
+            requestsUsedPercent: 25,
+            tokensUsedPercent: nil,
+            resetsAt: nil,
+            resetDescription: nil,
+            rawData: nil,
+            rateQuotas: [rateBucket],
+            allocationQuotas: [],
+            highestRateQuota: rateBucket,
+            highestAllocationQuota: nil)
+        let allocFallback = VertexAIOAuthFetchStrategy.mapUsage(
+            rateOnlyResponse,
+            credentials: credentials,
+            settings: VertexAIProviderSettings(primaryBarMetric: .allocationQuota))
+        #expect(allocFallback.primary?.title == "Rate quota (RPM)")
+        #expect(allocFallback.primary?.usedPercent == 25)
+        #expect(allocFallback.secondary == nil)
+    }
 }

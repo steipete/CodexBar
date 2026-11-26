@@ -199,5 +199,23 @@ struct VertexAISettingsDescriptorTests {
             secretFields: [:],
             canEnable: { _, _ in true })
         #expect(preserved.resolvedVertexAISettings == applied.resolvedVertexAISettings)
+
+        // Clearing settings back to defaults on Mac A must clear Mac B's non-default settings.
+        let clearedConfig = ProviderConfig(id: .vertexai)
+        let clearPayload = ProviderIntentPayload(config: clearedConfig)
+        let clearData = try JSONEncoder().encode(clearPayload)
+        let decodedClear = try JSONDecoder().decode(ProviderIntentPayload.self, from: clearData)
+        let clearedOnTarget = try decodedClear.applying(
+            to: applied,
+            secretFields: [:],
+            canEnable: { _, _ in true })
+        #expect(clearedOnTarget.resolvedVertexAISettings == VertexAIProviderSettings())
+        #expect(clearedOnTarget.vertexAIProjectIDOverride == nil)
+        #expect(clearedOnTarget.vertexAIRegionFilter == nil)
+        #expect(clearedOnTarget.vertexAIModelFilter == nil)
+        #expect(clearedOnTarget.vertexAIPrimaryBarMetric == nil)
+        #expect(clearedOnTarget.vertexAITelemetryCostSource == nil)
+        #expect(clearedOnTarget.vertexAIAllowClaudeFallback == nil)
+        #expect(clearedOnTarget.vertexAIEstimateCloudCost == nil)
     }
 }
