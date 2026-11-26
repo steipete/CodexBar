@@ -295,6 +295,13 @@ struct AntigravityLocalBreakdownsTests {
                     gitRootURI: "file:///Users/fixture/dev/local-mirror",
                     repoRemoteURL: "file:///Users/fixture/repos/local-mirror.git"),
             ])
+        let singleSlashFileRemote = Fixture.trajectoryMetadataBlob(
+            workspaces: [
+                .init(
+                    workspaceURI: "file:///Users/fixture/dev/single-slash",
+                    gitRootURI: "file:///Users/fixture/dev/single-slash",
+                    repoRemoteURL: "file:/Users/fixture/repos/single-slash.git"),
+            ])
         let crossWorkspaceNoPath = Fixture.trajectoryMetadataBlob(
             workspaces: [
                 .init(repoSlug: "owner/repo-without-path"),
@@ -326,6 +333,10 @@ struct AntigravityLocalBreakdownsTests {
             blobs: [Fixture.blob(seconds: 1_787_832_500)],
             trajectoryMetadataBlob: fileRemote)
         try fixture.database(
+            "s-file-single-slash",
+            blobs: [Fixture.blob(seconds: 1_787_832_550)],
+            trajectoryMetadataBlob: singleSlashFileRemote)
+        try fixture.database(
             "s-cross-ws",
             blobs: [Fixture.blob(seconds: 1_787_832_600)],
             trajectoryMetadataBlob: crossWorkspaceNoPath)
@@ -354,6 +365,12 @@ struct AntigravityLocalBreakdownsTests {
         let fileSession = try #require(report.sessions.first { $0.sessionID == "s-file-remote" })
         #expect(fileSession.projectName == "local-mirror")
         #expect(fileSession.projectPath == "/Users/fixture/dev/local-mirror")
+
+        let singleSlashProject = try #require(report.projects.first { $0.path == "/Users/fixture/dev/single-slash" })
+        #expect(singleSlashProject.name == "single-slash")
+        let singleSlashSession = try #require(report.sessions.first { $0.sessionID == "s-file-single-slash" })
+        #expect(singleSlashSession.projectName == "single-slash")
+        #expect(singleSlashSession.projectPath == "/Users/fixture/dev/single-slash")
 
         let crossProject = try #require(report.projects.first { $0.name == "owner/repo-without-path" })
         #expect(crossProject.path == nil)

@@ -869,7 +869,10 @@ extension AntigravityLocalReader {
             cleaned.removeLast()
         }
         guard !cleaned.isEmpty else { return nil }
-        if cleaned.lowercased().hasPrefix("file://") || cleaned.hasPrefix("/") {
+        if cleaned.lowercased().hasPrefix("file:/")
+            || cleaned.hasPrefix("/")
+            || URL(string: cleaned)?.isFileURL == true
+        {
             return nil
         }
         if let colonIndex = cleaned.lastIndex(of: ":"), !cleaned.contains("://") {
@@ -885,9 +888,6 @@ extension AntigravityLocalReader {
             return (host: normalizedHost, path: pathComponents.joined(separator: "/"))
         }
         if let url = URL(string: cleaned) {
-            if url.isFileURL {
-                return nil
-            }
             let parts = url.pathComponents.filter { $0 != "/" && !$0.isEmpty }
             guard !parts.isEmpty else { return nil }
             let host = url.host?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
