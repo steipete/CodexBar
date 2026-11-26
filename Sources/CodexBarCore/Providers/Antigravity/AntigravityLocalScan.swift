@@ -185,8 +185,8 @@ extension AntigravityLocalReader {
 
     struct Discovery {
         var paths: [URL] = []
+        var skippedOldPaths: [URL] = []
         var isComplete = true
-        var skippedOldDatabases = 0
     }
 
     static func discover(
@@ -198,6 +198,7 @@ extension AntigravityLocalReader {
     {
         var result = Discovery()
         var candidates: [(url: URL, modifiedAt: Date?)] = []
+        var skippedCandidates: [(url: URL, modifiedAt: Date?)] = []
         let sinceDate = dayRange.flatMap { CostUsageLocalDay.date(fromKey: $0.sinceKey, calendar: calendar) }
         var hitDirectoryEntryLimit = false
 
@@ -251,9 +252,7 @@ extension AntigravityLocalReader {
                         fileMtime: values.contentModificationDate,
                         extension: suffix)
                     if let sinceDate, let effectiveMtime, effectiveMtime < sinceDate {
-                        if url.lastPathComponent != "conversation_summaries.db" {
-                            result.skippedOldDatabases += 1
-                        }
+                        skippedCandidates.append((url: url, modifiedAt: effectiveMtime))
                         continue
                     }
                     candidates.append((url: url, modifiedAt: effectiveMtime))
@@ -265,7 +264,7 @@ extension AntigravityLocalReader {
             if hitDirectoryEntryLimit { break }
         }
 
-        candidates.sort { lhs, rhs in
+        let sortCandidates: ((url: URL, modifiedAt: Date?), (url: URL, modifiedAt: Date?)) -> Bool = { lhs, rhs in
             let lhsDate = lhs.modifiedAt ?? .distantPast
             let rhsDate = rhs.modifiedAt ?? .distantPast
             if lhsDate != rhsDate {
@@ -273,6 +272,9 @@ extension AntigravityLocalReader {
             }
             return lhs.url.path < rhs.url.path
         }
+        candidates.sort(by: sortCandidates)
+        skippedCandidates.sort(by: sortCandidates)
+        result.skippedOldPaths = skippedCandidates.map(\.url)
         let limit = max(0, budget.limits.databases)
         if candidates.count > limit {
             result.isComplete = false

@@ -955,7 +955,7 @@ struct AntigravityParityE2ETests {
         }
         let discovery = try Harness.discover(fixture, limits: limits)
         let report = try fixture.report(includeBreakdowns: true, dayRange: ("2026-07-29", "2026-08-27"))
-        #expect(discovery.skippedOldDatabases == 1 && report.coverage == .complete)
+        #expect(discovery.skippedOldPaths.count == 1 && report.coverage == .complete)
         #expect(report.report.summary?.totalTokens == (mode == "multi-root" ? 207 + 187 : 207))
     }
 
@@ -1307,7 +1307,10 @@ extension AntigravityParityE2ETests {
             try FileManager.default.setAttributes(
                 [.modificationDate: sinceDate.addingTimeInterval(-86400)],
                 ofItemAtPath: sumDB.path)
-            #expect(try Harness.discover(fixture).skippedOldDatabases == 0)
+            let discovery = try Harness.discover(fixture)
+            #expect(discovery.skippedOldPaths.count == 1)
+            let report = try fixture.report(dayRange: ("2026-07-29", "2026-08-27"))
+            #expect(report.coverage == .unavailable)
         }
     }
 

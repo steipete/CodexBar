@@ -785,6 +785,150 @@ struct AntigravityLocalScanTests {
 }
 
 extension AntigravityLocalScanTests {
+    @Test(arguments: ["conversation_summaries", "other"])
+    func `rolling window scan with only an old foreign database preserves unavailable without tokscale fallback`(
+        name: String) async throws
+    {
+        let fixture = try Fixture()
+        let sinceDate = try #require(CostUsageLocalDay.date(fromKey: "2026-07-29", calendar: Fixture.calendar))
+        let root = fixture.context.databaseRoots[0]
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let foreignDB = root.appendingPathComponent("\(name).db")
+        let handle = try Fixture.open(foreignDB)
+        defer { sqlite3_close(handle) }
+        try Fixture.execute(handle, "CREATE TABLE conversation_summaries (id TEXT PRIMARY KEY)")
+        try FileManager.default.setAttributes(
+            [.modificationDate: sinceDate.addingTimeInterval(-86400)],
+            ofItemAtPath: foreignDB.path)
+        try fixture.jsonl([Fixture.cacheUsage])
+
+        let report = try fixture.report(dayRange: ("2026-07-29", "2026-08-27"))
+        #expect(report.coverage == .unavailable)
+        #expect(!report.isAvailable)
+        #expect(report.report.data.isEmpty)
+        #expect(report.report.summary == nil)
+        #expect(report.statistics.files == 0)
+        #expect(report.statistics.rows == 0)
+        #expect(report.statistics.foreignDatabases == 1)
+        #expect(report.statistics.sqliteHandlesOpened == report.statistics.sqliteHandlesClosed)
+
+        let snapshot = try await fixture.snapshot()
+        #expect(!snapshot.historyCoverageIsEstablished)
+        #expect(snapshot.daily.isEmpty)
+        #expect(snapshot.last30DaysTokens == nil)
+    }
+
+    @Test
+    func `rolling window scan with recent and old foreign databases preserves unavailable`() async throws {
+        let fixture = try Fixture()
+        let sinceDate = try #require(CostUsageLocalDay.date(fromKey: "2026-07-29", calendar: Fixture.calendar))
+        let root = fixture.context.databaseRoots[0]
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let recentForeign = root.appendingPathComponent("conversation_summaries.db")
+        let recentHandle = try Fixture.open(recentForeign)
+        defer { sqlite3_close(recentHandle) }
+        try Fixture.execute(recentHandle, "CREATE TABLE conversation_summaries (id TEXT PRIMARY KEY)")
+        try FileManager.default.setAttributes([.modificationDate: Fixture.now], ofItemAtPath: recentForeign.path)
+
+        let oldForeign = root.appendingPathComponent("other.db")
+        let oldHandle = try Fixture.open(oldForeign)
+        defer { sqlite3_close(oldHandle) }
+        try Fixture.execute(oldHandle, "CREATE TABLE unrelated (id TEXT PRIMARY KEY)")
+        try FileManager.default.setAttributes(
+            [.modificationDate: sinceDate.addingTimeInterval(-86400)],
+            ofItemAtPath: oldForeign.path)
+
+        try fixture.jsonl([Fixture.cacheUsage])
+
+        let report = try fixture.report(dayRange: ("2026-07-29", "2026-08-27"))
+        #expect(report.coverage == .unavailable)
+        #expect(!report.isAvailable)
+        #expect(report.statistics.foreignDatabases == 2)
+        #expect(report.statistics.sqliteHandlesOpened == report.statistics.sqliteHandlesClosed)
+
+        let snapshot = try await fixture.snapshot()
+        #expect(!snapshot.historyCoverageIsEstablished)
+        #expect(snapshot.daily.isEmpty)
+        #expect(snapshot.last30DaysTokens == nil)
+    }
+
+    @Test
+    func `rolling window scan with old foreign and verified history databases stays complete`() async throws {
+        let fixture = try Fixture()
+        let sinceDate = try #require(CostUsageLocalDay.date(fromKey: "2026-07-29", calendar: Fixture.calendar))
+        let root = fixture.context.databaseRoots[0]
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let oldForeign = root.appendingPathComponent("conversation_summaries.db")
+        let foreignHandle = try Fixture.open(oldForeign)
+        defer { sqlite3_close(foreignHandle) }
+        try Fixture.execute(foreignHandle, "CREATE TABLE conversation_summaries (id TEXT PRIMARY KEY)")
+        try FileManager.default.setAttributes(
+            [.modificationDate: sinceDate.addingTimeInterval(-3600)],
+            ofItemAtPath: oldForeign.path)
+
+        let oldHistory = try fixture.database("old-history", blobs: [Fixture.blob(seconds: 1_700_000_000)])
+        try FileManager.default.setAttributes(
+            [.modificationDate: sinceDate.addingTimeInterval(-86400)],
+            ofItemAtPath: oldHistory.path)
+        try fixture.jsonl([Fixture.cacheUsage])
+
+        let report = try fixture.report(dayRange: ("2026-07-29", "2026-08-27"))
+        #expect(report.coverage == .complete)
+        #expect(report.report.data.isEmpty)
+        #expect(report.report.summary == nil)
+        #expect(report.statistics.files == 0)
+        #expect(report.statistics.rows == 0)
+        #expect(report.statistics.foreignDatabases == 1)
+        #expect(report.statistics.sqliteHandlesOpened == report.statistics.sqliteHandlesClosed)
+
+        let snapshot = try await fixture.snapshot()
+        #expect(snapshot.historyCoverageIsEstablished)
+        #expect(snapshot.last30DaysTokens == 0)
+        #expect(snapshot.daily.isEmpty)
+    }
+
+    @Test(arguments: [true, false])
+    func `rolling window scan with old drifted and supported history databases stays partial in either order`(
+        driftedNewer: Bool) async throws
+    {
+        let fixture = try Fixture()
+        let sinceDate = try #require(CostUsageLocalDay.date(fromKey: "2026-07-29", calendar: Fixture.calendar))
+        let root = fixture.context.databaseRoots[0]
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let driftedDB = root.appendingPathComponent("drifted.db")
+        let driftedHandle = try Fixture.open(driftedDB)
+        defer { sqlite3_close(driftedHandle) }
+        try Fixture.execute(driftedHandle, "CREATE TABLE gen_metadata (idx INTEGER, wrong TEXT)")
+
+        let supportedDB = try fixture.database("supported-history", blobs: [Fixture.blob(seconds: 1_700_000_000)])
+
+        let newerOldDate = sinceDate.addingTimeInterval(-3600)
+        let olderOldDate = sinceDate.addingTimeInterval(-86400)
+        try FileManager.default.setAttributes(
+            [.modificationDate: driftedNewer ? newerOldDate : olderOldDate],
+            ofItemAtPath: driftedDB.path)
+        try FileManager.default.setAttributes(
+            [.modificationDate: driftedNewer ? olderOldDate : newerOldDate],
+            ofItemAtPath: supportedDB.path)
+        try fixture.jsonl([Fixture.cacheUsage])
+
+        let report = try fixture.report(dayRange: ("2026-07-29", "2026-08-27"))
+        #expect(report.coverage == .partial)
+        #expect(!report.isComplete)
+        #expect(!report.isAvailable)
+        #expect(report.report.data.isEmpty)
+        #expect(report.statistics.foreignDatabases == 0)
+        #expect(report.statistics.sqliteHandlesOpened == report.statistics.sqliteHandlesClosed)
+
+        let snapshot = try await fixture.snapshot()
+        #expect(!snapshot.historyCoverageIsEstablished)
+        #expect(snapshot.daily.isEmpty)
+        #expect(snapshot.last30DaysTokens == nil)
+    }
+
     @Test
     func `directoryEntries cap overflow retains prior databases and avoids tokscale fallback when empty`() throws {
         let fixture = try Fixture()
