@@ -74,6 +74,7 @@ struct CostHistoryChartMenuView: View {
     /// in the user's preferred currency while chart geometry stays in source values.
     private let costMultiplier: Double
     private let historyCoverageIsEstablished: Bool
+    private let rawWindowLabel: String?
     private let windowLabel: String
     private let projects: [CostUsageProjectBreakdown]
     private let sessions: [CostUsageSessionBreakdown]
@@ -106,6 +107,7 @@ struct CostHistoryChartMenuView: View {
         self.currencyCode = currencyCode
         self.costMultiplier = costMultiplier
         self.historyCoverageIsEstablished = historyCoverageIsEstablished
+        self.rawWindowLabel = windowLabel
         self.windowLabel = windowLabel.map { L($0) } ?? Self.windowLabel(days: max(1, historyDays))
         self.projects = projects
         self.sessions = sessions
@@ -351,7 +353,10 @@ struct CostHistoryChartMenuView: View {
                         .truncationMode(.head)
                         .frame(height: Self.detailPrimaryLineHeight, alignment: .leading)
                     if let disclaimer = UsageFormatter.incompleteUsageNote(incompleteCount)
-                        ?? Self.estimateDisclaimer(provider: self.provider, daily: self.daily)
+                        ?? Self.estimateDisclaimer(
+                            provider: self.provider,
+                            daily: self.daily,
+                            windowLabel: self.rawWindowLabel)
                     {
                         Text(disclaimer)
                             .help(disclaimer)
@@ -413,9 +418,14 @@ struct CostHistoryChartMenuView: View {
         }
     }
 
-    static func estimateDisclaimer(provider: UsageProvider, daily: [DailyEntry] = []) -> String? {
+    static func estimateDisclaimer(
+        provider: UsageProvider,
+        daily: [DailyEntry] = [],
+        windowLabel: String? = nil) -> String?
+    {
         guard !daily.contains(where: { $0.modelBreakdowns?.contains(where: { $0.sourceRecorded == true }) == true }),
-              let hint = ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.chartEstimateDisclaimer
+              let hint = ProviderDescriptorRegistry.descriptor(for: provider).tokenCost
+                  .resolvedChartEstimateDisclaimer(historyLabel: windowLabel)
         else {
             return nil
         }
@@ -1208,8 +1218,11 @@ extension CostHistoryChartMenuView {
 
     /// Providers whose local session ledgers publish project and conversation rows.
     nonisolated static func showsLocalBreakdowns(provider: UsageProvider) -> Bool {
-        // Provider-specific by design: only Codex, Claude, and Pi session ledgers carry project/session rows.
-        provider == .codex || provider == .claude || provider == .pi
+        // Provider-specific by design: Codex, Claude, Pi, and Vertex AI publish project/session rows.
+        provider == .codex
+            || provider == .claude
+            || provider == .pi
+            || provider == .vertexai
     }
 
     static func renderFingerprint(

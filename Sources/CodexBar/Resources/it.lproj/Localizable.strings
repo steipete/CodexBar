@@ -2876,3 +2876,31 @@
 "MiMo is rate limiting requests. Try again later." = "MiMo sta limitando la frequenza delle richieste. Riprova più tardi.";
 "MiMo request failed. Try refreshing later." = "La richiesta a MiMo non è riuscita. Riprova ad aggiornare più tardi.";
 "Skip cost refresh" = "Salta l’aggiornamento dei costi";
+
+/* Vertex AI parity */
+"vertexai_cost_estimate_hint" = "Estimated from Cloud Monitoring and Claude-on-Vertex logs · may differ from your GCP bill";
+"vertexai_cloud_cost_estimate_hint" = "Estimated from Cloud Monitoring token_count × public API rates · excludes dedicated throughput";
+"Quota breakdown" = "Quota breakdown";
+"Online serving (24h)" = "Online serving (24h)";
+"Active filter" = "Active filter";
+"Invocations" = "Invocations";
+"Total tokens" = "Total tokens";
+"Est. cost" = "Est. cost";
+"Project" = "Project";
+"Last 30 days (Cloud est.)" = "Last 30 days (Cloud est.)";
+"Last 30 days (Cloud + Local est.)" = "Last 30 days (Cloud + Local est.)";
+"Primary bar metric" = "Primary bar metric";
+"Choose whether the main quota bar favors the highest quota %, rate limits (RPM/TPM/RPD), or allocation limits." = "Choose whether the main quota bar favors the highest quota %, rate limits (RPM/TPM/RPD), or allocation limits.";
+"Telemetry and cost source" = "Telemetry and cost source";
+"Choose between Cloud Monitoring plus local Claude-on-Vertex logs, Cloud Monitoring only, or local Claude logs only." = "Choose between Cloud Monitoring plus local Claude-on-Vertex logs, Cloud Monitoring only, or local Claude logs only.";
+"Region filter" = "Region filter";
+"Optional. Scope Cloud Monitoring quotas and serving telemetry to a specific GCP location." = "Optional. Scope Cloud Monitoring quotas and serving telemetry to a specific GCP location.";
+"GCP Project ID override" = "GCP Project ID override";
+"Optional. Overrides gcloud config_default and environment project variables." = "Optional. Overrides gcloud config_default and environment project variables.";
+"gcloud config_default / env" = "gcloud config_default / env";
+"Base model filter" = "Base model filter";
+"Optional. Filter Cloud Monitoring quotas and serving telemetry by model (for example claude-sonnet-4-6 or gemini-2.5-pro)." = "Optional. Filter Cloud Monitoring quotas and serving telemetry by model (for example claude-sonnet-4-6 or gemini-2.5-pro).";
+"Include all Claude logs fallback" = "Include all Claude logs fallback";
+"Optional. Include non-Vertex Claude Code logs from ~/.claude/projects when computing Vertex AI token and cost breakdowns." = "Optional. Include non-Vertex Claude Code logs from ~/.claude/projects when computing Vertex AI token and cost breakdowns.";
+"Estimate USD cost from Cloud Monitoring tokens" = "Estimate USD cost from Cloud Monitoring tokens";
+"Optional. Estimate USD spend from Cloud Monitoring token_count using public API list prices for shared pay-as-you-go traffic." = "Optional. Estimate USD spend from Cloud Monitoring token_count using public API list prices for shared pay-as-you-go traffic.";

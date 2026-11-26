@@ -9,6 +9,7 @@ struct WidgetProviderChoiceTests {
         "codex": "Codex",
         "claude": "Claude",
         "gemini": "Gemini",
+        "vertexai": "Vertex AI",
         "alibaba": "Alibaba",
         "alibabatokenplan": "Alibaba Token Plan",
         "qwencloud": "Qwen Cloud",

@@ -111,6 +111,9 @@ extension CodexBarCLI {
                     provider: provider,
                     antigravityAdditionalProfileHomes:
                     config.providerConfig(for: provider.instanceID)?.antigravityAdditionalProfileHomes ?? [],
+                    vertexAISettings:
+                    config.providerConfig(for: provider.instanceID)?.resolvedVertexAISettings
+                        ?? VertexAIProviderSettings(),
                     now: now,
                     forceRefresh: forceRefresh,
                     historyDays: historyDays,
@@ -187,7 +190,7 @@ extension CodexBarCLI {
     }
 
     /// Providers whose local session ledgers publish project and session rows.
-    static let costGroupingProviders: Set<UsageProvider> = [.codex, .claude, .pi]
+    static let costGroupingProviders: Set<UsageProvider> = [.codex, .claude, .pi, .vertexai]
 
     static func renderCostText(
         provider: UsageProvider,
@@ -263,14 +266,17 @@ extension CodexBarCLI {
         ]
         lines.append(contentsOf: notices)
         lines.append(historyNotice)
-        // Provider-specific by design: Claude and OpenCode Go local history retain model attribution.
-        if includeBreakdown, provider == .claude || provider == .opencodego, !snapshot.daily.isEmpty {
+        // Provider-specific by design: Claude, OpenCode Go, and Vertex AI history retain model attribution.
+        if includeBreakdown,
+           provider == .claude || provider == .opencodego || provider == .vertexai,
+           !snapshot.daily.isEmpty
+        {
             lines.append(contentsOf: Self.tokenDetailLines(
                 snapshot: snapshot,
                 calendar: calendar,
                 useColor: useColor))
         }
-        lines.append(Self.costEstimateHint(provider: provider))
+        lines.append(Self.costEstimateHint(provider: provider, snapshot: snapshot))
         return lines.compactMap(\.self).joined(separator: "\n")
     }
 
@@ -493,7 +499,7 @@ extension CodexBarCLI {
         var lines = [header, "Projects (\(historyLabel)):"]
         guard !snapshot.projects.isEmpty else {
             lines.append("—")
-            lines.append(Self.costEstimateHint(provider: provider))
+            lines.append(Self.costEstimateHint(provider: provider, snapshot: snapshot))
             return lines.joined(separator: "\n")
         }
         for project in snapshot.projects {
@@ -519,7 +525,7 @@ extension CodexBarCLI {
                 }
             }
         }
-        lines.append(Self.costEstimateHint(provider: provider))
+        lines.append(Self.costEstimateHint(provider: provider, snapshot: snapshot))
         return lines.joined(separator: "\n")
     }
 
@@ -538,7 +544,7 @@ extension CodexBarCLI {
             if !historyIncomplete {
                 lines.append("—")
             }
-            lines.append(Self.costEstimateHint(provider: provider))
+            lines.append(Self.costEstimateHint(provider: provider, snapshot: snapshot))
             return lines.joined(separator: "\n")
         }
         for session in snapshot.sessions {
@@ -555,7 +561,7 @@ extension CodexBarCLI {
             let modelLabel = Self.sessionModelLabel(session.modelBreakdowns.map(\.modelName))
             lines.append("\(modelLabel) · \(Self.sessionTimestampString(session.lastActivity))")
         }
-        lines.append(Self.costEstimateHint(provider: provider))
+        lines.append(Self.costEstimateHint(provider: provider, snapshot: snapshot))
         return lines.joined(separator: "\n")
     }
 
@@ -585,10 +591,41 @@ extension CodexBarCLI {
         return formatter.string(from: date)
     }
 
-    private static func costEstimateHint(provider: UsageProvider) -> String {
+    private static func costEstimateHint(provider: UsageProvider, snapshot: CostUsageTokenSnapshot) -> String {
+        let tokenCost = ProviderDescriptorRegistry.descriptor(for: provider).tokenCost
+        if tokenCost.menuHintLinesResolver != nil {
+            let resolved = tokenCost.resolvedMenuHintLines(for: snapshot).map { hint -> String in
+                switch hint {
+                case let .localized(key):
+                    Self.cliLocalizedHintText(key: key, provider: provider)
+                case .estimate:
+                    UsageFormatter.costEstimateHint(provider: provider)
+                case let .literal(text):
+                    text
+                }
+            }
+            if !resolved.isEmpty {
+                return resolved.joined(separator: "\n")
+            }
+        }
+        return Self.defaultCostEstimateHint(provider: provider)
+    }
+
+    private static func defaultCostEstimateHint(provider: UsageProvider) -> String {
         provider == .codex
             ? "Not a subscription bill or plan value · local usage × public API prices"
             : UsageFormatter.costEstimateHint(provider: provider)
+    }
+
+    private static func cliLocalizedHintText(key: String, provider: UsageProvider) -> String {
+        switch key {
+        case VertexAIProviderDescriptor.cloudEstimateHintKey:
+            VertexAIProviderDescriptor.cloudEstimateHintText
+        case VertexAIProviderDescriptor.estimateHintKey:
+            VertexAIProviderDescriptor.estimateHintText
+        default:
+            UsageFormatter.costEstimateHint(provider: provider)
+        }
     }
 
     private static func costHeaderLine(_ header: String, useColor: Bool) -> String {

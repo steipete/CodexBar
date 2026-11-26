@@ -596,9 +596,7 @@ struct SpendDashboardControllerTests {
         }
         #expect(firstVertexOwnership != nil)
 
-        if let claudeMetadata = ProviderRegistry.shared.metadata[.claude] {
-            settings.setProviderEnabled(provider: .claude, metadata: claudeMetadata, enabled: true)
-        }
+        settings.vertexAIAllowClaudeFallback = true
         let replacementConfiguration = SpendDashboardSource.configuration(settings: settings, store: store)
         let replacementVertexOwnership = replacementConfiguration.sourceOwnershipFingerprints.first {
             $0.hasPrefix("vertexai:")

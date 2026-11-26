@@ -33,6 +33,7 @@ public struct ProviderTokenCostConfig: Sendable {
     /// Evaluated when the usage snapshot has no cost projection; balance alone need not prove zero spend.
     public let isUsageUnavailable: @Sendable (UsageSnapshot) -> Bool
     public let menuHintLines: [ProviderTokenCostHint]
+    public let menuHintLinesResolver: (@Sendable (_ snapshot: CostUsageTokenSnapshot) -> [ProviderTokenCostHint]?)?
     public let supportsTokenSnapshot: Bool
     public let settingsStatusOrder: Int?
     public let showsHintInProviderDetails: Bool
@@ -43,6 +44,7 @@ public struct ProviderTokenCostConfig: Sendable {
     public let showsRequestHistory: Bool
     public let hintPlacement: ProviderTokenCostHintPlacement
     public let chartEstimateDisclaimer: ProviderTokenCostHint?
+    public let chartEstimateDisclaimerResolver: (@Sendable (_ historyLabel: String?) -> ProviderTokenCostHint?)?
     public let chartCalendar: Calendar?
     public let presentation: ProviderTokenHistoryPresentation
 
@@ -51,6 +53,7 @@ public struct ProviderTokenCostConfig: Sendable {
         noDataMessage: @escaping @Sendable () -> String,
         isUsageUnavailable: @escaping @Sendable (UsageSnapshot) -> Bool = { _ in false },
         menuHintLines: [ProviderTokenCostHint] = [],
+        menuHintLinesResolver: (@Sendable (_ snapshot: CostUsageTokenSnapshot) -> [ProviderTokenCostHint]?)? = nil,
         supportsTokenSnapshot: Bool = false,
         settingsStatusOrder: Int? = nil,
         showsHintInProviderDetails: Bool = false,
@@ -61,6 +64,7 @@ public struct ProviderTokenCostConfig: Sendable {
         showsRequestHistory: Bool = true,
         hintPlacement: ProviderTokenCostHintPlacement = .afterRequestHistory,
         chartEstimateDisclaimer: ProviderTokenCostHint? = nil,
+        chartEstimateDisclaimerResolver: (@Sendable (_ historyLabel: String?) -> ProviderTokenCostHint?)? = nil,
         chartCalendar: Calendar? = nil,
         presentation: ProviderTokenHistoryPresentation = .costAndTokens)
     {
@@ -68,6 +72,7 @@ public struct ProviderTokenCostConfig: Sendable {
         self.noDataMessage = noDataMessage
         self.isUsageUnavailable = isUsageUnavailable
         self.menuHintLines = menuHintLines
+        self.menuHintLinesResolver = menuHintLinesResolver
         self.supportsTokenSnapshot = supportsTokenSnapshot
         self.settingsStatusOrder = settingsStatusOrder
         self.showsHintInProviderDetails = showsHintInProviderDetails
@@ -78,8 +83,17 @@ public struct ProviderTokenCostConfig: Sendable {
         self.showsRequestHistory = showsRequestHistory
         self.hintPlacement = hintPlacement
         self.chartEstimateDisclaimer = chartEstimateDisclaimer
+        self.chartEstimateDisclaimerResolver = chartEstimateDisclaimerResolver
         self.chartCalendar = chartCalendar
         self.presentation = presentation
+    }
+
+    public func resolvedMenuHintLines(for snapshot: CostUsageTokenSnapshot) -> [ProviderTokenCostHint] {
+        self.menuHintLinesResolver?(snapshot) ?? self.menuHintLines
+    }
+
+    public func resolvedChartEstimateDisclaimer(historyLabel: String?) -> ProviderTokenCostHint? {
+        self.chartEstimateDisclaimerResolver?(historyLabel) ?? self.chartEstimateDisclaimer
     }
 }
 

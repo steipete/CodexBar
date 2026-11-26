@@ -83,16 +83,16 @@ struct CLICostTests {
     func `session and project grouping keep all local session providers in text mode`() {
         for groupBy in [CodexBarCLI.CostGroupBy.session, .project] {
             let textProviders = CodexBarCLI.costProviders(
-                [.claude, .codex, .pi, .vertexai],
+                [.claude, .codex, .pi, .vertexai, .cursor],
                 groupBy: groupBy,
                 format: .text)
-            #expect(textProviders.map(\.rawValue) == ["claude", "codex", "pi"])
+            #expect(textProviders.map(\.rawValue) == ["claude", "codex", "pi", "vertexai"])
 
             let jsonProviders = CodexBarCLI.costProviders(
-                [.claude, .codex, .pi, .vertexai],
+                [.claude, .codex, .pi, .vertexai, .cursor],
                 groupBy: groupBy,
                 format: .json)
-            #expect(jsonProviders.map(\.rawValue) == ["claude", "codex", "pi", "vertexai"])
+            #expect(jsonProviders.map(\.rawValue) == ["claude", "codex", "pi", "vertexai", "cursor"])
         }
     }
 
@@ -192,9 +192,9 @@ extension CLICostTests {
             daily: [],
             updatedAt: Date(timeIntervalSince1970: 0))
         let output = CodexBarCLI.renderCostText(
-            provider: .vertexai, snapshot: snap, groupBy: .session, useColor: false)
+            provider: .cursor, snapshot: snap, groupBy: .session, useColor: false)
 
-        #expect(output.contains("Vertex AI Cost (API-rate estimate)"))
+        #expect(output.contains("Cursor Cost (API-rate estimate)"))
         #expect(!output.contains("Conversations ("))
     }
 
@@ -947,7 +947,104 @@ extension CLICostTests {
         #expect(payloadProject.path == "/Users/test/projects/alpha")
         #expect(payloadProject.totalTokens == 110)
         #expect(payloadProject.sources.map(\.path) == ["/Users/test/projects/alpha"])
-        #expect(CodexBarCLI.makeCostPayload(provider: .vertexai, snapshot: snap, error: nil).projects.isEmpty)
+        let vertex = CodexBarCLI.makeCostPayload(provider: .vertexai, snapshot: snap, error: nil)
+        #expect(vertex.projects.count == 1)
+        #expect(vertex.projects.first?.name == "alpha")
+        #expect(CodexBarCLI.makeCostPayload(provider: .cursor, snapshot: snap, error: nil).projects.isEmpty)
+    }
+
+    @Test
+    func `vertexai supports cli cost provider selection and project and session text grouping`() {
+        #expect(CodexBarCLI.costProviders(from: .single(.vertexai)) == [.vertexai])
+        #expect(CodexBarCLI.costSupportedProviderNames().contains("Vertex AI"))
+
+        let activityDate = Date(timeIntervalSince1970: 1_750_000_000)
+        let project = CostUsageProjectBreakdown(
+            name: "vertex-service",
+            path: "/Users/test/dev/vertex-service",
+            totalTokens: 500,
+            totalCostUSD: 0.75,
+            daily: [],
+            modelBreakdowns: nil)
+        let session = CostUsageSessionBreakdown(
+            sessionID: "vertex-session-abcdef123456",
+            lastActivity: activityDate,
+            inputTokens: 300,
+            cachedInputTokens: 0,
+            outputTokens: 200,
+            totalTokens: 500,
+            requestCount: 4,
+            costUSD: 0.75,
+            modelBreakdowns: [CostUsageDailyReport.ModelBreakdown(modelName: "claude-sonnet-4-5", costUSD: 0.75)])
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: 500,
+            sessionCostUSD: 0.75,
+            last30DaysTokens: 500,
+            last30DaysCostUSD: 0.75,
+            historyDays: 30,
+            daily: [],
+            projects: [project],
+            sessions: [session],
+            updatedAt: activityDate)
+
+        let projectText = CodexBarCLI.renderCostText(
+            provider: .vertexai,
+            snapshot: snapshot,
+            groupBy: .project,
+            useColor: false)
+        #expect(projectText.contains("Vertex AI Cost (API-rate estimate)"))
+        #expect(projectText.contains("Projects (Last 30 days):"))
+        #expect(projectText.contains("vertex-service: $0.75 · 500 tokens"))
+
+        let sessionText = CodexBarCLI.renderCostText(
+            provider: .vertexai,
+            snapshot: snapshot,
+            groupBy: .session,
+            useColor: false)
+        #expect(sessionText.contains("Conversations (Last 30 days):"))
+        #expect(sessionText.contains("Session vert...ef123456: $0.75 · 500 tokens · 4 requests"))
+    }
+
+    @Test
+    func `vertexai CLI cost text uses dynamic cloud estimate footer`() {
+        let now = Date(timeIntervalSince1970: 1_750_000_000)
+        let cloudSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: 500,
+            sessionCostUSD: 0.75,
+            last30DaysTokens: 500,
+            last30DaysCostUSD: 0.75,
+            historyDays: 30,
+            historyLabel: "Last 30 days (Cloud est.)",
+            daily: [],
+            updatedAt: now)
+        let cloudOutput = CodexBarCLI.renderCostText(provider: .vertexai, snapshot: cloudSnapshot, useColor: false)
+        #expect(cloudOutput.contains(VertexAIProviderDescriptor.cloudEstimateHintText))
+        #expect(!cloudOutput.contains(UsageFormatter.costEstimateHint))
+
+        let combinedSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: 500,
+            sessionCostUSD: 0.75,
+            last30DaysTokens: 500,
+            last30DaysCostUSD: 0.75,
+            historyDays: 30,
+            historyLabel: "Last 30 days (Cloud + Local est.)",
+            daily: [],
+            updatedAt: now)
+        let combinedOutput = CodexBarCLI.renderCostText(
+            provider: .vertexai, snapshot: combinedSnapshot, useColor: false)
+        #expect(combinedOutput.contains(VertexAIProviderDescriptor.estimateHintText))
+
+        let localSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: 500,
+            sessionCostUSD: 0.75,
+            last30DaysTokens: 500,
+            last30DaysCostUSD: 0.75,
+            historyDays: 30,
+            historyLabel: nil,
+            daily: [],
+            updatedAt: now)
+        let localOutput = CodexBarCLI.renderCostText(provider: .vertexai, snapshot: localSnapshot, useColor: false)
+        #expect(localOutput.contains(UsageFormatter.costEstimateHint))
     }
 }
 

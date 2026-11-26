@@ -35,6 +35,15 @@ public struct ProviderIntentPayload: Codable, Sendable {
     public var claudeSwapEnabled: Bool?
     public var claudeSwapShowSingleAccount: Bool?
     public var antigravityPrioritizeExhaustedQuotas: Bool?
+    /// Three-state on purpose (matching accentColor): nil means an older sender omitted the field,
+    /// empty string or false means the sender cleared the setting back to default.
+    public var vertexAIProjectIDOverride: String?
+    public var vertexAIRegionFilter: String?
+    public var vertexAIModelFilter: String?
+    public var vertexAIPrimaryBarMetric: String?
+    public var vertexAITelemetryCostSource: String?
+    public var vertexAIAllowClaudeFallback: Bool?
+    public var vertexAIEstimateCloudCost: Bool?
     public var quotaWarnings: QuotaWarningConfig?
     /// Three-state on purpose. Nil means the sending Mac never reported the field, which is what an
     /// older client that predates accent colors sends. An empty string means the user cleared the
@@ -61,6 +70,24 @@ public struct ProviderIntentPayload: Codable, Sendable {
         self.claudeSwapEnabled = config.claudeSwapEnabled
         self.claudeSwapShowSingleAccount = config.claudeSwapShowSingleAccount
         self.antigravityPrioritizeExhaustedQuotas = config.antigravityPrioritizeExhaustedQuotas
+        // Provider-specific by design: only Vertex AI configs emit three-state vertexAI* reset markers in CloudKit.
+        if config.id == .vertexai {
+            self.vertexAIProjectIDOverride = config.vertexAIProjectIDOverride ?? ""
+            self.vertexAIRegionFilter = config.vertexAIRegionFilter ?? ""
+            self.vertexAIModelFilter = config.vertexAIModelFilter ?? ""
+            self.vertexAIPrimaryBarMetric = config.vertexAIPrimaryBarMetric ?? ""
+            self.vertexAITelemetryCostSource = config.vertexAITelemetryCostSource ?? ""
+            self.vertexAIAllowClaudeFallback = config.vertexAIAllowClaudeFallback ?? false
+            self.vertexAIEstimateCloudCost = config.vertexAIEstimateCloudCost ?? false
+        } else {
+            self.vertexAIProjectIDOverride = config.vertexAIProjectIDOverride
+            self.vertexAIRegionFilter = config.vertexAIRegionFilter
+            self.vertexAIModelFilter = config.vertexAIModelFilter
+            self.vertexAIPrimaryBarMetric = config.vertexAIPrimaryBarMetric
+            self.vertexAITelemetryCostSource = config.vertexAITelemetryCostSource
+            self.vertexAIAllowClaudeFallback = config.vertexAIAllowClaudeFallback
+            self.vertexAIEstimateCloudCost = config.vertexAIEstimateCloudCost
+        }
         self.quotaWarnings = config.quotaWarnings
         // Always report, so that clearing an override propagates as an empty string.
         self.accentColor = config.accentColor ?? ""
@@ -97,6 +124,7 @@ public struct ProviderIntentPayload: Codable, Sendable {
         result.claudeSwapEnabled = self.claudeSwapEnabled
         result.claudeSwapShowSingleAccount = self.claudeSwapShowSingleAccount
         result.antigravityPrioritizeExhaustedQuotas = self.antigravityPrioritizeExhaustedQuotas
+        self.applyVertexAISettings(to: &result)
         result.quotaWarnings = self.quotaWarnings
         // An older client omits the field entirely. Keep the local color rather than erase it.
         if let accentColor = self.accentColor {
@@ -144,6 +172,30 @@ public struct ProviderIntentPayload: Codable, Sendable {
             }
         }
         return result
+    }
+
+    private func applyVertexAISettings(to result: inout ProviderConfig) {
+        if let vertexAIProjectIDOverride = self.vertexAIProjectIDOverride {
+            result.vertexAIProjectIDOverride = vertexAIProjectIDOverride.isEmpty ? nil : vertexAIProjectIDOverride
+        }
+        if let vertexAIRegionFilter = self.vertexAIRegionFilter {
+            result.vertexAIRegionFilter = vertexAIRegionFilter.isEmpty ? nil : vertexAIRegionFilter
+        }
+        if let vertexAIModelFilter = self.vertexAIModelFilter {
+            result.vertexAIModelFilter = vertexAIModelFilter.isEmpty ? nil : vertexAIModelFilter
+        }
+        if let vertexAIPrimaryBarMetric = self.vertexAIPrimaryBarMetric {
+            result.vertexAIPrimaryBarMetric = vertexAIPrimaryBarMetric.isEmpty ? nil : vertexAIPrimaryBarMetric
+        }
+        if let vertexAITelemetryCostSource = self.vertexAITelemetryCostSource {
+            result.vertexAITelemetryCostSource = vertexAITelemetryCostSource.isEmpty ? nil : vertexAITelemetryCostSource
+        }
+        if let vertexAIAllowClaudeFallback = self.vertexAIAllowClaudeFallback {
+            result.vertexAIAllowClaudeFallback = vertexAIAllowClaudeFallback ? true : nil
+        }
+        if let vertexAIEstimateCloudCost = self.vertexAIEstimateCloudCost {
+            result.vertexAIEstimateCloudCost = vertexAIEstimateCloudCost ? true : nil
+        }
     }
 
     public static func secretFields(
