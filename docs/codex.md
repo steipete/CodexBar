@@ -405,6 +405,9 @@ there is no `auth.json`. Local cost estimates do not require account identity or
 Managed and profile homes retain their separate history scopes; a home already represented by a visible account
 is not added again as a local source. This does not read the CLI's keyring credentials.
 
+Changed native scans update affected day/model buckets in one transaction. Under-budget refreshes use SQLite’s
+normal WAL checkpoint cadence. Retention still reclaims space when it enforces storage budgets.
+
 Each Codex home keeps its scan progress, discovery, coverage, and daily totals in the existing shared SQLite store.
 Switching homes does not reset another home's completed history or pending work, and retention only prunes the
 selected home's rows. Existing singleton state is migrated in place to its recorded home (or the default home when

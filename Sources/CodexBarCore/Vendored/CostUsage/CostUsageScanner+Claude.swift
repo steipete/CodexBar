@@ -134,6 +134,7 @@ extension CostUsageScanner {
         range: CostUsageDayRange,
         providerFilter: ClaudeLogProviderFilter,
         startOffset: Int64 = 0,
+        maxBytesToRead: Int64? = nil,
         pricingResolver: CostUsagePricing.ClaudeResolver,
         recordDay: ((String) -> Void)? = nil,
         projectPaths: ClaudeSessionProjectPaths? = nil,
@@ -158,19 +159,16 @@ extension CostUsageScanner {
         let prefixBytes = maxLineBytes
         let costScale = 1_000_000_000.0
 
-        let parsedBytes: Int64
-        do {
-            parsedBytes = try CostUsageJsonl.scan(
-                fileURL: fileURL,
+        let parsedBytes = try Self.withClaudeTranscript(fileURL) { source in
+            try CostUsageJsonl.scan(
+                fileURL: source,
                 offset: startOffset,
                 maxLineBytes: maxLineBytes,
                 prefixBytes: prefixBytes,
+                maxBytesToRead: maxBytesToRead,
                 checkCancellation: checkCancellation,
                 onLine: { line in
-                    guard !line.bytes.isEmpty else { return }
-                    guard !line.wasTruncated else { return }
-                    guard line.bytes.containsAscii(#""type":"assistant""#) else { return }
-                    guard line.bytes.containsAscii(#""usage""#) else { return }
+                    guard Self.isClaudeUsageCandidate(line) else { return }
                     let couldContainMetadata = providerFilter != .all && Self.couldContainVertexAIMetadata(line.bytes)
                     if providerFilter == .vertexAIOnly, !couldContainMetadata,
                        !line.bytes.containsAscii("@"), !line.bytes.containsAscii("_vrtx_")
@@ -280,14 +278,13 @@ extension CostUsageScanner {
                         }
                     }
                 })
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch {
-            parsedBytes = startOffset
         }
-
         let rows = Self.orderedClaudeRows(keyed: keyedRows, unkeyed: unkeyedRows)
         return ClaudeParseResult(rows: rows, parsedBytes: parsedBytes)
+    }
+
+    static func isClaudeUsageCandidate(_ line: CostUsageJsonl.Line) -> Bool {
+        !line.wasTruncated && line.bytes.containsAscii(#""type":"assistant""#) && line.bytes.containsAscii(#""usage""#)
     }
 
     private static func claudeOneHourCacheCreationTokens(usage: ClaudeJSONObject, total: Int) -> Int {
@@ -636,6 +633,7 @@ extension CostUsageScanner {
         var sourceFileIDs: [String: String]
         var sourceDayBounds: [String: CostUsageClaudeDayBounds]
         var sourceProjectPaths: [String: [String: String]]
+        var appendBoundaries: [String: ClaudeAppendBoundary]
         let previousWindow: (since: String, until: String)?
         let range: CostUsageDayRange
         let providerFilter: ClaudeLogProviderFilter
@@ -659,7 +657,18 @@ extension CostUsageScanner {
            cached.size == stamp.size,
            !state.changedPaths.contains(path)
         {
-            if !state.forceFullScan { return }
+            if !state.forceFullScan {
+                // Adopt an unmodified legacy checkpoint before a future append. Once the source
+                // has changed we cannot reconstruct this evidence from its new bytes.
+                let url = URL(fileURLWithPath: path)
+                if state.appendBoundaries[path] == nil, url.pathExtension.lowercased() != "gz",
+                   cached.parsedBytes == cached.size, let rows = cached.claudeRows,
+                   rows.allSatisfy({ $0.timestampUnixMs != nil })
+                {
+                    state.appendBoundaries[path] = try ClaudeAppendBoundary.read(url, size: stamp.size)
+                }
+                return
+            }
             if let previous = state.previousWindow, let bounds = state.sourceDayBounds[path] {
                 if bounds.isOutside(since: state.range.scanSinceKey, until: state.range.scanUntilKey) {
                     state.cache.files[path]?.claudeRows = []
@@ -674,10 +683,16 @@ extension CostUsageScanner {
             }
         }
 
-        let startOffset: Int64 = if let cached, sameFile, !state.forceFullScan,
+        let url = URL(fileURLWithPath: path)
+        let compressed = url.pathExtension.lowercased() == "gz"
+        let boundary = compressed ? nil : try ClaudeAppendBoundary.read(url, size: stamp.size)
+        let previousBoundary = state.appendBoundaries[path]
+        let startOffset: Int64 = if let cached, sameFile, !compressed, !state.forceFullScan,
                                     stamp.size > cached.size,
                                     cached.claudeRows != nil,
-                                    let parsedBytes = cached.parsedBytes, parsedBytes > 0, parsedBytes <= stamp.size
+                                    let parsedBytes = cached.parsedBytes, parsedBytes > 0, parsedBytes <= cached.size,
+                                    let previousBoundary, previousBoundary.endsAtNewline || parsedBytes < cached.size,
+                                    try ClaudeAppendBoundary.read(url, size: cached.size) == previousBoundary
         {
             parsedBytes
         } else {
@@ -696,6 +711,7 @@ extension CostUsageScanner {
             range: state.range,
             providerFilter: state.providerFilter,
             startOffset: startOffset,
+            maxBytesToRead: compressed ? nil : stamp.size - startOffset,
             pricingResolver: state.pricingResolver,
             recordDay: { dayBounds?.include($0) },
             projectPaths: projectPaths,
@@ -706,14 +722,20 @@ extension CostUsageScanner {
             mtimeUnixMs: stamp.mtimeUnixMs,
             size: stamp.size,
             days: [:],
-            parsedBytes: parsed.parsedBytes,
+            parsedBytes: compressed ? nil : parsed.parsedBytes,
             codexCostCacheComplete: true,
             claudeRows: rows)
+        guard let current = try CostUsageClaudeFileStamp.readIfPresent(at: url), current.fileID == stamp.fileID,
+              try current == stamp || (!compressed && current.size > stamp.size &&
+                  ClaudeAppendBoundary.read(url, size: stamp.size) == boundary)
+        else { throw CocoaError(.fileReadUnknown) }
+        // Old rows without a timestamp can use file mtime for session activity. Their report must refresh on growth.
+        state.appendBoundaries[path] = rows.contains(where: { $0.timestampUnixMs == nil }) ? nil : boundary
         state.cache.files[path] = usage
         state.sourceFileIDs[path] = stamp.fileID
         // Only a complete source scan can certify that no filtered timestamp lies beyond these bounds.
         let sourceKey = state.sourceFileIDs.index(forKey: path).map { state.sourceFileIDs[$0].key } ?? path
-        state.sourceDayBounds[sourceKey] = parsed.parsedBytes == stamp.size ? dayBounds : nil
+        state.sourceDayBounds[sourceKey] = !compressed && parsed.parsedBytes == stamp.size ? dayBounds : nil
         state.sourceProjectPaths[sourceKey] = projectPaths.bySession.isEmpty ? nil : projectPaths.bySession
     }
 
@@ -731,7 +753,7 @@ extension CostUsageScanner {
             guard let existingRootPath = try rootCandidates.first(where: { try Self.claudeRootExists(atPath: $0) })
             else { continue }
             let existingRoot = existingRootPath == rootPath ? root : URL(fileURLWithPath: existingRootPath)
-            if existingRoot.pathExtension == "jsonl",
+            if Self.claudeTranscriptName(existingRoot) != nil,
                let stamp = try CostUsageClaudeFileStamp.readIfPresent(at: existingRoot)
             {
                 inventory[existingRoot.path] = stamp
@@ -758,13 +780,17 @@ extension CostUsageScanner {
 
             for case let url as URL in enumerator {
                 try checkCancellation?()
-                guard url.pathExtension.lowercased() == "jsonl" else { continue }
+                guard Self.claudeTranscriptName(url) != nil else { continue }
                 guard let stamp = try CostUsageClaudeFileStamp.readIfPresent(at: url), stamp.size > 0 else { continue }
                 inventory[url.path] = stamp
             }
             if let enumerationError { throw enumerationError }
         }
-        return inventory
+        // A compressor can briefly leave both versions of the same rotation in place.
+        return inventory.filter { path, _ in
+            let url = URL(fileURLWithPath: path)
+            return url.pathExtension.lowercased() != "gz" || inventory[url.deletingPathExtension().path] == nil
+        }
     }
 
     static func loadClaudeDaily(
@@ -822,9 +848,10 @@ extension CostUsageScanner {
         if !options.forceRescan,
            let priorMemo,
            reportContext == nil || priorMemo.hasWindowScopedRows,
-           priorMemo.sourceInventory == sourceInventory,
            priorMemo.reportKey == reportKey,
-           !buildsBreakdowns || priorMemo.breakdowns != nil
+           !buildsBreakdowns || priorMemo.breakdowns != nil,
+           try priorMemo.sourceInventory == sourceInventory || priorMemo.ignoredAppends.matches(
+               sourceInventory, entry: priorMemo, checkCancellation: checkCancellation)
         {
             try checkCancellation?()
             return ClaudeReportProjections(
@@ -844,7 +871,11 @@ extension CostUsageScanner {
         // Matching bounds alone cannot prove that legacy partial scans retained each file's narrow-window winner.
         let hasWindowScopedBaseline = priorMemo?.certifiesWindow(reportKey: reportKey, cache: cache) == true
         let needsWindowScopedRebuild = reportContext != nil && !hasWindowScopedBaseline
-        let sourceInventoryChanged = priorMemo.map { $0.sourceInventory != sourceInventory } ?? false
+        let sourceInventoryChanged = priorMemo.map { $0.sourceInventory != sourceInventory } ?? sourceInventory
+            .contains { path, stamp in
+                guard let file = cache.files[path] else { return true }
+                return file.size != stamp.size || file.mtimeUnixMs != stamp.mtimeUnixMs
+            }
         let cacheArtifactChanged = priorMemo.map {
             $0.reportKey.cacheArtifactStamp != cacheArtifactStamp
         } ?? false
@@ -866,6 +897,8 @@ extension CostUsageScanner {
             .forceRescan || windowExpanded || scanConfigurationChanged || needsWindowScopedRebuild
         let pricingResolver = CostUsagePricing.ClaudeResolver(now: now, cacheRoot: options.cacheRoot)
 
+        var appendBoundaries = priorMemo?.reportKey.cacheArtifactStamp == cacheArtifactStamp
+            ? priorMemo?.appendBoundaries ?? [:] : [:]
         if shouldMutateCache {
             try checkCancellation?()
             if options.forceRescan {
@@ -899,6 +932,7 @@ extension CostUsageScanner {
                 sourceFileIDs: artifact.sourceFileIDs,
                 sourceDayBounds: artifact.sourceDayBounds,
                 sourceProjectPaths: artifact.sourceProjectPaths,
+                appendBoundaries: appendBoundaries,
                 previousWindow: previousWindow,
                 range: range,
                 providerFilter: providerFilter,
@@ -913,6 +947,7 @@ extension CostUsageScanner {
             }
             try checkCancellation?()
 
+            appendBoundaries = scanState.appendBoundaries.filter { sourceInventory[$0.key] != nil }
             cache = scanState.cache
             artifact.sourceFileIDs = scanState.sourceFileIDs.filter { sourceInventory[$0.key] != nil }
             artifact.sourceDayBounds = scanState.sourceDayBounds.filter { sourceInventory[$0.key] != nil }
@@ -984,6 +1019,7 @@ extension CostUsageScanner {
                 reportKey: reportKey,
                 report: report,
                 breakdowns: breakdowns,
+                appendBoundaries: appendBoundaries,
                 hasWindowScopedRows: hasWindowScopedBaseline || (shouldMutateCache && forceFullScan))
             return ClaudeReportProjections(daily: stored.report, breakdowns: breakdowns)
         }

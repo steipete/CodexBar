@@ -24,8 +24,7 @@ struct CostUsageClaudeReportWireTests {
         fixture.store()
         let manifest = try #require(JSONSerialization
             .jsonObject(with: Data(contentsOf: fixture.memoURL)) as? [String: Any])
-        let encoded = try #require(manifest["header"] as? String)
-        #expect(Data(base64Encoded: encoded) == expected)
+        #expect(try claudeFragmentHeaderForTesting(manifest, at: fixture.memoURL) == expected)
         let loaded = try #require(fixture.load())
         #expect(loaded.reportKey == fixture.envelope.reportKey)
         #expect(loaded.sourceInventory == fixture.envelope.sourceInventory)

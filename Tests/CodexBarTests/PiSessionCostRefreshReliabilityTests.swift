@@ -5,6 +5,29 @@ import Testing
 @Suite(.serialized)
 struct PiSessionCostRefreshReliabilityTests {
     @Test
+    func `idle refresh advances freshness without replacing the history artifact`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 4, day: 8)
+        let options = try self.options(env)
+        _ = try env.writePiSessionFile(
+            relativePath: "usage.jsonl",
+            contents: env.jsonl([self.row(env, day, input: 10)]))
+        let first = try self.scan(day, now: day, options: options)
+        let url = PiSessionCostCacheIO.cacheFileURL(cacheRoot: env.cacheRoot)
+        let original = try #require(CostUsageClaudeFileStamp.read(at: url))
+        let next = day.addingTimeInterval(120)
+        let result = try self.scan(day, now: next, options: options)
+        #expect(result.report.data == first.report.data)
+        #expect(CostUsageClaudeFileStamp.read(at: url) == original)
+        #expect(PiSessionCostCacheIO.load(cacheRoot: env.cacheRoot)
+            .lastScanUnixMs == Int64(next.timeIntervalSince1970 * 1000))
+        try Data(contentsOf: url).write(to: url, options: .atomic)
+        #expect(PiSessionCostCacheIO.load(cacheRoot: env.cacheRoot)
+            .lastScanUnixMs == Int64(day.timeIntervalSince1970 * 1000))
+    }
+
+    @Test
     func `an incomplete catalog reprice retains the previous report until every source can be repriced`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

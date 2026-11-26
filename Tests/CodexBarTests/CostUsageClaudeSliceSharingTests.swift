@@ -70,6 +70,7 @@ struct CostUsageClaudeSliceSharingTests {
                     sourceInventory: entry.sourceInventory,
                     reportKey: entry.reportKey,
                     report: entry.report,
+                    appendBoundaries: entry.appendBoundaries,
                     hasWindowScopedRows: entry.hasWindowScopedRows)
             }
         }

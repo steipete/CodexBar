@@ -214,7 +214,8 @@ enum PiSessionCostScanner {
             since: since,
             until: until,
             calendar: options.calendar)
-        var cache = PiSessionCostCacheIO.load(cacheRoot: options.cacheRoot)
+        let snapshot = PiSessionCostCacheIO.loadSnapshot(cacheRoot: options.cacheRoot)
+        var cache = snapshot.cache
         if cache.timeZoneIdentifier != range.calendar.timeZone.identifier {
             cache = PiSessionCostCache()
         }
@@ -239,38 +240,21 @@ enum PiSessionCostScanner {
             || refreshMs == 0
             || cache.lastScanUnixMs == 0
             || nowMs - cache.lastScanUnixMs > refreshMs
+        var dirtyFiles = false
         var scanIsComplete = roots.allSatisfy(\.resolutionIsComplete)
 
         if shouldRefresh {
             try checkCancellation?()
             let startCutoff = self.dateFromDayKey(range.scanSinceKey, calendar: range.calendar) ?? since
-            var files: [SessionFileCandidate] = []
-            var seenFilePaths = Set<String>()
-            for (rootIndex, root) in roots.enumerated() {
-                guard root.resolutionIsComplete else { continue }
-                let result = self.listPiSessionFiles(
-                    root: root.url,
-                    startCutoffLocal: startCutoff,
-                    calendar: range.calendar,
-                    missingIsKnownEmpty: root.missingIsKnownEmpty)
-                scanIsComplete = scanIsComplete && result.isComplete
-                for url in result.files {
-                    let canonicalURL = self.canonicalSessionFileURL(url)
-                    guard seenFilePaths.insert(canonicalURL.path).inserted else { continue }
-                    files.append(SessionFileCandidate(url: canonicalURL, rootIndex: rootIndex))
-                }
-            }
-            files.sort { lhs, rhs in
-                lhs.rootIndex == rhs.rootIndex
-                    ? lhs.url.path < rhs.url.path
-                    : lhs.rootIndex < rhs.rootIndex
-            }
+            let files = self.sessionFileCandidates(
+                roots: roots, startCutoff: startCutoff, calendar: range.calendar, scanIsComplete: &scanIsComplete)
             let filePathsInScan = Set(files.map(\.url.path))
 
             for file in files {
                 let fileIsComplete = try self.scanPiSessionFile(
                     fileURL: file.url,
                     cache: &cache,
+                    dirtyFiles: &dirtyFiles,
                     context: ScanContext(
                         range: range,
                         forceRescan: options.forceRescan || windowExpanded || pricingChanged || invalidCache,
@@ -283,6 +267,7 @@ enum PiSessionCostScanner {
             if scanIsComplete {
                 for key in cache.files.keys where !filePathsInScan.contains(key) {
                     cache.files.removeValue(forKey: key)
+                    dirtyFiles = true
                 }
             }
 
@@ -337,7 +322,12 @@ enum PiSessionCostScanner {
             cache.sessionRootsFingerprint = sessionRootsFingerprint
             cache.lastScanUnixMs = nowMs
             try checkCancellation?()
-            PiSessionCostCacheIO.save(cache: cache, cacheRoot: options.cacheRoot, calendar: range.calendar)
+            PiSessionCostCacheIO.saveRefresh(
+                cache,
+                previous: snapshot,
+                filesChanged: dirtyFiles || invalidCache,
+                cacheRoot: options.cacheRoot,
+                calendar: range.calendar)
         }
         // Provider-specific by design: Pi aggregates native vendor mirrors and standalone backend sessions.
         let lastScanAt = cache.lastScanUnixMs > 0
@@ -487,6 +477,36 @@ enum PiSessionCostScanner {
             return true
         }
         return false
+    }
+
+    private static func sessionFileCandidates(
+        roots: [SessionRoot],
+        startCutoff: Date,
+        calendar: Calendar,
+        scanIsComplete: inout Bool) -> [SessionFileCandidate]
+    {
+        var files: [SessionFileCandidate] = []
+        var seenFilePaths = Set<String>()
+        for (rootIndex, root) in roots.enumerated() {
+            guard root.resolutionIsComplete else { continue }
+            let result = self.listPiSessionFiles(
+                root: root.url,
+                startCutoffLocal: startCutoff,
+                calendar: calendar,
+                missingIsKnownEmpty: root.missingIsKnownEmpty)
+            scanIsComplete = scanIsComplete && result.isComplete
+            for url in result.files {
+                let canonicalURL = self.canonicalSessionFileURL(url)
+                guard seenFilePaths.insert(canonicalURL.path).inserted else { continue }
+                files.append(SessionFileCandidate(url: canonicalURL, rootIndex: rootIndex))
+            }
+        }
+        files.sort { lhs, rhs in
+            lhs.rootIndex == rhs.rootIndex
+                ? lhs.url.path < rhs.url.path
+                : lhs.rootIndex < rhs.rootIndex
+        }
+        return files
     }
 
     private static func defaultSessionRoots(
@@ -796,6 +816,7 @@ enum PiSessionCostScanner {
     private static func scanPiSessionFile(
         fileURL: URL,
         cache: inout PiSessionCostCache,
+        dirtyFiles: inout Bool,
         context: ScanContext)
         throws -> Bool
     {
@@ -807,6 +828,7 @@ enum PiSessionCostScanner {
         let size = metadata.size
 
         func storeFileUsage(_ usage: PiSessionFileUsage) {
+            dirtyFiles = true
             cache.files[path] = usage
         }
 
