@@ -41,17 +41,19 @@ extension AntigravityLocalReader {
     }
 
     /// Verifies whether any mtime-skipped SQLite database contains a supported Antigravity history table
-    /// without scanning payload rows, so rolling-window scans preserve foreign-only `.unavailable` semantics.
+    /// without scanning payload rows, so rolling-window scans preserve foreign-only `.unavailable` semantics
+    /// and drifted or unsupported schemas keep coverage `.partial`.
     static func probeSkippedDatabasesForHistorySource(
         _ paths: [URL],
         budget: Budget) throws -> (containsHistorySource: Bool, isComplete: Bool)
     {
         #if canImport(SQLite3) || canImport(CSQLite3)
         var probed = 0
+        var foundSupported = false
         var sawUnsupported = false
         for url in paths {
             guard budget.statistics.files + probed < budget.limits.databases else {
-                return (containsHistorySource: false, isComplete: false)
+                return (containsHistorySource: foundSupported, isComplete: false)
             }
             do {
                 try budget.check()
@@ -60,7 +62,7 @@ extension AntigravityLocalReader {
                 let support = try self.probeDatabaseSchemaSupport(url, budget: budget)
                 switch support {
                 case .supported:
-                    return (containsHistorySource: true, isComplete: true)
+                    foundSupported = true
                 case .foreign:
                     budget.statistics.foreignDatabases += 1
                 case .unsupported:
@@ -69,10 +71,13 @@ extension AntigravityLocalReader {
             } catch ScanFailure.schemaExhausted {
                 sawUnsupported = true
             } catch ScanFailure.exhausted {
-                return (containsHistorySource: false, isComplete: false)
+                return (containsHistorySource: foundSupported, isComplete: false)
+            }
+            if foundSupported, sawUnsupported {
+                return (containsHistorySource: true, isComplete: false)
             }
         }
-        return (containsHistorySource: false, isComplete: !sawUnsupported)
+        return (containsHistorySource: foundSupported, isComplete: !sawUnsupported)
         #else
         return (containsHistorySource: false, isComplete: paths.isEmpty)
         #endif

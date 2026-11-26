@@ -906,6 +906,43 @@ extension AntigravityLocalScanTests {
         #expect(snapshot.last30DaysTokens == nil)
     }
 
+    @Test(arguments: [true, false])
+    func `rolling window scan with old drifted and supported databases stays partial regardless of order`(
+        driftedIsNewer: Bool) async throws
+    {
+        let fixture = try Fixture()
+        let july28 = try #require(CostUsageLocalDay.date(fromKey: "2026-07-28", calendar: Fixture.calendar))
+        let july27 = try #require(CostUsageLocalDay.date(fromKey: "2026-07-27", calendar: Fixture.calendar))
+        let root = fixture.context.databaseRoots[0]
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let driftedDB = root.appendingPathComponent("drifted.db")
+        let handle = try Fixture.open(driftedDB)
+        defer { sqlite3_close(handle) }
+        try Fixture.execute(handle, "CREATE TABLE gen_metadata (idx INTEGER, wrong TEXT)")
+        try FileManager.default.setAttributes(
+            [.modificationDate: driftedIsNewer ? july28 : july27],
+            ofItemAtPath: driftedDB.path)
+
+        let supportedDB = try fixture.database("history", blobs: [Fixture.blob(seconds: 1_700_000_000)])
+        try FileManager.default.setAttributes(
+            [.modificationDate: driftedIsNewer ? july27 : july28],
+            ofItemAtPath: supportedDB.path)
+        try fixture.jsonl([Fixture.cacheUsage])
+
+        let report = try fixture.report(dayRange: ("2026-07-29", "2026-08-27"))
+        #expect(report.coverage == .partial)
+        #expect(!report.isAvailable)
+        #expect(report.report.data.isEmpty)
+        #expect(report.statistics.foreignDatabases == 0)
+        #expect(report.statistics.sqliteHandlesOpened == report.statistics.sqliteHandlesClosed)
+
+        let snapshot = try await fixture.snapshot()
+        #expect(!snapshot.historyCoverageIsEstablished)
+        #expect(snapshot.daily.isEmpty)
+        #expect(snapshot.last30DaysTokens == nil)
+    }
+
     @Test
     func `directoryEntries cap overflow retains prior databases and avoids tokscale fallback when empty`() throws {
         let fixture = try Fixture()
