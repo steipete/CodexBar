@@ -1504,6 +1504,9 @@ extension CodexBarCLI {
                     provider: provider,
                     antigravityAdditionalProfileHomes:
                     context.config.providerConfig(for: provider.instanceID)?.antigravityAdditionalProfileHomes ?? [],
+                    antigravityScanOptions:
+                    context.config.providerConfig(for: provider.instanceID)?.resolvedAntigravityScanOptions
+                        ?? .defaultOptions,
                     now: context.now,
                     forceRefresh: false,
                     historyDays: context.period.days(now: context.now, calendar: context.calendar),

@@ -154,6 +154,8 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
             }
         }
         let plan = Self.resolvePlan(response: codeAssist, claims: claims)
+        let accountMetadata = Self.resolveAccountMetadata(from: codeAssist)
+        let credits = Self.resolveCredits(from: codeAssist)
         do {
             let response: AntigravityQuotaSummaryResponse = try await Self.fetchQuotaResponse(
                 endpoint: "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
@@ -162,14 +164,23 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
                 timeout: min(self.timeout, 2),
                 dataLoader: self.dataLoader)
             try Task.checkCancellation()
-            let summary = try response.snapshot(accountEmail: claims.email, accountPlan: plan, source: .remote)
+            let summary = try response.snapshot(
+                accountEmail: claims.email,
+                accountPlan: plan,
+                source: .remote,
+                credits: credits,
+                accountMetadata: accountMetadata)
             if summary.hasKnownQuotaSummary {
                 if plan?.lowercased() == "free",
                    try summary.toUsageSnapshot().extraRateWindows?.contains(where: {
                        $0.usageKnown && $0.window.windowMinutes == 300
                    }) == true
                 {
-                    return try response.snapshot(accountEmail: claims.email, source: .remote)
+                    return try response.snapshot(
+                        accountEmail: claims.email,
+                        source: .remote,
+                        credits: credits,
+                        accountMetadata: accountMetadata)
                 }
                 return summary
             }
@@ -191,7 +202,9 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
             modelQuotas: models,
             accountEmail: claims.email,
             accountPlan: plan,
-            source: .remote)
+            source: .remote,
+            credits: credits,
+            accountMetadata: accountMetadata)
     }
 
     private static func loadCodeAssist(
@@ -484,6 +497,34 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         }
     }
 
+    private static func resolveAccountMetadata(from response: CodeAssistResponse) -> AntigravityAccountMetadata? {
+        let upgradeURI = response.upgradeSubscriptionUri?.trimmedNonEmpty
+            ?? response.paidTier?.upgradeSubscriptionUri?.trimmedNonEmpty
+            ?? response.currentTier?.upgradeSubscriptionUri?.trimmedNonEmpty
+        let metadata = AntigravityAccountMetadata(
+            g1Tier: response.g1Tier?.trimmedNonEmpty,
+            gcpManaged: response.gcpManaged,
+            manageSubscriptionURI: response.manageSubscriptionUri?.trimmedNonEmpty,
+            upgradeSubscriptionURI: upgradeURI)
+        return metadata.isEmpty ? nil : metadata
+    }
+
+    private static func resolveCredits(from response: CodeAssistResponse) -> AntigravityCreditsSnapshot? {
+        let rawCredits = response.paidTier?.availableCredits ?? response.currentTier?.availableCredits ?? []
+        let tierCredits = rawCredits.compactMap { credit -> AntigravityTierCredit? in
+            let type = credit.creditType?.trimmedNonEmpty
+            let amount = credit.creditAmount?.value
+            let minimum = credit.minimumCreditAmountForUsage?.value
+            guard type != nil || amount != nil || minimum != nil else { return nil }
+            return AntigravityTierCredit(
+                creditType: type,
+                creditAmount: amount,
+                minimumCreditAmountForUsage: minimum)
+        }
+        guard !tierCredits.isEmpty else { return nil }
+        return AntigravityCreditsSnapshot(availableCredits: tierCredits)
+    }
+
     private static func pickOnboardTier(from response: CodeAssistResponse) -> String? {
         response.allowedTiers?
             .first(where: { $0.isDefault == true && $0.id?.trimmedNonEmpty != nil })?.id?.trimmedNonEmpty
@@ -627,6 +668,10 @@ private struct CodeAssistResponse: Decodable {
     let allowedTiers: [AllowedTier]?
     let ineligibleTiers: [IneligibleTier]?
     let cloudaicompanionProject: ProjectReference?
+    let g1Tier: String?
+    let gcpManaged: Bool?
+    let manageSubscriptionUri: String?
+    let upgradeSubscriptionUri: String?
 
     var projectID: String? {
         self.cloudaicompanionProject?.value?.trimmedNonEmpty
@@ -647,11 +692,21 @@ private struct CodeAssistPlanInfo: Decodable {
 private struct TierInfo: Decodable {
     let id: String?
     let name: String?
+    let upgradeSubscriptionUri: String?
+    let availableCredits: [CodeAssistCredit]?
 }
 
 private struct AllowedTier: Decodable {
     let id: String?
     let isDefault: Bool?
+    let upgradeSubscriptionUri: String?
+    let availableCredits: [CodeAssistCredit]?
+}
+
+private struct CodeAssistCredit: Decodable {
+    let creditType: String?
+    let creditAmount: FlexibleInt?
+    let minimumCreditAmountForUsage: FlexibleInt?
 }
 
 private struct IneligibleTier: Decodable {
@@ -681,6 +736,7 @@ private struct RetrieveUserQuotaResponse: Decodable {
 private struct RetrieveUserQuotaBucket: Decodable {
     let modelId: String?
     let remainingFraction: Double?
+    let remainingAmount: FlexibleInt?
     let resetTime: String?
 }
 

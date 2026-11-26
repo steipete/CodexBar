@@ -14,7 +14,15 @@ struct CommandModelConfigResponse: Decodable {
 
 struct UserStatus: Decodable {
     let email: String?
+    let name: String?
+    let pro: Bool?
+    let g1Tier: String?
+    let teamId: String?
+    let teamStatus: CodeValue?
+    let userUsedPromptCredits: FlexibleInt?
+    let userUsedFlowCredits: FlexibleInt?
     let planStatus: PlanStatus?
+    let planInfo: PlanInfo?
     let cascadeModelConfigData: ModelConfigData?
     let userTier: UserTier?
 }
@@ -32,6 +40,15 @@ struct UserTier: Decodable {
 
 struct PlanStatus: Decodable {
     let planInfo: PlanInfo?
+    let planStart: String?
+    let planEnd: String?
+    let availablePromptCredits: FlexibleInt?
+    let usedPromptCredits: FlexibleInt?
+    let availableFlowCredits: FlexibleInt?
+    let usedFlowCredits: FlexibleInt?
+    let availableFlexCredits: FlexibleInt?
+    let usedFlexCredits: FlexibleInt?
+    let topUpStatus: TopUpStatus?
 }
 
 struct PlanInfo: Decodable {
@@ -40,6 +57,13 @@ struct PlanInfo: Decodable {
     let displayName: String?
     let productName: String?
     let planShortName: String?
+    let teamsTier: CodeValue?
+    let monthlyPromptCredits: FlexibleInt?
+    let monthlyFlowCredits: FlexibleInt?
+    let monthlyFlexCreditPurchaseAmount: FlexibleInt?
+    let canBuyMoreCredits: Bool?
+    let isTeams: Bool?
+    let isEnterprise: Bool?
 
     var preferredName: String? {
         let candidates = [
@@ -55,6 +79,15 @@ struct PlanInfo: Decodable {
         }
         return nil
     }
+}
+
+struct TopUpStatus: Decodable {
+    let topUpTransactionStatus: CodeValue?
+    let topUpEnabled: Bool?
+    let monthlyTopUpAmount: FlexibleInt?
+    let topUpSpent: FlexibleInt?
+    let topUpIncrement: FlexibleInt?
+    let topUpCriteriaMet: Bool?
 }
 
 struct ModelConfigData: Decodable {
@@ -107,5 +140,49 @@ enum CodeValue: Decodable {
             return
         }
         throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unsupported code type")
+    }
+}
+
+/// Decodes proto3 `int64` / `int32` JSON values serialized as numbers or quoted strings.
+struct FlexibleInt: Decodable, Sendable, Equatable {
+    let value: Int
+
+    init(_ value: Int) {
+        self.value = value
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let intValue = try? container.decode(Int.self) {
+            self.value = intValue
+            return
+        }
+        if let int64Value = try? container.decode(Int64.self),
+           let exact = Int(exactly: int64Value)
+        {
+            self.value = exact
+            return
+        }
+        if let doubleValue = try? container.decode(Double.self),
+           doubleValue.isFinite,
+           let exact = Int(exactly: doubleValue)
+        {
+            self.value = exact
+            return
+        }
+        if let stringValue = try? container.decode(String.self) {
+            let trimmed = stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let intValue = Int(trimmed) {
+                self.value = intValue
+                return
+            }
+            if let int64Value = Int64(trimmed),
+               let exact = Int(exactly: int64Value)
+            {
+                self.value = exact
+                return
+            }
+        }
+        throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unsupported integer value")
     }
 }

@@ -519,6 +519,7 @@ extension UsageStore {
             snapshot: snapshot,
             supportsAverage: self.settings.menuBarMetricSupportsAverage(for: provider),
             antigravityPrioritizeExhaustedQuotas: self.settings.antigravityPrioritizeExhaustedQuotas,
+            antigravityPrimaryPool: self.settings.antigravityPrimaryPoolPreference,
             now: now)
         return MenuBarLayoutWindows(
             primary: snapshot?.primary,

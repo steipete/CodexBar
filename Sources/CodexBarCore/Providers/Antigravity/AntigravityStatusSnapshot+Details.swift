@@ -1,0 +1,307 @@
+import Foundation
+
+extension AntigravityStatusSnapshot {
+    static func matchingWindow(
+        in windows: [NamedRateWindow],
+        for pool: AntigravityPrimaryPoolPreference) -> NamedRateWindow?
+    {
+        guard pool != .auto else { return nil }
+        if let preferredID = pool.preferredQuotaSummaryWindowID,
+           let exact = windows.first(where: { $0.usageKnown && $0.id == preferredID })
+        {
+            return exact
+        }
+        guard let family = pool.preferredFamily, let minutes = pool.preferredWindowMinutes else { return nil }
+        return windows.first {
+            $0.usageKnown &&
+                AntigravityQuotaFamilyVisibility.knownFamily(windowID: $0.id, title: $0.title) == family &&
+                $0.window.windowMinutes == minutes
+        }
+    }
+
+    static func reorderedWindows(
+        _ windows: [NamedRateWindow],
+        primaryPool: AntigravityPrimaryPoolPreference) -> [NamedRateWindow]
+    {
+        guard primaryPool != .auto,
+              let selected = self.matchingWindow(in: windows, for: primaryPool),
+              let index = windows.firstIndex(where: { $0.id == selected.id }),
+              index > 0
+        else { return windows }
+        var reordered = windows
+        let chosen = reordered.remove(at: index)
+        reordered.insert(chosen, at: 0)
+        return reordered
+    }
+
+    static func subscriptionDates(
+        credits: AntigravityCreditsSnapshot?,
+        accountMetadata: AntigravityAccountMetadata?,
+        accountPlan: String?) -> (renewsAt: Date?, expiresAt: Date?)
+    {
+        guard let planEnd = credits?.planEnd else { return (nil, nil) }
+        let normalizedPlan = accountPlan?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let isFreeOrTrialPlan = normalizedPlan == "free" || normalizedPlan == "trial" || normalizedPlan == "starter"
+        let isTrialTeams = accountMetadata?.teamsTier?.lowercased().contains("trial") == true
+        let isPaid = credits?.topUpStatus?.enabled == true ||
+            accountMetadata?.isPro == true ||
+            accountMetadata?.g1Tier != nil ||
+            (accountMetadata?.teamsTier != nil && !isTrialTeams) ||
+            (normalizedPlan != nil && !normalizedPlan!.isEmpty && !isFreeOrTrialPlan)
+        return isPaid ? (planEnd, nil) : (nil, planEnd)
+    }
+
+    static func detailSections(
+        quotaSummary: AntigravityQuotaSummary?,
+        credits: AntigravityCreditsSnapshot?,
+        showCredits: Bool) -> [ProviderDetailSection]
+    {
+        var sections: [ProviderDetailSection] = []
+        if showCredits, let credits, let section = Self.creditsDetailSection(from: credits) {
+            sections.append(section)
+        }
+        if let quotaSummary {
+            if let availabilitySection = Self.modelAvailabilityDetailSection(from: quotaSummary) {
+                sections.append(availabilitySection)
+            }
+            if let amountSection = Self.bucketAmountDetailSection(from: quotaSummary) {
+                sections.append(amountSection)
+            }
+        }
+        return Array(sections.prefix(ProviderDetailSection.maximumSectionsPerSnapshot))
+    }
+
+    private static func creditsDetailSection(from credits: AntigravityCreditsSnapshot) -> ProviderDetailSection? {
+        var rows: [ProviderDetailSection.Row] = []
+        if let prompt = credits.prompt,
+           let row = Self.creditPoolRow(id: "antigravity-credits-prompt", label: "Prompt credits", pool: prompt)
+        {
+            rows.append(row)
+        }
+        if let flow = credits.flow,
+           (flow.monthly ?? 0) > 0 || (flow.available ?? 0) > 0 || (flow.used ?? 0) > 0 || (flow.userUsed ?? 0) > 0,
+           let row = Self.creditPoolRow(id: "antigravity-credits-flow", label: "Flow credits", pool: flow)
+        {
+            rows.append(row)
+        }
+        if let flex = credits.flex,
+           flex.available != nil || flex.used != nil || credits.topUpStatus?.enabled == true
+        {
+            let value = flex.available.map { "\($0) remaining" }
+                ?? (credits.topUpStatus?.enabled == true ? "Auto top-up on" : "Available")
+            var secondaryParts: [String] = []
+            if let used = flex.used {
+                secondaryParts.append("\(used) used")
+            }
+            if credits.topUpStatus?.enabled == true, flex.available != nil {
+                secondaryParts.append("Auto top-up on")
+            }
+            let secondary = secondaryParts.isEmpty ? nil : secondaryParts.joined(separator: " · ")
+            rows.append(.makeRow(
+                id: "antigravity-credits-flex",
+                label: "Flex credits",
+                value: value,
+                secondaryValue: secondary,
+                usageValue: flex.used.map(Double.init)))
+        } else if credits.topUpStatus?.enabled == true {
+            var secondaryParts: [String] = []
+            if let spent = credits.topUpStatus?.spent {
+                secondaryParts.append("\(spent) spent")
+            }
+            if let monthly = credits.topUpStatus?.monthlyAmount {
+                secondaryParts.append("\(monthly) monthly cap")
+            }
+            rows.append(.makeRow(
+                id: "antigravity-credits-topup",
+                label: "Auto top-up",
+                value: "Enabled",
+                secondaryValue: secondaryParts.isEmpty ? nil : secondaryParts.joined(separator: " · ")))
+        }
+        if rows.isEmpty, let tierCredits = credits.availableCredits, !tierCredits.isEmpty {
+            for (index, tierCredit) in tierCredits.enumerated() {
+                guard let amount = tierCredit.creditAmount else { continue }
+                let label = Self.humanizedCreditType(tierCredit.creditType)
+                let secondary = tierCredit.minimumCreditAmountForUsage.map { "Min \($0) for usage" }
+                rows.append(.makeRow(
+                    id: "antigravity-credits-tier-\(index)",
+                    label: label,
+                    value: "\(amount) remaining",
+                    secondaryValue: secondary,
+                    usageValue: Double(amount)))
+            }
+        }
+        guard !rows.isEmpty else { return nil }
+        return ProviderDetailSection.makeSection(title: "Credits", rows: rows)
+    }
+
+    private static func creditPoolRow(
+        id: String,
+        label: String,
+        pool: AntigravityCreditPool) -> ProviderDetailSection.Row?
+    {
+        guard !pool.isEmpty else { return nil }
+        let used = pool.used ?? pool.userUsed
+        let value: String
+        let progress: ProviderDetailSection.Row.Progress?
+        if let available = pool.available, let monthly = pool.monthly, monthly > 0 {
+            value = "\(available) / \(monthly)"
+            let computedUsed = Double(max(0, monthly - available))
+            progress = .makeProgress(used: computedUsed, total: Double(monthly))
+        } else if let available = pool.available {
+            value = "\(available) remaining"
+            progress = nil
+        } else if let used, let monthly = pool.monthly, monthly > 0 {
+            let remaining = max(0, monthly - used)
+            value = "\(remaining) / \(monthly)"
+            progress = .makeProgress(used: Double(max(0, used)), total: Double(monthly))
+        } else if let used {
+            value = "\(used) used"
+            progress = nil
+        } else {
+            return nil
+        }
+        let secondaryValue = used.map { "\($0) used" }
+        return .makeRow(
+            id: id,
+            label: label,
+            value: value,
+            secondaryValue: secondaryValue,
+            progress: progress,
+            usageValue: used.map(Double.init))
+    }
+
+    private static func humanizedCreditType(_ raw: String?) -> String {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return "Available credits"
+        }
+        let lowered = trimmed.lowercased()
+        if lowered.contains("google_one") { return "Google One credits" }
+        let words = trimmed.split(separator: "_").map { word -> String in
+            let lower = word.lowercased()
+            if lower == "ai" { return "AI" }
+            return lower.prefix(1).uppercased() + lower.dropFirst()
+        }
+        return words.isEmpty ? "Available credits" : words.joined(separator: " ")
+    }
+
+    private static func modelAvailabilityDetailSection(
+        from quotaSummary: AntigravityQuotaSummary) -> ProviderDetailSection?
+    {
+        let nonOperational = quotaSummary.modelAvailabilities
+            .filter { _, availability in
+                let upper = availability.state.uppercased()
+                return upper != "MODEL_AVAILABILITY_STATE_OPERATIONAL" &&
+                    upper != "MODEL_AVAILABILITY_STATE_UNSPECIFIED" &&
+                    upper != "0" &&
+                    upper != "1"
+            }
+            .sorted { $0.key < $1.key }
+        guard !nonOperational.isEmpty else { return nil }
+        let rows = nonOperational.prefix(ProviderDetailSection.maximumRowsPerSection).map { modelID, availability in
+            ProviderDetailSection.Row.makeRow(
+                id: "antigravity-availability-\(modelID)",
+                label: Self.humanizedModelID(modelID),
+                value: Self.humanizedAvailabilityState(availability.state),
+                secondaryValue: availability.explanation)
+        }
+        return ProviderDetailSection.makeSection(title: "Model availability", rows: rows)
+    }
+
+    private static func humanizedAvailabilityState(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let prefix = "MODEL_AVAILABILITY_STATE_"
+        let stripped = trimmed.uppercased().hasPrefix(prefix)
+            ? String(trimmed.dropFirst(prefix.count))
+            : trimmed
+        let words = stripped.split(separator: "_").map { $0.lowercased() }
+        guard let first = words.first else { return trimmed }
+        return ([first.prefix(1).uppercased() + first.dropFirst()] + words.dropFirst()).joined(separator: " ")
+    }
+
+    private static func bucketAmountDetailSection(
+        from quotaSummary: AntigravityQuotaSummary) -> ProviderDetailSection?
+    {
+        var rows: [ProviderDetailSection.Row] = []
+        for group in quotaSummary.groups {
+            let groupTitle = Self.displayTitle(forQuotaGroup: group)
+            for bucket in group.buckets {
+                guard let remainingAmount = bucket.remainingAmount else { continue }
+                let bucketTitle = Self.displayTitle(forQuotaBucket: bucket)
+                rows.append(.makeRow(
+                    id: "antigravity-amount-\(bucket.bucketId)",
+                    label: "\(groupTitle) \(bucketTitle)",
+                    value: "\(remainingAmount) remaining",
+                    usageValue: Double(remainingAmount)))
+            }
+        }
+        guard !rows.isEmpty else { return nil }
+        return ProviderDetailSection.makeSection(title: "Bucket amounts", rows: rows)
+    }
+}
+
+extension AntigravityStatusProbe {
+    static func creditsSnapshot(
+        from userStatus: UserStatus,
+        planInfo: PlanInfo?) -> AntigravityCreditsSnapshot?
+    {
+        let planStatus = userStatus.planStatus
+        let prompt = AntigravityCreditPool(
+            available: planStatus?.availablePromptCredits?.value,
+            used: planStatus?.usedPromptCredits?.value,
+            userUsed: userStatus.userUsedPromptCredits?.value,
+            monthly: planInfo?.monthlyPromptCredits?.value)
+        let flow = AntigravityCreditPool(
+            available: planStatus?.availableFlowCredits?.value,
+            used: planStatus?.usedFlowCredits?.value,
+            userUsed: userStatus.userUsedFlowCredits?.value,
+            monthly: planInfo?.monthlyFlowCredits?.value)
+        let flex = AntigravityCreditPool(
+            available: planStatus?.availableFlexCredits?.value,
+            used: planStatus?.usedFlexCredits?.value)
+        let topUp: AntigravityTopUpStatus? = planStatus?.topUpStatus.flatMap { raw in
+            let txStatus = Self.nonUnspecifiedEnumValue(raw.topUpTransactionStatus)
+            let resolved = AntigravityTopUpStatus(
+                enabled: raw.topUpEnabled,
+                criteriaMet: raw.topUpCriteriaMet,
+                monthlyAmount: raw.monthlyTopUpAmount?.value,
+                spent: raw.topUpSpent?.value,
+                increment: raw.topUpIncrement?.value,
+                transactionStatus: txStatus)
+            return resolved.isEmpty ? nil : resolved
+        }
+        let snapshot = AntigravityCreditsSnapshot(
+            prompt: prompt.isEmpty ? nil : prompt,
+            flow: flow.isEmpty ? nil : flow,
+            flex: flex.isEmpty ? nil : flex,
+            monthlyFlexPurchaseAmount: planInfo?.monthlyFlexCreditPurchaseAmount?.value,
+            canBuyMoreCredits: planInfo?.canBuyMoreCredits,
+            topUpStatus: topUp,
+            planStart: planStatus?.planStart.flatMap(Self.parseDate),
+            planEnd: planStatus?.planEnd.flatMap(Self.parseDate))
+        return snapshot.isEmpty ? nil : snapshot
+    }
+
+    static func accountMetadata(
+        from userStatus: UserStatus,
+        planInfo: PlanInfo?) -> AntigravityAccountMetadata?
+    {
+        let metadata = AntigravityAccountMetadata(
+            g1Tier: userStatus.g1Tier?.trimmedNonEmpty,
+            teamsTier: Self.nonUnspecifiedEnumValue(planInfo?.teamsTier),
+            isPro: userStatus.pro,
+            teamId: userStatus.teamId?.trimmedNonEmpty,
+            teamStatus: Self.nonUnspecifiedEnumValue(userStatus.teamStatus))
+        return metadata.isEmpty ? nil : metadata
+    }
+
+    private static func nonUnspecifiedEnumValue(_ code: CodeValue?) -> String? {
+        guard let raw = code?.rawValue.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
+            return nil
+        }
+        let upper = raw.uppercased()
+        if upper == "0" || upper.hasSuffix("_UNSPECIFIED") {
+            return nil
+        }
+        return raw
+    }
+}

@@ -177,6 +177,8 @@ extension UsageStore {
             : self.environmentBase
         let antigravityProfileHomes = self.settings.providerConfig(for: provider)?
             .antigravityAdditionalProfileHomes ?? []
+        let antigravityScanOptions = self.settings.providerConfig(for: provider)?
+            .resolvedAntigravityScanOptions ?? .defaultOptions
         let scopedCodexHomePath = codexHomePath?.trimmingCharacters(in: .whitespacesAndNewlines)
         // Provider-specific by design: only Pi-owned, Claude-inclusive, or unscoped Codex scans consume Pi roots.
         let shouldDiscoverPiSessionProcessContexts = provider == .pi ||
@@ -199,6 +201,7 @@ extension UsageStore {
                     claudeConfigDirectory: claudeDirectory,
                     environment: environment,
                     antigravityAdditionalProfileHomes: antigravityProfileHomes,
+                    antigravityScanOptions: antigravityScanOptions,
                     now: now,
                     forceRefresh: force,
                     allowVertexClaudeFallback: !self.isEnabled(.claude),
@@ -490,9 +493,9 @@ extension UsageStore {
     func tokenCostScope(for provider: UsageProvider) -> (codexHomePath: String?, signature: String) {
         // Provider-specific by design: Antigravity history ownership includes every explicitly selected Gemini home.
         if provider == .antigravity {
-            return (nil, "antigravity:" + CostUsageFetcher.antigravityHistoryScope(
-                environment: self.environmentBase,
-                additionalProfileHomes: self.settings.antigravityAdditionalProfileHomes))
+            return (
+                nil,
+                "antigravity:" + self.antigravityHistoryScope())
         }
         if provider == .claude, let directory = self.claudeTokenCostConfigDirectory {
             return (nil, "claude:directory:\(directory)")
@@ -532,6 +535,13 @@ extension UsageStore {
                 .path
             return (unavailablePath, "codex:profile-unavailable")
         }
+    }
+
+    private func antigravityHistoryScope() -> String {
+        CostUsageFetcher.antigravityHistoryScope(
+            environment: self.environmentBase,
+            additionalProfileHomes: self.settings.antigravityAdditionalProfileHomes,
+            scanOptions: self.settings.antigravityLocalScanOptions)
     }
 
     func tokenSnapshotScopeSignature(for provider: UsageProvider) -> String {

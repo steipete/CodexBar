@@ -88,6 +88,8 @@ public struct AntigravityStatusSnapshot: Sendable {
     public let accountPlan: String?
     public let source: AntigravityModelQuotaSource
     let quotaSummary: AntigravityQuotaSummary?
+    public let credits: AntigravityCreditsSnapshot?
+    public let accountMetadata: AntigravityAccountMetadata?
 
     var hasKnownQuotaSummary: Bool {
         self.quotaSummary?.groups.contains { group in
@@ -99,34 +101,46 @@ public struct AntigravityStatusSnapshot: Sendable {
         modelQuotas: [AntigravityModelQuota],
         accountEmail: String?,
         accountPlan: String?,
-        source: AntigravityModelQuotaSource = .remote)
+        source: AntigravityModelQuotaSource = .remote,
+        credits: AntigravityCreditsSnapshot? = nil,
+        accountMetadata: AntigravityAccountMetadata? = nil)
     {
         self.modelQuotas = modelQuotas
         self.accountEmail = accountEmail
         self.accountPlan = accountPlan
         self.source = source
         self.quotaSummary = nil
+        self.credits = credits
+        self.accountMetadata = accountMetadata
     }
 
     init(
         quotaSummary: AntigravityQuotaSummary,
         accountEmail: String?,
         accountPlan: String?,
-        source: AntigravityModelQuotaSource = .local)
+        source: AntigravityModelQuotaSource = .local,
+        credits: AntigravityCreditsSnapshot? = nil,
+        accountMetadata: AntigravityAccountMetadata? = nil)
     {
         self.modelQuotas = []
         self.accountEmail = accountEmail
         self.accountPlan = accountPlan
         self.source = source
         self.quotaSummary = quotaSummary
+        self.credits = credits
+        self.accountMetadata = accountMetadata
     }
 
-    public func toUsageSnapshot() throws -> UsageSnapshot {
+    public func toUsageSnapshot(
+        primaryPool: AntigravityPrimaryPoolPreference = .auto,
+        showCredits: Bool = true) throws -> UsageSnapshot
+    {
         if let quotaSummary {
             return try Self.usageSnapshot(
                 from: quotaSummary,
-                accountEmail: self.accountEmail,
-                accountPlan: self.accountPlan)
+                snapshot: self,
+                primaryPool: primaryPool,
+                showCredits: showCredits)
         }
 
         guard !self.modelQuotas.isEmpty else {
@@ -152,8 +166,14 @@ public struct AntigravityStatusSnapshot: Sendable {
             nil
         }
 
-        let primary = primaryQuota.map(Self.rateWindow(for:))
-        let secondary = secondaryQuota.map(Self.rateWindow(for:))
+        let geminiWindow = primaryQuota.map(Self.rateWindow(for:))
+        let claudeGPTWindow = secondaryQuota.map(Self.rateWindow(for:))
+        let (primary, secondary): (RateWindow?, RateWindow?) = switch primaryPool.preferredFamily {
+        case .claudeGPT:
+            (claudeGPTWindow ?? geminiWindow, claudeGPTWindow != nil ? geminiWindow : nil)
+        default:
+            (geminiWindow, claudeGPTWindow)
+        }
         let extraWindows = Self.extraRateWindows(
             from: normalized,
             summaryCandidates: summaryCandidates,
@@ -166,11 +186,24 @@ public struct AntigravityStatusSnapshot: Sendable {
             accountEmail: self.accountEmail,
             accountOrganization: nil,
             loginMethod: self.accountPlan)
+        let details = Self.detailSections(
+            quotaSummary: nil,
+            credits: self.credits,
+            showCredits: showCredits)
+        let subscriptionDates = Self.subscriptionDates(
+            credits: self.credits,
+            accountMetadata: self.accountMetadata,
+            accountPlan: self.accountPlan)
         return UsageSnapshot(
             primary: primary,
             secondary: secondary,
             tertiary: nil,
             extraRateWindows: extraWindows.isEmpty ? nil : extraWindows,
+            details: details,
+            antigravityCredits: self.credits,
+            antigravityAccountMetadata: self.accountMetadata,
+            subscriptionExpiresAt: subscriptionDates.expiresAt,
+            subscriptionRenewsAt: subscriptionDates.renewsAt,
             updatedAt: Date(),
             identity: identity)
     }
@@ -179,47 +212,81 @@ public struct AntigravityStatusSnapshot: Sendable {
         guard let snapshot else { return self }
         let accountEmail = snapshot.accountEmail ?? self.accountEmail
         let accountPlan = snapshot.accountPlan ?? self.accountPlan
+        let mergedCredits = self.credits?.merging(snapshot.credits) ?? snapshot.credits
+        let mergedMetadata = self.accountMetadata?.merging(snapshot.accountMetadata) ?? snapshot.accountMetadata
         if let quotaSummary {
             return AntigravityStatusSnapshot(
                 quotaSummary: quotaSummary,
                 accountEmail: accountEmail,
                 accountPlan: accountPlan,
-                source: self.source)
+                source: self.source,
+                credits: mergedCredits,
+                accountMetadata: mergedMetadata)
         }
         return AntigravityStatusSnapshot(
             modelQuotas: self.modelQuotas,
             accountEmail: accountEmail,
             accountPlan: accountPlan,
-            source: self.source)
+            source: self.source,
+            credits: mergedCredits,
+            accountMetadata: mergedMetadata)
     }
 
     private static func usageSnapshot(
         from quotaSummary: AntigravityQuotaSummary,
-        accountEmail: String?,
-        accountPlan: String?) throws -> UsageSnapshot
+        snapshot: AntigravityStatusSnapshot,
+        primaryPool: AntigravityPrimaryPoolPreference,
+        showCredits: Bool) throws -> UsageSnapshot
     {
         let namedWindows = Self.quotaSummaryWindows(from: quotaSummary)
         guard !namedWindows.isEmpty else {
             throw AntigravityStatusProbeError.parseFailed("No quota buckets available")
         }
 
-        let primary = Self.quotaSummaryRepresentative(
-            matching: .gemini,
-            in: namedWindows)
-        let secondary = Self.quotaSummaryRepresentative(
-            matching: .claudeGPT,
-            in: namedWindows)
+        let orderedWindows = Self.reorderedWindows(namedWindows, primaryPool: primaryPool)
+        let (primary, secondary): (RateWindow?, RateWindow?) = if primaryPool != .auto,
+                                                                  let selected = Self.matchingWindow(
+                                                                      in: orderedWindows,
+                                                                      for: primaryPool)
+        {
+            (
+                selected.window,
+                Self.quotaSummaryRepresentative(
+                    matching: primaryPool.secondaryFamily ?? .claudeGPT,
+                    in: orderedWindows))
+        } else {
+            (
+                Self.quotaSummaryRepresentative(
+                    matching: .gemini,
+                    in: orderedWindows),
+                Self.quotaSummaryRepresentative(
+                    matching: .claudeGPT,
+                    in: orderedWindows))
+        }
 
         let identity = ProviderIdentitySnapshot(
             providerID: .antigravity,
-            accountEmail: accountEmail,
+            accountEmail: snapshot.accountEmail,
             accountOrganization: nil,
-            loginMethod: accountPlan)
+            loginMethod: snapshot.accountPlan)
+        let details = Self.detailSections(
+            quotaSummary: quotaSummary,
+            credits: snapshot.credits,
+            showCredits: showCredits)
+        let subscriptionDates = Self.subscriptionDates(
+            credits: snapshot.credits,
+            accountMetadata: snapshot.accountMetadata,
+            accountPlan: snapshot.accountPlan)
         return UsageSnapshot(
             primary: primary,
             secondary: secondary,
             tertiary: nil,
-            extraRateWindows: namedWindows,
+            extraRateWindows: orderedWindows,
+            details: details,
+            antigravityCredits: snapshot.credits,
+            antigravityAccountMetadata: snapshot.accountMetadata,
+            subscriptionExpiresAt: subscriptionDates.expiresAt,
+            subscriptionRenewsAt: subscriptionDates.renewsAt,
             updatedAt: Date(),
             identity: identity)
     }
@@ -291,7 +358,7 @@ public struct AntigravityStatusSnapshot: Sendable {
         return max(0, min(100, remainingFraction * 100))
     }
 
-    private static func displayTitle(forQuotaGroup group: AntigravityQuotaSummaryGroup) -> String {
+    static func displayTitle(forQuotaGroup group: AntigravityQuotaSummaryGroup) -> String {
         let title = group.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         let lowercasedTitle = title.lowercased()
         // A versioned group such as "Gemini 4 Argon" is a separate quota; keep its own name.
@@ -304,7 +371,7 @@ public struct AntigravityStatusSnapshot: Sendable {
         return title.isEmpty ? "Quota" : title
     }
 
-    private static func displayTitle(forQuotaBucket bucket: AntigravityQuotaSummaryBucket) -> String {
+    static func displayTitle(forQuotaBucket bucket: AntigravityQuotaSummaryBucket) -> String {
         switch self.quotaBucketKind(for: bucket) {
         case .session:
             "5-hour"
@@ -372,10 +439,10 @@ public struct AntigravityStatusSnapshot: Sendable {
 
     private static func quotaCadenceCandidates(for bucket: AntigravityQuotaSummaryBucket) -> Set<String> {
         let explicit = bucket.window?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let values = if let explicit, !explicit.isEmpty {
+        let values: [String] = if let explicit, !explicit.isEmpty {
             [explicit]
         } else {
-            [bucket.bucketId, bucket.displayName]
+            [bucket.bucketId, bucket.displayName] + [bucket.refreshWindowLabel].compactMap(\.self)
         }
         var candidates: Set<String> = []
         for rawValue in values {
@@ -983,14 +1050,19 @@ public struct AntigravityStatusProbe: Sendable {
         let modelConfigs = userStatus.cascadeModelConfigData?.clientModelConfigs ?? []
         let models = modelConfigs.compactMap(Self.quotaFromConfig(_:))
         let email = userStatus.email
+        let resolvedPlanInfo = userStatus.planStatus?.planInfo ?? userStatus.planInfo
         // Prefer userTier.name (actual subscription tier) over planInfo (shows "Pro" for Ultra users)
-        let planName = userStatus.userTier?.preferredName ?? userStatus.planStatus?.planInfo?.preferredName
+        let planName = userStatus.userTier?.preferredName ?? resolvedPlanInfo?.preferredName
+        let credits = Self.creditsSnapshot(from: userStatus, planInfo: resolvedPlanInfo)
+        let accountMetadata = Self.accountMetadata(from: userStatus, planInfo: resolvedPlanInfo)
 
         return AntigravityStatusSnapshot(
             modelQuotas: models,
             accountEmail: email,
             accountPlan: planName,
-            source: .local)
+            source: .local,
+            credits: credits,
+            accountMetadata: accountMetadata)
     }
 
     static func parsePlanInfoSummary(_ data: Data) throws -> AntigravityPlanInfoSummary? {

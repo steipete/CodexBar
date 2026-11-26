@@ -73,7 +73,8 @@ extension UsageStore {
         // Provider-specific by design: these paths depend on live Codex projection and Antigravity user policy.
         if provider == .antigravity,
            effectivePreference == .automatic,
-           !self.settings.antigravityPrioritizeExhaustedQuotas
+           !self.settings.antigravityPrioritizeExhaustedQuotas,
+           self.settings.antigravityPrimaryPoolPreference == .auto
         {
             return Self.mostConstrainedAntigravityQuotaSummaryWindow(snapshot: snapshot)
         }
@@ -86,6 +87,7 @@ extension UsageStore {
             snapshot: snapshot,
             supportsAverage: self.settings.menuBarMetricSupportsAverage(for: provider),
             antigravityPrioritizeExhaustedQuotas: self.settings.antigravityPrioritizeExhaustedQuotas,
+            antigravityPrimaryPool: self.settings.antigravityPrimaryPoolPreference,
             now: now)
     }
 

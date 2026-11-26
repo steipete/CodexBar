@@ -181,6 +181,7 @@ public struct ProviderMenuBarWindowContext: Sendable {
     public let snapshot: UsageSnapshot
     public let supportsAverage: Bool
     public let prioritizesExhaustedQuotas: Bool
+    public let antigravityPrimaryPool: AntigravityPrimaryPoolPreference
     public let now: Date
 
     public init(
@@ -188,12 +189,14 @@ public struct ProviderMenuBarWindowContext: Sendable {
         snapshot: UsageSnapshot,
         supportsAverage: Bool,
         prioritizesExhaustedQuotas: Bool,
+        antigravityPrimaryPool: AntigravityPrimaryPoolPreference = .auto,
         now: Date)
     {
         self.metric = metric
         self.snapshot = snapshot
         self.supportsAverage = supportsAverage
         self.prioritizesExhaustedQuotas = prioritizesExhaustedQuotas
+        self.antigravityPrimaryPool = antigravityPrimaryPool
         self.now = now
     }
 }

@@ -36,27 +36,38 @@ final class AntigravityLocalFixture: Sendable {
 
     func report(
         environment: [String: String]? = nil,
+        scanOptions: AntigravityLocalScanOptions = .defaultOptions,
         limits: AntigravityLocalReader.Limits = .init(),
+        includeBreakdowns: Bool = false,
+        dayRange: (sinceKey: String, untilKey: String)? = nil,
         clock: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
         checkCancellation: @escaping () throws -> Void = {}) throws -> AntigravityLocalReader.DailyReportResult
     {
         try AntigravityLocalReader.makeDailyReportWithStatus(
-            context: .init(environment: environment ?? self.environment),
+            context: .init(environment: environment ?? self.environment, scanOptions: scanOptions),
             calendar: Self.calendar,
             limits: limits,
+            includeBreakdowns: includeBreakdowns,
+            dayRange: dayRange,
             clock: clock,
             checkCancellation: checkCancellation)
     }
 
-    func snapshot(environment: [String: String]? = nil) async throws -> CostUsageTokenSnapshot {
+    func snapshot(
+        environment: [String: String]? = nil,
+        scanOptions: AntigravityLocalScanOptions = .defaultOptions,
+        historyDays: Int = 30) async throws -> CostUsageTokenSnapshot
+    {
         var options = CostUsageScanner.Options()
         options.calendar = Self.calendar
         options.cacheRoot = self.root.appendingPathComponent("scanner-cache")
         return try await CostUsageFetcher.loadTokenSnapshot(
             provider: .antigravity,
             environment: environment ?? self.environment,
+            antigravityScanOptions: scanOptions,
             now: Self.now,
             forceRefresh: true,
+            historyDays: historyDays,
             allowPricingRefresh: false,
             refreshPricingInBackground: false,
             includePiSessions: false,
@@ -68,7 +79,8 @@ final class AntigravityLocalFixture: Sendable {
         _ session: String = "session-a",
         rootIndex: Int = 0,
         blobs: [[UInt8]] = [],
-        stepBlobs: [[UInt8]]? = nil) throws -> URL
+        stepBlobs: [[UInt8]]? = nil,
+        trajectoryMetadataBlob: [UInt8]? = nil) throws -> URL
     {
         let directory = self.context.databaseRoots[rootIndex]
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -83,6 +95,144 @@ final class AntigravityLocalFixture: Sendable {
             try Self.execute(database, "CREATE TABLE steps (idx INTEGER PRIMARY KEY, metadata BLOB)")
             for (index, blob) in stepBlobs.enumerated() {
                 try Self.insertStep(database, row: Int64(index), blob: blob)
+            }
+        }
+        if let trajectoryMetadataBlob {
+            try Self.addTrajectoryMetadata(database, blob: trajectoryMetadataBlob)
+        }
+        return url
+    }
+
+    struct WorkspaceFixture {
+        var workspaceURI: String?
+        var gitRootURI: String?
+        var repoSlug: String?
+        var repoRemoteURL: String?
+        var repoUpstreamURL: String?
+        var branch: String?
+    }
+
+    static func trajectoryMetadataBlob(
+        workspaces: [WorkspaceFixture] = [],
+        parentCascadeID: String? = nil,
+        rootCascadeID: String? = nil,
+        primaryWorkspaceURI: String? = nil,
+        projectID: String? = nil,
+        opaqueField4Size: Int = 0) -> [UInt8]
+    {
+        var bytes: [UInt8] = []
+        for workspace in workspaces {
+            var entry: [UInt8] = []
+            if let uri = workspace.workspaceURI {
+                entry += self.message(1, Array(uri.utf8))
+            }
+            if let gitRoot = workspace.gitRootURI {
+                entry += self.message(2, Array(gitRoot.utf8))
+            }
+            var repo: [UInt8] = []
+            if let slug = workspace.repoSlug {
+                repo += self.message(1, Array(slug.utf8))
+            }
+            if let remote = workspace.repoRemoteURL {
+                repo += self.message(2, Array(remote.utf8))
+            }
+            if let upstream = workspace.repoUpstreamURL {
+                repo += self.message(3, Array(upstream.utf8))
+            }
+            if !repo.isEmpty || workspace.repoSlug != nil {
+                entry += self.message(3, repo)
+            }
+            if let branch = workspace.branch {
+                entry += self.message(4, Array(branch.utf8))
+            }
+            bytes += self.message(1, entry)
+        }
+        if opaqueField4Size > 0 {
+            bytes += self.message(4, Array(repeating: 0xAA, count: opaqueField4Size))
+        }
+        if let parentCascadeID {
+            bytes += self.message(5, Array(parentCascadeID.utf8))
+        }
+        if let rootCascadeID {
+            bytes += self.message(6, Array(rootCascadeID.utf8))
+        }
+        if let primaryWorkspaceURI {
+            bytes += self.message(7, Array(primaryWorkspaceURI.utf8))
+        }
+        if let projectID {
+            bytes += self.message(18, Array(projectID.utf8))
+        }
+        return bytes
+    }
+
+    static func addTrajectoryMetadata(_ database: OpaquePointer, blob: [UInt8]) throws {
+        try self.execute(database, "CREATE TABLE trajectory_metadata_blob (id TEXT PRIMARY KEY, data BLOB)")
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_prepare_v2(
+            database,
+            "INSERT INTO trajectory_metadata_blob (id, data) VALUES ('main', ?)",
+            -1,
+            &statement,
+            nil) == SQLITE_OK
+        else { throw AntigravityLocalReader.ScanFailure.invalid }
+        let result = blob.withUnsafeBytes { bytes in
+            sqlite3_bind_blob(statement, 1, bytes.baseAddress, Int32(blob.count), nil)
+            return sqlite3_step(statement)
+        }
+        guard result == SQLITE_DONE else { throw AntigravityLocalReader.ScanFailure.invalid }
+    }
+
+    struct ConversationSummaryRowFixture {
+        let conversationID: String
+        let title: String
+        let workspaceURIsJSON: String
+        let projectID: String
+        let parentConversationID: String
+    }
+
+    @discardableResult
+    func conversationSummariesDatabase(
+        relativePath: String = "antigravity/conversation_summaries.db",
+        rows: [ConversationSummaryRowFixture],
+        walMode: Bool = false) throws -> URL
+    {
+        let geminiHome = self.root.appendingPathComponent(".gemini", isDirectory: true)
+        let url = geminiHome.appendingPathComponent(relativePath, isDirectory: false)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let database = try Self.open(url)
+        defer { sqlite3_close(database) }
+        if walMode {
+            try Self.execute(database, "PRAGMA journal_mode=WAL")
+        }
+        try Self.execute(database, """
+        CREATE TABLE conversation_summaries (
+            conversation_id TEXT PRIMARY KEY,
+            title TEXT NOT NULL DEFAULT '',
+            workspace_uris TEXT NOT NULL DEFAULT '',
+            project_id TEXT NOT NULL DEFAULT '',
+            parent_conversation_id TEXT NOT NULL DEFAULT ''
+        )
+        """)
+        for row in rows {
+            var statement: OpaquePointer?
+            defer { sqlite3_finalize(statement) }
+            let sql = """
+            INSERT INTO conversation_summaries
+                (conversation_id, title, workspace_uris, project_id, parent_conversation_id)
+            VALUES (?, ?, ?, ?, ?)
+            """
+            guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK else {
+                throw AntigravityLocalReader.ScanFailure.invalid
+            }
+            let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+            sqlite3_bind_text(statement, 1, row.conversationID, -1, transient)
+            sqlite3_bind_text(statement, 2, row.title, -1, transient)
+            sqlite3_bind_text(statement, 3, row.workspaceURIsJSON, -1, transient)
+            sqlite3_bind_text(statement, 4, row.projectID, -1, transient)
+            sqlite3_bind_text(statement, 5, row.parentConversationID, -1, transient)
+            guard sqlite3_step(statement) == SQLITE_DONE else {
+                throw AntigravityLocalReader.ScanFailure.invalid
             }
         }
         return url

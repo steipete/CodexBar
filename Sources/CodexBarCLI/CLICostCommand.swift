@@ -111,6 +111,8 @@ extension CodexBarCLI {
                     provider: provider,
                     antigravityAdditionalProfileHomes:
                     config.providerConfig(for: provider.instanceID)?.antigravityAdditionalProfileHomes ?? [],
+                    antigravityScanOptions:
+                    config.providerConfig(for: provider.instanceID)?.resolvedAntigravityScanOptions ?? .defaultOptions,
                     now: now,
                     forceRefresh: forceRefresh,
                     historyDays: historyDays,

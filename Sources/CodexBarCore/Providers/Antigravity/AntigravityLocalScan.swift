@@ -1,26 +1,63 @@
 import Foundation
 
 extension AntigravityLocalReader {
+    typealias ScanOptions = AntigravityLocalScanOptions
+
     struct Context: Sendable {
         let home: URL
         let additionalProfileHomes: [String]
+        let scanOptions: ScanOptions
         @ProcessEnvironment private(set) var environment: [String: String]
 
-        init(environment: [String: String], additionalProfileHomes: [String] = []) {
+        init(
+            environment: [String: String],
+            additionalProfileHomes: [String] = [],
+            scanOptions: ScanOptions = .defaultOptions)
+        {
             self.additionalProfileHomes = additionalProfileHomes
+            self.scanOptions = scanOptions
             self.environment = environment
             self.home = environment["HOME"].map { URL(fileURLWithPath: $0, isDirectory: true) }
                 ?? FileManager.default.homeDirectoryForCurrentUser
         }
 
-        var databaseRoots: [URL] {
+        var geminiHomes: [URL] {
             AntigravityOfflineStore.geminiHomeDirectories(
                 home: self.home, env: self.environment, additionalProfileHomes: self.additionalProfileHomes)
-                .flatMap { home in
-                    ["antigravity-cli/conversations", "antigravity", "antigravity/conversations"].map {
-                        home.appendingPathComponent($0, isDirectory: true)
-                    }
-                }
+        }
+
+        var databaseRoots: [URL] {
+            var relativeRoots: [String] = []
+            if self.scanOptions.includeCLIDatabases {
+                relativeRoots.append("antigravity-cli/conversations")
+            }
+            if self.scanOptions.includeDesktopDatabases {
+                relativeRoots.append("antigravity")
+                relativeRoots.append("antigravity/conversations")
+            }
+            return self.geminiHomes.flatMap { home in
+                relativeRoots.map { home.appendingPathComponent($0, isDirectory: true) }
+            }
+        }
+
+        var conversationSummaryDatabases: [URL] {
+            var relativeFiles: [String] = []
+            if self.scanOptions.includeDesktopDatabases {
+                relativeFiles.append("antigravity/conversation_summaries.db")
+            }
+            if self.scanOptions.includeCLIDatabases {
+                relativeFiles.append("antigravity-cli/conversation_summaries.db")
+            }
+            var candidates = self.geminiHomes.flatMap { home in
+                relativeFiles.map { home.appendingPathComponent($0, isDirectory: false) }
+            }
+            candidates.append(contentsOf: self.databaseRoots.map {
+                $0.appendingPathComponent("conversation_summaries.db", isDirectory: false)
+            })
+            var seen = Set<String>()
+            return candidates.filter { url in
+                seen.insert(url.standardizedFileURL.resolvingSymlinksInPath().path).inserted
+            }
         }
 
         var cacheRoot: URL {
@@ -80,6 +117,9 @@ extension AntigravityLocalReader {
         /// Schema text inspected in the current database. The schema allowance applies to each database,
         /// like the entry and column limits, so a long history of small schemas never adds up to it.
         private(set) var databaseSchemaBytes = 0
+        /// Tracks optional breakdown metadata (`trajectory_metadata_blob`, `conversation_summaries.db`)
+        /// separately so large opaque fields never exhaust the token-history `bytes` allowance.
+        var metadataBytes = 0
 
         init(
             limits: Limits,
@@ -95,6 +135,15 @@ extension AntigravityLocalReader {
         func check() throws {
             try self.cancellation()
             guard self.clock() - self.started < self.limits.duration else { throw ScanFailure.exhausted }
+        }
+
+        func canChargeMetadataBytes(_ count: Int) -> Bool {
+            guard count >= 0, count <= self.limits.blobBytes else { return false }
+            let cap = max(self.limits.bytes, 256 * 1024 * 1024)
+            let (sum, overflow) = self.metadataBytes.addingReportingOverflow(count)
+            guard !overflow, sum <= cap else { return false }
+            self.metadataBytes = sum
+            return true
         }
 
         func chargeBytes(_ count: Int) throws {
@@ -189,12 +238,22 @@ extension AntigravityLocalReader {
 
 extension CostUsageFetcher {
     package static func antigravityHistoryScope(
-        environment: [String: String], additionalProfileHomes: [String]) -> String
+        environment: [String: String],
+        additionalProfileHomes: [String],
+        scanOptions: AntigravityLocalScanOptions = .defaultOptions) -> String
     {
         let context = AntigravityLocalReader.Context(
-            environment: environment, additionalProfileHomes: additionalProfileHomes)
-        return Set((context.databaseRoots + [context.cacheRoot])
-            .map { $0.standardizedFileURL.resolvingSymlinksInPath().path })
-            .sorted().joined(separator: "\0")
+            environment: environment,
+            additionalProfileHomes: additionalProfileHomes,
+            scanOptions: scanOptions)
+        var roots = context.databaseRoots
+        if scanOptions.includeTokscaleFallback {
+            roots.append(context.cacheRoot)
+        }
+        let paths = Set(roots.map { $0.standardizedFileURL.resolvingSymlinksInPath().path })
+            .sorted()
+            .joined(separator: "\0")
+        return "\(paths)|desktop=\(scanOptions.includeDesktopDatabases)|cli=\(scanOptions.includeCLIDatabases)|" +
+            "tokscale=\(scanOptions.includeTokscaleFallback)|grouping=\(scanOptions.projectGrouping.rawValue)"
     }
 }
