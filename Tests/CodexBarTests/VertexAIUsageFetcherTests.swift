@@ -884,6 +884,188 @@ struct VertexAIUsageSnapshotEdgeCaseTests {
         #expect(perMinute.usage == 40)
         #expect(perDay.usage == 40)
     }
+
+    @Test
+    func `fetchUsageSnapshot isolates rate usage across multiple base_model buckets`() async throws {
+        let rateMetric = "aiplatform.googleapis.com/generate_content_requests_per_minute_per_project_per_base_model"
+        let prefix = "projects/p/services/aiplatform.googleapis.com/consumerQuotaMetrics/\(rateMetric)"
+        let consumerQuotaJSON = """
+        {
+          "metrics": [
+            {
+              "metric": "\(rateMetric)",
+              "displayName": "Generate content requests",
+              "consumerQuotaLimits": [
+                {
+                  "name": "\(prefix)/limits/PerMinute",
+                  "unit": "1/min/{project}",
+                  "quotaBuckets": [
+                    {
+                      "effectiveLimit": "100",
+                      "dimensions": {"region": "us-central1", "base_model": "gemini-2.5-pro"}
+                    },
+                    {
+                      "effectiveLimit": "50",
+                      "dimensions": {"region": "us-central1", "base_model": "gemini-2.5-flash"}
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+        """
+
+        // Model A (gemini-2.5-pro) has 40 req/min; model B (gemini-2.5-flash) has no traffic.
+        let attributedTransport = VertexAIUsageFetcherTests.routerTransport { url, filter in
+            if url.host == "serviceusage.googleapis.com" {
+                return (200, consumerQuotaJSON)
+            }
+            if filter.contains("quota/rate/net_usage") {
+                return (200, """
+                {
+                  "timeSeries": [
+                    {
+                      "metric": {
+                        "labels": {
+                          "quota_metric": "\(rateMetric)",
+                          "base_model": "gemini-2.5-pro",
+                          "method": "GenerateContent"
+                        }
+                      },
+                      "resource": {"labels": {"location": "us-central1"}},
+                      "points": [
+                        {"interval": {"startTime": "2026-11-26T00:10:00Z"}, "value": {"int64Value": "40"}}
+                      ]
+                    }
+                  ]
+                }
+                """)
+            }
+            return (200, #"{"timeSeries":[]}"#)
+        }
+
+        let now = Date(timeIntervalSince1970: 1_795_653_000)
+        let unfiltered = try await VertexAIUsageFetcher.fetchUsageSnapshot(
+            accessToken: "token",
+            projectId: "proj-1",
+            options: VertexAIQueryOptions(locationFilter: "us-central1", baseModelFilter: nil),
+            now: now,
+            transport: attributedTransport)
+        #expect(unfiltered.rateQuotas.count == 1)
+        let modelABucket = try #require(unfiltered.rateQuotas.first)
+        #expect(modelABucket.baseModel == "gemini-2.5-pro")
+        #expect(modelABucket.usedPercent == 40)
+
+        // Filtering to unused model B must not report model A's traffic.
+        await #expect(throws: VertexAIFetchError.noData) {
+            _ = try await VertexAIUsageFetcher.fetchUsageSnapshot(
+                accessToken: "token",
+                projectId: "proj-1",
+                options: VertexAIQueryOptions(locationFilter: "us-central1", baseModelFilter: "gemini-2.5-flash"),
+                now: now,
+                transport: attributedTransport)
+        }
+
+        // When Monitoring omits base_model across multiple base_model buckets, omit ambiguous percentages.
+        let unattributedTransport = VertexAIUsageFetcherTests.routerTransport { url, filter in
+            if url.host == "serviceusage.googleapis.com" {
+                return (200, consumerQuotaJSON)
+            }
+            if filter.contains("quota/rate/net_usage") {
+                return (200, """
+                {
+                  "timeSeries": [
+                    {
+                      "metric": {"labels": {"quota_metric": "\(rateMetric)", "method": "GenerateContent"}},
+                      "resource": {"labels": {"location": "us-central1"}},
+                      "points": [
+                        {"interval": {"startTime": "2026-11-26T00:10:00Z"}, "value": {"int64Value": "40"}}
+                      ]
+                    }
+                  ]
+                }
+                """)
+            }
+            return (200, #"{"timeSeries":[]}"#)
+        }
+
+        await #expect(throws: VertexAIFetchError.noData) {
+            _ = try await VertexAIUsageFetcher.fetchUsageSnapshot(
+                accessToken: "token",
+                projectId: "proj-1",
+                options: VertexAIQueryOptions(locationFilter: "us-central1", baseModelFilter: "gemini-2.5-flash"),
+                now: now,
+                transport: unattributedTransport)
+        }
+    }
+
+    @Test
+    func `online serving prices aggregate token counts above 200K at base rate without long-context tier`()
+        async throws
+    {
+        let now = Date(timeIntervalSince1970: 1_795_653_000)
+        let isoNow = ISO8601DateFormatter().string(from: now)
+        let labels = #""location":"us-east5","publisher":"anthropic","model_user_id":"claude-sonnet-4-5@20250929""#
+        let tokenJSON = """
+        {"timeSeries":[
+          {"metric":{"labels":{"type":"input","request_type":"shared"}},
+           "resource":{"labels":{\(labels)}},
+           "points":[{"interval":{"startTime":"\(isoNow)"},"value":{"int64Value":"300000"}}]}
+        ]}
+        """
+        let invocationJSON = """
+        {"timeSeries":[
+          {"metric":{"labels":{"request_type":"shared"}},
+           "resource":{"labels":{\(labels)}},
+           "points":[{"interval":{"startTime":"\(isoNow)"},"value":{"int64Value":"2"}}]}
+        ]}
+        """
+
+        let decoder = JSONDecoder()
+        let tokenSeries = try decoder.decode(
+            VertexAIUsageFetcher.MonitoringTimeSeriesResponse.self,
+            from: Data(tokenJSON.utf8)).timeSeries ?? []
+        let invocationSeries = try decoder.decode(
+            VertexAIUsageFetcher.MonitoringTimeSeriesResponse.self,
+            from: Data(invocationJSON.utf8)).timeSeries ?? []
+
+        let resolver = CostUsagePricing.ClaudeResolver(catalog: ModelsDevCatalog(providers: [:]))
+        let summary = try #require(VertexAIUsageFetcher.makeOnlineServingSummary(
+            invocationSeries: invocationSeries,
+            tokenSeries: tokenSeries,
+            options: VertexAIQueryOptions(estimateServingCost: true),
+            pricingDate: now,
+            pricingResolver: resolver))
+
+        // 300,000 * $3/1M = $0.90 (not $1.80 from the >200K per-request long-context tier).
+        let summaryCost = try #require(summary.estimatedCostUSD)
+        #expect(abs(summaryCost - 0.90) < 1e-9)
+
+        let transport = VertexAIUsageFetcherTests.routerTransport { _, filter in
+            if filter.contains("online_serving/token_count") {
+                return (200, tokenJSON)
+            }
+            if filter.contains("online_serving/model_invocation_count") {
+                return (200, invocationJSON)
+            }
+            return (200, #"{"timeSeries":[]}"#)
+        }
+        let report = try #require(await VertexAIUsageFetcher.fetchOnlineServingReport(
+            accessToken: "token",
+            projectId: "proj-1",
+            config: VertexAIUsageFetcher.OnlineServingReportConfig(
+                since: now.addingTimeInterval(-3600),
+                until: now,
+                calendar: CostUsageBucketTimeZone.calendar(identifier: "UTC"),
+                options: VertexAIQueryOptions(estimateServingCost: true),
+                estimateCost: true,
+                excludeAnthropicPublisher: false),
+            pricingResolver: resolver,
+            transport: transport))
+        let reportCost = try #require(report.summary?.totalCostUSD)
+        #expect(abs(reportCost - 0.90) < 1e-9)
+    }
 }
 
 extension VertexAIFetchError: Equatable {

@@ -138,6 +138,20 @@ extension VertexAIUsageFetcher {
             }
             return Array(bestByKey.values)
         }
+
+        func distinctBaseModelCount(limitName: String, location: String) -> Int {
+            let models = self.buckets.compactMap { bucket -> String? in
+                guard limitName.isEmpty || bucket.limitName.isEmpty || bucket.limitName == limitName,
+                      bucket.region == nil || bucket.region?.caseInsensitiveCompare(location) == .orderedSame,
+                      let baseModel = bucket.baseModel?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !baseModel.isEmpty
+                else {
+                    return nil
+                }
+                return VertexAIUsageFetcher.normalizedModelName(baseModel).lowercased()
+            }
+            return Set(models).count
+        }
     }
 
     struct SnapshotInputs {
@@ -335,6 +349,7 @@ extension VertexAIUsageFetcher {
         let quotaMetric: String
         let limitName: String
         let location: String
+        let baseModel: String?
     }
 
     private struct RateBucketPoint {
@@ -354,6 +369,11 @@ extension VertexAIUsageFetcher {
         var results: [VertexAIQuotaBucketUsage] = []
 
         for (rateKey, buckets) in summedByBucket {
+            if let seriesBaseModel = rateKey.baseModel,
+               !Self.matchesModelFilter(seriesBaseModel, filter: context.options.baseModelFilter)
+            {
+                continue
+            }
             let peakPerMinute = buckets.values.map(\.value).max() ?? 0
             let pacificDailySum = buckets.values.reduce(0.0) { partial, point in
                 if let date = point.date, date < startOfPacificDay {
@@ -363,20 +383,37 @@ extension VertexAIUsageFetcher {
             }
 
             let meta = context.metadataIndex[rateKey.quotaMetric]
+            let candidateModelFilter = context.options.baseModelFilter ?? rateKey.baseModel
             let consumerCandidates = meta?.rateCandidates(
                 location: rateKey.location,
-                baseModelFilter: context.options.baseModelFilter) ?? []
+                baseModelFilter: candidateModelFilter) ?? []
 
             if !consumerCandidates.isEmpty {
                 let matchingCandidates = consumerCandidates.filter { candidate in
-                    rateKey.limitName.isEmpty || rateKey.limitName == candidate.limitName
+                    guard rateKey.limitName.isEmpty || rateKey.limitName == candidate.limitName else {
+                        return false
+                    }
+                    if let seriesBaseModel = rateKey.baseModel {
+                        return Self.matchesModelFilter(candidate.baseModel, filter: seriesBaseModel)
+                    }
+                    if candidate.baseModel != nil {
+                        let modelCount = meta?.distinctBaseModelCount(
+                            limitName: candidate.limitName,
+                            location: rateKey.location) ?? 0
+                        return modelCount <= 1
+                    }
+                    return true
                 }
                 for candidate in matchingCandidates {
-                    let monitoringLimit = Self.matchingMonitoringLimit(
-                        quotaMetric: rateKey.quotaMetric,
-                        limitName: candidate.limitName,
-                        location: rateKey.location,
-                        in: context.limitByKey)
+                    let monitoringLimit: Double? = if candidate.baseModel == nil {
+                        Self.matchingMonitoringLimit(
+                            quotaMetric: rateKey.quotaMetric,
+                            limitName: candidate.limitName,
+                            location: rateKey.location,
+                            in: context.limitByKey)
+                    } else {
+                        nil
+                    }
                     let resolvedLimit = monitoringLimit ?? candidate.effectiveLimit
                     guard resolvedLimit > 0 else { continue }
                     let usage = candidate.cadence == .perDay ? pacificDailySum : peakPerMinute
@@ -402,7 +439,7 @@ extension VertexAIUsageFetcher {
                 continue
             }
 
-            guard context.options.baseModelFilter == nil else { continue }
+            guard context.options.baseModelFilter == nil, rateKey.baseModel == nil else { continue }
 
             let matchingLimits = context.limitByKey.filter { key, limit in
                 limit > 0
@@ -451,7 +488,16 @@ extension VertexAIUsageFetcher {
             guard Self.matchesLocationFilter(location, filter: locationFilter) else { continue }
 
             let limitName = metricLabels["limit_name"] ?? ""
-            let key = RateSeriesKey(quotaMetric: quotaMetric, limitName: limitName, location: location)
+            let rawBaseModel = (metricLabels["base_model"] ?? resourceLabels["base_model"])?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let baseModel = (rawBaseModel?.isEmpty == false)
+                ? Self.normalizedModelName(rawBaseModel!).lowercased()
+                : nil
+            let key = RateSeriesKey(
+                quotaMetric: quotaMetric,
+                limitName: limitName,
+                location: location,
+                baseModel: baseModel)
             for (index, point) in series.points.enumerated() {
                 guard let value = Self.pointValue(from: point), value.isFinite else { continue }
                 let date = Self.pointDate(from: point)

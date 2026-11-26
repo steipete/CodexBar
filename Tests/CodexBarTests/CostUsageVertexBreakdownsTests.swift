@@ -360,4 +360,101 @@ struct CostUsageVertexBreakdownsTests {
         #expect(cliOutput.contains("50K tokens"))
         #expect(cliOutput.contains("170K tokens"))
     }
+
+    @Test
+    func `cloud reporting window starts at calendar midnight for 1-day and multi-day windows`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let gcloudDir = env.root.appendingPathComponent("gcloud-window", isDirectory: true)
+        try FileManager.default.createDirectory(at: gcloudDir, withIntermediateDirectories: true)
+        try """
+        {
+          "client_id": "cid",
+          "client_secret": "csecret",
+          "refresh_token": "rtoken",
+          "access_token": "valid-token",
+          "token_expiry": "2099-01-01T00:00:00Z"
+        }
+        """.write(
+            to: gcloudDir.appendingPathComponent("application_default_credentials.json"),
+            atomically: true,
+            encoding: .utf8)
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "America/Los_Angeles"))
+        let now = try #require(calendar.date(from: DateComponents(
+            year: 2026, month: 11, day: 25, hour: 15, minute: 30, second: 0)))
+
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url, statusCode: 200, httpVersion: nil, headerFields: nil))
+            return (Data(#"{"timeSeries":[]}"#.utf8), response)
+        }
+
+        let options = CostUsageScanner.Options(
+            claudeProjectsRoots: [env.claudeProjectsRoot],
+            cacheRoot: env.cacheRoot,
+            calendar: calendar)
+        let testEnv = [
+            "CLOUDSDK_CONFIG": gcloudDir.path,
+            "GOOGLE_CLOUD_PROJECT": "vertex-window-proj",
+        ]
+        let formatter = ISO8601DateFormatter()
+
+        _ = try await CostUsageFetcher.loadTokenResult(
+            provider: .vertexai,
+            environment: testEnv,
+            vertexAISettings: VertexAIProviderSettings(telemetryCostSource: .cloudMonitoringOnly),
+            vertexAITransport: transport,
+            now: now,
+            forceRefresh: true,
+            historyDays: 1,
+            allowPricingRefresh: false,
+            scannerOptions: options)
+
+        let oneDayRequests = await transport.requests()
+        #expect(!oneDayRequests.isEmpty)
+        let expectedOneDayStart = formatter.string(from: calendar.startOfDay(for: now))
+        let expectedEnd = formatter.string(from: now)
+        for request in oneDayRequests {
+            let url = try #require(request.url)
+            let query = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
+            #expect(query.first { $0.name == "interval.startTime" }?.value == expectedOneDayStart)
+            #expect(query.first { $0.name == "interval.endTime" }?.value == expectedEnd)
+        }
+
+        let multiDayTransport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url, statusCode: 200, httpVersion: nil, headerFields: nil))
+            return (Data(#"{"timeSeries":[]}"#.utf8), response)
+        }
+
+        _ = try await CostUsageFetcher.loadTokenResult(
+            provider: .vertexai,
+            environment: testEnv,
+            vertexAISettings: VertexAIProviderSettings(telemetryCostSource: .cloudMonitoringOnly),
+            vertexAITransport: multiDayTransport,
+            now: now,
+            forceRefresh: true,
+            historyDays: 7,
+            allowPricingRefresh: false,
+            scannerOptions: options)
+
+        let sevenDayRequests = await multiDayTransport.requests()
+        #expect(!sevenDayRequests.isEmpty)
+        let expectedSevenDayStartDate = try #require(calendar.date(
+            byAdding: .day,
+            value: -6,
+            to: calendar.startOfDay(for: now)))
+        let expectedSevenDayStart = formatter.string(from: expectedSevenDayStartDate)
+        for request in sevenDayRequests {
+            let url = try #require(request.url)
+            let query = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
+            #expect(query.first { $0.name == "interval.startTime" }?.value == expectedSevenDayStart)
+            #expect(query.first { $0.name == "interval.endTime" }?.value == expectedEnd)
+        }
+    }
 }

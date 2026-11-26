@@ -205,18 +205,22 @@ extension CostUsageFetcher {
         let pricingResolver = CostUsagePricing.ClaudeResolver(
             now: context.now,
             cacheRoot: context.scannerOptions.cacheRoot)
+        let cloudSince = CostReportingPeriod.rolling(days: context.historyDays)
+            .bounds(now: context.now, calendar: calendar)
+            .lowerBound
         let queryOptions = VertexAIQueryOptions(
             locationFilter: context.vertexAISettings.regionFilter,
             baseModelFilter: context.vertexAISettings.modelFilter,
             includeOnlineServing: true,
-            servingWindowDays: context.historyDays)
+            servingWindowDays: context.historyDays,
+            estimateServingCost: context.vertexAISettings.estimateCloudCost)
 
         do {
             return try await VertexAIUsageFetcher.fetchOnlineServingReport(
                 accessToken: credentials.accessToken,
                 projectId: credentials.projectId,
                 config: VertexAIUsageFetcher.OnlineServingReportConfig(
-                    since: context.since,
+                    since: cloudSince,
                     until: context.now,
                     calendar: calendar,
                     options: queryOptions,

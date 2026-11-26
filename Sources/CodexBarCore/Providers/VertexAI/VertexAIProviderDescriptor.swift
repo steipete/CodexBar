@@ -137,7 +137,8 @@ struct VertexAIOAuthFetchStrategy: ProviderFetchStrategy {
                     locationFilter: settings.regionFilter,
                     baseModelFilter: settings.modelFilter,
                     includeOnlineServing: true,
-                    servingWindowDays: 1),
+                    servingWindowDays: 1,
+                    estimateServingCost: settings.estimateCloudCost),
                 transport: transport)
         } catch VertexAIFetchError.noData {
             usage = nil

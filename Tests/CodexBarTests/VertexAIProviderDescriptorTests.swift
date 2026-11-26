@@ -437,4 +437,91 @@ struct VertexAIProviderDescriptorTests {
         #expect(dedicatedModelRow.value.contains("tokens"))
         #expect(dedicatedModelRow.secondaryValue?.contains("dedicated") == true)
     }
+
+    @Test
+    func `fetch forwards estimateCloudCost and suppresses dollar estimates when disabled`() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vertex-est-cost-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let adcURL = dir.appendingPathComponent("application_default_credentials.json")
+        try """
+        {
+          "client_id": "cid",
+          "client_secret": "csecret",
+          "refresh_token": "rtoken",
+          "access_token": "valid-access",
+          "token_expiry": "2099-01-01T00:00:00Z"
+        }
+        """.write(to: adcURL, atomically: true, encoding: .utf8)
+
+        let labels = #""location":"us-east5","publisher":"anthropic","model_user_id":"claude-sonnet-4-5@20250929""#
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            let filter = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first { $0.name == "filter" }?.value ?? ""
+            let body = if filter.contains("online_serving/model_invocation_count") {
+                """
+                {"timeSeries":[
+                  {"metric":{"labels":{"request_type":"shared"}},
+                   "resource":{"labels":{\(labels)}},
+                   "points":[{"value":{"int64Value":"10"}}]}
+                ]}
+                """
+            } else if filter.contains("online_serving/token_count") {
+                """
+                {"timeSeries":[
+                  {"metric":{"labels":{"type":"input","request_type":"shared"}},
+                   "resource":{"labels":{\(labels)}},
+                   "points":[{"value":{"int64Value":"100000"}}]},
+                  {"metric":{"labels":{"type":"output","request_type":"shared"}},
+                   "resource":{"labels":{\(labels)}},
+                   "points":[{"value":{"int64Value":"20000"}}]}
+                ]}
+                """
+            } else {
+                #"{"timeSeries":[]}"#
+            }
+            let response = try #require(HTTPURLResponse(
+                url: url, statusCode: 200, httpVersion: nil, headerFields: nil))
+            return (Data(body.utf8), response)
+        }
+
+        func makeContext(estimateCloudCost: Bool) -> ProviderFetchContext {
+            ProviderFetchContext(
+                runtime: .app,
+                sourceMode: .auto,
+                includeCredits: false,
+                webTimeout: 5,
+                webDebugDumpHTML: false,
+                verbose: false,
+                env: [
+                    "CLOUDSDK_CONFIG": dir.path,
+                    "GOOGLE_CLOUD_PROJECT": "est-cost-proj",
+                ],
+                settings: ProviderSettingsSnapshot.make(
+                    vertexai: VertexAIProviderSettings(estimateCloudCost: estimateCloudCost)),
+                fetcher: UsageFetcher(environment: [:]),
+                claudeFetcher: ClaudeUsageFetcher(browserDetection: BrowserDetection(cacheTTL: 0)),
+                browserDetection: BrowserDetection(cacheTTL: 0))
+        }
+
+        let disabledResult = try await VertexAIOAuthFetchStrategy.$transportForTesting.withValue(transport) {
+            try await VertexAIOAuthFetchStrategy().fetch(makeContext(estimateCloudCost: false))
+        }
+        let disabledSection = try #require(disabledResult.usage.details.first { $0.title == "Online serving (24h)" })
+        #expect(!disabledSection.rows.contains { $0.label == "Est. cost" })
+        let disabledModelRow = try #require(disabledSection.rows.first { $0.label == "claude-sonnet-4-5" })
+        #expect(!disabledModelRow.value.contains("$"))
+        #expect(disabledModelRow.value.contains("tokens"))
+
+        let enabledResult = try await VertexAIOAuthFetchStrategy.$transportForTesting.withValue(transport) {
+            try await VertexAIOAuthFetchStrategy().fetch(makeContext(estimateCloudCost: true))
+        }
+        let enabledSection = try #require(enabledResult.usage.details.first { $0.title == "Online serving (24h)" })
+        #expect(enabledSection.rows.contains { $0.label == "Est. cost" })
+        let enabledModelRow = try #require(enabledSection.rows.first { $0.label == "claude-sonnet-4-5" })
+        #expect(enabledModelRow.value.contains("$"))
+    }
 }

@@ -354,6 +354,8 @@ extension VertexAIUsageFetcher {
         pricingDate: Date,
         pricingResolver: CostUsagePricing.ClaudeResolver) -> Double?
     {
+        // Monitoring token totals aggregate many requests over hours or days, so per-request
+        // long-context thresholds must not trigger on aggregate volume.
         if let vertexCatalogCost = pricingResolver.costUSD(
             model: modelName,
             providerID: "google-vertex",
@@ -361,7 +363,8 @@ extension VertexAIUsageFetcher {
             cacheReadInputTokens: 0,
             cacheCreationInputTokens: 0,
             outputTokens: outputTokens,
-            pricingDate: pricingDate)
+            pricingDate: pricingDate,
+            applyLongContextThreshold: false)
         {
             return vertexCatalogCost
         }
@@ -371,7 +374,8 @@ extension VertexAIUsageFetcher {
             cacheReadInputTokens: 0,
             cacheCreationInputTokens: 0,
             outputTokens: outputTokens,
-            pricingDate: pricingDate)
+            pricingDate: pricingDate,
+            applyLongContextThreshold: false)
     }
 
     private static func servingSeriesKey(
