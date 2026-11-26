@@ -1,4 +1,4 @@
-import CodexBarCore
+@testable import CodexBarCore
 import Foundation
 import Testing
 
@@ -87,6 +87,29 @@ struct GroqConsoleFetcherTests {
         let session = GroqConsoleSession.session(fromCookieHeader: header)
         #expect(session?.sessionToken == "opaque123")
         #expect(session?.directJWT == "jwt.abc.def")
+    }
+
+    @Test
+    func `stytch session jwt prefers body then falls back to set-cookie`() throws {
+        let url = try #require(URL(string: "https://api.stytchb2b.groq.com/sdk/v1/b2b/sessions/authenticate"))
+        func response(body: String, setCookie: String?) throws -> ProviderHTTPResponse {
+            let headers = setCookie.map { ["Set-Cookie": $0] }
+            let http = try #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: headers))
+            return ProviderHTTPResponse(data: Data(body.utf8), response: http)
+        }
+        // Stytch sends three Set-Cookie headers; Foundation joins them with ", ".
+        let cookie = "stytch_intermediate_session_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Secure, " +
+            "stytch_session=opaque; Path=/; Expires=Thu, 03 Dec 2026 01:37:52 GMT; Secure, " +
+            "stytch_session_jwt=cookie.jwt.value; Path=/; Expires=Thu, 03 Dec 2026 01:37:52 GMT; Secure"
+
+        let fromBody = try response(body: #"{"data":{"session_jwt":"body.jwt.value"}}"#, setCookie: cookie)
+        #expect(GroqConsoleStytch.sessionJWT(from: fromBody, url: url) == "body.jwt.value")
+
+        let fromCookie = try response(body: #"{"data":{"session_jwt":""}}"#, setCookie: cookie)
+        #expect(GroqConsoleStytch.sessionJWT(from: fromCookie, url: url) == "cookie.jwt.value")
+
+        let neither = try response(body: #"{"data":{"session_jwt":""}}"#, setCookie: nil)
+        #expect(GroqConsoleStytch.sessionJWT(from: neither, url: url) == nil)
     }
 
     @Test
