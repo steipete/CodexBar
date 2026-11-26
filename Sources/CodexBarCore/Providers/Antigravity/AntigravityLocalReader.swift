@@ -162,20 +162,25 @@ enum AntigravityLocalReader {
                 budget: budget,
                 dayRange: dayRange,
                 calendar: calendar)
-            // A discovery error is not absence and never authorizes a cache replacement.
-            if !databases.paths.isEmpty || !databases.isComplete {
-                let source = try self.readDatabases(databases.paths, budget: budget)
+            // Any discovered SQLite database (including old mtime-filtered ones) or discovery error
+            // is not absence and never authorizes a cache replacement.
+            if !databases.paths.isEmpty || !databases.skippedOldPaths.isEmpty || !databases.isComplete {
+                var source = try self.readDatabases(databases.paths, budget: budget)
+                if databases.isComplete, source.isComplete, !source.containsHistorySource,
+                   !databases.skippedOldPaths.isEmpty
+                {
+                    let probed = try self.probeSkippedDatabasesForHistorySource(
+                        databases.skippedOldPaths,
+                        budget: budget)
+                    source.containsHistorySource = probed.containsHistorySource
+                    source.isComplete = source.isComplete && probed.isComplete
+                }
                 return try self.aggregate(
                     source,
                     discoveryComplete: databases.isComplete,
-                    skippedOldDatabases: databases.skippedOldDatabases,
                     calendar: calendar,
                     budget: budget,
                     pricing: pricing)
-            }
-            if databases.skippedOldDatabases > 0 {
-                return DailyReportResult(
-                    report: .init(data: [], summary: nil), coverage: .complete, statistics: budget.statistics)
             }
             let cache = try self.discover(roots: [context.cacheRoot], extension: "jsonl", budget: budget)
             guard !cache.paths.isEmpty || !cache.isComplete else {
@@ -198,7 +203,6 @@ enum AntigravityLocalReader {
     private static func aggregate(
         _ source: SourceResult,
         discoveryComplete: Bool,
-        skippedOldDatabases: Int = 0,
         calendar: Calendar,
         budget: Budget,
         pricing: CostUsagePricing.ClaudeResolver?) throws -> DailyReportResult
@@ -208,9 +212,7 @@ enum AntigravityLocalReader {
         var contradicted = false
         if isComplete, !source.containsHistorySource {
             return DailyReportResult(
-                report: .init(data: [], summary: nil),
-                coverage: skippedOldDatabases > 0 ? .complete : .unavailable,
-                statistics: budget.statistics)
+                report: .init(data: [], summary: nil), coverage: .unavailable, statistics: budget.statistics)
         }
         var models: [LabelIdentity: String] = [:]
         var conflicts = Set<LabelIdentity>()
