@@ -242,13 +242,12 @@ extension AntigravityLocalReader {
         let session = url.deletingPathExtension().lastPathComponent
         var rows = try self.readRows(activeStatement, session: session, progress: progress)
         if !rows.pendingTimestampRows.isEmpty {
-            let shouldContinue = try self.recoverPendingStepTimestampsIfNeeded(
+            try self.recoverPendingStepTimestampsIfNeeded(
                 database,
                 statement: &statement,
                 rows: &rows,
                 session: session,
                 progress: progress)
-            guard shouldContinue else { return DatabaseAttempt(rows.source) }
         }
         if includeBreakdowns {
             sqlite3_finalize(statement)
@@ -269,11 +268,11 @@ extension AntigravityLocalReader {
         statement: inout OpaquePointer?,
         rows: inout ParsedRows,
         session: String,
-        progress: SQLProgress) throws -> Bool
+        progress: SQLProgress) throws
     {
         // Positional recovery is safe only when every generation row participated in the occurrence list.
         // A malformed row can still carry a reused step UUID, so partial primary scans must not realign later rows.
-        guard rows.source.isComplete else { return false }
+        guard rows.source.isComplete else { return }
         // Release the gen_metadata cursor before the optional steps pass reuses the same snapshot.
         sqlite3_finalize(statement)
         statement = nil
@@ -284,7 +283,7 @@ extension AntigravityLocalReader {
         }
         guard hasSteps else {
             rows.source.isComplete = false
-            return true
+            return
         }
         var neededStepOccurrences: [String: [StepOccurrence]] = [:]
         for stepUUID in Set(rows.pendingTimestampRows.map(\.stepUUID)) {
@@ -298,7 +297,7 @@ extension AntigravityLocalReader {
               self.embeddedTimestampsAgree(neededStepOccurrences, with: stepScan, botIDUses: rows.botIDUses)
         else {
             rows.source.isComplete = false
-            return false
+            return
         }
         let recoveredCount = self.appendRecoveredEvents(
             to: &rows,
@@ -307,7 +306,6 @@ extension AntigravityLocalReader {
         if recoveredCount < rows.pendingTimestampRows.count {
             rows.source.isComplete = false
         }
-        return true
     }
 
     private static func readTrajectoryMetadataIfPresent(

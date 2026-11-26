@@ -269,9 +269,16 @@ private struct QuotaSummaryRemainingPayload: Decodable {
             return
         }
         let oneofCase = try container.decodeIfPresent(String.self, forKey: .oneofCase)
-        self.remainingFraction = oneofCase == "remainingFraction"
-            ? try container.decodeIfPresent(Double.self, forKey: .value) : nil
-        self.remainingAmount = oneofCase == "remainingAmount"
-            ? try container.decodeIfPresent(FlexibleInt.self, forKey: .value) : nil
+        switch oneofCase {
+        case "remainingFraction", "remaining_fraction":
+            self.remainingFraction = try container.decodeIfPresent(Double.self, forKey: .value)
+            self.remainingAmount = nil
+        case "remainingAmount", "remaining_amount":
+            self.remainingFraction = nil
+            self.remainingAmount = try container.decodeIfPresent(FlexibleInt.self, forKey: .value)
+        default:
+            self.remainingFraction = nil
+            self.remainingAmount = nil
+        }
     }
 }

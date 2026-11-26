@@ -219,7 +219,7 @@ enum AntigravityLocalReader {
         }
     }
 
-    private struct AcceptedEvent {
+    fileprivate struct AcceptedEvent {
         let event: Event
         let entry: CostUsageDailyReport.Entry
     }
@@ -355,281 +355,6 @@ enum AntigravityLocalReader {
             sessions: breakdowns.sessions)
     }
 
-    private struct ResolvedProjectIdentity {
-        let projectKey: String
-        let projectName: String
-        let canonicalPath: String?
-        let sourcePath: String?
-        let sourceName: String
-    }
-
-    private static func buildBreakdowns(
-        acceptedEvents: [AcceptedEvent],
-        source: SourceResult,
-        projectGrouping: AntigravityProjectGrouping)
-        -> (projects: [CostUsageProjectBreakdown], sessions: [CostUsageSessionBreakdown])
-    {
-        guard !acceptedEvents.isEmpty else { return ([], []) }
-
-        let eventsBySession = Dictionary(grouping: acceptedEvents, by: \.event.session)
-        var projectEventsByKey: [String: (identities: [ResolvedProjectIdentity], events: [AcceptedEvent])] = [:]
-        var sessions: [CostUsageSessionBreakdown] = []
-        sessions.reserveCapacity(eventsBySession.count)
-
-        for (sessionID, items) in eventsBySession {
-            let resolvedProject = self.resolveProjectIdentity(
-                sessionID: sessionID,
-                source: source,
-                projectGrouping: projectGrouping)
-            projectEventsByKey[resolvedProject.projectKey, default: ([], [])].identities.append(resolvedProject)
-            projectEventsByKey[resolvedProject.projectKey, default: ([], [])].events.append(contentsOf: items)
-
-            let daily = self.mergedDailyEntries(from: items.map(\.entry))
-            let summaryTotal = CheckedSum.integers(items.map(\.event.total))
-            let newInput = CheckedSum.integers(items.map(\.event.input))
-            let cacheRead = CheckedSum.integers(items.map { $0.event.turn.usage?.cacheRead ?? 0 })
-            let cacheWrite = CheckedSum.integers(items.map(\.event.cacheWrite))
-            let output = CheckedSum.integers(items.map { $0.event.turn.usage?.output ?? 0 })
-            let reasoning = CheckedSum.integers(items.map { $0.event.turn.usage?.reasoning ?? 0 })
-            let inputTokens = [newInput, cacheRead, cacheWrite].allSatisfy { $0 != nil }
-                ? CheckedSum.integers([newInput ?? 0, cacheRead ?? 0, cacheWrite ?? 0])
-                : nil
-            let outputTokens = [output, reasoning].allSatisfy { $0 != nil }
-                ? CheckedSum.integers([output ?? 0, reasoning ?? 0])
-                : nil
-            let costs = daily.compactMap(\.costUSD)
-            let lastActivityMs = items.compactMap(\.event.turn.timestampMs).max() ?? 0
-            let modelBreakdowns = CostUsageDailyReport.sortedModelBreakdowns(
-                CostUsageDailyReport.modelCostSummaries(from: daily))
-            let title = source.conversationSummariesBySession[sessionID]?.title
-
-            sessions.append(CostUsageSessionBreakdown(
-                sessionID: sessionID,
-                lastActivity: Date(timeIntervalSince1970: Double(lastActivityMs) / 1000),
-                inputTokens: inputTokens,
-                cachedInputTokens: cacheRead,
-                outputTokens: outputTokens,
-                reasoningTokens: reasoning,
-                totalTokens: summaryTotal,
-                requestCount: items.count,
-                costUSD: costs.isEmpty ? nil : costs.reduce(0, +),
-                modelBreakdowns: modelBreakdowns,
-                projectPath: resolvedProject.canonicalPath,
-                projectName: resolvedProject.canonicalPath == nil && resolvedProject.projectKey.isEmpty
-                    ? nil
-                    : resolvedProject.projectName,
-                title: title))
-        }
-
-        sessions.sort { lhs, rhs in
-            if lhs.lastActivity != rhs.lastActivity {
-                return lhs.lastActivity > rhs.lastActivity
-            }
-            return lhs.sessionID > rhs.sessionID
-        }
-
-        var projects: [CostUsageProjectBreakdown] = []
-        projects.reserveCapacity(projectEventsByKey.count)
-        for (_, group) in projectEventsByKey {
-            let daily = self.mergedDailyEntries(from: group.events.map(\.entry))
-            guard !daily.isEmpty else { continue }
-            let totalTokens = CheckedSum.integers(daily.compactMap(\.totalTokens))
-            let costs = daily.compactMap(\.costUSD)
-            let totalCostUSD = costs.isEmpty ? nil : costs.reduce(0, +)
-            let modelSummaries = CostUsageDailyReport.modelCostSummaries(from: daily)
-            let modelBreakdowns = modelSummaries.isEmpty
-                ? nil
-                : CostUsageDailyReport.sortedModelBreakdowns(modelSummaries)
-
-            let representative = self.representativeProjectIdentity(from: group.identities)
-            let eventsBySource = Dictionary(grouping: group.events) { item in
-                self.resolveProjectIdentity(
-                    sessionID: item.event.session,
-                    source: source,
-                    projectGrouping: projectGrouping).sourcePath ?? ""
-            }
-            let projectSources: [CostUsageProjectSourceBreakdown] = eventsBySource.map { sourceKey, sourceItems in
-                let sourceDaily = self.mergedDailyEntries(from: sourceItems.map(\.entry))
-                let sourceTokens = CheckedSum.integers(sourceDaily.compactMap(\.totalTokens))
-                let sourceCosts = sourceDaily.compactMap(\.costUSD)
-                let sourceModelSummaries = CostUsageDailyReport.modelCostSummaries(from: sourceDaily)
-                let sourceBreakdowns = sourceModelSummaries.isEmpty
-                    ? nil
-                    : CostUsageDailyReport.sortedModelBreakdowns(sourceModelSummaries)
-                let resolvedPath = sourceKey.isEmpty ? representative.canonicalPath : sourceKey
-                let sourceName = resolvedPath.map(self.directoryDisplayName(path:)) ?? representative.projectName
-                return CostUsageProjectSourceBreakdown(
-                    name: sourceName,
-                    path: resolvedPath,
-                    totalTokens: sourceTokens,
-                    totalCostUSD: sourceCosts.isEmpty ? nil : sourceCosts.reduce(0, +),
-                    daily: sourceDaily,
-                    modelBreakdowns: sourceBreakdowns)
-            }.sorted { lhs, rhs in
-                let lhsRank = (lhs.totalCostUSD ?? -1, lhs.totalTokens ?? -1)
-                let rhsRank = (rhs.totalCostUSD ?? -1, rhs.totalTokens ?? -1)
-                if lhsRank != rhsRank { return lhsRank > rhsRank }
-                return (lhs.path ?? lhs.name) < (rhs.path ?? rhs.name)
-            }
-
-            projects.append(CostUsageProjectBreakdown(
-                name: representative.projectName,
-                path: representative.canonicalPath,
-                totalTokens: totalTokens,
-                totalCostUSD: totalCostUSD,
-                daily: daily,
-                modelBreakdowns: modelBreakdowns,
-                sources: projectSources))
-        }
-
-        projects.sort { lhs, rhs in
-            let lhsRank = (lhs.totalCostUSD ?? -1, lhs.totalTokens ?? -1)
-            let rhsRank = (rhs.totalCostUSD ?? -1, rhs.totalTokens ?? -1)
-            if lhsRank != rhsRank {
-                return lhsRank > rhsRank
-            }
-            return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
-        }
-
-        return (projects, sessions)
-    }
-
-    private static func mergedDailyEntries(from entries: [CostUsageDailyReport.Entry]) -> [CostUsageDailyReport.Entry] {
-        var byDate: [String: CostUsageDailyReport.Entry] = [:]
-        for entry in entries {
-            if let existing = byDate[entry.date],
-               let merged = self.checkedMergeEntry(existing, entry)
-            {
-                byDate[entry.date] = merged
-            } else if byDate[entry.date] == nil {
-                byDate[entry.date] = entry
-            }
-        }
-        return byDate.values.sorted { $0.date < $1.date }
-    }
-
-    private static func representativeProjectIdentity(
-        from identities: [ResolvedProjectIdentity]) -> ResolvedProjectIdentity
-    {
-        guard let first = identities.first else {
-            return ResolvedProjectIdentity(
-                projectKey: "",
-                projectName: CostUsageProjectBreakdown.unknownProjectName,
-                canonicalPath: nil,
-                sourcePath: nil,
-                sourceName: CostUsageProjectBreakdown.unknownProjectName)
-        }
-        let nonWorktree = identities.first { identity in
-            guard let path = identity.canonicalPath else { return false }
-            return !path.contains("/.gemini/antigravity/worktrees/")
-        }
-        return nonWorktree ?? identities.min { lhs, rhs in
-            let lPath = lhs.canonicalPath ?? ""
-            let rPath = rhs.canonicalPath ?? ""
-            if lPath.count != rPath.count { return lPath.count < rPath.count }
-            return lPath < rPath
-        } ?? first
-    }
-
-    private static func resolveProjectIdentity(
-        sessionID: String,
-        source: SourceResult,
-        projectGrouping: AntigravityProjectGrouping) -> ResolvedProjectIdentity
-    {
-        let trajectory = source.trajectoryMetadataBySession[sessionID]
-        let summary = source.conversationSummariesBySession[sessionID]
-        let workspace = trajectory?.workspaces.first
-        let workspacePath = self.normalizedLocalPath(trajectory?.primaryWorkspaceURI)
-            ?? trajectory?.workspaces.lazy.compactMap { self.normalizedLocalPath($0.workspaceURI) }.first
-            ?? summary?.workspaceURIs.lazy.compactMap { self.normalizedLocalPath($0) }.first
-        let gitRootPath = trajectory?.workspaces.lazy.compactMap { self.normalizedLocalPath($0.gitRootURI) }.first
-
-        switch projectGrouping {
-        case .workspace:
-            let path = workspacePath ?? gitRootPath
-            let name = path.map(self.directoryDisplayName(path:)) ?? CostUsageProjectBreakdown.unknownProjectName
-            return ResolvedProjectIdentity(
-                projectKey: path ?? "",
-                projectName: name,
-                canonicalPath: path,
-                sourcePath: path,
-                sourceName: name)
-        case .gitRepository:
-            if let slug = workspace?.repoSlug?.trimmingCharacters(in: .whitespacesAndNewlines), !slug.isEmpty {
-                let sourcePath = workspacePath ?? gitRootPath
-                let canonical = (sourcePath?.contains("/.gemini/antigravity/worktrees/") == false ? sourcePath : nil)
-                    ?? gitRootPath
-                    ?? sourcePath
-                    ?? slug
-                return ResolvedProjectIdentity(
-                    projectKey: "repo:\(slug.lowercased())",
-                    projectName: slug,
-                    canonicalPath: canonical,
-                    sourcePath: sourcePath ?? canonical,
-                    sourceName: self.directoryDisplayName(path: sourcePath ?? canonical))
-            }
-            if let remote = workspace?.repoRemoteURL?.trimmingCharacters(in: .whitespacesAndNewlines), !remote.isEmpty {
-                let normalizedRemote = self.normalizedRepositoryName(from: remote)
-                let sourcePath = workspacePath ?? gitRootPath
-                let canonical = gitRootPath ?? sourcePath ?? normalizedRemote
-                return ResolvedProjectIdentity(
-                    projectKey: "remote:\(normalizedRemote.lowercased())",
-                    projectName: normalizedRemote,
-                    canonicalPath: canonical,
-                    sourcePath: sourcePath ?? canonical,
-                    sourceName: self.directoryDisplayName(path: sourcePath ?? canonical))
-            }
-            let fallbackPath = gitRootPath ?? workspacePath
-            let name = fallbackPath.map(self.directoryDisplayName(path:))
-                ?? CostUsageProjectBreakdown.unknownProjectName
-            return ResolvedProjectIdentity(
-                projectKey: fallbackPath.map { "path:\($0)" } ?? "",
-                projectName: name,
-                canonicalPath: fallbackPath,
-                sourcePath: workspacePath ?? fallbackPath,
-                sourceName: (workspacePath ?? fallbackPath).map(self.directoryDisplayName(path:)) ?? name)
-        }
-    }
-
-    private static func normalizedLocalPath(_ rawURI: String?) -> String? {
-        guard let trimmed = rawURI?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
-            return nil
-        }
-        if let url = URL(string: trimmed), url.isFileURL {
-            return url.standardizedFileURL.path
-        }
-        if trimmed.hasPrefix("/") {
-            return URL(fileURLWithPath: trimmed).standardizedFileURL.path
-        }
-        return nil
-    }
-
-    private static func directoryDisplayName(path: String) -> String {
-        let name = URL(fileURLWithPath: path, isDirectory: true).lastPathComponent
-        return name.isEmpty ? path : name
-    }
-
-    private static func normalizedRepositoryName(from remoteURL: String) -> String {
-        var cleaned = remoteURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        if cleaned.hasSuffix(".git") {
-            cleaned.removeLast(".git".count)
-        }
-        if let colonIndex = cleaned.lastIndex(of: ":"), !cleaned.contains("://") {
-            let pathPart = String(cleaned[cleaned.index(after: colonIndex)...])
-            if !pathPart.isEmpty { return pathPart }
-        }
-        if let url = URL(string: cleaned) {
-            let parts = url.pathComponents.filter { $0 != "/" }
-            if parts.count >= 2 {
-                return "\(parts[parts.count - 2])/\(parts[parts.count - 1])"
-            }
-            if let last = parts.last, !last.isEmpty {
-                return last
-            }
-        }
-        return cleaned
-    }
-
     private static func entry(
         _ event: Event,
         models: [LabelIdentity: String],
@@ -706,7 +431,7 @@ enum AntigravityLocalReader {
         return resolve(entry.modelID, providerID: entry.providerID)
     }
 
-    private static func checkedMergeEntry(
+    fileprivate static func checkedMergeEntry(
         _ existing: CostUsageDailyReport.Entry,
         _ new: CostUsageDailyReport.Entry) -> CostUsageDailyReport.Entry?
     {
@@ -808,5 +533,361 @@ enum AntigravityLocalReader {
     private static func sumCosts(_ lhs: Double?, _ rhs: Double?) -> Double? {
         if let lhs, let rhs { return lhs + rhs }
         return lhs ?? rhs
+    }
+}
+
+extension AntigravityLocalReader {
+    private struct ResolvedProjectIdentity {
+        let projectKey: String
+        let projectName: String
+        let canonicalPath: String?
+        let sourcePath: String?
+        let sourceName: String
+    }
+
+    fileprivate static func buildBreakdowns(
+        acceptedEvents: [AcceptedEvent],
+        source: SourceResult,
+        projectGrouping: AntigravityProjectGrouping)
+        -> (projects: [CostUsageProjectBreakdown], sessions: [CostUsageSessionBreakdown])
+    {
+        guard !acceptedEvents.isEmpty else { return ([], []) }
+
+        let eventsBySession = Dictionary(grouping: acceptedEvents, by: \.event.session)
+        let sortedSessionIDs = eventsBySession.keys.sorted()
+        var resolvedBySession: [String: ResolvedProjectIdentity] = [:]
+        resolvedBySession.reserveCapacity(sortedSessionIDs.count)
+        var projectEventsByKey: [String: (identities: [ResolvedProjectIdentity], events: [AcceptedEvent])] = [:]
+
+        for sessionID in sortedSessionIDs {
+            guard let items = eventsBySession[sessionID] else { continue }
+            let resolvedProject = self.resolveProjectIdentity(
+                sessionID: sessionID,
+                source: source,
+                projectGrouping: projectGrouping)
+            resolvedBySession[sessionID] = resolvedProject
+            projectEventsByKey[resolvedProject.projectKey, default: ([], [])].identities.append(resolvedProject)
+            projectEventsByKey[resolvedProject.projectKey, default: ([], [])].events.append(contentsOf: items)
+        }
+
+        var representativeByKey: [String: ResolvedProjectIdentity] = [:]
+        representativeByKey.reserveCapacity(projectEventsByKey.count)
+        for (projectKey, group) in projectEventsByKey {
+            representativeByKey[projectKey] = self.representativeProjectIdentity(from: group.identities)
+        }
+
+        var sessions: [CostUsageSessionBreakdown] = []
+        sessions.reserveCapacity(sortedSessionIDs.count)
+
+        for sessionID in sortedSessionIDs {
+            guard let items = eventsBySession[sessionID],
+                  let resolvedProject = resolvedBySession[sessionID]
+            else { continue }
+            let representative = representativeByKey[resolvedProject.projectKey] ?? resolvedProject
+
+            let daily = self.mergedDailyEntries(from: items.map(\.entry))
+            let summaryTotal = CheckedSum.integers(items.map(\.event.total))
+            let newInput = CheckedSum.integers(items.map(\.event.input))
+            let cacheRead = CheckedSum.integers(items.map { $0.event.turn.usage?.cacheRead ?? 0 })
+            let cacheWrite = CheckedSum.integers(items.map(\.event.cacheWrite))
+            let output = CheckedSum.integers(items.map { $0.event.turn.usage?.output ?? 0 })
+            let reasoning = CheckedSum.integers(items.map { $0.event.turn.usage?.reasoning ?? 0 })
+            let inputTokens = [newInput, cacheRead, cacheWrite].allSatisfy { $0 != nil }
+                ? CheckedSum.integers([newInput ?? 0, cacheRead ?? 0, cacheWrite ?? 0])
+                : nil
+            let outputTokens = [output, reasoning].allSatisfy { $0 != nil }
+                ? CheckedSum.integers([output ?? 0, reasoning ?? 0])
+                : nil
+            let costs = daily.compactMap(\.costUSD)
+            let lastActivityMs = items.compactMap(\.event.turn.timestampMs).max() ?? 0
+            let modelBreakdowns = CostUsageDailyReport.sortedModelBreakdowns(
+                CostUsageDailyReport.modelCostSummaries(from: daily))
+            let title = source.conversationSummariesBySession[sessionID]?.title
+
+            sessions.append(CostUsageSessionBreakdown(
+                sessionID: sessionID,
+                lastActivity: Date(timeIntervalSince1970: Double(lastActivityMs) / 1000),
+                inputTokens: inputTokens,
+                cachedInputTokens: cacheRead,
+                outputTokens: outputTokens,
+                reasoningTokens: reasoning,
+                totalTokens: summaryTotal,
+                requestCount: items.count,
+                costUSD: costs.isEmpty ? nil : costs.reduce(0, +),
+                modelBreakdowns: modelBreakdowns,
+                projectPath: representative.canonicalPath,
+                projectName: representative.canonicalPath == nil && representative.projectKey.isEmpty
+                    ? nil
+                    : representative.projectName,
+                title: title))
+        }
+
+        sessions.sort { lhs, rhs in
+            if lhs.lastActivity != rhs.lastActivity {
+                return lhs.lastActivity > rhs.lastActivity
+            }
+            return lhs.sessionID > rhs.sessionID
+        }
+
+        var projects: [CostUsageProjectBreakdown] = []
+        projects.reserveCapacity(projectEventsByKey.count)
+        for (projectKey, group) in projectEventsByKey {
+            let daily = self.mergedDailyEntries(from: group.events.map(\.entry))
+            guard !daily.isEmpty else { continue }
+            let totalTokens = CheckedSum.integers(daily.compactMap(\.totalTokens))
+            let costs = daily.compactMap(\.costUSD)
+            let totalCostUSD = costs.isEmpty ? nil : costs.reduce(0, +)
+            let modelSummaries = CostUsageDailyReport.modelCostSummaries(from: daily)
+            let modelBreakdowns = modelSummaries.isEmpty
+                ? nil
+                : CostUsageDailyReport.sortedModelBreakdowns(modelSummaries)
+
+            let representative = representativeByKey[projectKey]
+                ?? self.representativeProjectIdentity(from: group.identities)
+            let eventsBySource = Dictionary(grouping: group.events) { item in
+                resolvedBySession[item.event.session]?.sourcePath ?? ""
+            }
+            let projectSources: [CostUsageProjectSourceBreakdown] = eventsBySource.map { sourceKey, sourceItems in
+                let sourceDaily = self.mergedDailyEntries(from: sourceItems.map(\.entry))
+                let sourceTokens = CheckedSum.integers(sourceDaily.compactMap(\.totalTokens))
+                let sourceCosts = sourceDaily.compactMap(\.costUSD)
+                let sourceModelSummaries = CostUsageDailyReport.modelCostSummaries(from: sourceDaily)
+                let sourceBreakdowns = sourceModelSummaries.isEmpty
+                    ? nil
+                    : CostUsageDailyReport.sortedModelBreakdowns(sourceModelSummaries)
+                let resolvedPath = sourceKey.isEmpty ? representative.canonicalPath : sourceKey
+                let sourceName = resolvedPath.map(self.directoryDisplayName(path:)) ?? representative.projectName
+                return CostUsageProjectSourceBreakdown(
+                    name: sourceName,
+                    path: resolvedPath,
+                    totalTokens: sourceTokens,
+                    totalCostUSD: sourceCosts.isEmpty ? nil : sourceCosts.reduce(0, +),
+                    daily: sourceDaily,
+                    modelBreakdowns: sourceBreakdowns)
+            }.sorted { lhs, rhs in
+                let lhsRank = (lhs.totalCostUSD ?? -1, lhs.totalTokens ?? -1)
+                let rhsRank = (rhs.totalCostUSD ?? -1, rhs.totalTokens ?? -1)
+                if lhsRank != rhsRank { return lhsRank > rhsRank }
+                return (lhs.path ?? lhs.name) < (rhs.path ?? rhs.name)
+            }
+
+            projects.append(CostUsageProjectBreakdown(
+                name: representative.projectName,
+                path: representative.canonicalPath,
+                totalTokens: totalTokens,
+                totalCostUSD: totalCostUSD,
+                daily: daily,
+                modelBreakdowns: modelBreakdowns,
+                sources: projectSources))
+        }
+
+        projects.sort { lhs, rhs in
+            let lhsRank = (lhs.totalCostUSD ?? -1, lhs.totalTokens ?? -1)
+            let rhsRank = (rhs.totalCostUSD ?? -1, rhs.totalTokens ?? -1)
+            if lhsRank != rhsRank {
+                return lhsRank > rhsRank
+            }
+            return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+        }
+
+        return (projects, sessions)
+    }
+
+    private static func mergedDailyEntries(from entries: [CostUsageDailyReport.Entry]) -> [CostUsageDailyReport.Entry] {
+        var byDate: [String: CostUsageDailyReport.Entry] = [:]
+        for entry in entries {
+            if let existing = byDate[entry.date],
+               let merged = self.checkedMergeEntry(existing, entry)
+            {
+                byDate[entry.date] = merged
+            } else if byDate[entry.date] == nil {
+                byDate[entry.date] = entry
+            }
+        }
+        return byDate.values.sorted { $0.date < $1.date }
+    }
+
+    private static func representativeProjectIdentity(
+        from identities: [ResolvedProjectIdentity]) -> ResolvedProjectIdentity
+    {
+        guard let first = identities.first else {
+            return ResolvedProjectIdentity(
+                projectKey: "",
+                projectName: CostUsageProjectBreakdown.unknownProjectName,
+                canonicalPath: nil,
+                sourcePath: nil,
+                sourceName: CostUsageProjectBreakdown.unknownProjectName)
+        }
+        let nonWorktree = identities.first { identity in
+            guard let path = identity.canonicalPath else { return false }
+            return !path.contains("/.gemini/antigravity/worktrees/")
+        }
+        let anyPath = identities
+            .filter { $0.canonicalPath != nil }
+            .min { lhs, rhs in
+                let lPath = lhs.canonicalPath ?? ""
+                let rPath = rhs.canonicalPath ?? ""
+                if lPath.count != rPath.count { return lPath.count < rPath.count }
+                return lPath < rPath
+            }
+        return nonWorktree ?? anyPath ?? first
+    }
+
+    private static func resolveProjectIdentity(
+        sessionID: String,
+        source: SourceResult,
+        projectGrouping: AntigravityProjectGrouping) -> ResolvedProjectIdentity
+    {
+        let trajectory = source.trajectoryMetadataBySession[sessionID]
+        let summary = source.conversationSummariesBySession[sessionID]
+        let workspacePath = self.normalizedLocalPath(trajectory?.primaryWorkspaceURI)
+            ?? trajectory?.workspaces.lazy.compactMap { self.normalizedLocalPath($0.workspaceURI) }.first
+            ?? summary?.workspaceURIs.lazy.compactMap { self.normalizedLocalPath($0) }.first
+        let gitRootPath = trajectory?.workspaces.lazy.compactMap { self.normalizedLocalPath($0.gitRootURI) }.first
+
+        switch projectGrouping {
+        case .workspace:
+            let path = workspacePath ?? gitRootPath
+            let name = path.map(self.directoryDisplayName(path:)) ?? CostUsageProjectBreakdown.unknownProjectName
+            return ResolvedProjectIdentity(
+                projectKey: path ?? "",
+                projectName: name,
+                canonicalPath: path,
+                sourcePath: path,
+                sourceName: name)
+        case .gitRepository:
+            let repoWorkspace = trajectory?.workspaces.first { workspace in
+                let hasSlug = workspace.repoSlug?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                let hasRemote = workspace.repoRemoteURL?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    .isEmpty == false
+                return hasSlug || hasRemote
+            }
+            let repoSlug = trajectory?.workspaces.lazy
+                .compactMap { $0.repoSlug?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .first { !$0.isEmpty }
+            let repoRemoteURL = trajectory?.workspaces.lazy
+                .compactMap { $0.repoRemoteURL?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .first { !$0.isEmpty }
+            if let repo = Self.canonicalRepositoryIdentity(repoSlug: repoSlug, repoRemoteURL: repoRemoteURL) {
+                let repoGitRoot = self.normalizedLocalPath(repoWorkspace?.gitRootURI) ?? gitRootPath
+                let repoWorkspacePath = self.normalizedLocalPath(repoWorkspace?.workspaceURI) ?? workspacePath
+                let sourcePath = repoWorkspacePath ?? repoGitRoot
+                let nonWorktreeGitRoot = repoGitRoot?.contains("/.gemini/antigravity/worktrees/") == false
+                    ? repoGitRoot
+                    : nil
+                let nonWorktreeSource = sourcePath?.contains("/.gemini/antigravity/worktrees/") == false
+                    ? sourcePath
+                    : nil
+                let canonical = nonWorktreeGitRoot ?? nonWorktreeSource ?? repoGitRoot ?? sourcePath
+                let effectiveSourcePath = sourcePath ?? canonical
+                let sourceName = effectiveSourcePath.map(self.directoryDisplayName(path:)) ?? repo.name
+                return ResolvedProjectIdentity(
+                    projectKey: repo.key,
+                    projectName: repo.name,
+                    canonicalPath: canonical,
+                    sourcePath: effectiveSourcePath,
+                    sourceName: sourceName)
+            }
+            let fallbackPath = gitRootPath ?? workspacePath
+            let name = fallbackPath.map(self.directoryDisplayName(path:))
+                ?? CostUsageProjectBreakdown.unknownProjectName
+            return ResolvedProjectIdentity(
+                projectKey: fallbackPath.map { "path:\($0)" } ?? "",
+                projectName: name,
+                canonicalPath: fallbackPath,
+                sourcePath: workspacePath ?? fallbackPath,
+                sourceName: (workspacePath ?? fallbackPath).map(self.directoryDisplayName(path:)) ?? name)
+        }
+    }
+
+    private static func normalizedLocalPath(_ rawURI: String?) -> String? {
+        guard let trimmed = rawURI?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+        if let url = URL(string: trimmed), url.isFileURL {
+            return url.standardizedFileURL.path
+        }
+        if trimmed.hasPrefix("/") {
+            return URL(fileURLWithPath: trimmed).standardizedFileURL.path
+        }
+        return nil
+    }
+
+    private static func directoryDisplayName(path: String) -> String {
+        let name = URL(fileURLWithPath: path, isDirectory: true).lastPathComponent
+        return name.isEmpty ? path : name
+    }
+
+    private static func canonicalRepositoryIdentity(
+        repoSlug: String?,
+        repoRemoteURL: String?) -> (key: String, name: String)?
+    {
+        if let repoSlug {
+            var cleaned = repoSlug
+                .trimmingCharacters(in: CharacterSet(charactersIn: "/").union(.whitespacesAndNewlines))
+            if cleaned.lowercased().hasSuffix(".git") {
+                cleaned.removeLast(".git".count)
+                cleaned = cleaned.trimmingCharacters(in: CharacterSet(charactersIn: "/").union(.whitespacesAndNewlines))
+            }
+            if !cleaned.isEmpty {
+                return (key: "repo:\(cleaned.lowercased())", name: cleaned)
+            }
+        }
+        if let repoRemoteURL {
+            let normalizedRemote = self.normalizedRepositoryName(from: repoRemoteURL)
+            guard !normalizedRemote.isEmpty else { return nil }
+            if let slug = self.extractOwnerRepoSlug(from: normalizedRemote) {
+                return (key: "repo:\(slug.lowercased())", name: slug)
+            }
+            return (key: "remote:\(normalizedRemote.lowercased())", name: normalizedRemote)
+        }
+        return nil
+    }
+
+    private static func normalizedRepositoryName(from remoteURL: String) -> String {
+        var cleaned = remoteURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        while cleaned.hasSuffix("/") {
+            cleaned.removeLast()
+        }
+        if cleaned.lowercased().hasSuffix(".git") {
+            cleaned.removeLast(".git".count)
+        }
+        while cleaned.hasSuffix("/") {
+            cleaned.removeLast()
+        }
+        if let colonIndex = cleaned.lastIndex(of: ":"), !cleaned.contains("://") {
+            var pathPart = String(cleaned[cleaned.index(after: colonIndex)...])
+            while pathPart.hasPrefix("/") {
+                pathPart.removeFirst()
+            }
+            if !pathPart.isEmpty { return pathPart }
+        }
+        if let url = URL(string: cleaned), !url.isFileURL {
+            let parts = url.pathComponents.filter { $0 != "/" }
+            if parts.count >= 2 {
+                return "\(parts[parts.count - 2])/\(parts[parts.count - 1])"
+            }
+            if let last = parts.last, !last.isEmpty {
+                return last
+            }
+        }
+        return cleaned
+    }
+
+    private static func extractOwnerRepoSlug(from normalizedRemote: String) -> String? {
+        let trimmed = normalizedRemote
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/").union(.whitespacesAndNewlines))
+        guard !trimmed.isEmpty,
+              !trimmed.contains("://"),
+              !trimmed.contains(where: \.isWhitespace)
+        else { return nil }
+        let parts = trimmed.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+        guard parts.count == 2,
+              !parts[0].isEmpty,
+              !parts[1].isEmpty,
+              !parts[0].contains(":"),
+              !parts[1].contains(":")
+        else { return nil }
+        return "\(parts[0])/\(parts[1])"
     }
 }

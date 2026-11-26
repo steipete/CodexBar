@@ -189,11 +189,12 @@ extension AntigravityStatusSnapshot {
     {
         let nonOperational = quotaSummary.modelAvailabilities
             .filter { _, availability in
-                let upper = availability.state.uppercased()
-                return upper != "MODEL_AVAILABILITY_STATE_OPERATIONAL" &&
-                    upper != "MODEL_AVAILABILITY_STATE_UNSPECIFIED" &&
-                    upper != "0" &&
-                    upper != "1"
+                let normalized = Self.normalizedAvailabilityState(availability.state)
+                return !normalized.isEmpty &&
+                    normalized != "OPERATIONAL" &&
+                    normalized != "UNSPECIFIED" &&
+                    normalized != "0" &&
+                    normalized != "1"
             }
             .sorted { $0.key < $1.key }
         guard !nonOperational.isEmpty else { return nil }
@@ -207,14 +208,16 @@ extension AntigravityStatusSnapshot {
         return ProviderDetailSection.makeSection(title: "Model availability", rows: rows)
     }
 
-    private static func humanizedAvailabilityState(_ raw: String) -> String {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    private static func normalizedAvailabilityState(_ raw: String) -> String {
+        let upper = raw.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         let prefix = "MODEL_AVAILABILITY_STATE_"
-        let stripped = trimmed.uppercased().hasPrefix(prefix)
-            ? String(trimmed.dropFirst(prefix.count))
-            : trimmed
+        return upper.hasPrefix(prefix) ? String(upper.dropFirst(prefix.count)) : upper
+    }
+
+    private static func humanizedAvailabilityState(_ raw: String) -> String {
+        let stripped = Self.normalizedAvailabilityState(raw)
         let words = stripped.split(separator: "_").map { $0.lowercased() }
-        guard let first = words.first else { return trimmed }
+        guard let first = words.first else { return raw.trimmingCharacters(in: .whitespacesAndNewlines) }
         return ([first.prefix(1).uppercased() + first.dropFirst()] + words.dropFirst()).joined(separator: " ")
     }
 

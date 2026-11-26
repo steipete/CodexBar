@@ -194,6 +194,101 @@ struct AntigravitySettingsDescriptorTests {
     }
 
     @Test
+    func `modelQuotas snapshot honors primaryPoolPreference in menuBarWindow without mislabeling card`() throws {
+        let now = Date(timeIntervalSince1970: 1_787_832_000)
+        let reset = now.addingTimeInterval(3600)
+        let statusSnapshot = AntigravityStatusSnapshot(
+            modelQuotas: [
+                AntigravityModelQuota(
+                    label: "Gemini 3.1 Pro (High)",
+                    modelId: "gemini-3-1-pro-high",
+                    remainingFraction: 0.90,
+                    resetTime: reset,
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "Claude Sonnet 4.6",
+                    modelId: "claude-sonnet-4-6",
+                    remainingFraction: 0.40,
+                    resetTime: reset,
+                    resetDescription: nil),
+            ],
+            accountEmail: "modelquotas@example.com",
+            accountPlan: "Pro",
+            source: .remote)
+
+        let usage = try statusSnapshot.toUsageSnapshot(primaryPool: .claudeGPTWeekly)
+        #expect(usage.primary?.remainingPercent.rounded() == 90)
+        #expect(usage.secondary?.remainingPercent.rounded() == 40)
+
+        let metadata = try #require(ProviderDefaults.metadata[.antigravity])
+        let cardModel = UsageMenuCardView.Model.make(.init(
+            provider: .antigravity,
+            metadata: metadata,
+            snapshot: usage,
+            credits: nil,
+            creditsError: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+        #expect(cardModel.metrics.map(\.title) == ["Gemini Models", "Claude and GPT"])
+        #expect(cardModel.metrics.map(\.percentLabel) == ["90% left", "40% left"])
+
+        let claudeWeeklyWindow = MenuBarMetricWindowResolver.rateWindow(
+            preference: .automatic,
+            provider: .antigravity,
+            snapshot: usage,
+            supportsAverage: false,
+            antigravityPrimaryPool: .claudeGPTWeekly)
+        #expect(claudeWeeklyWindow?.usedPercent.rounded() == 60)
+
+        let claudeFiveHourWindow = MenuBarMetricWindowResolver.rateWindow(
+            preference: .automatic,
+            provider: .antigravity,
+            snapshot: usage,
+            supportsAverage: false,
+            antigravityPrimaryPool: .claudeGPTFiveHour)
+        #expect(claudeFiveHourWindow?.usedPercent.rounded() == 60)
+
+        let geminiWeeklyWindow = MenuBarMetricWindowResolver.rateWindow(
+            preference: .automatic,
+            provider: .antigravity,
+            snapshot: usage,
+            supportsAverage: false,
+            antigravityPrimaryPool: .geminiWeekly)
+        #expect(geminiWeeklyWindow?.usedPercent.rounded() == 10)
+
+        let geminiOnlySnapshot = AntigravityStatusSnapshot(
+            modelQuotas: [
+                AntigravityModelQuota(
+                    label: "Gemini 3.1 Pro (High)",
+                    modelId: "gemini-3-1-pro-high",
+                    remainingFraction: 0.85,
+                    resetTime: reset,
+                    resetDescription: nil),
+            ],
+            accountEmail: nil,
+            accountPlan: "Pro",
+            source: .remote)
+        let geminiOnlyUsage = try geminiOnlySnapshot.toUsageSnapshot(primaryPool: .claudeGPTWeekly)
+        let fallbackWindow = MenuBarMetricWindowResolver.rateWindow(
+            preference: .automatic,
+            provider: .antigravity,
+            snapshot: geminiOnlyUsage,
+            supportsAverage: false,
+            antigravityPrimaryPool: .claudeGPTWeekly)
+        #expect(fallbackWindow?.usedPercent.rounded() == 15)
+    }
+
+    @Test
     func `tokenSnapshotScopeSignature invalidates when scan source toggles or project grouping change`() {
         let suite = "AntigravitySettingsDescriptorTests-scope"
         let settings = testSettingsStore(

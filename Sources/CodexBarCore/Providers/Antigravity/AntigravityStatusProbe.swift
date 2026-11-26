@@ -166,14 +166,8 @@ public struct AntigravityStatusSnapshot: Sendable {
             nil
         }
 
-        let geminiWindow = primaryQuota.map(Self.rateWindow(for:))
-        let claudeGPTWindow = secondaryQuota.map(Self.rateWindow(for:))
-        let (primary, secondary): (RateWindow?, RateWindow?) = switch primaryPool.preferredFamily {
-        case .claudeGPT:
-            (claudeGPTWindow ?? geminiWindow, claudeGPTWindow != nil ? geminiWindow : nil)
-        default:
-            (geminiWindow, claudeGPTWindow)
-        }
+        let primary = primaryQuota.map(Self.rateWindow(for:))
+        let secondary = secondaryQuota.map(Self.rateWindow(for:))
         let extraWindows = Self.extraRateWindows(
             from: normalized,
             summaryCandidates: summaryCandidates,

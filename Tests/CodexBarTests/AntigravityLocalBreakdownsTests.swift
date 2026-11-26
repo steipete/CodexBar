@@ -199,6 +199,102 @@ struct AntigravityLocalBreakdownsTests {
             "/Users/fixture/dev/my-repo",
             "/Users/fixture/.gemini/antigravity/worktrees/my-repo/wt-1",
         ])
+        let repoWtSession = try #require(repoSnapshot.sessions.first { $0.sessionID == "session-wt" })
+        #expect(repoWtSession.projectPath == repoProject.path)
+    }
+
+    @Test
+    func `gitRepository scans all workspaces merges slug and remote URLs and aligns projectPath`() throws {
+        let fixture = try Fixture()
+        let multiWorkspaceBlob = Fixture.trajectoryMetadataBlob(
+            workspaces: [
+                .init(workspaceURI: "file:///Users/fixture/dev/workspace-only"),
+                .init(
+                    workspaceURI: "file:///Users/fixture/dev/big-repo",
+                    gitRootURI: "file:///Users/fixture/dev/big-repo",
+                    repoSlug: "owner/big-repo",
+                    repoRemoteURL: "git@github.com:owner/big-repo.git"),
+            ])
+        let slugWorktreeBlob = Fixture.trajectoryMetadataBlob(
+            workspaces: [
+                .init(
+                    workspaceURI: "file:///Users/fixture/.gemini/antigravity/worktrees/same-repo/wt-2",
+                    repoSlug: "owner/same-repo"),
+            ])
+        let httpsRemoteBlob = Fixture.trajectoryMetadataBlob(
+            workspaces: [
+                .init(
+                    workspaceURI: "file:///Users/fixture/dev/same-repo",
+                    gitRootURI: "file:///Users/fixture/dev/same-repo",
+                    repoRemoteURL: "https://github.com/owner/same-repo.git"),
+            ])
+        let sshRemoteOnlyBlob = Fixture.trajectoryMetadataBlob(
+            workspaces: [
+                .init(repoRemoteURL: "git@github.com:owner/remote-only.git"),
+            ])
+
+        try fixture.database(
+            "s-multi",
+            blobs: [Fixture.blob(seconds: 1_787_832_000)],
+            trajectoryMetadataBlob: multiWorkspaceBlob)
+        try fixture.database(
+            "s-slug",
+            blobs: [Fixture.blob(seconds: 1_787_832_100)],
+            trajectoryMetadataBlob: slugWorktreeBlob)
+        try fixture.database(
+            "s-remote",
+            blobs: [Fixture.blob(seconds: 1_787_832_200)],
+            trajectoryMetadataBlob: httpsRemoteBlob)
+        try fixture.database(
+            "s-remote-only",
+            blobs: [Fixture.blob(seconds: 1_787_832_300)],
+            trajectoryMetadataBlob: sshRemoteOnlyBlob)
+
+        let report = try fixture.report(
+            scanOptions: AntigravityLocalScanOptions(projectGrouping: .gitRepository),
+            includeBreakdowns: true)
+        #expect(report.coverage == .complete)
+
+        let bigRepo = try #require(report.projects.first { $0.name == "owner/big-repo" })
+        #expect(bigRepo.path == "/Users/fixture/dev/big-repo")
+
+        let sameRepoProjects = report.projects.filter { $0.name == "owner/same-repo" }
+        #expect(sameRepoProjects.count == 1)
+        let sameRepo = try #require(sameRepoProjects.first)
+        #expect(sameRepo.path == "/Users/fixture/dev/same-repo")
+        #expect(sameRepo.totalTokens == 374)
+
+        let slugSession = try #require(report.sessions.first { $0.sessionID == "s-slug" })
+        #expect(slugSession.projectPath == "/Users/fixture/dev/same-repo")
+        #expect(slugSession.projectName == "owner/same-repo")
+
+        let remoteOnlyProject = try #require(report.projects.first { $0.name == "owner/remote-only" })
+        #expect(remoteOnlyProject.path == nil)
+        let remoteOnlySession = try #require(report.sessions.first { $0.sessionID == "s-remote-only" })
+        #expect(remoteOnlySession.projectPath == nil)
+        #expect(remoteOnlySession.projectName == "owner/remote-only")
+    }
+
+    @Test
+    func `partial scan reads trajectory_metadata_blob even when step timestamp recovery fails`() throws {
+        let fixture = try Fixture()
+        let tmb = Fixture.trajectoryMetadataBlob(
+            workspaces: [.init(workspaceURI: "file:///Users/fixture/dev/partial-repo")])
+        try fixture.database(
+            "s-partial",
+            blobs: [
+                Fixture.blob(seconds: 1_787_832_000),
+                Fixture.blobWithRootEnvelope(stepUUID: "step-1", seconds: nil),
+            ],
+            stepBlobs: [[0xFF, 0xFF]],
+            trajectoryMetadataBlob: tmb)
+
+        let report = try fixture.report(includeBreakdowns: true)
+        #expect(report.coverage == .partial)
+        #expect(report.projects.count == 1)
+        #expect(report.projects.first?.name == "partial-repo")
+        #expect(report.projects.first?.path == "/Users/fixture/dev/partial-repo")
+        #expect(report.sessions.first?.projectPath == "/Users/fixture/dev/partial-repo")
     }
 
     @Test

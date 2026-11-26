@@ -165,6 +165,109 @@ struct AntigravityExtendedMetadataTests {
     }
 
     @Test
+    func `modelAvailability excludes unprefixed operational and unspecified states`() throws {
+        let json = """
+        {
+          "buckets": [
+            {
+              "bucketId": "gemini-allowance",
+              "displayName": "Allowance",
+              "refreshWindowLabel": "weekly",
+              "remainingFraction": 0.9
+            }
+          ],
+          "modelAvailabilities": {
+            "model-short-operational": { "state": "OPERATIONAL" },
+            "model-short-unspecified": { "state": "UNSPECIFIED" },
+            "model-lower-operational": { "state": " operational " },
+            "model-prefixed-operational": { "state": "MODEL_AVAILABILITY_STATE_OPERATIONAL" },
+            "model-prefixed-unspecified": { "state": "MODEL_AVAILABILITY_STATE_UNSPECIFIED" },
+            "model-numeric-zero": { "state": 0 },
+            "model-numeric-one": { "state": 1 },
+            "model-congested": { "state": "CONGESTED", "explanation": "Busy" }
+          }
+        }
+        """
+
+        let usage = try AntigravityStatusProbe.parseQuotaSummaryResponse(Data(json.utf8)).toUsageSnapshot()
+        let availability = try #require(usage.details.first { $0.title == "Model availability" })
+        #expect(availability.rows.count == 1)
+        #expect(availability.rows.first?.id == "antigravity-availability-model-congested")
+        #expect(availability.rows.first?.value == "Congested")
+        #expect(availability.rows.first?.secondaryValue == "Busy")
+
+        let allHealthyJSON = """
+        {
+          "buckets": [
+            {
+              "bucketId": "gemini-allowance",
+              "displayName": "Allowance",
+              "refreshWindowLabel": "weekly",
+              "remainingFraction": 0.9
+            }
+          ],
+          "modelAvailabilities": {
+            "model-short-operational": { "state": "OPERATIONAL" },
+            "model-short-unspecified": { "state": "UNSPECIFIED" }
+          }
+        }
+        """
+        let healthyUsage = try AntigravityStatusProbe.parseQuotaSummaryResponse(Data(allHealthyJSON.utf8))
+            .toUsageSnapshot()
+        #expect(!healthyUsage.details.contains { $0.title == "Model availability" })
+    }
+
+    @Test
+    func `parseCLIUsageReport decodes snake_case remaining oneof cases`() throws {
+        let fractionReportJSON = """
+        {
+          "status": "SUCCESS",
+          "command": {
+            "name": "usage",
+            "data": {
+              "buckets": [
+                {
+                  "bucket_id": "gemini-allowance",
+                  "display_name": "Allowance",
+                  "refresh_window_label": "weekly",
+                  "remaining": { "case": "remaining_fraction", "value": 0.6 }
+                }
+              ]
+            }
+          }
+        }
+        """
+        let fractionSnapshot = try AntigravityStatusProbe.parseCLIUsageReport(Data(fractionReportJSON.utf8))
+        let fractionBucket = try #require(fractionSnapshot.quotaSummary?.groups.first?.buckets.first)
+        #expect(fractionBucket.remainingFraction == 0.6)
+        #expect(fractionBucket.remainingAmount == nil)
+
+        let amountReportJSON = """
+        {
+          "status": "SUCCESS",
+          "command": {
+            "name": "usage",
+            "data": {
+              "buckets": [
+                {
+                  "bucket_id": "gemini-allowance",
+                  "display_name": "Allowance",
+                  "refresh_window_label": "weekly",
+                  "remaining_fraction": 0.6,
+                  "remaining": { "case": "remaining_amount", "value": "300" }
+                }
+              ]
+            }
+          }
+        }
+        """
+        let amountSnapshot = try AntigravityStatusProbe.parseCLIUsageReport(Data(amountReportJSON.utf8))
+        let amountBucket = try #require(amountSnapshot.quotaSummary?.groups.first?.buckets.first)
+        #expect(amountBucket.remainingFraction == 0.6)
+        #expect(amountBucket.remainingAmount == 300)
+    }
+
+    @Test
     func `fetchSnapshot merges credits and accountMetadata from GetUserStatus`() async throws {
         let summaryJSON = antigravityQuotaSummaryJSON()
         let userStatusJSON = """
