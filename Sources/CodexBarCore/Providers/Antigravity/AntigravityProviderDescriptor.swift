@@ -68,7 +68,7 @@ public enum AntigravityProviderDescriptor {
                 settingsStatusOrder: 3,
                 showsHintInProviderDetails: true,
                 estimateDisclaimer: "Local usage × public API prices · not Antigravity charges or credits",
-                historyTitleStyle: .compact,
+                historyTitleStyle: .standard,
                 hintPlacement: .beforeRequestHistory,
                 chartEstimateDisclaimer: .localized(self.estimateHintKey),
                 presentation: .costAndTokens),

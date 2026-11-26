@@ -14,6 +14,13 @@ struct VertexAIProviderDescriptorTests {
         #expect(descriptor.tokenCost.showsHintInProviderDetails)
         #expect(descriptor.tokenCost.menuHintLines == [.localized("cost_estimate_hint")])
         #expect(descriptor.tokenCost.chartEstimateDisclaimer == .localized("vertexai_cost_estimate_hint"))
+        #expect(descriptor.history == .unavailable)
+        #expect(descriptor.cli.supportsCostCommand)
+        #expect(VertexAIProviderDescriptor.estimateHintKey(forHistoryLabel: "Last 30 days (Cloud est.)") ==
+            VertexAIProviderDescriptor.cloudEstimateHintKey)
+        #expect(VertexAIProviderDescriptor.estimateHintKey(forHistoryLabel: "Last 30 days (Cloud + Local est.)") ==
+            VertexAIProviderDescriptor.estimateHintKey)
+        #expect(VertexAIProviderDescriptor.estimateHintKey(forHistoryLabel: nil) == nil)
         #expect(descriptor.presentation.menuCard.supportsInlineTokenCostDashboard)
         #expect(descriptor.presentation.menuCard.primaryDescriptionPlacement == .detail)
         #expect(descriptor.presentation.menuCard.hidesPrimaryResetWithoutDate)
@@ -292,5 +299,63 @@ struct VertexAIProviderDescriptorTests {
         #expect(allocFallback.primary?.title == "Rate quota (RPM)")
         #expect(allocFallback.primary?.usedPercent == 25)
         #expect(allocFallback.secondary == nil)
+    }
+
+    @Test
+    func `mapUsage clamps non-finite and extreme double quota values without trapping`() throws {
+        let credentials = VertexAIOAuthCredentials(
+            accessToken: "token",
+            refreshToken: "refresh",
+            clientId: "client",
+            clientSecret: "secret",
+            projectId: "proj-clamp",
+            email: "dev@example.com",
+            expiryDate: Date().addingTimeInterval(3600))
+        let buckets = [
+            VertexAIQuotaBucketUsage(
+                quotaMetric: "aiplatform.googleapis.com/inf_metric",
+                limitName: "Inf",
+                location: "us-central1",
+                cadence: .perMinute,
+                usage: 1e25,
+                limit: 1e-320,
+                usedPercent: .infinity),
+            VertexAIQuotaBucketUsage(
+                quotaMetric: "aiplatform.googleapis.com/nan_metric",
+                limitName: "NaN",
+                location: "global",
+                cadence: .perDay,
+                usage: -1e25,
+                limit: .nan,
+                usedPercent: .nan),
+            VertexAIQuotaBucketUsage(
+                quotaMetric: "aiplatform.googleapis.com/neg_inf_metric",
+                limitName: "NegInf",
+                location: "europe-west1",
+                cadence: .allocation,
+                usage: -.infinity,
+                limit: .infinity,
+                usedPercent: -.infinity),
+        ]
+        let response = VertexAIUsageResponse(
+            requestsUsedPercent: 100,
+            tokensUsedPercent: nil,
+            resetsAt: nil,
+            resetDescription: nil,
+            rawData: nil,
+            rateQuotas: [buckets[0], buckets[1]],
+            allocationQuotas: [buckets[2]],
+            highestRateQuota: buckets[0],
+            highestAllocationQuota: buckets[2])
+
+        let snapshot = VertexAIOAuthFetchStrategy.mapUsage(response, credentials: credentials)
+        let quotaSection = try #require(snapshot.details.first { $0.title == "Quota breakdown" })
+        #expect(quotaSection.rows.count == 3)
+        for row in quotaSection.rows {
+            #expect(!row.value.isEmpty)
+            if let usageValue = row.usageValue {
+                #expect(usageValue.isFinite)
+            }
+        }
     }
 }

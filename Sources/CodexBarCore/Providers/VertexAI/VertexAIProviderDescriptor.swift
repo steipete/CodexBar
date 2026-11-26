@@ -2,9 +2,19 @@ import Foundation
 
 public enum VertexAIProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
-    static let estimateHintKey = "vertexai_cost_estimate_hint"
-    /// Reserved for M3 CostHistoryChartMenuView when telemetryCostSource is cloudMonitoringOnly.
+    public static let estimateHintKey = "vertexai_cost_estimate_hint"
     public static let cloudEstimateHintKey = "vertexai_cloud_cost_estimate_hint"
+
+    static func estimateHintKey(forHistoryLabel historyLabel: String?) -> String? {
+        guard let historyLabel else { return nil }
+        if historyLabel.hasSuffix("(Cloud est.)") {
+            return Self.cloudEstimateHintKey
+        }
+        if historyLabel.hasSuffix("(Cloud + Local est.)") {
+            return Self.estimateHintKey
+        }
+        return nil
+    }
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
@@ -46,10 +56,17 @@ public enum VertexAIProviderDescriptor {
                 noDataMessage: { "No Vertex AI cost data found in Claude logs. Ensure entries include Vertex metadata."
                 },
                 menuHintLines: [.localized("cost_estimate_hint")],
+                menuHintLinesResolver: { snapshot in
+                    Self.estimateHintKey(forHistoryLabel: snapshot.historyLabel).map { [.localized($0)] }
+                },
                 supportsTokenSnapshot: true,
                 settingsStatusOrder: 4,
                 showsHintInProviderDetails: true,
-                chartEstimateDisclaimer: .localized(self.estimateHintKey)),
+                chartEstimateDisclaimer: .localized(self.estimateHintKey),
+                chartEstimateDisclaimerResolver: { historyLabel in
+                    Self.estimateHintKey(forHistoryLabel: historyLabel).map(ProviderTokenCostHint.localized)
+                }),
+            history: .unavailable,
             presentation: ProviderUsagePresentation(
                 rateWindowLabeler: { metadata, snapshot, _ in
                     ProviderRateWindowLabels(
@@ -68,7 +85,8 @@ public enum VertexAIProviderDescriptor {
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [VertexAIOAuthFetchStrategy()] })),
             cli: ProviderCLIConfig(
                 name: "vertexai",
-                versionDetector: nil))
+                versionDetector: nil,
+                supportsCostCommand: true))
     }
 }
 
@@ -269,7 +287,7 @@ struct VertexAIOAuthFetchStrategy: ProviderFetchStrategy {
         if !combinedQuotas.isEmpty {
             let rows = combinedQuotas.prefix(8).map { bucket in
                 let label = bucket.displayName ?? Self.shortQuotaMetricLabel(bucket.quotaMetric)
-                let percentText = "\(Int(bucket.usedPercent.rounded()))%"
+                let percentText = "\(max(0, Self.clampedRoundedInt(bucket.usedPercent)))%"
                 let ratioText = "\(Self.formatCompactNumber(bucket.usage))/\(Self.formatCompactNumber(bucket.limit))"
                 let secondaryParts: [String?] = [
                     bucket.location,
@@ -295,7 +313,7 @@ struct VertexAIOAuthFetchStrategy: ProviderFetchStrategy {
                     secondaryValue: secondary.isEmpty ? nil : secondary,
                     progress: progress,
                     severity: severity,
-                    usageValue: bucket.usage)
+                    usageValue: bucket.usage.isFinite ? bucket.usage : nil)
             }
             sections.append(ProviderDetailSection.makeSection(title: "Quota breakdown", rows: rows))
         }
@@ -364,13 +382,24 @@ struct VertexAIOAuthFetchStrategy: ProviderFetchStrategy {
         return tail.replacingOccurrences(of: "_", with: " ")
     }
 
+    private static func clampedRoundedInt(_ value: Double) -> Int {
+        guard value.isFinite else {
+            if value.isNaN { return 0 }
+            return value > 0 ? Int.max : Int.min
+        }
+        let rounded = value.rounded()
+        if rounded >= Double(Int.max) { return Int.max }
+        if rounded <= Double(Int.min) { return Int.min }
+        return Int(rounded)
+    }
+
     private static func formatCompactNumber(_ value: Double) -> String {
         guard value.isFinite else { return "0" }
-        if value >= 1000 {
-            return UsageFormatter.tokenCountString(Int(value.rounded()))
+        if abs(value) >= 1000 {
+            return UsageFormatter.tokenCountString(self.clampedRoundedInt(value))
         }
         if value == value.rounded() {
-            return String(Int(value))
+            return String(self.clampedRoundedInt(value))
         }
         return String(format: "%.1f", value)
     }

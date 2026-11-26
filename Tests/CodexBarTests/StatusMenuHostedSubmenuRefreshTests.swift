@@ -843,3 +843,111 @@ struct StatusMenuHostedSubmenuRefreshTests {
             updatedAt: Date())
     }
 }
+
+@MainActor
+@Suite(.serialized)
+struct StatusMenuAntigravityVertexSubmenuTests {
+    @Test
+    func `antigravity plan usage burndown needs structured history and vertexai omits submenu`() throws {
+        let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer {
+            StatusItemController.menuCardRenderingEnabled = previousMenuCardRendering
+        }
+
+        let settings = testSettingsStore(
+            suiteName: "StatusMenuAntigravityVertexSubmenuTests",
+            userDefaults: InMemoryUserDefaults(),
+            config: testConfigWithAllProvidersDisabled())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.historicalTrackingEnabled = true
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        store.planUtilizationHistoryLoaded = true
+
+        let now = Date()
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                extraRateWindows: [
+                    NamedRateWindow(
+                        id: "antigravity-quota-summary-gemini-session",
+                        title: "Gemini",
+                        window: RateWindow(
+                            usedPercent: 25,
+                            windowMinutes: 300,
+                            resetsAt: now.addingTimeInterval(3600),
+                            resetDescription: nil)),
+                    NamedRateWindow(
+                        id: "antigravity-quota-summary-gemini-weekly",
+                        title: "Gemini",
+                        window: RateWindow(
+                            usedPercent: 40,
+                            windowMinutes: 10080,
+                            resetsAt: now.addingTimeInterval(4 * 86400),
+                            resetDescription: nil)),
+                ],
+                updatedAt: now),
+            provider: .antigravity)
+        store.planUtilizationHistory[.antigravity] = PlanUtilizationHistoryBuckets(unscoped: [
+            PlanUtilizationSeriesHistory(
+                name: .session,
+                windowMinutes: 300,
+                entries: [.init(
+                    capturedAt: now.addingTimeInterval(-1800),
+                    usedPercent: 25,
+                    resetsAt: now.addingTimeInterval(3600))]),
+            PlanUtilizationSeriesHistory(
+                name: .weekly,
+                windowMinutes: 10080,
+                entries: [.init(
+                    capturedAt: now.addingTimeInterval(-3600),
+                    usedPercent: 40,
+                    resetsAt: now.addingTimeInterval(4 * 86400))]),
+        ])
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let antigravitySubmenu = try #require(controller.makeUsageHistorySubmenu(
+            provider: .antigravity,
+            width: StatusItemController.menuCardBaseWidth))
+        controller.menuWillOpen(antigravitySubmenu)
+
+        #expect(antigravitySubmenu.items.count == 3)
+        #expect(antigravitySubmenu.items.first?.view is NSHostingView<QuotaBurndownChartMenuView>)
+        #expect(antigravitySubmenu.items[1].isSeparatorItem)
+        #expect(antigravitySubmenu.items.last?.view is NSHostingView<PlanUtilizationHistoryChartMenuView>)
+
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 10, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                secondary: nil,
+                updatedAt: now),
+            provider: .antigravity)
+        store.planUtilizationHistory[.antigravity] = PlanUtilizationHistoryBuckets(unscoped: [
+            PlanUtilizationSeriesHistory(
+                name: .antigravityGemini,
+                windowMinutes: 0,
+                entries: [.init(capturedAt: now, usedPercent: 10, resetsAt: now.addingTimeInterval(3600))]),
+        ])
+        store.planUtilizationHistoryRevision &+= 1
+        controller.refreshHostedSubviewMenu(antigravitySubmenu)
+
+        #expect(antigravitySubmenu.items.count == 1)
+        #expect(antigravitySubmenu.items.first?.view is NSHostingView<PlanUtilizationHistoryChartMenuView>)
+
+        #expect(controller.makeUsageHistorySubmenu(
+            provider: .vertexai,
+            width: StatusItemController.menuCardBaseWidth) == nil)
+    }
+}

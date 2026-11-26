@@ -620,15 +620,19 @@ struct PlanUtilizationHistoryChartMenuView: View {
         metadata: ProviderMetadata?,
         windowMinutes: Int) -> String
     {
-        switch name {
+        // Provider-specific by design: Antigravity metadata labels name model pools rather than session/weekly windows.
+        let isAntigravity = metadata?.id == .antigravity
+        return switch name {
         case .antigravityGemini:
             metadata?.sessionLabel ?? "Gemini"
         case .antigravityClaudeGPT:
             metadata?.weeklyLabel ?? "Claude + GPT"
         case .session:
-            localizedSessionQuotaLabel(metadata?.sessionLabel ?? "Session", windowMinutes: windowMinutes)
+            localizedSessionQuotaLabel(
+                isAntigravity ? "Session" : (metadata?.sessionLabel ?? "Session"),
+                windowMinutes: windowMinutes)
         case .weekly:
-            L(metadata?.weeklyLabel ?? "Weekly")
+            L(isAntigravity ? "Weekly" : (metadata?.weeklyLabel ?? "Weekly"))
         case .monthly:
             metadata?.opusLabel ?? "Monthly"
         case .opus:

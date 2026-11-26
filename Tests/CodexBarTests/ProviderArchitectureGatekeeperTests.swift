@@ -2261,9 +2261,11 @@ struct ProviderArchitectureGatekeeperTests {
         AllowedProviderConstruct(
             path: "Sources/CodexBar/StatusItem/StatusItemController+Actions.swift",
             anchor: "if provider == .qoder {",
-            expectedProviderIDs: ["claude", "helmcode", "qoder", "siliconflow"],
-            expectedReferenceCount: 5,
-            expectedReferenceFingerprint: ["qoder@0", "qoder@3", "siliconflow@6", "helmcode@13", "claude@18"],
+            expectedProviderIDs: ["antigravity", "claude", "helmcode", "qoder", "siliconflow"],
+            expectedReferenceCount: 6,
+            expectedReferenceFingerprint: [
+                "qoder@0", "qoder@3", "siliconflow@6", "helmcode@13", "antigravity@18", "claude@24",
+            ],
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/StatusItem/StatusItemController+Actions.swift",
@@ -3118,11 +3120,11 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact CLI construct preserves the provider-specific command and output contract."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCLI/CLICostCommand.swift",
-            anchor: "static let costGroupingProviders: Set<UsageProvider> = [.codex, .claude, .pi]",
-            expectedProviderIDs: ["claude", "codex", "pi"],
-            expectedReferenceCount: 3,
-            expectedReferenceFingerprint: ["claude@0", "codex@0", "pi@0"],
-            reason: "Only the Codex, Claude, and Pi local ledgers currently publish project and session attribution."),
+            anchor: "static let costGroupingProviders: Set<UsageProvider> = [.codex, .claude, .pi, .antigravity, .vertexai]",
+            expectedProviderIDs: ["antigravity", "claude", "codex", "pi", "vertexai"],
+            expectedReferenceCount: 5,
+            expectedReferenceFingerprint: ["antigravity@0", "claude@0", "codex@0", "pi@0", "vertexai@0"],
+            reason: "Codex, Claude, Pi, Antigravity, and Vertex AI local ledgers publish project and session attribution."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCLI/CLICostCommand.swift",
             anchor: "guard provider == .cursor else { return nil }",

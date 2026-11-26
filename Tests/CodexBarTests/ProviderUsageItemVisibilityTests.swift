@@ -474,6 +474,100 @@ struct ProviderUsageItemVisibilityTests {
     }
 
     @Test
+    func `antigravity detail sections expose independent visibility and credits gating`() throws {
+        let now = Date()
+        let snapshot = try UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 20,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: nil),
+            secondary: nil,
+            details: [
+                ProviderDetailSection(title: "Credits", rows: [
+                    .init(label: "Prompt credits", value: "400 / 500", secondaryValue: "100 used"),
+                ]),
+                ProviderDetailSection(title: "Model availability", rows: [
+                    .init(label: "Gemini 3 Flash", value: "Degraded"),
+                ]),
+                ProviderDetailSection(title: "Bucket amounts", rows: [
+                    .init(label: "Standard pool", value: "750 remaining"),
+                ]),
+            ],
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .antigravity,
+                accountEmail: "ag@example.com",
+                accountOrganization: nil,
+                loginMethod: "Pro"))
+
+        func makeModel(showOptionalCreditsAndExtraUsage: Bool) throws -> UsageMenuCardView.Model {
+            try UsageMenuCardView.Model.make(.init(
+                provider: .antigravity,
+                metadata: #require(ProviderDefaults.metadata[.antigravity]),
+                snapshot: snapshot,
+                credits: nil,
+                creditsError: nil,
+                dashboardError: nil,
+                tokenSnapshot: nil,
+                tokenError: nil,
+                account: AccountInfo(email: nil, plan: nil),
+                isRefreshing: false,
+                lastError: nil,
+                usageBarsShowUsed: false,
+                resetTimeDisplayStyle: .countdown,
+                tokenCostUsageEnabled: false,
+                showOptionalCreditsAndExtraUsage: showOptionalCreditsAndExtraUsage,
+                hidePersonalInfo: false,
+                now: now))
+        }
+
+        let fullModel = try makeModel(showOptionalCreditsAndExtraUsage: true)
+        let detailItems = fullModel.usageItemDescriptors.filter { $0.id.detailSectionTitle != nil }
+        #expect(detailItems.map(\.id) == [
+            .detailSection("Credits"),
+            .detailSection("Model availability"),
+            .detailSection("Bucket amounts"),
+        ])
+        #expect(detailItems.filter(\.requiresOptionalUsage).map(\.id) == [.detailSection("Credits")])
+
+        let hiddenCredits = fullModel.applyingUsageItemVisibility(hiddenItemIDs: [.detailSection("Credits")])
+        #expect(hiddenCredits.providerDetails.map(\.title) == ["Model availability", "Bucket amounts"])
+
+        let withoutOptional = try makeModel(showOptionalCreditsAndExtraUsage: false)
+        #expect(!withoutOptional.providerDetails.contains { $0.title == "Credits" })
+        #expect(withoutOptional.providerDetails.map(\.title) == ["Model availability", "Bucket amounts"])
+    }
+
+    @Test
+    func `vertexai detail sections support independent visibility without changing config revision`() throws {
+        let settings = Self.settings(
+            defaults: InMemoryUserDefaults(),
+            configStore: testConfigStore(suiteName: "ProviderUsageItemVisibilityTests-vertex-\(UUID().uuidString)"))
+        let sections = try [
+            ProviderDetailSection(title: "Quota breakdown", rows: [.init(label: "Requests", value: "10% · 10/100")]),
+            ProviderDetailSection(title: "Online serving (24h)", rows: [.init(label: "Invocations", value: "42")]),
+            ProviderDetailSection(title: "Active filter", rows: [.init(label: "Project", value: "proj-1")]),
+        ]
+        let model = Self.model(provider: .vertexai, metricIDs: ["primary"], detailSections: sections)
+        let detailItems = model.usageItemDescriptors.filter { $0.id.detailSectionTitle != nil }
+        #expect(detailItems.map(\.id) == [
+            .detailSection("Quota breakdown"),
+            .detailSection("Online serving (24h)"),
+            .detailSection("Active filter"),
+        ])
+        #expect(detailItems.allSatisfy { !$0.requiresOptionalUsage })
+
+        let filtered = model.applyingUsageItemVisibility(hiddenItemIDs: [.detailSection("Online serving (24h)")])
+        #expect(filtered.providerDetails.map(\.title) == ["Quota breakdown", "Active filter"])
+
+        let beforeRevision = settings.providerConfigRevision(for: .vertexai)
+        settings.setUsageItemVisible(false, itemID: .detailSection("Online serving (24h)"), for: .vertexai)
+        #expect(settings.providerConfigRevision(for: .vertexai) == beforeRevision)
+        #expect(!settings.isUsageItemVisible(.detailSection("Online serving (24h)"), for: .vertexai))
+    }
+
+    @Test
     func `legacy codex spark choice migrates and explicit defaults survive reload`() {
         let suite = "ProviderUsageItemVisibilityTests-migration-\(UUID().uuidString)"
         let defaults = InMemoryUserDefaults()

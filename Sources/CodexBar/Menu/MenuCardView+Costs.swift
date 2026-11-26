@@ -289,7 +289,7 @@ extension UsageMenuCardView.Model {
         let todayIncompleteCount = snapshot.summary(forLastDays: 1, calendar: calendar).incompleteRequestCount
         let err = (error?.isEmpty ?? true) ? nil : error
         let hints = [
-            Self.tokenUsageHint(provider: provider),
+            Self.tokenUsageHint(provider: provider, snapshot: snapshot),
             UsageFormatter.incompleteUsageNote(incompleteCount),
             tokensOnly ? Self.tokenHistoryCoverageHint(snapshot) : nil,
         ]
@@ -337,8 +337,8 @@ extension UsageMenuCardView.Model {
             UsageFormatter.tokenCountString(totalTokens)) + suffix
     }
 
-    static func tokenUsageHint(provider: UsageProvider) -> String? {
-        let lines = Self.tokenUsageHintLines(provider: provider)
+    static func tokenUsageHint(provider: UsageProvider, snapshot: CostUsageTokenSnapshot? = nil) -> String? {
+        let lines = Self.tokenUsageHintLines(provider: provider, snapshot: snapshot)
         return lines.isEmpty ? nil : lines.joined(separator: "\n")
     }
 
@@ -359,8 +359,13 @@ extension UsageMenuCardView.Model {
             : L("Local token history is unavailable or incomplete.")
     }
 
-    static func tokenUsageHintLines(provider: UsageProvider) -> [String] {
-        ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.menuHintLines.map { hint in
+    static func tokenUsageHintLines(
+        provider: UsageProvider,
+        snapshot: CostUsageTokenSnapshot? = nil) -> [String]
+    {
+        let tokenCost = ProviderDescriptorRegistry.descriptor(for: provider).tokenCost
+        let hints = snapshot.map { tokenCost.resolvedMenuHintLines(for: $0) } ?? tokenCost.menuHintLines
+        return hints.map { hint in
             switch hint {
             case let .localized(key): L(key)
             case .estimate: UsageFormatter.costEstimateHint(provider: provider)

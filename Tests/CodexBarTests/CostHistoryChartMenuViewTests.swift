@@ -131,13 +131,13 @@ struct CostHistoryChartMenuViewTests {
         let project = Self.project(path: "/Users/test/projects/alpha", sourcePath: "/Users/test/projects/alpha")
         let pi = Self.fingerprint(projects: [project], sessions: [session], provider: .pi)
         #expect(CostHistoryChartMenuView.showsLocalBreakdowns(provider: .pi))
-        #expect(!CostHistoryChartMenuView.showsLocalBreakdowns(provider: .vertexai))
+        #expect(!CostHistoryChartMenuView.showsLocalBreakdowns(provider: .cursor))
         #expect(pi.projects.count == 1)
         #expect(pi.sessions.map(\.sessionID) == ["pi-session"])
         #expect(pi != Self.fingerprint(projects: [project], sessions: [], provider: .pi))
-        let vertex = Self.fingerprint(projects: [project], sessions: [session], provider: .vertexai)
-        #expect(vertex.projects.isEmpty)
-        #expect(vertex.sessions.isEmpty)
+        let cursor = Self.fingerprint(projects: [project], sessions: [session], provider: .cursor)
+        #expect(cursor.projects.isEmpty)
+        #expect(cursor.sessions.isEmpty)
     }
 
     @Test
@@ -1002,10 +1002,10 @@ struct CostHistoryChartMenuViewTests {
     func `render fingerprint excludes projects for providers without breakdowns`() {
         let first = Self.fingerprint(
             projects: [Self.makeProject(index: 0, sourceCount: 2)],
-            provider: .vertexai)
+            provider: .cursor)
         let changed = Self.fingerprint(
             projects: [Self.makeProject(index: 0, sourceCount: 2, totalCostUSD: 99)],
-            provider: .vertexai)
+            provider: .cursor)
 
         #expect(first.projects.isEmpty)
         #expect(first == changed)
@@ -1042,7 +1042,7 @@ struct CostHistoryChartMenuViewTests {
             sessions: [session(costUSD: 0.02)],
             provider: .claude))
         #expect(CostHistoryChartMenuView.showsLocalBreakdowns(provider: .claude))
-        #expect(!CostHistoryChartMenuView.showsLocalBreakdowns(provider: .vertexai))
+        #expect(!CostHistoryChartMenuView.showsLocalBreakdowns(provider: .cursor))
     }
 
     @Test
@@ -1485,6 +1485,51 @@ extension CostHistoryChartMenuViewTests {
         #expect(base != Self.fingerprint(sessions: [session(input: 90, cached: 20, output: 10)]))
         #expect(base != Self.fingerprint(sessions: [session(input: 100, cached: 10, output: 10)]))
         #expect(base != Self.fingerprint(sessions: [session(input: 100, cached: 20, output: 20)]))
+    }
+
+    @Test
+    @MainActor
+    func `antigravity and vertexai render fingerprints include projects and sessions`() {
+        let session = CostUsageSessionBreakdown(
+            sessionID: "session-ag-vertex",
+            lastActivity: Date(timeIntervalSince1970: 1_750_000_000),
+            inputTokens: 100,
+            cachedInputTokens: 0,
+            outputTokens: 20,
+            totalTokens: 120,
+            requestCount: 1,
+            costUSD: 0.05,
+            modelBreakdowns: [],
+            title: "Workspace analysis")
+        let project = Self.project(path: "/Users/test/projects/app", sourcePath: "/Users/test/projects/app")
+        for provider in [UsageProvider.antigravity, .vertexai] {
+            #expect(CostHistoryChartMenuView.showsLocalBreakdowns(provider: provider))
+            let fp = Self.fingerprint(projects: [project], sessions: [session], provider: provider)
+            #expect(fp.projects.count == 1)
+            #expect(fp.sessions.map(\.sessionID) == ["session-ag-vertex"])
+            #expect(fp != Self.fingerprint(projects: [project], sessions: [], provider: provider))
+            #expect(fp != Self.fingerprint(projects: [], sessions: [session], provider: provider))
+        }
+    }
+
+    @Test
+    @MainActor
+    func `vertexai estimate disclaimer selects cloud vs combined hint from window label`() {
+        #expect(
+            CostHistoryChartMenuView.estimateDisclaimer(
+                provider: .vertexai,
+                daily: [],
+                windowLabel: "Last 30 days (Cloud est.)") == L("vertexai_cloud_cost_estimate_hint"))
+        #expect(
+            CostHistoryChartMenuView.estimateDisclaimer(
+                provider: .vertexai,
+                daily: [],
+                windowLabel: "Last 30 days (Cloud + Local est.)") == L("vertexai_cost_estimate_hint"))
+        #expect(
+            CostHistoryChartMenuView.estimateDisclaimer(
+                provider: .vertexai,
+                daily: [],
+                windowLabel: nil) == L("vertexai_cost_estimate_hint"))
     }
 }
 

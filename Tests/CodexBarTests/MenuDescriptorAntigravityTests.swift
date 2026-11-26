@@ -155,4 +155,53 @@ struct MenuDescriptorAntigravityTests {
 
         #expect(!lines.contains { $0.hasPrefix("Pace:") })
     }
+
+    @Test
+    func `antigravity menu descriptor surfaces usage dashboard only for validated https subscription URI`() throws {
+        func hasDashboardAction(manageURI: String?, upgradeURI: String? = nil) throws -> Bool {
+            let suite = "MenuDescriptorAntigravityTests-dashboard-\(UUID().uuidString)"
+            let defaults = try #require(UserDefaults(suiteName: suite))
+            defaults.removePersistentDomain(forName: suite)
+
+            let settings = SettingsStore(
+                userDefaults: defaults,
+                configStore: testConfigStore(suiteName: suite),
+                zaiTokenStore: NoopZaiTokenStore(),
+                syntheticTokenStore: NoopSyntheticTokenStore())
+            settings.statusChecksEnabled = false
+
+            let store = UsageStore(
+                fetcher: UsageFetcher(environment: [:]),
+                browserDetection: BrowserDetection(cacheTTL: 0),
+                settings: settings)
+            let snapshot = UsageSnapshot(
+                primary: RateWindow(usedPercent: 10, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                secondary: nil,
+                antigravityAccountMetadata: AntigravityAccountMetadata(
+                    manageSubscriptionURI: manageURI,
+                    upgradeSubscriptionURI: upgradeURI),
+                updatedAt: Date())
+            store._setSnapshotForTesting(snapshot, provider: .antigravity)
+
+            let descriptor = MenuDescriptor.build(
+                provider: .antigravity,
+                store: store,
+                settings: settings,
+                account: AccountInfo(email: nil, plan: nil),
+                updateReady: false,
+                includeContextualActions: true)
+            return descriptor.sections
+                .flatMap(\.entries)
+                .contains { entry in
+                    if case .action(_, .dashboard) = entry { return true }
+                    return false
+                }
+        }
+
+        #expect(try hasDashboardAction(manageURI: "https://one.google.com/subscriptions"))
+        #expect(try hasDashboardAction(manageURI: nil, upgradeURI: "https://one.google.com/upgrade"))
+        #expect(try !hasDashboardAction(manageURI: nil, upgradeURI: nil))
+        #expect(try !hasDashboardAction(manageURI: "http://one.google.com/insecure"))
+        #expect(try !hasDashboardAction(manageURI: "javascript:alert(1)"))
+    }
 }

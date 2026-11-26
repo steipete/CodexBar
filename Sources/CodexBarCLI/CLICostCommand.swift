@@ -192,7 +192,7 @@ extension CodexBarCLI {
     }
 
     /// Providers whose local session ledgers publish project and session rows.
-    static let costGroupingProviders: Set<UsageProvider> = [.codex, .claude, .pi]
+    static let costGroupingProviders: Set<UsageProvider> = [.codex, .claude, .pi, .antigravity, .vertexai]
 
     static func renderCostText(
         provider: UsageProvider,
@@ -209,13 +209,19 @@ extension CodexBarCLI {
         // Other providers keep the cost shape and render their unknown values as dashes.
         let costIsEntirelyUnknown = provider == .antigravity
             && (snapshot.last30DaysCostUSD == nil || (snapshot.daily.isEmpty && snapshot.last30DaysCostUSD == 0))
-        if descriptor.tokenCost.presentation == .tokensOnly || costIsEntirelyUnknown {
+        if descriptor.tokenCost.presentation == .tokensOnly
+            || (costIsEntirelyUnknown && (groupBy == .none || !Self.costGroupingProviders.contains(provider)))
+        {
             return Self.renderLocalTokenHistoryText(name: name, snapshot: snapshot, useColor: useColor)
         }
         // Provider-specific by design: Codex cost is explicitly an API-equivalent local-session estimate.
-        let title = provider == .codex
-            ? "\(name) API-equivalent estimate (not billed)"
-            : "\(name) Cost (API-rate estimate)"
+        let title = if costIsEntirelyUnknown {
+            "\(name) Token History"
+        } else if provider == .codex {
+            "\(name) API-equivalent estimate (not billed)"
+        } else {
+            "\(name) Cost (API-rate estimate)"
+        }
         let header = Self.costHeaderLine(title, useColor: useColor)
         let historyNotice = snapshot.historyIsFullyScanned ? nil : "Partial local history · recorded token subtotal"
         let incomplete = CostUsageIncompleteRequests.sum(snapshot.daily.map(\.incompleteRequestCount))
@@ -232,11 +238,15 @@ extension CodexBarCLI {
             return Self.renderProjectCostText(
                 provider: provider,
                 header: ([header, historyNotice].compactMap(\.self) + notices).joined(separator: "\n"),
-                snapshot: snapshot)
+                snapshot: snapshot,
+                costIsUnknown: costIsEntirelyUnknown)
         }
         if groupBy == .session, Self.costGroupingProviders.contains(provider) {
             return Self.renderSessionCostText(
-                provider: provider, header: ([header] + notices).joined(separator: "\n"), snapshot: snapshot)
+                provider: provider,
+                header: ([header] + notices).joined(separator: "\n"),
+                snapshot: snapshot,
+                costIsUnknown: costIsEntirelyUnknown)
         }
 
         let todayIncomplete = snapshot.summary(forLastDays: 1, calendar: calendar).incompleteRequestCount
@@ -492,13 +502,17 @@ extension CodexBarCLI {
     private static func renderProjectCostText(
         provider: UsageProvider,
         header: String,
-        snapshot: CostUsageTokenSnapshot) -> String
+        snapshot: CostUsageTokenSnapshot,
+        costIsUnknown: Bool = false) -> String
     {
         let historyLabel = snapshot.periodLabel
+        let footer = costIsUnknown
+            ? "Local token history · dollar costs unavailable"
+            : Self.costEstimateHint(provider: provider)
         var lines = [header, "Projects (\(historyLabel)):"]
         guard !snapshot.projects.isEmpty else {
             lines.append("—")
-            lines.append(Self.costEstimateHint(provider: provider))
+            lines.append(footer)
             return lines.joined(separator: "\n")
         }
         for project in snapshot.projects {
@@ -524,16 +538,20 @@ extension CodexBarCLI {
                 }
             }
         }
-        lines.append(Self.costEstimateHint(provider: provider))
+        lines.append(footer)
         return lines.joined(separator: "\n")
     }
 
     private static func renderSessionCostText(
         provider: UsageProvider,
         header: String,
-        snapshot: CostUsageTokenSnapshot) -> String
+        snapshot: CostUsageTokenSnapshot,
+        costIsUnknown: Bool = false) -> String
     {
         let historyLabel = snapshot.periodLabel
+        let footer = costIsUnknown
+            ? "Local token history · dollar costs unavailable"
+            : Self.costEstimateHint(provider: provider)
         var lines = [header, "Conversations (\(historyLabel)):"]
         let historyIncomplete = snapshot.historyCoverageIsEstablished == false
         if historyIncomplete {
@@ -543,7 +561,7 @@ extension CodexBarCLI {
             if !historyIncomplete {
                 lines.append("—")
             }
-            lines.append(Self.costEstimateHint(provider: provider))
+            lines.append(footer)
             return lines.joined(separator: "\n")
         }
         for session in snapshot.sessions {
@@ -560,7 +578,7 @@ extension CodexBarCLI {
             let modelLabel = Self.sessionModelLabel(session.modelBreakdowns.map(\.modelName))
             lines.append("\(modelLabel) · \(Self.sessionTimestampString(session.lastActivity))")
         }
-        lines.append(Self.costEstimateHint(provider: provider))
+        lines.append(footer)
         return lines.joined(separator: "\n")
     }
 
@@ -668,7 +686,7 @@ extension CodexBarCLI {
             + "Use the default cost view for merged totals."
     }
 
-    /// Provider-specific by design: only Codex, Claude, and Pi transcripts carry local project/session indexes,
+    /// Provider-specific by design: only providers whose local ledgers publish project/session indexes participate,
     /// so text-mode grouping skips other providers with a concise stderr notice.
     static func warnSkippedGroupingProviders(
         groupBy: CostGroupBy,

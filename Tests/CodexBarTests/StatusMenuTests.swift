@@ -216,6 +216,40 @@ struct StatusMenuTests {
     }
 
     @Test
+    func `antigravity dashboard URL resolves validated https subscription URI from snapshot`() {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        #expect(controller.dashboardURL(for: .antigravity) == nil)
+
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                antigravityAccountMetadata: AntigravityAccountMetadata(
+                    manageSubscriptionURI: "http://insecure.example.com",
+                    upgradeSubscriptionURI: "https://one.google.com/upgrade"),
+                updatedAt: Date()),
+            provider: .antigravity)
+        #expect(controller.dashboardURL(for: .antigravity)?.absoluteString == "https://one.google.com/upgrade")
+    }
+
+    @Test
     func `remembers provider when menu opens`() {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()

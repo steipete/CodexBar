@@ -1,3 +1,4 @@
+import CodexBarCore
 import Foundation
 import Testing
 @testable import CodexBar
@@ -176,5 +177,121 @@ struct QuotaBurndownChartMenuViewTests {
             referenceDate: now)
 
         #expect(!view.hasSeries)
+    }
+
+    @Test
+    func `antigravity structured session and weekly histories render session and weekly burndown tabs`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let histories = [
+            PlanUtilizationSeriesHistory(
+                name: .session,
+                windowMinutes: 300,
+                entries: [
+                    .init(
+                        capturedAt: now.addingTimeInterval(-3600),
+                        usedPercent: 15,
+                        resetsAt: now.addingTimeInterval(4 * 3600)),
+                    .init(
+                        capturedAt: now,
+                        usedPercent: 30,
+                        resetsAt: now.addingTimeInterval(4 * 3600)),
+                ]),
+            PlanUtilizationSeriesHistory(
+                name: .weekly,
+                windowMinutes: 10080,
+                entries: [
+                    .init(
+                        capturedAt: now.addingTimeInterval(-86400),
+                        usedPercent: 20,
+                        resetsAt: now.addingTimeInterval(5 * 86400)),
+                    .init(
+                        capturedAt: now,
+                        usedPercent: 45,
+                        resetsAt: now.addingTimeInterval(5 * 86400)),
+                ]),
+        ]
+
+        let view = QuotaBurndownChartMenuView(
+            provider: .antigravity,
+            histories: histories,
+            snapshot: UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                extraRateWindows: [
+                    NamedRateWindow(
+                        id: "antigravity-quota-summary-gemini-session",
+                        title: "Gemini",
+                        window: RateWindow(
+                            usedPercent: 30,
+                            windowMinutes: 300,
+                            resetsAt: now.addingTimeInterval(4 * 3600),
+                            resetDescription: nil)),
+                    NamedRateWindow(
+                        id: "antigravity-quota-summary-gemini-weekly",
+                        title: "Gemini",
+                        window: RateWindow(
+                            usedPercent: 45,
+                            windowMinutes: 10080,
+                            resetsAt: now.addingTimeInterval(5 * 86400),
+                            resetDescription: nil)),
+                ],
+                updatedAt: now),
+            width: 400,
+            referenceDate: now)
+
+        #expect(view.hasSeries)
+        #expect(view._seriesTitlesForTesting["session:300"] == L("Session"))
+        #expect(view._seriesTitlesForTesting["weekly:10080"] == L("Weekly"))
+        #expect(!view._seriesTitlesForTesting.values.contains("Claude and GPT"))
+        #expect(view._seriesRemainingForTesting["session:300"] == 70)
+        #expect(view._seriesRemainingForTesting["weekly:10080"] == 55)
+    }
+
+    @Test
+    func `antigravity pool observation histories do not fabricate burndown curves`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let observationHistories = [
+            PlanUtilizationSeriesHistory(
+                name: .antigravityGemini,
+                windowMinutes: 0,
+                entries: [
+                    .init(capturedAt: now, usedPercent: 25, resetsAt: now.addingTimeInterval(3600)),
+                ]),
+            PlanUtilizationSeriesHistory(
+                name: .antigravityClaudeGPT,
+                windowMinutes: 0,
+                entries: [
+                    .init(capturedAt: now, usedPercent: 50, resetsAt: now.addingTimeInterval(3600)),
+                ]),
+        ]
+
+        let observationView = QuotaBurndownChartMenuView(
+            provider: .antigravity,
+            histories: observationHistories,
+            width: 400,
+            referenceDate: now)
+        #expect(!observationView.hasSeries)
+
+        let staleStructuredWithLiveObservationSnapshot = QuotaBurndownChartMenuView(
+            provider: .antigravity,
+            histories: [
+                PlanUtilizationSeriesHistory(
+                    name: .weekly,
+                    windowMinutes: 10080,
+                    entries: [
+                        .init(capturedAt: now, usedPercent: 40, resetsAt: now.addingTimeInterval(5 * 86400)),
+                    ]),
+            ],
+            snapshot: UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 40,
+                    windowMinutes: nil,
+                    resetsAt: now.addingTimeInterval(3600),
+                    resetDescription: nil),
+                secondary: nil,
+                updatedAt: now),
+            width: 400,
+            referenceDate: now)
+        #expect(!staleStructuredWithLiveObservationSnapshot.hasSeries)
     }
 }
