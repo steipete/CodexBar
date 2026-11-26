@@ -1677,6 +1677,10 @@
 "antigravity_cost_estimate_hint" = "Local usage × public API prices · not Antigravity charges or credits";
 "antigravity_quota_window_note" = "Window cost covers all models · window shown is the most constrained family";
 "antigravity_no_priced_token_history" = "No priced Antigravity token history is available.";
+
+/* Vertex AI cost estimates */
+"vertexai_cost_estimate_hint" = "Estimated from Cloud Monitoring and Claude-on-Vertex logs · may differ from your GCP bill";
+"vertexai_cloud_cost_estimate_hint" = "Estimated from Cloud Monitoring token_count × public API rates · excludes dedicated throughput";
 "Supported browsers: %@. Use Manual for other browsers." = "Supported browsers: %@. Use Manual for other browsers.";
 
 // Additional localized settings, provider controls, sharing, and widgets.

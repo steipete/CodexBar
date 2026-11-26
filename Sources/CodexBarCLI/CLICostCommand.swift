@@ -113,6 +113,9 @@ extension CodexBarCLI {
                     config.providerConfig(for: provider.instanceID)?.antigravityAdditionalProfileHomes ?? [],
                     antigravityScanOptions:
                     config.providerConfig(for: provider.instanceID)?.resolvedAntigravityScanOptions ?? .defaultOptions,
+                    vertexAISettings:
+                    config.providerConfig(for: provider.instanceID)?.resolvedVertexAISettings
+                        ?? VertexAIProviderSettings(),
                     now: now,
                     forceRefresh: forceRefresh,
                     historyDays: historyDays,

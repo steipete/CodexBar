@@ -1507,6 +1507,9 @@ extension CodexBarCLI {
                     antigravityScanOptions:
                     context.config.providerConfig(for: provider.instanceID)?.resolvedAntigravityScanOptions
                         ?? .defaultOptions,
+                    vertexAISettings:
+                    context.config.providerConfig(for: provider.instanceID)?.resolvedVertexAISettings
+                        ?? VertexAIProviderSettings(),
                     now: context.now,
                     forceRefresh: false,
                     historyDays: context.period.days(now: context.now, calendar: context.calendar),

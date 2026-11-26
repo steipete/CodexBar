@@ -41,6 +41,13 @@ public struct ProviderIntentPayload: Codable, Sendable {
     public var antigravityScanCLIEnabled: Bool?
     public var antigravityTokscaleFallbackEnabled: Bool?
     public var antigravityProjectGrouping: String?
+    public var vertexAIProjectIDOverride: String?
+    public var vertexAIRegionFilter: String?
+    public var vertexAIModelFilter: String?
+    public var vertexAIPrimaryBarMetric: String?
+    public var vertexAITelemetryCostSource: String?
+    public var vertexAIAllowClaudeFallback: Bool?
+    public var vertexAIEstimateCloudCost: Bool?
     public var quotaWarnings: QuotaWarningConfig?
     /// Three-state on purpose. Nil means the sending Mac never reported the field, which is what an
     /// older client that predates accent colors sends. An empty string means the user cleared the
@@ -73,6 +80,13 @@ public struct ProviderIntentPayload: Codable, Sendable {
         self.antigravityScanCLIEnabled = config.antigravityScanCLIEnabled
         self.antigravityTokscaleFallbackEnabled = config.antigravityTokscaleFallbackEnabled
         self.antigravityProjectGrouping = config.antigravityProjectGrouping
+        self.vertexAIProjectIDOverride = config.vertexAIProjectIDOverride
+        self.vertexAIRegionFilter = config.vertexAIRegionFilter
+        self.vertexAIModelFilter = config.vertexAIModelFilter
+        self.vertexAIPrimaryBarMetric = config.vertexAIPrimaryBarMetric
+        self.vertexAITelemetryCostSource = config.vertexAITelemetryCostSource
+        self.vertexAIAllowClaudeFallback = config.vertexAIAllowClaudeFallback
+        self.vertexAIEstimateCloudCost = config.vertexAIEstimateCloudCost
         self.quotaWarnings = config.quotaWarnings
         // Always report, so that clearing an override propagates as an empty string.
         self.accentColor = config.accentColor ?? ""
@@ -108,25 +122,8 @@ public struct ProviderIntentPayload: Codable, Sendable {
         result.enterpriseHost = self.enterpriseHost
         result.claudeSwapEnabled = self.claudeSwapEnabled
         result.claudeSwapShowSingleAccount = self.claudeSwapShowSingleAccount
-        result.antigravityPrioritizeExhaustedQuotas = self.antigravityPrioritizeExhaustedQuotas
-        if let antigravityPrimaryPoolPreference = self.antigravityPrimaryPoolPreference {
-            result.antigravityPrimaryPoolPreference = antigravityPrimaryPoolPreference
-        }
-        if let antigravityShowCredits = self.antigravityShowCredits {
-            result.antigravityShowCredits = antigravityShowCredits
-        }
-        if let antigravityScanDesktopEnabled = self.antigravityScanDesktopEnabled {
-            result.antigravityScanDesktopEnabled = antigravityScanDesktopEnabled
-        }
-        if let antigravityScanCLIEnabled = self.antigravityScanCLIEnabled {
-            result.antigravityScanCLIEnabled = antigravityScanCLIEnabled
-        }
-        if let antigravityTokscaleFallbackEnabled = self.antigravityTokscaleFallbackEnabled {
-            result.antigravityTokscaleFallbackEnabled = antigravityTokscaleFallbackEnabled
-        }
-        if let antigravityProjectGrouping = self.antigravityProjectGrouping {
-            result.antigravityProjectGrouping = antigravityProjectGrouping
-        }
+        self.applyAntigravitySettings(to: &result)
+        self.applyVertexAISettings(to: &result)
         result.quotaWarnings = self.quotaWarnings
         // An older client omits the field entirely. Keep the local color rather than erase it.
         if let accentColor = self.accentColor {
@@ -174,6 +171,52 @@ public struct ProviderIntentPayload: Codable, Sendable {
             }
         }
         return result
+    }
+
+    private func applyAntigravitySettings(to result: inout ProviderConfig) {
+        result.antigravityPrioritizeExhaustedQuotas = self.antigravityPrioritizeExhaustedQuotas
+        if let antigravityPrimaryPoolPreference = self.antigravityPrimaryPoolPreference {
+            result.antigravityPrimaryPoolPreference = antigravityPrimaryPoolPreference
+        }
+        if let antigravityShowCredits = self.antigravityShowCredits {
+            result.antigravityShowCredits = antigravityShowCredits
+        }
+        if let antigravityScanDesktopEnabled = self.antigravityScanDesktopEnabled {
+            result.antigravityScanDesktopEnabled = antigravityScanDesktopEnabled
+        }
+        if let antigravityScanCLIEnabled = self.antigravityScanCLIEnabled {
+            result.antigravityScanCLIEnabled = antigravityScanCLIEnabled
+        }
+        if let antigravityTokscaleFallbackEnabled = self.antigravityTokscaleFallbackEnabled {
+            result.antigravityTokscaleFallbackEnabled = antigravityTokscaleFallbackEnabled
+        }
+        if let antigravityProjectGrouping = self.antigravityProjectGrouping {
+            result.antigravityProjectGrouping = antigravityProjectGrouping
+        }
+    }
+
+    private func applyVertexAISettings(to result: inout ProviderConfig) {
+        if let vertexAIProjectIDOverride = self.vertexAIProjectIDOverride {
+            result.vertexAIProjectIDOverride = vertexAIProjectIDOverride
+        }
+        if let vertexAIRegionFilter = self.vertexAIRegionFilter {
+            result.vertexAIRegionFilter = vertexAIRegionFilter
+        }
+        if let vertexAIModelFilter = self.vertexAIModelFilter {
+            result.vertexAIModelFilter = vertexAIModelFilter
+        }
+        if let vertexAIPrimaryBarMetric = self.vertexAIPrimaryBarMetric {
+            result.vertexAIPrimaryBarMetric = vertexAIPrimaryBarMetric
+        }
+        if let vertexAITelemetryCostSource = self.vertexAITelemetryCostSource {
+            result.vertexAITelemetryCostSource = vertexAITelemetryCostSource
+        }
+        if let vertexAIAllowClaudeFallback = self.vertexAIAllowClaudeFallback {
+            result.vertexAIAllowClaudeFallback = vertexAIAllowClaudeFallback
+        }
+        if let vertexAIEstimateCloudCost = self.vertexAIEstimateCloudCost {
+            result.vertexAIEstimateCloudCost = vertexAIEstimateCloudCost
+        }
     }
 
     public static func secretFields(

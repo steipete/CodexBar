@@ -209,6 +209,7 @@ public struct CostUsageFetcher: Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment,
         antigravityAdditionalProfileHomes: [String] = [],
         antigravityScanOptions: AntigravityLocalScanOptions = .defaultOptions,
+        vertexAISettings: VertexAIProviderSettings = VertexAIProviderSettings(),
         now: Date = Date(),
         forceRefresh: Bool = false,
         allowVertexClaudeFallback: Bool = false,
@@ -228,6 +229,7 @@ public struct CostUsageFetcher: Sendable {
             environment: environment,
             antigravityAdditionalProfileHomes: antigravityAdditionalProfileHomes,
             antigravityScanOptions: antigravityScanOptions,
+            vertexAISettings: vertexAISettings,
             now: now,
             forceRefresh: forceRefresh,
             allowVertexClaudeFallback: allowVertexClaudeFallback,
@@ -249,6 +251,8 @@ public struct CostUsageFetcher: Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment,
         antigravityAdditionalProfileHomes: [String] = [],
         antigravityScanOptions: AntigravityLocalScanOptions = .defaultOptions,
+        vertexAISettings: VertexAIProviderSettings = VertexAIProviderSettings(),
+        vertexAITransport: (any ProviderHTTPTransport)? = nil,
         now: Date = Date(),
         forceRefresh: Bool = false,
         allowVertexClaudeFallback: Bool = false,
@@ -281,6 +285,8 @@ public struct CostUsageFetcher: Sendable {
             environment: environment,
             antigravityAdditionalProfileHomes: antigravityAdditionalProfileHomes,
             antigravityScanOptions: antigravityScanOptions,
+            vertexAISettings: vertexAISettings,
+            vertexAITransport: vertexAITransport,
             now: now,
             forceRefresh: forceRefresh,
             allowVertexClaudeFallback: allowVertexClaudeFallback,
@@ -454,6 +460,8 @@ public struct CostUsageFetcher: Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment,
         antigravityAdditionalProfileHomes: [String] = [],
         antigravityScanOptions: AntigravityLocalScanOptions = .defaultOptions,
+        vertexAISettings: VertexAIProviderSettings = VertexAIProviderSettings(),
+        vertexAITransport: (any ProviderHTTPTransport)? = nil,
         now: Date = Date(),
         forceRefresh: Bool = false,
         allowVertexClaudeFallback: Bool = false,
@@ -477,6 +485,8 @@ public struct CostUsageFetcher: Sendable {
             environment: environment,
             antigravityAdditionalProfileHomes: antigravityAdditionalProfileHomes,
             antigravityScanOptions: antigravityScanOptions,
+            vertexAISettings: vertexAISettings,
+            vertexAITransport: vertexAITransport,
             now: now,
             forceRefresh: forceRefresh,
             allowVertexClaudeFallback: allowVertexClaudeFallback,
@@ -501,6 +511,8 @@ public struct CostUsageFetcher: Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment,
         antigravityAdditionalProfileHomes: [String] = [],
         antigravityScanOptions: AntigravityLocalScanOptions = .defaultOptions,
+        vertexAISettings: VertexAIProviderSettings = VertexAIProviderSettings(),
+        vertexAITransport: (any ProviderHTTPTransport)? = nil,
         now: Date = Date(),
         forceRefresh: Bool = false,
         allowVertexClaudeFallback: Bool = false,
@@ -768,6 +780,26 @@ public struct CostUsageFetcher: Sendable {
             codexHomePath: codexHomePath)
         // Rolling window is inclusive, so a 30-day display starts 29 days before `now`.
         let since = options.calendar.date(byAdding: .day, value: -(clampedHistoryDays - 1), to: now) ?? now
+        // Provider-specific by design: Vertex AI merges local Claude-on-Vertex logs with Cloud Monitoring serving
+        // telemetry.
+        if provider == .vertexai {
+            return try await Self.loadVertexAITokenResult(context: VertexAITokenLoadContext(
+                environment: environment,
+                now: now,
+                since: since,
+                historyDays: clampedHistoryDays,
+                forceRefresh: forceRefresh,
+                allowVertexClaudeFallback: allowVertexClaudeFallback,
+                bypassScannerDebounce: bypassScannerDebounce,
+                allowPricingRefresh: allowPricingRefresh,
+                refreshPricingInBackground: refreshPricingInBackground,
+                scannerOptions: options,
+                piOptions: overridePiScannerOptions ?? PiSessionCostScanner.Options(),
+                modelsDevClient: modelsDevClient,
+                reportContext: reportContext,
+                vertexAISettings: vertexAISettings,
+                transport: vertexAITransport))
+        }
         let scopedCodexHomePath = codexHomePath?.trimmingCharacters(in: .whitespacesAndNewlines)
         // Provider-specific by design: scoped Codex homes exclude ambient Pi sessions from managed-profile totals.
         let shouldMergePiUsage = provider != .codex || scopedCodexHomePath?.isEmpty != false
@@ -887,7 +919,7 @@ public struct CostUsageFetcher: Sendable {
         return CostUsageTokenResult(snapshot: snapshot, accounting: accounting)
     }
 
-    private struct LocalTokenScanReport: Sendable {
+    struct LocalTokenScanReport: Sendable {
         let daily: CostUsageDailyReport
         let projects: [CostUsageProjectBreakdown]
         let sessions: [CostUsageSessionBreakdown]
@@ -896,13 +928,13 @@ public struct CostUsageFetcher: Sendable {
         let detailsAreComplete: Bool
     }
 
-    private struct LocalTokenScanResult: Sendable {
+    struct LocalTokenScanResult: Sendable {
         let inclusive: LocalTokenScanReport
         let native: LocalTokenScanReport
         let piScope: String?
     }
 
-    private struct LocalTokenScanOptions: Sendable {
+    struct LocalTokenScanOptions: Sendable {
         let allowVertexClaudeFallback: Bool
         let includePiSessions: Bool
         let shouldMergePiUsage: Bool
@@ -912,7 +944,7 @@ public struct CostUsageFetcher: Sendable {
         let reportContext: CostUsageReportContext?
     }
 
-    private static func unavailableLocalSnapshot(
+    static func unavailableLocalSnapshot(
         now: Date,
         historyDays: Int,
         calendar: Calendar) -> CostUsageTokenSnapshot
@@ -925,7 +957,7 @@ public struct CostUsageFetcher: Sendable {
             historyCoverageIsEstablished: false)
     }
 
-    private static func loadLocalTokenScanResult(
+    static func loadLocalTokenScanResult(
         provider: UsageProvider,
         since: Date,
         now: Date,
@@ -950,8 +982,9 @@ public struct CostUsageFetcher: Sendable {
             var projects: [CostUsageProjectBreakdown] = []
             var sessions: [CostUsageSessionBreakdown] = []
             var daily: CostUsageDailyReport
-            if provider == .claude {
+            if provider == .claude || provider == .vertexai {
                 let claude = try CostUsageScanner.loadClaudeReportProjectionsCancellable(
+                    provider: provider,
                     since: since,
                     until: now,
                     now: now,
@@ -972,24 +1005,6 @@ public struct CostUsageFetcher: Sendable {
                     checkCancellation: checkCancellation)
             }
             try checkCancellation()
-
-            if provider == .vertexai,
-               !options.allowVertexClaudeFallback,
-               options.scanOptions.claudeLogProviderFilter == .vertexAIOnly,
-               daily.data.isEmpty
-            {
-                var fallback = options.scanOptions
-                fallback.claudeLogProviderFilter = .all
-                daily = try CostUsageScanner.loadDailyReportCancellable(
-                    provider: provider,
-                    since: since,
-                    until: now,
-                    now: now,
-                    options: fallback,
-                    reportContext: options.reportContext,
-                    checkCancellation: checkCancellation)
-                try checkCancellation()
-            }
 
             var piScanIsComplete = true
             var staleSnapshotUpdatedAt: Date?
@@ -1064,7 +1079,8 @@ public struct CostUsageFetcher: Sendable {
                     [daily, piScanResult.report],
                     calendar: options.scanOptions.calendar)
             }
-            if provider == .codex || provider == .claude {
+            // Provider-specific by design: Codex, Claude, and Claude-on-Vertex merge project breakdowns.
+            if provider == .codex || provider == .claude || provider == .vertexai {
                 projects = Self.mergedProjectBreakdowns(projects)
             }
             return LocalTokenScanResult(
@@ -1973,7 +1989,7 @@ public struct CostUsageFetcher: Sendable {
         return .unknown
     }
 
-    private static func configureScannerRefresh(
+    static func configureScannerRefresh(
         _ options: inout CostUsageScanner.Options,
         provider: UsageProvider,
         allowVertexClaudeFallback: Bool,

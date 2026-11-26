@@ -7,6 +7,7 @@ enum ProviderChoice: String, AppEnum {
     case codex
     case claude
     case gemini
+    case vertexai
     case alibaba
     case alibabatokenplan
     case qwencloud
@@ -34,6 +35,7 @@ enum ProviderChoice: String, AppEnum {
         .codex: DisplayRepresentation(title: "Codex"),
         .claude: DisplayRepresentation(title: "Claude"),
         .gemini: DisplayRepresentation(title: "Gemini"),
+        .vertexai: DisplayRepresentation(title: "Vertex AI"),
         .alibaba: DisplayRepresentation(title: "Alibaba"),
         .alibabatokenplan: DisplayRepresentation(title: "Alibaba Token Plan"),
         .qwencloud: DisplayRepresentation(title: "Qwen Cloud"),

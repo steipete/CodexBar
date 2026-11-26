@@ -127,7 +127,8 @@ public enum VertexAIOAuthCredentialsStore {
     }
 
     public static func load(
-        environment: [String: String] = ProcessInfo.processInfo.environment) throws -> VertexAIOAuthCredentials
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        projectIDOverride: String? = nil) throws -> VertexAIOAuthCredentials
     {
         let url = self.credentialsFilePath(environment: environment)
         guard FileManager.default.fileExists(atPath: url.path) else {
@@ -135,11 +136,15 @@ public enum VertexAIOAuthCredentialsStore {
         }
 
         let data = try Data(contentsOf: url)
-        return try self.parse(data: data, environment: environment)
+        return try self.parse(
+            data: data,
+            environment: environment,
+            projectIDOverride: projectIDOverride)
     }
 
     public static func loadForFetch(
-        environment: [String: String] = ProcessInfo.processInfo.environment) async throws -> VertexAIOAuthCredentials
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        projectIDOverride: String? = nil) async throws -> VertexAIOAuthCredentials
     {
         let url = self.credentialsFilePath(environment: environment)
         guard FileManager.default.fileExists(atPath: url.path) else {
@@ -150,29 +155,58 @@ public enum VertexAIOAuthCredentialsStore {
         let json = try self.parseJSONObject(data: data)
         if let serviceAccount = self.parseServiceAccountMetadata(json: json) {
             let token = try await self.printAccessToken(environment: environment)
+            let resolvedProjectID = Self.normalizedProjectID(projectIDOverride)
+                ?? Self.normalizedProjectID(environment["CODEXBAR_VERTEX_PROJECT_ID"])
+                ?? serviceAccount.projectId
+                ?? self.loadProjectId(environment: environment, projectIDOverride: nil)
             return VertexAIOAuthCredentials(
                 accessToken: token,
                 refreshToken: "",
                 clientId: "",
                 clientSecret: "",
-                projectId: serviceAccount.projectId ?? self.loadProjectId(environment: environment),
+                projectId: resolvedProjectID,
                 email: serviceAccount.email,
                 expiryDate: Date().addingTimeInterval(50 * 60))
         }
 
-        return try self.parseUserCredentials(json: json, environment: environment)
+        return try self.parseUserCredentials(
+            json: json,
+            environment: environment,
+            projectIDOverride: projectIDOverride)
+    }
+
+    public static func resolveValidCredentials(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        projectIDOverride: String? = nil,
+        refreshTransport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
+        persistRefreshed: Bool = true) async throws -> VertexAIOAuthCredentials
+    {
+        var credentials = try await self.loadForFetch(
+            environment: environment,
+            projectIDOverride: projectIDOverride)
+        if credentials.needsRefresh {
+            credentials = try await VertexAITokenRefresher.refresh(credentials, session: refreshTransport)
+            if persistRefreshed {
+                try self.save(credentials)
+            }
+        }
+        return credentials
     }
 
     public static func parse(data: Data) throws -> VertexAIOAuthCredentials {
-        try self.parse(data: data, environment: ProcessInfo.processInfo.environment)
+        try self.parse(data: data, environment: ProcessInfo.processInfo.environment, projectIDOverride: nil)
     }
 
     public static func parse(
         data: Data,
-        environment: [String: String]) throws -> VertexAIOAuthCredentials
+        environment: [String: String],
+        projectIDOverride: String? = nil) throws -> VertexAIOAuthCredentials
     {
         let json = try self.parseJSONObject(data: data)
-        return try self.parseUserCredentials(json: json, environment: environment)
+        return try self.parseUserCredentials(
+            json: json,
+            environment: environment,
+            projectIDOverride: projectIDOverride)
     }
 
     private static func parseJSONObject(data: Data) throws -> [String: Any] {
@@ -184,7 +218,8 @@ public enum VertexAIOAuthCredentialsStore {
 
     private static func parseUserCredentials(
         json: [String: Any],
-        environment: [String: String]) throws -> VertexAIOAuthCredentials
+        environment: [String: String],
+        projectIDOverride: String? = nil) throws -> VertexAIOAuthCredentials
     {
         // Check for service account credentials
         if self.parseServiceAccountMetadata(json: json) != nil {
@@ -206,8 +241,8 @@ public enum VertexAIOAuthCredentialsStore {
         // Access token may not be present in the file; we'll need to refresh
         let accessToken = json["access_token"] as? String ?? ""
 
-        // Try to get project ID from gcloud config
-        let projectId = Self.loadProjectId(environment: environment)
+        // Try to get project ID from override, env, or gcloud config
+        let projectId = Self.loadProjectId(environment: environment, projectIDOverride: projectIDOverride)
 
         let email = VertexAIIDToken.email(from: json["id_token"] as? String)
 
@@ -273,28 +308,57 @@ public enum VertexAIOAuthCredentialsStore {
         return trimmed
     }
 
-    private static func loadProjectId(environment: [String: String]) -> String? {
-        let configPath = self.projectFilePath(environment: environment)
-        guard let content = try? String(contentsOf: configPath, encoding: .utf8) else {
-            return environment["GOOGLE_CLOUD_PROJECT"]
-                ?? environment["GCLOUD_PROJECT"]
-                ?? environment["CLOUDSDK_CORE_PROJECT"]
+    private static func normalizedProjectID(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
+    }
+
+    static func loadProjectId(
+        environment: [String: String],
+        projectIDOverride: String? = nil) -> String?
+    {
+        if let override = normalizedProjectID(projectIDOverride) {
+            return override
+        }
+        if let envOverride = Self.normalizedProjectID(environment["CODEXBAR_VERTEX_PROJECT_ID"]) {
+            return envOverride
         }
 
-        // Parse INI-style config for project
-        for line in content.components(separatedBy: .newlines) {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("project") {
-                let parts = trimmed.components(separatedBy: "=")
-                if parts.count >= 2 {
-                    return parts[1].trimmingCharacters(in: .whitespaces)
-                }
-            }
+        let configPath = self.projectFilePath(environment: environment)
+        if let content = try? String(contentsOf: configPath, encoding: .utf8),
+           let parsedProject = Self.parseConfigProjectID(content)
+        {
+            return parsedProject
         }
 
         // Try environment variable
-        return environment["GOOGLE_CLOUD_PROJECT"]
-            ?? environment["GCLOUD_PROJECT"]
-            ?? environment["CLOUDSDK_CORE_PROJECT"]
+        return Self.normalizedProjectID(environment["GOOGLE_CLOUD_PROJECT"])
+            ?? Self.normalizedProjectID(environment["GCLOUD_PROJECT"])
+            ?? Self.normalizedProjectID(environment["CLOUDSDK_CORE_PROJECT"])
+    }
+
+    private static func parseConfigProjectID(_ content: String) -> String? {
+        var currentSection: String?
+        for line in content.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, !trimmed.hasPrefix("#"), !trimmed.hasPrefix(";") else { continue }
+            if trimmed.hasPrefix("["), trimmed.hasSuffix("]") {
+                let inner = String(trimmed.dropFirst().dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
+                currentSection = inner.lowercased()
+                continue
+            }
+            guard currentSection == nil || currentSection == "core" else { continue }
+            guard let eqIndex = trimmed.firstIndex(of: "=") else { continue }
+            let key = String(trimmed[..<eqIndex]).trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard key == "project" else { continue }
+            let value = String(trimmed[trimmed.index(after: eqIndex)...])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !value.isEmpty {
+                return value
+            }
+        }
+        return nil
     }
 }

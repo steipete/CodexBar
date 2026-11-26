@@ -130,6 +130,9 @@ struct DashboardSnapshotProducer: Sendable {
                             antigravityScanOptions:
                             config.providerConfig(for: provider.instanceID)?.resolvedAntigravityScanOptions
                                 ?? .defaultOptions,
+                            vertexAISettings:
+                            config.providerConfig(for: provider.instanceID)?.resolvedVertexAISettings
+                                ?? VertexAIProviderSettings(),
                             forceRefresh: false,
                             cursorCookieHeaderOverride: cursorCookieHeaderOverride,
                             refreshPricingInBackground: context.costRefreshesPricingInBackground,

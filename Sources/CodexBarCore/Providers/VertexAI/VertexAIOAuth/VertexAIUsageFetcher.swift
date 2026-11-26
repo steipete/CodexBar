@@ -29,34 +29,20 @@ public enum VertexAIFetchError: LocalizedError, Sendable {
     }
 }
 
-public struct VertexAIUsageResponse: Sendable {
-    public let requestsUsedPercent: Double
-    public let tokensUsedPercent: Double?
-    public let resetsAt: Date?
-    public let resetDescription: String?
-    public let rawData: String?
-
-    public init(
-        requestsUsedPercent: Double,
-        tokensUsedPercent: Double?,
-        resetsAt: Date?,
-        resetDescription: String?,
-        rawData: String?)
-    {
-        self.requestsUsedPercent = requestsUsedPercent
-        self.tokensUsedPercent = tokensUsedPercent
-        self.resetsAt = resetsAt
-        self.resetDescription = resetDescription
-        self.rawData = rawData
-    }
-}
-
 public enum VertexAIUsageFetcher {
-    private static let log = CodexBarLog.logger(LogCategories.provider(.vertexai, scope: "fetcher"))
+    static let log = CodexBarLog.logger(LogCategories.provider(.vertexai, scope: "fetcher"))
 
-    // Cloud Monitoring API endpoint for time series
-    private static let monitoringEndpoint = "https://monitoring.googleapis.com/v3/projects"
+    static let monitoringEndpoint = "https://monitoring.googleapis.com/v3/projects"
+    private static let serviceUsageEndpoint = "https://serviceusage.googleapis.com/v1beta1/projects"
     private static let usageWindowSeconds: TimeInterval = 24 * 60 * 60
+
+    struct TimeSeriesQuery {
+        let filter: String
+        let start: Date
+        let end: Date
+        let alignmentPeriod: String
+        let perSeriesAligner: String
+    }
 
     public static func fetchUsage(
         accessToken: String,
@@ -78,20 +64,151 @@ public enum VertexAIUsageFetcher {
         AND resource.label.service="aiplatform.googleapis.com"
         """
 
+        let now = Date()
+        let start = now.addingTimeInterval(-Self.usageWindowSeconds)
         let usageSeries = try await Self.fetchTimeSeries(
             accessToken: accessToken,
             projectId: projectId,
-            filter: usageFilter,
+            query: TimeSeriesQuery(
+                filter: usageFilter,
+                start: start,
+                end: now,
+                alignmentPeriod: "3600s",
+                perSeriesAligner: "ALIGN_MAX"),
             transport: transport)
         let limitSeries = try await Self.fetchTimeSeries(
             accessToken: accessToken,
             projectId: projectId,
-            filter: limitFilter,
+            query: TimeSeriesQuery(
+                filter: limitFilter,
+                start: start,
+                end: now,
+                alignmentPeriod: "3600s",
+                perSeriesAligner: "ALIGN_MAX"),
             transport: transport)
 
         return try Self.makeQuotaUsageResponse(
             usageSeries: usageSeries,
             limitSeries: limitSeries)
+    }
+
+    public static func fetchUsageSnapshot(
+        accessToken: String,
+        projectId: String?,
+        options: VertexAIQueryOptions = VertexAIQueryOptions(),
+        now: Date = Date(),
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> VertexAIUsageResponse
+    {
+        guard let projectId, !projectId.isEmpty else {
+            throw VertexAIFetchError.noProject
+        }
+
+        let quotaStart = now.addingTimeInterval(-Self.usageWindowSeconds)
+        let allocationFilter = """
+        metric.type="serviceruntime.googleapis.com/quota/allocation/usage" \
+        AND resource.type="consumer_quota" \
+        AND resource.label.service="aiplatform.googleapis.com"
+        """
+        let rateFilter = """
+        metric.type="serviceruntime.googleapis.com/quota/rate/net_usage" \
+        AND resource.type="consumer_quota" \
+        AND resource.label.service="aiplatform.googleapis.com"
+        """
+        let limitFilter = """
+        metric.type="serviceruntime.googleapis.com/quota/limit" \
+        AND resource.type="consumer_quota" \
+        AND resource.label.service="aiplatform.googleapis.com"
+        """
+        let exceededFilter = """
+        metric.type="serviceruntime.googleapis.com/quota/exceeded" \
+        AND resource.type="consumer_quota" \
+        AND resource.label.service="aiplatform.googleapis.com"
+        """
+
+        let allocationSeries = try await Self.fetchTimeSeries(
+            accessToken: accessToken,
+            projectId: projectId,
+            query: TimeSeriesQuery(
+                filter: allocationFilter,
+                start: quotaStart,
+                end: now,
+                alignmentPeriod: "3600s",
+                perSeriesAligner: "ALIGN_MAX"),
+            transport: transport)
+        let limitSeries = try await Self.fetchTimeSeries(
+            accessToken: accessToken,
+            projectId: projectId,
+            query: TimeSeriesQuery(
+                filter: limitFilter,
+                start: quotaStart,
+                end: now,
+                alignmentPeriod: "3600s",
+                perSeriesAligner: "ALIGN_MAX"),
+            transport: transport)
+        let rateSeries = try await Self.fetchRateTimeSeries(
+            accessToken: accessToken,
+            projectId: projectId,
+            query: TimeSeriesQuery(
+                filter: rateFilter,
+                start: quotaStart,
+                end: now,
+                alignmentPeriod: "60s",
+                perSeriesAligner: "ALIGN_SUM"),
+            transport: transport)
+        let exceededSeries = try await Self.fetchOptionalTimeSeries(
+            accessToken: accessToken,
+            projectId: projectId,
+            query: TimeSeriesQuery(
+                filter: exceededFilter,
+                start: quotaStart,
+                end: now,
+                alignmentPeriod: "3600s",
+                perSeriesAligner: "ALIGN_COUNT_TRUE"),
+            transport: transport)
+        let consumerMetrics = try await Self.fetchOptionalConsumerQuotaMetrics(
+            accessToken: accessToken,
+            projectId: projectId,
+            transport: transport)
+
+        var onlineServingSummary: VertexAIOnlineServingSummary?
+        if options.includeOnlineServing {
+            let servingStart = now.addingTimeInterval(
+                -TimeInterval(options.servingWindowDays) * Self.usageWindowSeconds)
+            let invocationSeries = try await Self.fetchOptionalTimeSeries(
+                accessToken: accessToken,
+                projectId: projectId,
+                query: TimeSeriesQuery(
+                    filter: Self.onlineServingInvocationFilter,
+                    start: servingStart,
+                    end: now,
+                    alignmentPeriod: "3600s",
+                    perSeriesAligner: "ALIGN_SUM"),
+                transport: transport)
+            let tokenSeries = try await Self.fetchOptionalTimeSeries(
+                accessToken: accessToken,
+                projectId: projectId,
+                query: TimeSeriesQuery(
+                    filter: Self.onlineServingTokenFilter,
+                    start: servingStart,
+                    end: now,
+                    alignmentPeriod: "3600s",
+                    perSeriesAligner: "ALIGN_SUM"),
+                transport: transport)
+            onlineServingSummary = Self.makeOnlineServingSummary(
+                invocationSeries: invocationSeries,
+                tokenSeries: tokenSeries,
+                options: options)
+        }
+
+        return try Self.makeSnapshotUsageResponse(SnapshotInputs(
+            allocationSeries: allocationSeries,
+            rateSeries: rateSeries,
+            limitSeries: limitSeries,
+            exceededSeries: exceededSeries,
+            consumerMetrics: consumerMetrics,
+            onlineServingSummary: onlineServingSummary,
+            options: options,
+            now: now))
     }
 
     static func parseQuotaUsage(usageData: Data, limitData: Data) throws -> VertexAIUsageResponse {
@@ -103,122 +220,131 @@ public enum VertexAIUsageFetcher {
             limitSeries: limitResponse.timeSeries ?? [])
     }
 
-    private static func makeQuotaUsageResponse(
-        usageSeries: [MonitoringTimeSeries],
-        limitSeries: [MonitoringTimeSeries]) throws -> VertexAIUsageResponse
-    {
-        let usageByKey = Self.aggregate(series: usageSeries)
-        let limitByKey = Self.aggregate(series: limitSeries)
-
-        guard !usageByKey.isEmpty, !limitByKey.isEmpty else {
-            throw VertexAIFetchError.noData
-        }
-
-        var maxPercent: Double?
-        var matchedCount = 0
-        var matchedUsageKeys: Set<QuotaKey> = []
-        var matchedLimitKeys: Set<QuotaKey> = []
-        for (usageKey, usage) in usageByKey {
-            guard let (limitKey, limit) = Self.matchingLimit(
-                for: usageKey,
-                in: limitByKey)
-            else { continue }
-            matchedUsageKeys.insert(usageKey)
-            matchedLimitKeys.insert(limitKey)
-            matchedCount += 1
-            let percent = (usage / limit) * 100.0
-            maxPercent = max(maxPercent ?? percent, percent)
-        }
-
-        guard let usedPercent = maxPercent, matchedCount > 0 else {
-            throw VertexAIFetchError.noData
-        }
-
-        let unmatchedUsage = Set(usageByKey.keys).subtracting(matchedUsageKeys).count
-        let unmatchedLimit = Set(limitByKey.keys).subtracting(matchedLimitKeys).count
-        Self.log.debug("Quota series preview", metadata: [
-            "usageKeys": Self.previewKeys(usageByKey),
-            "limitKeys": Self.previewKeys(limitByKey),
-        ])
-        Self.log.info("Parsed quota", metadata: [
-            "usedPercent": "\(usedPercent)",
-            "usageSeries": "\(usageByKey.count)",
-            "limitSeries": "\(limitByKey.count)",
-            "matchedSeries": "\(matchedCount)",
-            "unmatchedUsage": "\(unmatchedUsage)",
-            "unmatchedLimit": "\(unmatchedLimit)",
-        ])
-
-        return VertexAIUsageResponse(
-            requestsUsedPercent: usedPercent,
-            tokensUsedPercent: nil,
-            resetsAt: nil,
-            resetDescription: nil,
-            rawData: nil)
-    }
-
-    private static func matchingLimit(
-        for usageKey: QuotaKey,
-        in limitByKey: [QuotaKey: Double]) -> (key: QuotaKey, value: Double)?
-    {
-        if let exactLimit = limitByKey[usageKey], exactLimit > 0 {
-            return (usageKey, exactLimit)
-        }
-
-        guard usageKey.limitName.isEmpty else { return nil }
-        let candidates = limitByKey.filter { limitKey, limit in
-            limit > 0
-                && limitKey.quotaMetric == usageKey.quotaMetric
-                && limitKey.location == usageKey.location
-        }
-        guard candidates.count == 1, let candidate = candidates.first else { return nil }
-        return candidate
-    }
-
-    private struct MonitoringTimeSeriesResponse: Decodable {
-        let timeSeries: [MonitoringTimeSeries]?
-        let nextPageToken: String?
-    }
-
-    private struct MonitoringTimeSeries: Decodable {
-        let metric: MonitoringMetric
-        let resource: MonitoringResource
-        let points: [MonitoringPoint]
-    }
-
-    private struct MonitoringMetric: Decodable {
-        let type: String?
-        let labels: [String: String]?
-    }
-
-    private struct MonitoringResource: Decodable {
-        let type: String?
-        let labels: [String: String]?
-    }
-
-    private struct MonitoringPoint: Decodable {
-        let value: MonitoringValue
-    }
-
-    private struct MonitoringValue: Decodable {
-        let doubleValue: Double?
-        let int64Value: String?
-    }
-
-    private struct QuotaKey: Hashable {
-        let quotaMetric: String
-        let limitName: String
-        let location: String
-    }
-
-    private static func fetchTimeSeries(
+    private static func fetchRateTimeSeries(
         accessToken: String,
         projectId: String,
-        filter: String,
+        query: TimeSeriesQuery,
         transport: any ProviderHTTPTransport) async throws -> [MonitoringTimeSeries]
     {
-        let now = Date()
-        let start = now.addingTimeInterval(-Self.usageWindowSeconds)
+        do {
+            return try await self.fetchTimeSeries(
+                accessToken: accessToken,
+                projectId: projectId,
+                query: query,
+                transport: transport)
+        } catch let error as VertexAIFetchError {
+            switch error {
+            case .unauthorized, .forbidden, .networkError:
+                throw error
+            case .invalidResponse, .noData, .noProject:
+                Self.log.debug("Optional rate/net_usage query unavailable: \(error.localizedDescription)")
+                return []
+            }
+        }
+    }
+
+    static func fetchOptionalTimeSeries(
+        accessToken: String,
+        projectId: String,
+        query: TimeSeriesQuery,
+        transport: any ProviderHTTPTransport) async throws -> [MonitoringTimeSeries]
+    {
+        do {
+            return try await self.fetchTimeSeries(
+                accessToken: accessToken,
+                projectId: projectId,
+                query: query,
+                transport: transport)
+        } catch VertexAIFetchError.unauthorized {
+            throw VertexAIFetchError.unauthorized
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            if let urlError = underlyingURLError(from: error), urlError.code == .cancelled {
+                throw error
+            }
+            Self.log.debug("Optional Monitoring query degraded gracefully: \(error.localizedDescription)")
+            return []
+        }
+    }
+
+    private static func underlyingURLError(from error: Error) -> URLError? {
+        if let urlError = error as? URLError { return urlError }
+        if case let VertexAIFetchError.networkError(inner) = error {
+            return inner as? URLError
+        }
+        return nil
+    }
+
+    private static func fetchOptionalConsumerQuotaMetrics(
+        accessToken: String,
+        projectId: String,
+        transport: any ProviderHTTPTransport) async throws -> [ConsumerQuotaMetric]
+    {
+        var pageToken: String?
+        var seenPageTokens: Set<String> = []
+        var allMetrics: [ConsumerQuotaMetric] = []
+
+        repeat {
+            guard var components = URLComponents(
+                string: "\(Self.serviceUsageEndpoint)/\(projectId)/services/aiplatform.googleapis.com/consumerQuotaMetrics")
+            else {
+                return []
+            }
+            var queryItems = [URLQueryItem(name: "pageSize", value: "200")]
+            if let pageToken {
+                queryItems.append(URLQueryItem(name: "pageToken", value: pageToken))
+            }
+            components.queryItems = queryItems
+            guard let url = components.url else { return [] }
+
+            var request = URLRequest(url: url)
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            request.timeoutInterval = 30
+
+            let response: ProviderHTTPResponse
+            do {
+                response = try await transport.response(for: request)
+            } catch {
+                if error is CancellationError || (error as? URLError)?.code == .cancelled {
+                    throw error
+                }
+                Self.log.debug("Service Usage consumerQuotaMetrics request failed: \(error.localizedDescription)")
+                return []
+            }
+
+            if response.statusCode == 401 {
+                throw VertexAIFetchError.unauthorized
+            }
+            guard response.statusCode == 200 else {
+                Self.log.debug(
+                    "Service Usage consumerQuotaMetrics degraded gracefully",
+                    metadata: ["statusCode": "\(response.statusCode)"])
+                return []
+            }
+
+            guard let decoded = try? JSONDecoder().decode(ConsumerQuotaMetricsResponse.self, from: response.data) else {
+                return []
+            }
+            if let metrics = decoded.metrics {
+                allMetrics.append(contentsOf: metrics)
+            }
+            guard let nextToken = decoded.nextPageToken, !nextToken.isEmpty,
+                  seenPageTokens.insert(nextToken).inserted,
+                  seenPageTokens.count < 100
+            else { break }
+            pageToken = nextToken
+        } while true
+
+        return allMetrics
+    }
+
+    static func fetchTimeSeries(
+        accessToken: String,
+        projectId: String,
+        query: TimeSeriesQuery,
+        transport: any ProviderHTTPTransport) async throws -> [MonitoringTimeSeries]
+    {
         let formatter = ISO8601DateFormatter()
         var pageToken: String?
         var seenPageTokens: Set<String> = []
@@ -232,11 +358,11 @@ public enum VertexAIUsageFetcher {
             }
 
             var queryItems = [
-                URLQueryItem(name: "filter", value: filter),
-                URLQueryItem(name: "interval.startTime", value: formatter.string(from: start)),
-                URLQueryItem(name: "interval.endTime", value: formatter.string(from: now)),
-                URLQueryItem(name: "aggregation.alignmentPeriod", value: "3600s"),
-                URLQueryItem(name: "aggregation.perSeriesAligner", value: "ALIGN_MAX"),
+                URLQueryItem(name: "filter", value: query.filter),
+                URLQueryItem(name: "interval.startTime", value: formatter.string(from: query.start)),
+                URLQueryItem(name: "interval.endTime", value: formatter.string(from: query.end)),
+                URLQueryItem(name: "aggregation.alignmentPeriod", value: query.alignmentPeriod),
+                URLQueryItem(name: "aggregation.perSeriesAligner", value: query.perSeriesAligner),
                 URLQueryItem(name: "view", value: "FULL"),
             ]
             if let pageToken {
@@ -286,50 +412,5 @@ public enum VertexAIUsageFetcher {
         } while true
 
         return allSeries
-    }
-
-    private static func aggregate(series: [MonitoringTimeSeries]) -> [QuotaKey: Double] {
-        var buckets: [QuotaKey: Double] = [:]
-
-        for entry in series {
-            guard let key = Self.quotaKey(from: entry),
-                  let value = entry.points.compactMap(self.pointValue).max()
-            else {
-                continue
-            }
-            buckets[key] = max(buckets[key] ?? 0, value)
-        }
-
-        return buckets
-    }
-
-    private static func quotaKey(from series: MonitoringTimeSeries) -> QuotaKey? {
-        let metricLabels = series.metric.labels ?? [:]
-        let resourceLabels = series.resource.labels ?? [:]
-        let quotaMetric = metricLabels["quota_metric"]
-            ?? resourceLabels["quota_id"]
-        guard let quotaMetric, !quotaMetric.isEmpty else { return nil }
-        let limitName = metricLabels["limit_name"] ?? ""
-        let location = resourceLabels["location"] ?? "global"
-        return QuotaKey(quotaMetric: quotaMetric, limitName: limitName, location: location)
-    }
-
-    private static func pointValue(from point: MonitoringPoint) -> Double? {
-        if let doubleValue = point.value.doubleValue {
-            return doubleValue
-        }
-        if let int64Value = point.value.int64Value {
-            return Double(int64Value)
-        }
-        return nil
-    }
-
-    private static func previewKeys(_ map: [QuotaKey: Double], maxCount: Int = 3) -> String {
-        guard !map.isEmpty else { return "none" }
-        let keys = map.keys.prefix(maxCount).map { key in
-            "\(key.quotaMetric)|\(key.limitName)|\(key.location)"
-        }
-        let suffix = map.count > maxCount ? " +\(map.count - maxCount)" : ""
-        return keys.joined(separator: ", ") + suffix
     }
 }

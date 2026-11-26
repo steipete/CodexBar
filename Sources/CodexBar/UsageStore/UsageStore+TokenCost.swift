@@ -179,6 +179,7 @@ extension UsageStore {
             .antigravityAdditionalProfileHomes ?? []
         let antigravityScanOptions = self.settings.providerConfig(for: provider)?
             .resolvedAntigravityScanOptions ?? .defaultOptions
+        let vertexAISettings = self.settings.vertexAISettingsSnapshot()
         let scopedCodexHomePath = codexHomePath?.trimmingCharacters(in: .whitespacesAndNewlines)
         // Provider-specific by design: only Pi-owned, Claude-inclusive, or unscoped Codex scans consume Pi roots.
         let shouldDiscoverPiSessionProcessContexts = provider == .pi ||
@@ -202,9 +203,10 @@ extension UsageStore {
                     environment: environment,
                     antigravityAdditionalProfileHomes: antigravityProfileHomes,
                     antigravityScanOptions: antigravityScanOptions,
+                    vertexAISettings: vertexAISettings,
                     now: now,
                     forceRefresh: force,
-                    allowVertexClaudeFallback: !self.isEnabled(.claude),
+                    allowVertexClaudeFallback: vertexAISettings.allowClaudeFallback,
                     codexHomePath: codexHomePath,
                     historyDays: historyDays,
                     cursorCookieHeaderOverride: cursorCookieHeaderOverride,
@@ -501,7 +503,17 @@ extension UsageStore {
             return (nil, "claude:directory:\(directory)")
         }
         if provider == .vertexai {
-            return (nil, "vertexai:allow-claude-fallback=\(!self.isEnabled(.claude))")
+            let s = self.settings.vertexAISettingsSnapshot()
+            let signature = [
+                "vertexai",
+                "source=\(s.telemetryCostSource.rawValue)",
+                "fallback=\(s.allowClaudeFallback)",
+                "estimate=\(s.estimateCloudCost)",
+                "project=\(s.projectIDOverride ?? "")",
+                "region=\(s.regionFilter ?? "")",
+                "model=\(s.modelFilter ?? "")",
+            ].joined(separator: ":")
+            return (nil, signature)
         }
         guard provider == .codex else {
             return (nil, provider.rawValue)

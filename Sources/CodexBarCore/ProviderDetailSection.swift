@@ -265,6 +265,7 @@ extension ProviderDetailSection {
         value: String,
         secondaryValue: String? = nil,
         progress: Row.Progress? = nil,
+        severity: Row.Severity? = nil,
         usageValue: Double? = nil) -> Row
     {
         do {
@@ -274,6 +275,7 @@ extension ProviderDetailSection {
                 value: self.boundedRequired(value),
                 secondaryValue: self.boundedOptional(secondaryValue),
                 progress: progress,
+                severity: severity,
                 usageValue: usageValue)
         } catch {
             preconditionFailure("Bounded provider detail row failed validation: \(error)")
@@ -330,6 +332,7 @@ extension ProviderDetailSection.Row {
         value: String,
         secondaryValue: String? = nil,
         progress: Progress? = nil,
+        severity: Severity? = nil,
         usageValue: Double? = nil) -> Self
     {
         ProviderDetailSection.makeRow(
@@ -338,6 +341,7 @@ extension ProviderDetailSection.Row {
             value: value,
             secondaryValue: secondaryValue,
             progress: progress,
+            severity: severity,
             usageValue: usageValue)
     }
 }
