@@ -128,6 +128,7 @@ defineProvider({
           throw new Error("invalid xAI usage history");
         }
         const buckets = new Map();
+        const observedDays = new Set();
         for (const series of usage.json.timeSeries) {
           if (
             !series ||
@@ -166,10 +167,11 @@ defineProvider({
             ) {
               throw new Error("invalid xAI usage history");
             }
+            const day = date.toISOString().slice(0, 10);
+            observedDays.add(day);
             if (usd === 0 && units === 0 && transactions === 0) {
               continue;
             }
-            const day = date.toISOString().slice(0, 10);
             const key = `${day}\u001F${model || ""}`;
             let bucket = buckets.get(key);
             if (!bucket) {
@@ -215,6 +217,7 @@ defineProvider({
         }
         const sortedKeys = Array.from(buckets.keys()).sort();
         const builtEntries = [];
+        const emittedDays = new Set();
         for (const key of sortedKeys) {
           const bucket = buckets.get(key);
           const outputTokens = bucket.completionTokens + bucket.reasoningTokens;
@@ -250,8 +253,26 @@ defineProvider({
           if (bucket.hasReasoningTokens) entry.reasoningTokens = bucket.reasoningTokens;
           if (bucket.model) entry.model = bucket.model;
           builtEntries.push(entry);
+          emittedDays.add(bucket.day);
           totalSpend30d += bucket.cost;
         }
+        for (const day of Array.from(observedDays).sort()) {
+          if (!emittedDays.has(day)) {
+            builtEntries.push({
+              date: day,
+              inputTokens: 0,
+              outputTokens: 0,
+              requests: 0,
+              cost: 0,
+            });
+          }
+        }
+        builtEntries.sort((a, b) => {
+          if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+          const modelA = a.model || "";
+          const modelB = b.model || "";
+          return modelA < modelB ? -1 : modelA > modelB ? 1 : 0;
+        });
         if (!Number.isFinite(totalSpend30d)) {
           throw new Error("invalid xAI usage history");
         }

@@ -372,6 +372,78 @@ struct XAIProviderTests {
         #expect(mapped.historyDays == 30)
     }
 
+    @Test(arguments: BundledPluginTestSupport.engines) @MainActor
+    func `explicitly reported zero-usage days retain current-day zero metrics`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let usageBody = #"""
+        {
+          "timeSeries": [
+            {
+              "group": ["API grok-4.7", "Prompt text tokens"],
+              "dataPoints": [
+                {"timestamp":"2027-01-13T00:00:00Z","values":[0.4, 1000, 4]},
+                {"timestamp":"2027-01-14T00:00:00Z","values":[0, 0, 0]},
+                {"timestamp":"2027-01-15T00:00:00Z","values":[0, 0, 0]}
+              ]
+            },
+            {
+              "group": ["API Text-to-Speech", "Input characters"],
+              "dataPoints": [
+                {"timestamp":"2027-01-15T00:00:00Z","values":[0, 0, 0]}
+              ]
+            }
+          ],
+          "limitReached": false
+        }
+        """#
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let snapshot = try await Self.fetch(usageBody: usageBody, engine: engine)
+        let costUsage = try #require(snapshot.costUsage)
+        #expect(costUsage.sessionCostUSD == 0)
+        #expect(costUsage.sessionTokens == 0)
+        #expect(costUsage.sessionRequests == 0)
+        #expect(costUsage.last30DaysCostUSD == 0.4)
+        #expect(costUsage.last30DaysTokens == 1000)
+        #expect(costUsage.last30DaysRequests == 4)
+        #expect(costUsage.daily.map(\.date) == ["2027-01-13", "2027-01-14", "2027-01-15"])
+
+        let zeroPastDay = try #require(costUsage.daily.first { $0.date == "2027-01-14" })
+        #expect(zeroPastDay.costUSD == 0)
+        #expect(zeroPastDay.totalTokens == 0)
+        #expect(zeroPastDay.requestCount == 0)
+        #expect(zeroPastDay.modelBreakdowns == nil)
+
+        let zeroToday = try #require(costUsage.daily.first { $0.date == "2027-01-15" })
+        #expect(zeroToday.costUSD == 0)
+        #expect(zeroToday.totalTokens == 0)
+        #expect(zeroToday.requestCount == 0)
+        #expect(zeroToday.modelBreakdowns == nil)
+
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .xai)
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .xai,
+            metadata: descriptor.metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: true,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            costSummaryInlineEnabled: true,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+        let dashboard = try #require(model.inlineUsageDashboard)
+        #expect(dashboard.kpis.contains { $0.title == "Today" && $0.value == "$0.00" })
+    }
+
     @Test(arguments: [
         #"{}"#,
         #"{"timeSeries":null,"limitReached":false}"#,
