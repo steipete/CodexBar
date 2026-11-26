@@ -297,7 +297,10 @@ public enum VertexAIUsageFetcher {
             else {
                 return []
             }
-            var queryItems = [URLQueryItem(name: "pageSize", value: "200")]
+            var queryItems = [
+                URLQueryItem(name: "pageSize", value: "200"),
+                URLQueryItem(name: "view", value: "FULL"),
+            ]
             if let pageToken {
                 queryItems.append(URLQueryItem(name: "pageToken", value: pageToken))
             }

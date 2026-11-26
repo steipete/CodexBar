@@ -163,7 +163,7 @@ struct VertexAIUsageFetcherTests {
     }
 
     @Test
-    func `fetchOnlineServingReport builds daily and hourly entries with opt-in shared pricing and dedup`()
+    func `fetchOnlineServingReport builds daily and hourly entries with opt-in shared pricing`()
         async throws
     {
         let calendar = CostUsageBucketTimeZone.calendar(identifier: "UTC")
@@ -179,10 +179,9 @@ struct VertexAIUsageFetcherTests {
                 until: until,
                 calendar: calendar,
                 options: VertexAIQueryOptions(),
-                estimateCost: false,
-                excludeAnthropicPublisher: false),
+                estimateCost: false),
             pricingResolver: CostUsagePricing.ClaudeResolver(catalog: ModelsDevCatalog(providers: [:])),
-            transport: transport))
+            transport: transport).report)
         #expect(unpricedReport.summary?.totalTokens == 1_105_000)
         #expect(unpricedReport.summary?.totalCostUSD == nil)
         #expect(unpricedReport.hourly.count == 2)
@@ -195,32 +194,15 @@ struct VertexAIUsageFetcherTests {
                 until: until,
                 calendar: calendar,
                 options: VertexAIQueryOptions(),
-                estimateCost: true,
-                excludeAnthropicPublisher: false),
+                estimateCost: true),
             pricingResolver: CostUsagePricing.ClaudeResolver(catalog: ModelsDevCatalog(providers: [:])),
-            transport: transport))
+            transport: transport).report)
         // Dedicated gemini-2.5-pro has costUSD == nil while shared claude-sonnet-4-6 has priced USD.
         let pricedEntry = try #require(pricedReport.data.first)
         #expect(pricedEntry.unpricedRequestCount == 2)
         #expect(pricedEntry.estimatedRequestCount == 10)
         #expect((pricedEntry.modelBreakdowns?.first { $0.modelName == "claude-sonnet-4-6" }?.costUSD ?? 0) > 0)
         #expect(pricedEntry.modelBreakdowns?.first { $0.modelName == "gemini-2.5-pro" }?.costUSD == nil)
-
-        // Excluding anthropic publisher leaves only gemini-2.5-pro
-        let dedupedReport = try #require(await VertexAIUsageFetcher.fetchOnlineServingReport(
-            accessToken: "token",
-            projectId: "proj-1",
-            config: VertexAIUsageFetcher.OnlineServingReportConfig(
-                since: since,
-                until: until,
-                calendar: calendar,
-                options: VertexAIQueryOptions(),
-                estimateCost: true,
-                excludeAnthropicPublisher: true),
-            pricingResolver: CostUsagePricing.ClaudeResolver(catalog: ModelsDevCatalog(providers: [:])),
-            transport: transport))
-        #expect(dedupedReport.summary?.totalTokens == 5000)
-        #expect(dedupedReport.data.first?.modelsUsed == ["gemini-2.5-pro"])
     }
 
     private static func makeConsumerQuotaJSON(rateMetric: String) -> String {
@@ -591,8 +573,10 @@ struct VertexAIUsageSnapshotEdgeCaseTests {
         let prefix = "projects/p/services/aiplatform.googleapis.com/consumerQuotaMetrics/\(rateMetric)"
         let transport = VertexAIUsageFetcherTests.routerTransport { url, filter in
             if url.host == "serviceusage.googleapis.com" {
-                let pageToken = URLComponents(url: url, resolvingAgainstBaseURL: false)?
-                    .queryItems?.first { $0.name == "pageToken" }?.value
+                let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+                let view = queryItems.first { $0.name == "view" }?.value
+                #expect(view == "FULL")
+                let pageToken = queryItems.first { $0.name == "pageToken" }?.value
                 if pageToken == nil {
                     return (200, """
                     {
@@ -1059,10 +1043,9 @@ struct VertexAIUsageSnapshotEdgeCaseTests {
                 until: now,
                 calendar: CostUsageBucketTimeZone.calendar(identifier: "UTC"),
                 options: VertexAIQueryOptions(estimateServingCost: true),
-                estimateCost: true,
-                excludeAnthropicPublisher: false),
+                estimateCost: true),
             pricingResolver: resolver,
-            transport: transport))
+            transport: transport).report)
         let reportCost = try #require(report.summary?.totalCostUSD)
         #expect(abs(reportCost - 0.90) < 1e-9)
     }

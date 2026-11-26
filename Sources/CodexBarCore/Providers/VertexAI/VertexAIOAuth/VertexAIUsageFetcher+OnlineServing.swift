@@ -1,13 +1,25 @@
 import Foundation
 
 extension VertexAIUsageFetcher {
+    enum OnlineServingReportOutcome {
+        case report(CostUsageDailyReport, isPartial: Bool)
+        case empty
+        case failed
+
+        var report: CostUsageDailyReport? {
+            if case let .report(report, _) = self {
+                return report
+            }
+            return nil
+        }
+    }
+
     struct OnlineServingReportConfig {
         let since: Date
         let until: Date
         let calendar: Calendar
         let options: VertexAIQueryOptions
         let estimateCost: Bool
-        let excludeAnthropicPublisher: Bool
     }
 
     static let onlineServingInvocationFilter = """
@@ -158,13 +170,13 @@ extension VertexAIUsageFetcher {
         projectId: String?,
         config: OnlineServingReportConfig,
         pricingResolver: CostUsagePricing.ClaudeResolver,
-        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> CostUsageDailyReport?
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> OnlineServingReportOutcome
     {
         guard let projectId, !projectId.isEmpty else {
-            return nil
+            return .failed
         }
 
-        let tokenSeries = try await Self.fetchOptionalTimeSeries(
+        let tokenResult = try await Self.fetchServingTimeSeriesResult(
             accessToken: accessToken,
             projectId: projectId,
             query: TimeSeriesQuery(
@@ -174,7 +186,7 @@ extension VertexAIUsageFetcher {
                 alignmentPeriod: "3600s",
                 perSeriesAligner: "ALIGN_SUM"),
             transport: transport)
-        let invocationSeries = try await Self.fetchOptionalTimeSeries(
+        let invocationResult = try await Self.fetchServingTimeSeriesResult(
             accessToken: accessToken,
             projectId: projectId,
             query: TimeSeriesQuery(
@@ -185,15 +197,59 @@ extension VertexAIUsageFetcher {
                 perSeriesAligner: "ALIGN_SUM"),
             transport: transport)
 
-        guard !tokenSeries.isEmpty || !invocationSeries.isEmpty else {
-            return nil
+        let tokenQueryFailed = tokenResult == nil
+        let invocationQueryFailed = invocationResult == nil
+        if tokenQueryFailed && invocationQueryFailed {
+            return .failed
         }
 
-        return Self.buildOnlineServingReport(
+        let tokenSeries = tokenResult ?? []
+        let invocationSeries = invocationResult ?? []
+        guard !tokenSeries.isEmpty || !invocationSeries.isEmpty else {
+            return (tokenQueryFailed || invocationQueryFailed) ? .failed : .empty
+        }
+
+        guard let report = Self.buildOnlineServingReport(
             tokenSeries: tokenSeries,
             invocationSeries: invocationSeries,
+            tokenQueryFailed: tokenQueryFailed,
             config: config,
             pricingResolver: pricingResolver)
+        else {
+            return (tokenQueryFailed || invocationQueryFailed) ? .failed : .empty
+        }
+        return .report(report, isPartial: tokenQueryFailed || invocationQueryFailed)
+    }
+
+    private static func fetchServingTimeSeriesResult(
+        accessToken: String,
+        projectId: String,
+        query: TimeSeriesQuery,
+        transport: any ProviderHTTPTransport) async throws -> [MonitoringTimeSeries]?
+    {
+        do {
+            return try await fetchTimeSeries(
+                accessToken: accessToken,
+                projectId: projectId,
+                query: query,
+                transport: transport)
+        } catch VertexAIFetchError.unauthorized {
+            throw VertexAIFetchError.unauthorized
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            if let urlError = error as? URLError, urlError.code == .cancelled {
+                throw error
+            }
+            if case let VertexAIFetchError.networkError(inner) = error,
+               let urlError = inner as? URLError,
+               urlError.code == .cancelled
+            {
+                throw error
+            }
+            Self.log.debug("Online serving Monitoring query failed: \(error.localizedDescription)")
+            return nil
+        }
     }
 
     private struct ServingBucketKey: Hashable {
@@ -206,12 +262,14 @@ extension VertexAIUsageFetcher {
     private struct ServingBucketTotals {
         var inputTokens: Int = 0
         var outputTokens: Int = 0
+        var hasTokenData: Bool = false
         var invocations: Int = 0
     }
 
     private static func buildOnlineServingReport(
         tokenSeries: [MonitoringTimeSeries],
         invocationSeries: [MonitoringTimeSeries],
+        tokenQueryFailed: Bool,
         config: OnlineServingReportConfig,
         pricingResolver: CostUsagePricing.ClaudeResolver) -> CostUsageDailyReport?
     {
@@ -229,10 +287,15 @@ extension VertexAIUsageFetcher {
         var hourlyBuckets: [Date: CostUsageTemporalTotals] = [:]
 
         for (key, totals) in buckets {
-            let totalTokens = totals.inputTokens + totals.outputTokens
-            guard totalTokens > 0 || totals.invocations > 0 else { continue }
+            let hasKnownTokens = !tokenQueryFailed && (totals.hasTokenData || totals.invocations == 0)
+            let knownTotalTokens = totals.inputTokens + totals.outputTokens
+            guard (hasKnownTokens && knownTotalTokens > 0) || totals.invocations > 0 else { continue }
 
-            let costUSD: Double? = if config.estimateCost, !key.isDedicated, totalTokens > 0 {
+            let inputTokens: Int? = hasKnownTokens ? totals.inputTokens : nil
+            let outputTokens: Int? = hasKnownTokens ? totals.outputTokens : nil
+            let totalTokens: Int? = hasKnownTokens ? knownTotalTokens : nil
+
+            let costUSD: Double? = if config.estimateCost, !key.isDedicated, hasKnownTokens, knownTotalTokens > 0 {
                 Self.estimateServingCostUSD(
                     modelName: key.modelName,
                     inputTokens: totals.inputTokens,
@@ -244,13 +307,13 @@ extension VertexAIUsageFetcher {
             }
 
             let requestCount = totals.invocations > 0 ? totals.invocations : nil
-            let isUnpriced = config.estimateCost && costUSD == nil && totalTokens > 0
+            let isUnpriced = config.estimateCost && costUSD == nil && ((totalTokens ?? 0) > 0 || totals.invocations > 0)
             let isPriced = costUSD != nil
 
             rawEntries.append(CostUsageDailyReport.Entry(
                 date: key.dayKey,
-                inputTokens: totals.inputTokens,
-                outputTokens: totals.outputTokens,
+                inputTokens: inputTokens,
+                outputTokens: outputTokens,
                 totalTokens: totalTokens,
                 requestCount: requestCount,
                 costUSD: costUSD,
@@ -259,7 +322,8 @@ extension VertexAIUsageFetcher {
                     CostUsageDailyReport.ModelBreakdown(
                         modelName: key.modelName,
                         costUSD: costUSD,
-                        totalTokens: totalTokens),
+                        totalTokens: totalTokens,
+                        requestCount: requestCount),
                 ],
                 unpricedRequestCount: isUnpriced ? (requestCount ?? 1) : nil,
                 estimatedRequestCount: isPriced ? (requestCount ?? 1) : nil))
@@ -267,7 +331,7 @@ extension VertexAIUsageFetcher {
             hourlyBuckets[key.hour, default: CostUsageTemporalTotals()].add(
                 totalTokens: totalTokens,
                 costUSD: costUSD,
-                tokensAreComplete: true,
+                tokensAreComplete: hasKnownTokens,
                 costIsComplete: config.estimateCost ? costUSD != nil : false)
         }
 
@@ -291,11 +355,6 @@ extension VertexAIUsageFetcher {
         for series in tokenSeries {
             guard let key = Self.servingSeriesKey(series, options: config.options) else { continue }
             let modelName = Self.normalizedModelName(key.modelUserID)
-            if config.excludeAnthropicPublisher,
-               Self.isAnthropicSeries(publisher: key.publisher, modelName: modelName)
-            {
-                continue
-            }
             let tokenType = (series.metric.labels?["type"] ?? "input").lowercased()
             let isDedicated = key.requestType.caseInsensitiveCompare("dedicated") == .orderedSame
             for point in series.points {
@@ -314,17 +373,13 @@ extension VertexAIUsageFetcher {
                 } else {
                     buckets[bucketKey, default: ServingBucketTotals()].inputTokens += count
                 }
+                buckets[bucketKey, default: ServingBucketTotals()].hasTokenData = true
             }
         }
 
         for series in invocationSeries {
             guard let key = Self.servingSeriesKey(series, options: config.options) else { continue }
             let modelName = Self.normalizedModelName(key.modelUserID)
-            if config.excludeAnthropicPublisher,
-               Self.isAnthropicSeries(publisher: key.publisher, modelName: modelName)
-            {
-                continue
-            }
             let isDedicated = key.requestType.caseInsensitiveCompare("dedicated") == .orderedSame
             for point in series.points {
                 guard let rawValue = Self.pointValue(from: point), rawValue.isFinite, rawValue > 0 else { continue }
@@ -340,11 +395,6 @@ extension VertexAIUsageFetcher {
             }
         }
         return buckets
-    }
-
-    private static func isAnthropicSeries(publisher: String, modelName: String) -> Bool {
-        publisher.caseInsensitiveCompare("anthropic") == .orderedSame
-            || modelName.lowercased().hasPrefix("claude-")
     }
 
     private static func estimateServingCostUSD(

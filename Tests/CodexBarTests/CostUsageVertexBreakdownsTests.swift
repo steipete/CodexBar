@@ -85,7 +85,7 @@ struct CostUsageVertexBreakdownsTests {
     }
 
     @Test
-    func `auto telemetry mode deduplicates anthropic cloud series when local Vertex logs exist`() async throws {
+    func `auto telemetry mode preserves anthropic cloud totals while keeping local breakdowns separate`() async throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
         let now = try env.makeLocalNoon(year: 2026, month: 11, day: 25)
@@ -169,8 +169,9 @@ struct CostUsageVertexBreakdownsTests {
             "GOOGLE_CLOUD_PROJECT": "vertex-dedup-proj",
         ]
 
-        // Auto mode: local Claude-on-Vertex (500 tokens) + non-Anthropic Cloud Gemini (1000 tokens) = 1500 tokens.
-        // The 99,999 Anthropic cloud tokens are deduplicated!
+        // Auto mode: Cloud Monitoring totals are authoritative across all publishers (99,999 Anthropic + 1,000 Gemini
+        // = 100,999 tokens) so a 500-token local session never drops cloud traffic from other sessions, machines, or
+        // days. Local project/session breakdowns stay attached separately.
         let autoSnapshot = try await CostUsageFetcher.loadTokenResult(
             provider: .vertexai,
             environment: testEnv,
@@ -183,7 +184,7 @@ struct CostUsageVertexBreakdownsTests {
             forceRefresh: true,
             allowPricingRefresh: false,
             scannerOptions: options).snapshot
-        #expect(autoSnapshot.last30DaysTokens == 1500)
+        #expect(autoSnapshot.last30DaysTokens == 100_999)
         #expect(autoSnapshot.projects.map(\.path) == ["/tmp/vertex-dedup"])
         #expect(autoSnapshot.sessions.map(\.sessionID) == ["sess-vertex-2"])
 
@@ -456,5 +457,159 @@ struct CostUsageVertexBreakdownsTests {
             #expect(query.first { $0.name == "interval.startTime" }?.value == expectedSevenDayStart)
             #expect(query.first { $0.name == "interval.endTime" }?.value == expectedEnd)
         }
+    }
+
+    @Test
+    func `auto mode distinguishes cloud failure from confirmed-empty history`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let now = try env.makeLocalNoon(year: 2026, month: 11, day: 25)
+
+        let gcloudDir = env.root.appendingPathComponent("gcloud-failure", isDirectory: true)
+        try FileManager.default.createDirectory(at: gcloudDir, withIntermediateDirectories: true)
+        try """
+        {
+          "client_id": "cid",
+          "client_secret": "csecret",
+          "refresh_token": "rtoken",
+          "access_token": "valid-token",
+          "token_expiry": "2099-01-01T00:00:00Z"
+        }
+        """.write(
+            to: gcloudDir.appendingPathComponent("application_default_credentials.json"),
+            atomically: true,
+            encoding: .utf8)
+
+        let failingTransport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url, statusCode: 503, httpVersion: nil, headerFields: nil))
+            return (Data(#"{"error":{"code":503}}"#.utf8), response)
+        }
+        let emptyTransport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url, statusCode: 200, httpVersion: nil, headerFields: nil))
+            return (Data(#"{"timeSeries":[]}"#.utf8), response)
+        }
+
+        let options = CostUsageScanner.Options(
+            claudeProjectsRoots: [env.claudeProjectsRoot],
+            cacheRoot: env.cacheRoot)
+        let testEnv = [
+            "CLOUDSDK_CONFIG": gcloudDir.path,
+            "GOOGLE_CLOUD_PROJECT": "vertex-failure-proj",
+        ]
+
+        let failedSnapshot = try await CostUsageFetcher.loadTokenResult(
+            provider: .vertexai,
+            environment: testEnv,
+            vertexAISettings: VertexAIProviderSettings(telemetryCostSource: .auto),
+            vertexAITransport: failingTransport,
+            now: now,
+            forceRefresh: true,
+            allowPricingRefresh: false,
+            scannerOptions: options).snapshot
+        #expect(failedSnapshot.daily.isEmpty)
+        #expect(!failedSnapshot.historyCoverageIsEstablished)
+
+        let confirmedEmptySnapshot = try await CostUsageFetcher.loadTokenResult(
+            provider: .vertexai,
+            environment: testEnv,
+            vertexAISettings: VertexAIProviderSettings(telemetryCostSource: .auto),
+            vertexAITransport: emptyTransport,
+            now: now,
+            forceRefresh: true,
+            allowPricingRefresh: false,
+            scannerOptions: options).snapshot
+        #expect(confirmedEmptySnapshot.daily.isEmpty)
+        #expect(confirmedEmptySnapshot.historyCoverageIsEstablished)
+    }
+
+    @Test
+    func `invocation-only buckets preserve unknown tokens when token_count query fails`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let now = try env.makeLocalNoon(year: 2026, month: 11, day: 25)
+        let isoNow = ISO8601DateFormatter().string(from: now)
+
+        let gcloudDir = env.root.appendingPathComponent("gcloud-partial", isDirectory: true)
+        try FileManager.default.createDirectory(at: gcloudDir, withIntermediateDirectories: true)
+        try """
+        {
+          "client_id": "cid",
+          "client_secret": "csecret",
+          "refresh_token": "rtoken",
+          "access_token": "valid-token",
+          "token_expiry": "2099-01-01T00:00:00Z"
+        }
+        """.write(
+            to: gcloudDir.appendingPathComponent("application_default_credentials.json"),
+            atomically: true,
+            encoding: .utf8)
+
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            let filter = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first { $0.name == "filter" }?.value ?? ""
+            if filter.contains("online_serving/token_count") {
+                let response = try #require(HTTPURLResponse(
+                    url: url, statusCode: 503, httpVersion: nil, headerFields: nil))
+                return (Data(#"{"error":{"code":503}}"#.utf8), response)
+            }
+            let body = """
+            {
+              "timeSeries": [
+                {
+                  "metric": {"labels": {"request_type": "shared"}},
+                  "resource": {
+                    "labels": {
+                      "location": "us-central1",
+                      "publisher": "google",
+                      "model_user_id": "gemini-2.5-pro"
+                    }
+                  },
+                  "points": [
+                    {"interval": {"endTime": "\(isoNow)"}, "value": {"int64Value": "12"}}
+                  ]
+                }
+              ]
+            }
+            """
+            let response = try #require(HTTPURLResponse(
+                url: url, statusCode: 200, httpVersion: nil, headerFields: nil))
+            return (Data(body.utf8), response)
+        }
+
+        let options = CostUsageScanner.Options(
+            claudeProjectsRoots: [env.claudeProjectsRoot],
+            cacheRoot: env.cacheRoot)
+        let testEnv = [
+            "CLOUDSDK_CONFIG": gcloudDir.path,
+            "GOOGLE_CLOUD_PROJECT": "vertex-partial-proj",
+        ]
+
+        let snapshot = try await CostUsageFetcher.loadTokenResult(
+            provider: .vertexai,
+            environment: testEnv,
+            vertexAISettings: VertexAIProviderSettings(
+                telemetryCostSource: .cloudMonitoringOnly,
+                estimateCloudCost: true),
+            vertexAITransport: transport,
+            now: now,
+            forceRefresh: true,
+            allowPricingRefresh: false,
+            scannerOptions: options).snapshot
+
+        #expect(snapshot.historyScanIsPartial)
+        #expect(snapshot.last30DaysTokens == nil)
+        let day = try #require(snapshot.daily.first)
+        #expect(day.totalTokens == nil)
+        #expect(day.inputTokens == nil)
+        #expect(day.outputTokens == nil)
+        #expect(day.requestCount == 12)
+        let hourly = try #require(snapshot.hourly.first)
+        #expect(hourly.totalTokens == nil)
+        #expect(!hourly.tokensAreComplete)
     }
 }

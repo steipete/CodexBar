@@ -2,7 +2,7 @@ import Foundation
 
 extension CostUsageFetcher {
     struct VertexAITokenLoadContext: Sendable {
-        let environment: [String: String]
+        @ProcessEnvironment private(set) var environment: [String: String]
         let now: Date
         let since: Date
         let historyDays: Int
@@ -81,24 +81,34 @@ extension CostUsageFetcher {
             return CostUsageTokenResult(snapshot: snapshot, accounting: nil)
 
         case .cloudMonitoringOnly:
-            let cloudReport = try await Self.fetchVertexCloudServingReport(
+            let cloudOutcome = try await Self.fetchVertexCloudServingReport(
                 context: context,
-                calendar: calendar,
-                excludeAnthropicPublisher: false)
-            guard let cloudReport else {
+                calendar: calendar)
+            switch cloudOutcome {
+            case .failed:
                 return CostUsageTokenResult(
                     snapshot: Self.unavailableLocalSnapshot(
                         now: context.now,
                         historyDays: context.historyDays,
                         calendar: calendar),
                     accounting: nil)
+            case .empty:
+                return CostUsageTokenResult(
+                    snapshot: Self.vertexCloudTokenSnapshot(
+                        from: CostUsageDailyReport(data: [], summary: nil),
+                        context: context,
+                        calendar: calendar,
+                        isPartial: false),
+                    accounting: nil)
+            case let .report(cloudReport, isPartial):
+                return CostUsageTokenResult(
+                    snapshot: Self.vertexCloudTokenSnapshot(
+                        from: cloudReport,
+                        context: context,
+                        calendar: calendar,
+                        isPartial: isPartial),
+                    accounting: nil)
             }
-            return CostUsageTokenResult(
-                snapshot: Self.vertexCloudOnlyTokenSnapshot(
-                    from: cloudReport,
-                    context: context,
-                    calendar: calendar),
-                accounting: nil)
 
         case .auto:
             let localResult = try await Self.loadLocalTokenScanResult(
@@ -107,12 +117,35 @@ extension CostUsageFetcher {
                 now: context.now,
                 options: localScanOptions)
             let hasLocalClaudeEntries = !localResult.inclusive.daily.data.isEmpty
-            let cloudReport = try await Self.fetchVertexCloudServingReport(
+            let cloudOutcome = try await Self.fetchVertexCloudServingReport(
                 context: context,
-                calendar: calendar,
-                excludeAnthropicPublisher: hasLocalClaudeEntries)
+                calendar: calendar)
 
-            guard let cloudReport else {
+            switch cloudOutcome {
+            case .failed:
+                guard hasLocalClaudeEntries else {
+                    return CostUsageTokenResult(
+                        snapshot: Self.unavailableLocalSnapshot(
+                            now: context.now,
+                            historyDays: context.historyDays,
+                            calendar: calendar),
+                        accounting: nil)
+                }
+                let snapshot = Self.tokenSnapshot(
+                    from: localResult.inclusive.daily,
+                    now: context.now,
+                    historyDays: context.historyDays,
+                    calendar: calendar,
+                    historyCoverageIsEstablished: localResult.inclusive.historyCoverageIsEstablished,
+                    historyScanIsPartial: true,
+                    costProvenance: .listPriceEstimate,
+                    projects: localResult.inclusive.projects,
+                    sessions: localResult.inclusive.sessions,
+                    detailsAreComplete: localResult.inclusive.detailsAreComplete,
+                    updatedAt: localResult.inclusive.staleSnapshotUpdatedAt)
+                return CostUsageTokenResult(snapshot: snapshot, accounting: nil)
+
+            case .empty:
                 let snapshot = Self.tokenSnapshot(
                     from: localResult.inclusive.daily,
                     now: context.now,
@@ -126,45 +159,33 @@ extension CostUsageFetcher {
                     detailsAreComplete: localResult.inclusive.detailsAreComplete,
                     updatedAt: localResult.inclusive.staleSnapshotUpdatedAt)
                 return CostUsageTokenResult(snapshot: snapshot, accounting: nil)
-            }
 
-            if !hasLocalClaudeEntries {
+            case let .report(cloudReport, isPartial):
+                // Keep Cloud Monitoring totals authoritative across all publishers (including Anthropic)
+                // so remote, other-machine, or other-day traffic is never dropped when local Claude logs exist.
+                // Local project/session breakdowns stay attached separately.
                 return CostUsageTokenResult(
-                    snapshot: Self.vertexCloudOnlyTokenSnapshot(
+                    snapshot: Self.vertexCloudTokenSnapshot(
                         from: cloudReport,
                         context: context,
-                        calendar: calendar),
+                        calendar: calendar,
+                        isPartial: isPartial,
+                        projects: localResult.inclusive.projects,
+                        sessions: localResult.inclusive.sessions,
+                        detailsAreComplete: localResult.inclusive.detailsAreComplete),
                     accounting: nil)
             }
-
-            let mergedDaily = CostUsageDailyReport.merged(
-                [localResult.inclusive.daily, cloudReport],
-                calendar: calendar)
-            let hasMonetaryCosts = mergedDaily.data.contains { $0.costUSD != nil }
-                || mergedDaily.summary?.totalCostUSD != nil
-            let snapshot = Self.tokenSnapshot(
-                from: mergedDaily,
-                now: context.now,
-                historyDays: context.historyDays,
-                calendar: calendar,
-                historyCoverageIsEstablished: localResult.inclusive.historyCoverageIsEstablished,
-                monetaryValuesAreAvailable: hasMonetaryCosts,
-                costProvenance: hasMonetaryCosts ? .listPriceEstimate : .unknown,
-                historyLabel: settings.estimateCloudCost
-                    ? "Last \(context.historyDays) days (Cloud + Local est.)"
-                    : nil,
-                projects: localResult.inclusive.projects,
-                sessions: localResult.inclusive.sessions,
-                detailsAreComplete: localResult.inclusive.detailsAreComplete,
-                updatedAt: localResult.inclusive.staleSnapshotUpdatedAt)
-            return CostUsageTokenResult(snapshot: snapshot, accounting: nil)
         }
     }
 
-    private static func vertexCloudOnlyTokenSnapshot(
+    private static func vertexCloudTokenSnapshot(
         from cloudReport: CostUsageDailyReport,
         context: VertexAITokenLoadContext,
-        calendar: Calendar) -> CostUsageTokenSnapshot
+        calendar: Calendar,
+        isPartial: Bool,
+        projects: [CostUsageProjectBreakdown] = [],
+        sessions: [CostUsageSessionBreakdown] = [],
+        detailsAreComplete: Bool = true) -> CostUsageTokenSnapshot
     {
         let estimateCloudCost = context.vertexAISettings.estimateCloudCost
         let hasMonetaryCosts = estimateCloudCost
@@ -175,18 +196,18 @@ extension CostUsageFetcher {
             historyDays: context.historyDays,
             calendar: calendar,
             historyCoverageIsEstablished: true,
+            historyScanIsPartial: isPartial,
             monetaryValuesAreAvailable: hasMonetaryCosts,
             costProvenance: hasMonetaryCosts ? .listPriceEstimate : .unknown,
             historyLabel: estimateCloudCost ? "Last \(context.historyDays) days (Cloud est.)" : nil,
-            projects: [],
-            sessions: [],
-            detailsAreComplete: true)
+            projects: projects,
+            sessions: sessions,
+            detailsAreComplete: detailsAreComplete)
     }
 
     private static func fetchVertexCloudServingReport(
         context: VertexAITokenLoadContext,
-        calendar: Calendar,
-        excludeAnthropicPublisher: Bool) async throws -> CostUsageDailyReport?
+        calendar: Calendar) async throws -> VertexAIUsageFetcher.OnlineServingReportOutcome
     {
         let transport = context.transport ?? ProviderHTTPClient.shared
         let credentials: VertexAIOAuthCredentials
@@ -199,7 +220,7 @@ extension CostUsageFetcher {
         } catch is CancellationError {
             throw CancellationError()
         } catch {
-            return nil
+            return .failed
         }
 
         let pricingResolver = CostUsagePricing.ClaudeResolver(
@@ -224,14 +245,13 @@ extension CostUsageFetcher {
                     until: context.now,
                     calendar: calendar,
                     options: queryOptions,
-                    estimateCost: context.vertexAISettings.estimateCloudCost,
-                    excludeAnthropicPublisher: excludeAnthropicPublisher),
+                    estimateCost: context.vertexAISettings.estimateCloudCost),
                 pricingResolver: pricingResolver,
                 transport: transport)
         } catch is CancellationError {
             throw CancellationError()
         } catch {
-            return nil
+            return .failed
         }
     }
 }

@@ -218,4 +218,49 @@ struct VertexAISettingsDescriptorTests {
         #expect(clearedOnTarget.vertexAIAllowClaudeFallback == nil)
         #expect(clearedOnTarget.vertexAIEstimateCloudCost == nil)
     }
+
+    @Test
+    func `legacy v0_85_0 config and serialized UsageSnapshot decode cleanly with safe Vertex AI defaults`() throws {
+        // Legacy v0.85.0 config.json with a vertexai provider entry lacking all 7 new Vertex AI fields.
+        let legacyConfigJSON = """
+        {
+          "version": 1,
+          "providers": [
+            {
+              "id": "vertexai",
+              "enabled": true
+            }
+          ]
+        }
+        """
+        let decodedConfig = try JSONDecoder().decode(CodexBarConfig.self, from: Data(legacyConfigJSON.utf8))
+        let vertexConfig = try #require(decodedConfig.providerConfig(for: .vertexai))
+        #expect(vertexConfig.enabled == true)
+        let resolved = vertexConfig.resolvedVertexAISettings
+        #expect(resolved.projectIDOverride == nil)
+        #expect(resolved.regionFilter == nil)
+        #expect(resolved.modelFilter == nil)
+        #expect(resolved.primaryBarMetric == .auto)
+        #expect(resolved.telemetryCostSource == .auto)
+        #expect(resolved.allowClaudeFallback == false)
+        #expect(resolved.estimateCloudCost == false)
+
+        // Legacy serialized UsageSnapshot lacking new Vertex serving/quota detail sections.
+        let legacySnapshotJSON = """
+        {
+          "updatedAt": 0,
+          "identity": {
+            "providerID": "vertexai",
+            "accountEmail": "user@example.com",
+            "loginMethod": "gcloud"
+          }
+        }
+        """
+        let decodedSnapshot = try JSONDecoder().decode(UsageSnapshot.self, from: Data(legacySnapshotJSON.utf8))
+        #expect(decodedSnapshot.primary == nil)
+        #expect(decodedSnapshot.secondary == nil)
+        #expect(decodedSnapshot.details.isEmpty)
+        #expect(decodedSnapshot.accountEmail(for: .vertexai) == "user@example.com")
+        #expect(decodedSnapshot.loginMethod(for: .vertexai) == "gcloud")
+    }
 }
