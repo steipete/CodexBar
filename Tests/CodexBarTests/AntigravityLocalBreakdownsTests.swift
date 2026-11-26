@@ -276,6 +276,93 @@ struct AntigravityLocalBreakdownsTests {
     }
 
     @Test
+    func `gitRepository preserves nested URLs ignores file remotes and blocks cross-workspace paths`() throws {
+        let fixture = try Fixture()
+        let gitlabHTTPS = Fixture.trajectoryMetadataBlob(
+            workspaces: [.init(repoRemoteURL: "https://gitlab.com/org/team/sub/gl-repo.git")])
+        let gitlabSSH = Fixture.trajectoryMetadataBlob(
+            workspaces: [.init(repoRemoteURL: "git@gitlab.com:org/team/sub/gl-repo.git")])
+        let gitlabSSHScheme = Fixture.trajectoryMetadataBlob(
+            workspaces: [.init(repoRemoteURL: "ssh://git@gitlab.com/org/team/sub/gl-repo.git")])
+        let githubTwoSeg = Fixture.trajectoryMetadataBlob(
+            workspaces: [.init(repoRemoteURL: "https://github.com/sub/gl-repo.git")])
+        let gitlabTwoSeg = Fixture.trajectoryMetadataBlob(
+            workspaces: [.init(repoRemoteURL: "https://gitlab.com/sub/gl-repo.git")])
+        let fileRemote = Fixture.trajectoryMetadataBlob(
+            workspaces: [
+                .init(
+                    workspaceURI: "file:///Users/fixture/dev/local-mirror",
+                    gitRootURI: "file:///Users/fixture/dev/local-mirror",
+                    repoRemoteURL: "file:///Users/fixture/repos/local-mirror.git"),
+            ])
+        let crossWorkspaceNoPath = Fixture.trajectoryMetadataBlob(
+            workspaces: [
+                .init(repoSlug: "owner/repo-without-path"),
+                .init(workspaceURI: "file:///Users/fixture/dev/unrelated-folder"),
+            ])
+
+        try fixture.database(
+            "s-gl-https",
+            blobs: [Fixture.blob(seconds: 1_787_832_000)],
+            trajectoryMetadataBlob: gitlabHTTPS)
+        try fixture.database(
+            "s-gl-ssh",
+            blobs: [Fixture.blob(seconds: 1_787_832_100)],
+            trajectoryMetadataBlob: gitlabSSH)
+        try fixture.database(
+            "s-gl-ssh-scheme",
+            blobs: [Fixture.blob(seconds: 1_787_832_200)],
+            trajectoryMetadataBlob: gitlabSSHScheme)
+        try fixture.database(
+            "s-gh-two-seg",
+            blobs: [Fixture.blob(seconds: 1_787_832_300)],
+            trajectoryMetadataBlob: githubTwoSeg)
+        try fixture.database(
+            "s-gl-two-seg",
+            blobs: [Fixture.blob(seconds: 1_787_832_400)],
+            trajectoryMetadataBlob: gitlabTwoSeg)
+        try fixture.database(
+            "s-file-remote",
+            blobs: [Fixture.blob(seconds: 1_787_832_500)],
+            trajectoryMetadataBlob: fileRemote)
+        try fixture.database(
+            "s-cross-ws",
+            blobs: [Fixture.blob(seconds: 1_787_832_600)],
+            trajectoryMetadataBlob: crossWorkspaceNoPath)
+
+        let report = try fixture.report(
+            scanOptions: AntigravityLocalScanOptions(projectGrouping: .gitRepository),
+            includeBreakdowns: true)
+        #expect(report.coverage == .complete)
+
+        let nestedProjects = report.projects.filter { $0.name == "org/team/sub/gl-repo" }
+        #expect(nestedProjects.count == 1)
+        #expect(nestedProjects.first?.totalTokens == 561)
+        for sessionID in ["s-gl-https", "s-gl-ssh", "s-gl-ssh-scheme"] {
+            let session = try #require(report.sessions.first { $0.sessionID == sessionID })
+            #expect(session.projectName == "org/team/sub/gl-repo")
+            #expect(session.projectPath == nil)
+        }
+
+        let twoSegProjects = report.projects.filter { $0.name == "sub/gl-repo" }
+        #expect(twoSegProjects.count == 2)
+        #expect(twoSegProjects.allSatisfy { $0.totalTokens == 187 })
+
+        let fileProject = try #require(report.projects.first { $0.path == "/Users/fixture/dev/local-mirror" })
+        #expect(fileProject.name == "local-mirror")
+        #expect(!fileProject.name.hasPrefix("file://"))
+        let fileSession = try #require(report.sessions.first { $0.sessionID == "s-file-remote" })
+        #expect(fileSession.projectName == "local-mirror")
+        #expect(fileSession.projectPath == "/Users/fixture/dev/local-mirror")
+
+        let crossProject = try #require(report.projects.first { $0.name == "owner/repo-without-path" })
+        #expect(crossProject.path == nil)
+        let crossSession = try #require(report.sessions.first { $0.sessionID == "s-cross-ws" })
+        #expect(crossSession.projectName == "owner/repo-without-path")
+        #expect(crossSession.projectPath == nil)
+    }
+
+    @Test
     func `partial scan reads trajectory_metadata_blob even when step timestamp recovery fails`() throws {
         let fixture = try Fixture()
         let tmb = Fixture.trajectoryMetadataBlob(

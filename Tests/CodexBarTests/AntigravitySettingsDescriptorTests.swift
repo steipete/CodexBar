@@ -194,6 +194,62 @@ struct AntigravitySettingsDescriptorTests {
     }
 
     @Test
+    func `quotaSummary preserves non-inverted rateWindowLabels when Claude GPT pool is preferred`() throws {
+        let json = antigravityQuotaSummaryJSON(
+            geminiSession: 0.90,
+            geminiWeekly: 0.75,
+            claudeSession: 0.50,
+            claudeWeekly: 0.25)
+        let summary = try AntigravityStatusProbe.parseQuotaSummaryResponse(Data(json.utf8))
+        let metadata = AntigravityProviderDescriptor.descriptor.metadata
+
+        for (pool, expectedWindowID, expectedMenuBarUsed): (AntigravityPrimaryPoolPreference, String, Double) in [
+            (.claudeGPTWeekly, "antigravity-quota-summary-3p-weekly", 75),
+            (.claudeGPTFiveHour, "antigravity-quota-summary-3p-5h", 50),
+        ] {
+            let usage = try summary.toUsageSnapshot(primaryPool: pool)
+            #expect(usage.extraRateWindows?.first?.id == expectedWindowID)
+            #expect(usage.primary?.usedPercent.rounded() == 25)
+            #expect(usage.secondary?.usedPercent.rounded() == 75)
+
+            let labels = AntigravityProviderDescriptor.descriptor.presentation.rateWindowLabels(
+                metadata: metadata,
+                snapshot: usage)
+            #expect(labels.primary == "Gemini Models")
+            #expect(labels.secondary == "Claude and GPT")
+
+            let menuBar = MenuBarMetricWindowResolver.rateWindow(
+                preference: .automatic,
+                provider: .antigravity,
+                snapshot: usage,
+                supportsAverage: false,
+                antigravityPrimaryPool: pool)
+            #expect(menuBar?.usedPercent.rounded() == expectedMenuBarUsed)
+
+            let cardModel = UsageMenuCardView.Model.make(.init(
+                provider: .antigravity,
+                metadata: metadata,
+                snapshot: usage,
+                credits: nil,
+                creditsError: nil,
+                dashboardError: nil,
+                tokenSnapshot: nil,
+                tokenError: nil,
+                account: AccountInfo(email: nil, plan: nil),
+                isRefreshing: false,
+                lastError: nil,
+                usageBarsShowUsed: false,
+                resetTimeDisplayStyle: .countdown,
+                tokenCostUsageEnabled: false,
+                showOptionalCreditsAndExtraUsage: true,
+                hidePersonalInfo: false,
+                now: Date(timeIntervalSince1970: 1_787_832_000)))
+            let expectedLeadTitle = pool == .claudeGPTWeekly ? "Claude/GPT weekly" : "Claude/GPT 5-hour"
+            #expect(cardModel.metrics.first?.title == expectedLeadTitle)
+        }
+    }
+
+    @Test
     func `modelQuotas snapshot honors primaryPoolPreference in menuBarWindow without mislabeling card`() throws {
         let now = Date(timeIntervalSince1970: 1_787_832_000)
         let reset = now.addingTimeInterval(3600)

@@ -238,25 +238,13 @@ public struct AntigravityStatusSnapshot: Sendable {
         }
 
         let orderedWindows = Self.reorderedWindows(namedWindows, primaryPool: primaryPool)
-        let (primary, secondary): (RateWindow?, RateWindow?) = if primaryPool != .auto,
-                                                                  let selected = Self.matchingWindow(
-                                                                      in: orderedWindows,
-                                                                      for: primaryPool)
-        {
-            (
-                selected.window,
-                Self.quotaSummaryRepresentative(
-                    matching: primaryPool.secondaryFamily ?? .claudeGPT,
-                    in: orderedWindows))
-        } else {
-            (
-                Self.quotaSummaryRepresentative(
-                    matching: .gemini,
-                    in: orderedWindows),
-                Self.quotaSummaryRepresentative(
-                    matching: .claudeGPT,
-                    in: orderedWindows))
-        }
+        // Keep primary as Gemini and secondary as Claude/GPT so rateWindowLabels always match.
+        let primary = Self.quotaSummaryRepresentative(
+            matching: .gemini,
+            in: orderedWindows)
+        let secondary = Self.quotaSummaryRepresentative(
+            matching: .claudeGPT,
+            in: orderedWindows)
 
         let identity = ProviderIdentitySnapshot(
             providerID: .antigravity,

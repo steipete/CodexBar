@@ -756,21 +756,20 @@ extension AntigravityLocalReader {
                 sourcePath: path,
                 sourceName: name)
         case .gitRepository:
-            let repoWorkspace = trajectory?.workspaces.first { workspace in
-                let hasSlug = workspace.repoSlug?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-                let hasRemote = workspace.repoRemoteURL?.trimmingCharacters(in: .whitespacesAndNewlines)
-                    .isEmpty == false
-                return hasSlug || hasRemote
-            }
-            let repoSlug = trajectory?.workspaces.lazy
-                .compactMap { $0.repoSlug?.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .first { !$0.isEmpty }
-            let repoRemoteURL = trajectory?.workspaces.lazy
-                .compactMap { $0.repoRemoteURL?.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .first { !$0.isEmpty }
-            if let repo = Self.canonicalRepositoryIdentity(repoSlug: repoSlug, repoRemoteURL: repoRemoteURL) {
-                let repoGitRoot = self.normalizedLocalPath(repoWorkspace?.gitRootURI) ?? gitRootPath
-                let repoWorkspacePath = self.normalizedLocalPath(repoWorkspace?.workspaceURI) ?? workspacePath
+            let resolvedRepoWorkspace = trajectory?.workspaces.lazy
+                .compactMap { workspace -> (
+                    workspace: AntigravityProtoReader.WorkspaceMetadata,
+                    repo: (key: String, name: String))? in
+                    guard let repo = Self.canonicalRepositoryIdentity(
+                        repoSlug: workspace.repoSlug,
+                        repoRemoteURL: workspace.repoRemoteURL)
+                    else { return nil }
+                    return (workspace, repo)
+                }
+                .first
+            if let (repoWorkspace, repo) = resolvedRepoWorkspace {
+                let repoGitRoot = self.normalizedLocalPath(repoWorkspace.gitRootURI)
+                let repoWorkspacePath = self.normalizedLocalPath(repoWorkspace.workspaceURI)
                 let sourcePath = repoWorkspacePath ?? repoGitRoot
                 let nonWorktreeGitRoot = repoGitRoot?.contains("/.gemini/antigravity/worktrees/") == false
                     ? repoGitRoot
@@ -822,30 +821,44 @@ extension AntigravityLocalReader {
         repoSlug: String?,
         repoRemoteURL: String?) -> (key: String, name: String)?
     {
-        if let repoSlug {
-            var cleaned = repoSlug
+        let cleanedSlug: String? = repoSlug.flatMap { raw in
+            var cleaned = raw
                 .trimmingCharacters(in: CharacterSet(charactersIn: "/").union(.whitespacesAndNewlines))
             if cleaned.lowercased().hasSuffix(".git") {
                 cleaned.removeLast(".git".count)
                 cleaned = cleaned.trimmingCharacters(in: CharacterSet(charactersIn: "/").union(.whitespacesAndNewlines))
             }
-            if !cleaned.isEmpty {
-                return (key: "repo:\(cleaned.lowercased())", name: cleaned)
-            }
+            return cleaned.isEmpty ? nil : cleaned
         }
-        if let repoRemoteURL {
-            let normalizedRemote = self.normalizedRepositoryName(from: repoRemoteURL)
-            guard !normalizedRemote.isEmpty else { return nil }
-            if let slug = self.extractOwnerRepoSlug(from: normalizedRemote) {
+        let remoteInfo = repoRemoteURL.flatMap(self.normalizedRepositoryInfo(from:))
+
+        if let remoteInfo,
+           let host = remoteInfo.host,
+           host != "github.com",
+           cleanedSlug == nil || cleanedSlug?.lowercased() == remoteInfo.path.lowercased()
+        {
+            return (
+                key: "remote:\(host)/\(remoteInfo.path.lowercased())",
+                name: remoteInfo.path)
+        }
+        if let cleanedSlug {
+            return (key: "repo:\(cleanedSlug.lowercased())", name: cleanedSlug)
+        }
+        if let remoteInfo {
+            if remoteInfo.host == nil || remoteInfo.host == "github.com",
+               let slug = self.extractOwnerRepoSlug(from: remoteInfo.path)
+            {
                 return (key: "repo:\(slug.lowercased())", name: slug)
             }
-            return (key: "remote:\(normalizedRemote.lowercased())", name: normalizedRemote)
+            let hostPrefix = remoteInfo.host.map { "\($0)/" } ?? ""
+            return (key: "remote:\(hostPrefix)\(remoteInfo.path.lowercased())", name: remoteInfo.path)
         }
         return nil
     }
 
-    private static func normalizedRepositoryName(from remoteURL: String) -> String {
+    private static func normalizedRepositoryInfo(from remoteURL: String) -> (host: String?, path: String)? {
         var cleaned = remoteURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return nil }
         while cleaned.hasSuffix("/") {
             cleaned.removeLast()
         }
@@ -855,23 +868,33 @@ extension AntigravityLocalReader {
         while cleaned.hasSuffix("/") {
             cleaned.removeLast()
         }
+        guard !cleaned.isEmpty else { return nil }
+        if cleaned.lowercased().hasPrefix("file://") || cleaned.hasPrefix("/") {
+            return nil
+        }
         if let colonIndex = cleaned.lastIndex(of: ":"), !cleaned.contains("://") {
-            var pathPart = String(cleaned[cleaned.index(after: colonIndex)...])
-            while pathPart.hasPrefix("/") {
-                pathPart.removeFirst()
-            }
-            if !pathPart.isEmpty { return pathPart }
+            let hostAndUser = String(cleaned[..<colonIndex])
+            let hostPart = hostAndUser.split(separator: "@").last.map(String.init)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            let pathComponents = cleaned[cleaned.index(after: colonIndex)...]
+                .split(separator: "/", omittingEmptySubsequences: true)
+                .map(String.init)
+            guard !pathComponents.isEmpty else { return nil }
+            let normalizedHost = hostPart.flatMap { $0.isEmpty ? nil : $0 }
+            return (host: normalizedHost, path: pathComponents.joined(separator: "/"))
         }
-        if let url = URL(string: cleaned), !url.isFileURL {
-            let parts = url.pathComponents.filter { $0 != "/" }
-            if parts.count >= 2 {
-                return "\(parts[parts.count - 2])/\(parts[parts.count - 1])"
+        if let url = URL(string: cleaned) {
+            if url.isFileURL {
+                return nil
             }
-            if let last = parts.last, !last.isEmpty {
-                return last
-            }
+            let parts = url.pathComponents.filter { $0 != "/" && !$0.isEmpty }
+            guard !parts.isEmpty else { return nil }
+            let host = url.host?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let normalizedHost = host.flatMap { $0.isEmpty ? nil : $0 }
+            return (host: normalizedHost, path: parts.joined(separator: "/"))
         }
-        return cleaned
+        return (host: nil, path: cleaned)
     }
 
     private static func extractOwnerRepoSlug(from normalizedRemote: String) -> String? {

@@ -409,8 +409,20 @@ struct AntigravityExtendedMetadataTests {
 
         let reorderedUsage = try enriched.toUsageSnapshot(primaryPool: .claudeGPTWeekly, showCredits: false)
         #expect(reorderedUsage.extraRateWindows?.first?.id == "antigravity-quota-summary-3p-weekly")
-        #expect(reorderedUsage.primary?.remainingPercent.rounded() == 30)
-        #expect(reorderedUsage.secondary?.remainingPercent.rounded() == 70)
+        #expect(reorderedUsage.primary?.remainingPercent.rounded() == 70)
+        #expect(reorderedUsage.secondary?.remainingPercent.rounded() == 30)
+        let reorderedLabels = AntigravityProviderDescriptor.descriptor.presentation.rateWindowLabels(
+            metadata: AntigravityProviderDescriptor.descriptor.metadata,
+            snapshot: reorderedUsage)
+        #expect(reorderedLabels.primary == "Gemini Models")
+        #expect(reorderedLabels.secondary == "Claude and GPT")
+        let resolvedPreferred = MenuBarMetricWindowResolver.rateWindow(
+            preference: .automatic,
+            provider: .antigravity,
+            snapshot: reorderedUsage,
+            supportsAverage: false,
+            antigravityPrimaryPool: .claudeGPTWeekly)
+        #expect(resolvedPreferred?.remainingPercent.rounded() == 30)
         #expect(!reorderedUsage.details.contains { $0.title == "Credits" })
 
         let metadata = try #require(ProviderDefaults.metadata[.antigravity])

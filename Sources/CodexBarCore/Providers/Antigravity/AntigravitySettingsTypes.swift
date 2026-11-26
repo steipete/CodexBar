@@ -40,15 +40,6 @@ public enum AntigravityPrimaryPoolPreference: String, CaseIterable, Identifiable
         }
     }
 
-    /// Provider-specific by design: KnownFamily.gemini classifies an Antigravity quota family.
-    var secondaryFamily: AntigravityQuotaFamilyVisibility.KnownFamily? {
-        switch self {
-        case .auto: nil
-        case .geminiWeekly, .geminiFiveHour: .claudeGPT
-        case .claudeGPTWeekly, .claudeGPTFiveHour: .gemini
-        }
-    }
-
     var preferredWindowMinutes: Int? {
         switch self {
         case .auto: nil
