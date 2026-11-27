@@ -33,14 +33,27 @@ struct ClaudeSwapSettingsPlacementTests {
     }
 
     @Test
+    func `source picker is not one of the standalone pickers`() throws {
+        let fixture = try ProviderSettingsDescriptorTests()
+            .makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-claude-swap-source-placement")
+        fixture.settings.claudeSwapEnabled = true
+        let context = fixture.settingsContext(provider: .claude)
+        let pickerIDs = ClaudeProviderImplementation().settingsPickers(context: context).map(\.id)
+        #expect(!pickerIDs.contains("claude-swap-source"))
+    }
+
+    @Test
     func `source picker appears with the integration and switches to tcr`() throws {
         let fixture = try ProviderSettingsDescriptorTests()
             .makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-claude-swap-source")
         let context = fixture.settingsContext(provider: .claude)
         let implementation = ClaudeProviderImplementation()
-        let picker = try #require(implementation.settingsPickers(context: context).first {
-            $0.id == "claude-swap-source"
-        })
+        let toggles = implementation.settingsToggles(context: context)
+        let toggle = try #require(toggles.first { $0.id == "claude-swap-accounts" })
+        #expect(toggle.inlinePickers.map(\.id) == ["claude-swap-source"])
+        let otherPickersAreEmpty = toggles.filter { $0.id != toggle.id }.allSatisfy(\.inlinePickers.isEmpty)
+        #expect(otherPickersAreEmpty)
+        let picker = try #require(toggle.inlinePickers.first)
         #expect(picker.options.map(\.id) == ["claude-swap", "tcr"])
         #expect(picker.isVisible?() == false)
         #expect(picker.binding.wrappedValue == "claude-swap")

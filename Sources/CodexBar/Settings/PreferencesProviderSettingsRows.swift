@@ -33,6 +33,10 @@ struct ProviderSettingsToggleRowView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
+                ForEach(self.toggle.inlinePickers.filter { $0.isVisible?() ?? true }) { picker in
+                    ProviderSettingsPickerRowView(picker: picker)
+                }
+
                 ForEach(self.toggle.inlineFields.filter { $0.isVisible?() ?? true }) { field in
                     ProviderSettingsFieldRowView(field: field, inline: true)
                 }
