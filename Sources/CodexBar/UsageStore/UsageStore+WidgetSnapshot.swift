@@ -502,7 +502,9 @@ extension UsageStore {
             ]
         }
         if provider == .antigravity,
-           let rows = Self.antigravityWidgetRows(snapshot: snapshot)
+           let rows = Self.antigravityWidgetRows(
+               snapshot: snapshot,
+               primaryPool: self.settings.antigravityPrimaryPoolPreference)
         {
             return rows
         }
@@ -576,11 +578,12 @@ extension UsageStore {
     private nonisolated static let antigravityCompactFallbackWindowIDPrefix = "antigravity-compact-fallback-"
 
     private nonisolated static func antigravityWidgetRows(
-        snapshot: UsageSnapshot) -> [WidgetSnapshot.WidgetUsageRowSnapshot]?
+        snapshot: UsageSnapshot,
+        primaryPool: AntigravityPrimaryPoolPreference? = nil) -> [WidgetSnapshot.WidgetUsageRowSnapshot]?
     {
         let windows = snapshot.extraRateWindows ?? []
         // Match the menu card and drop model families the account never touches.
-        let idleIDs = AntigravityQuotaFamilyVisibility.idleWindowIDs(in: snapshot)
+        let idleIDs = AntigravityQuotaFamilyVisibility.idleWindowIDs(in: snapshot, primaryPool: primaryPool)
         var visible = windows.filter {
             $0.id.hasPrefix(Self.antigravityQuotaSummaryWindowIDPrefix) && !idleIDs.contains($0.id)
         }

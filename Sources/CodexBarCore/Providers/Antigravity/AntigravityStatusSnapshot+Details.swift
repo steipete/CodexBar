@@ -19,7 +19,7 @@ extension AntigravityStatusSnapshot {
         }
     }
 
-    static func reorderedWindows(
+    public static func reorderedWindows(
         _ windows: [NamedRateWindow],
         primaryPool: AntigravityPrimaryPoolPreference) -> [NamedRateWindow]
     {

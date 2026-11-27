@@ -903,12 +903,24 @@ extension UsageMenuCardView.Model {
     static func antigravityMetrics(input: Input, snapshot: UsageSnapshot) -> [Metric] {
         let percentStyle: PercentStyle = input.usageBarsShowUsed ? .used : .left
         if Self.hasAntigravityQuotaSummaryWindows(snapshot) {
+            let effectiveSnapshot: UsageSnapshot = if let primaryPool = input.antigravityPrimaryPool,
+                                                      primaryPool != .auto,
+                                                      let windows = snapshot.extraRateWindows
+            {
+                snapshot.with(extraRateWindows: AntigravityStatusSnapshot.reorderedWindows(
+                    windows,
+                    primaryPool: primaryPool))
+            } else {
+                snapshot
+            }
             let metrics = Self.extraRateWindowMetrics(
-                snapshot: snapshot,
+                snapshot: effectiveSnapshot,
                 input: input,
                 percentStyle: percentStyle)
             guard !input.showsAllUsageLanes else { return metrics }
-            let idleIDs = AntigravityQuotaFamilyVisibility.idleWindowIDs(in: snapshot)
+            let idleIDs = AntigravityQuotaFamilyVisibility.idleWindowIDs(
+                in: effectiveSnapshot,
+                primaryPool: input.antigravityPrimaryPool)
             return idleIDs.isEmpty ? metrics : metrics.filter { !idleIDs.contains($0.id) }
         }
 

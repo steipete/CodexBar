@@ -24,17 +24,26 @@ public enum AntigravityQuotaFamilyVisibility {
     }
 
     /// Window IDs that display surfaces should drop. Empty when every family is untouched, so a card
-    /// or widget right after a reset still renders its lanes instead of an empty list.
-    public static func idleWindowIDs(in snapshot: UsageSnapshot) -> Set<String> {
+    /// or widget right after a reset still renders its lanes instead of an empty list. An explicitly
+    /// selected quota pool keeps its family visible even when that family currently reports 0% used.
+    public static func idleWindowIDs(
+        in snapshot: UsageSnapshot,
+        primaryPool: AntigravityPrimaryPoolPreference? = nil) -> Set<String>
+    {
         let windows = (snapshot.extraRateWindows ?? [])
             .filter { AntigravityStatusSnapshot.isQuotaSummaryWindowID($0.id) }
         guard !windows.isEmpty else { return [] }
+        let selectedFamilyKey = (primaryPool ?? snapshot.antigravityPrimaryPool ?? .auto).preferredFamily?.rawValue
         let families = Dictionary(grouping: windows, by: Self.familyKey)
         let idleFamilies = families.filter { _, lanes in
             lanes.allSatisfy { $0.usageKnown && $0.window.usedPercent <= 0 }
         }
         guard idleFamilies.count < families.count else { return [] }
-        return Set(idleFamilies.values.flatMap { lanes in lanes.map(\.id) })
+        return Set(
+            idleFamilies
+                .filter { key, _ in key != selectedFamilyKey }
+                .values
+                .flatMap { lanes in lanes.map(\.id) })
     }
 
     /// Classifies a lane the same way the widget row resolver does: the bucket ID carries the family and

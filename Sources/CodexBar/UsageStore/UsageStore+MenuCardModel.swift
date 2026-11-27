@@ -160,6 +160,7 @@ extension UsageStore {
             showOptionalCreditsAndExtraUsage: optionalUsageOverride ?? self.settings.showOptionalCreditsAndExtraUsage,
             copilotBudgetExtrasEnabled: self.settings.copilotBudgetExtrasEnabled,
             showsAllUsageLanes: isSettings,
+            antigravityPrimaryPool: provider == .antigravity ? self.settings.antigravityPrimaryPoolPreference : nil,
             sourceLabel: account?.sourceLabel ?? (!isSettings && isLive ? self.sourceLabel(for: provider) : nil),
             subtitleOverride: account?.subtitle,
             // Provider-specific by design: Kilo's menu explains its automatic source fallback.

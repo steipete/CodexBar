@@ -250,6 +250,134 @@ struct AntigravitySettingsDescriptorTests {
     }
 
     @Test
+    func `explicitly selected idle Claude GPT pool stays visible and leads menu card while Auto hides it`() throws {
+        let json = antigravityQuotaSummaryJSON(
+            geminiSession: 0.90,
+            geminiWeekly: 0.75,
+            claudeSession: 1.0,
+            claudeWeekly: 1.0)
+        let summary = try AntigravityStatusProbe.parseQuotaSummaryResponse(Data(json.utf8))
+        let metadata = AntigravityProviderDescriptor.descriptor.metadata
+        let now = Date(timeIntervalSince1970: 1_787_832_000)
+
+        let autoUsage = try summary.toUsageSnapshot(primaryPool: .auto)
+        #expect(AntigravityQuotaFamilyVisibility.idleWindowIDs(in: autoUsage) == [
+            "antigravity-quota-summary-3p-5h",
+            "antigravity-quota-summary-3p-weekly",
+        ])
+        let autoCard = UsageMenuCardView.Model.make(.init(
+            provider: .antigravity,
+            metadata: metadata,
+            snapshot: autoUsage,
+            credits: nil,
+            creditsError: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+        #expect(autoCard.metrics.map(\.id) == [
+            "antigravity-quota-summary-gemini-5h",
+            "antigravity-quota-summary-gemini-weekly",
+        ])
+
+        let cases: [(AntigravityPrimaryPoolPreference, String, String)] = [
+            (.claudeGPTWeekly, "antigravity-quota-summary-3p-weekly", "Claude/GPT weekly"),
+            (.claudeGPTFiveHour, "antigravity-quota-summary-3p-5h", "Claude/GPT 5-hour"),
+        ]
+        for (pool, expectedWindowID, expectedLeadTitle) in cases {
+            let usage = try summary.toUsageSnapshot(primaryPool: pool)
+            #expect(AntigravityQuotaFamilyVisibility.idleWindowIDs(in: usage).isEmpty)
+
+            let menuBar = MenuBarMetricWindowResolver.rateWindow(
+                preference: .automatic,
+                provider: .antigravity,
+                snapshot: usage,
+                supportsAverage: false,
+                antigravityPrimaryPool: pool)
+            #expect(menuBar?.usedPercent.rounded() == 0)
+
+            let cardModel = UsageMenuCardView.Model.make(.init(
+                provider: .antigravity,
+                metadata: metadata,
+                snapshot: usage,
+                credits: nil,
+                creditsError: nil,
+                dashboardError: nil,
+                tokenSnapshot: nil,
+                tokenError: nil,
+                account: AccountInfo(email: nil, plan: nil),
+                isRefreshing: false,
+                lastError: nil,
+                usageBarsShowUsed: false,
+                resetTimeDisplayStyle: .countdown,
+                tokenCostUsageEnabled: false,
+                showOptionalCreditsAndExtraUsage: true,
+                hidePersonalInfo: false,
+                now: now))
+            #expect(cardModel.metrics.first?.id == expectedWindowID)
+            #expect(cardModel.metrics.first?.title == expectedLeadTitle)
+            #expect(cardModel.metrics.contains(where: { $0.id == "antigravity-quota-summary-3p-5h" }))
+            #expect(cardModel.metrics.contains(where: { $0.id == "antigravity-quota-summary-3p-weekly" }))
+
+            // Live setting override on an Auto-fetched snapshot also keeps the selected idle pool visible and first.
+            let overrideCard = UsageMenuCardView.Model.make(.init(
+                provider: .antigravity,
+                metadata: metadata,
+                snapshot: autoUsage,
+                credits: nil,
+                creditsError: nil,
+                dashboardError: nil,
+                tokenSnapshot: nil,
+                tokenError: nil,
+                account: AccountInfo(email: nil, plan: nil),
+                isRefreshing: false,
+                lastError: nil,
+                usageBarsShowUsed: false,
+                resetTimeDisplayStyle: .countdown,
+                tokenCostUsageEnabled: false,
+                showOptionalCreditsAndExtraUsage: true,
+                antigravityPrimaryPool: pool,
+                hidePersonalInfo: false,
+                now: now))
+            #expect(overrideCard.metrics.first?.id == expectedWindowID)
+            #expect(overrideCard.metrics.first?.title == expectedLeadTitle)
+
+            // Switching live setting back to Auto hides the idle family again even before the next refresh.
+            let revertedToAutoCard = UsageMenuCardView.Model.make(.init(
+                provider: .antigravity,
+                metadata: metadata,
+                snapshot: usage,
+                credits: nil,
+                creditsError: nil,
+                dashboardError: nil,
+                tokenSnapshot: nil,
+                tokenError: nil,
+                account: AccountInfo(email: nil, plan: nil),
+                isRefreshing: false,
+                lastError: nil,
+                usageBarsShowUsed: false,
+                resetTimeDisplayStyle: .countdown,
+                tokenCostUsageEnabled: false,
+                showOptionalCreditsAndExtraUsage: true,
+                antigravityPrimaryPool: .auto,
+                hidePersonalInfo: false,
+                now: now))
+            #expect(revertedToAutoCard.metrics.map(\.id) == [
+                "antigravity-quota-summary-gemini-5h",
+                "antigravity-quota-summary-gemini-weekly",
+            ])
+        }
+    }
+
+    @Test
     func `modelQuotas snapshot honors primaryPoolPreference in menuBarWindow without mislabeling card`() throws {
         let now = Date(timeIntervalSince1970: 1_787_832_000)
         let reset = now.addingTimeInterval(3600)

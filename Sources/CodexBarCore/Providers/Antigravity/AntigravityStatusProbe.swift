@@ -373,6 +373,7 @@ public struct AntigravityStatusSnapshot: Sendable {
             antigravityCredits: snapshot.credits,
             antigravityAccountMetadata: snapshot.accountMetadata,
             antigravityCatalog: catalog,
+            antigravityPrimaryPool: primaryPool == .auto ? nil : primaryPool,
             subscriptionExpiresAt: subscriptionDates.expiresAt,
             subscriptionRenewsAt: subscriptionDates.renewsAt,
             updatedAt: Date(),

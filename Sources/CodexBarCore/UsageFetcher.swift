@@ -198,6 +198,7 @@ public struct UsageSnapshot: Codable, Sendable {
     public let antigravityCredits: AntigravityCreditsSnapshot?
     public let antigravityAccountMetadata: AntigravityAccountMetadata?
     public let antigravityCatalog: AntigravityCatalogSnapshot?
+    public let antigravityPrimaryPool: AntigravityPrimaryPoolPreference?
     /// Retains an observed zero when a metered Copilot seat has no visible credit row.
     public let copilotMeteredZeroCredits: Bool
     /// Cursor API explicitly designated the primary window as the unified weekly pool.
@@ -235,6 +236,7 @@ public struct UsageSnapshot: Codable, Sendable {
         case antigravityCredits
         case antigravityAccountMetadata
         case antigravityCatalog
+        case antigravityPrimaryPool
         case copilotMeteredZeroCredits
         case cursorHasUnifiedWeeklyPool
         case subscriptionExpiresAt
@@ -274,6 +276,7 @@ public struct UsageSnapshot: Codable, Sendable {
         antigravityCredits: AntigravityCreditsSnapshot? = nil,
         antigravityAccountMetadata: AntigravityAccountMetadata? = nil,
         antigravityCatalog: AntigravityCatalogSnapshot? = nil,
+        antigravityPrimaryPool: AntigravityPrimaryPoolPreference? = nil,
         copilotMeteredZeroCredits: Bool = false,
         cursorHasUnifiedWeeklyPool: Bool = false,
         commandCodeSubscriptionEnrichmentUnavailable: Bool = false,
@@ -315,6 +318,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.antigravityCredits = antigravityCredits
         self.antigravityAccountMetadata = antigravityAccountMetadata
         self.antigravityCatalog = antigravityCatalog
+        self.antigravityPrimaryPool = antigravityPrimaryPool
         self.copilotMeteredZeroCredits = copilotMeteredZeroCredits
         self.cursorHasUnifiedWeeklyPool = cursorHasUnifiedWeeklyPool
         self.commandCodeSubscriptionEnrichmentUnavailable = commandCodeSubscriptionEnrichmentUnavailable
@@ -443,6 +447,9 @@ public struct UsageSnapshot: Codable, Sendable {
         self.antigravityCatalog = try? container.decodeIfPresent(
             AntigravityCatalogSnapshot.self,
             forKey: .antigravityCatalog)
+        self.antigravityPrimaryPool = try? container.decodeIfPresent(
+            AntigravityPrimaryPoolPreference.self,
+            forKey: .antigravityPrimaryPool)
         self.copilotMeteredZeroCredits = try container
             .decodeIfPresent(Bool.self, forKey: .copilotMeteredZeroCredits) ?? false
         self.cursorHasUnifiedWeeklyPool = try container
@@ -491,6 +498,7 @@ public struct UsageSnapshot: Codable, Sendable {
         try container.encodeIfPresent(self.antigravityCredits, forKey: .antigravityCredits)
         try container.encodeIfPresent(self.antigravityAccountMetadata, forKey: .antigravityAccountMetadata)
         try container.encodeIfPresent(self.antigravityCatalog, forKey: .antigravityCatalog)
+        try container.encodeIfPresent(self.antigravityPrimaryPool, forKey: .antigravityPrimaryPool)
         if self.copilotMeteredZeroCredits {
             try container.encode(true, forKey: .copilotMeteredZeroCredits)
         }
@@ -679,6 +687,7 @@ public struct UsageSnapshot: Codable, Sendable {
         antigravityCredits: Replacement<AntigravityCreditsSnapshot?> = .unchanged,
         antigravityAccountMetadata: Replacement<AntigravityAccountMetadata?> = .unchanged,
         antigravityCatalog: Replacement<AntigravityCatalogSnapshot?> = .unchanged,
+        antigravityPrimaryPool: Replacement<AntigravityPrimaryPoolPreference?> = .unchanged,
         subscriptionExpiresAt: Replacement<Date?> = .unchanged,
         subscriptionRenewsAt: Replacement<Date?> = .unchanged,
         subscriptionRenewsAtIsDateOnly: Replacement<Bool> = .unchanged,
@@ -710,6 +719,7 @@ public struct UsageSnapshot: Codable, Sendable {
             antigravityCredits: antigravityCredits.resolving(self.antigravityCredits),
             antigravityAccountMetadata: antigravityAccountMetadata.resolving(self.antigravityAccountMetadata),
             antigravityCatalog: antigravityCatalog.resolving(self.antigravityCatalog),
+            antigravityPrimaryPool: antigravityPrimaryPool.resolving(self.antigravityPrimaryPool),
             copilotMeteredZeroCredits: self.copilotMeteredZeroCredits,
             cursorHasUnifiedWeeklyPool: self.cursorHasUnifiedWeeklyPool,
             commandCodeSubscriptionEnrichmentUnavailable: self.commandCodeSubscriptionEnrichmentUnavailable,
