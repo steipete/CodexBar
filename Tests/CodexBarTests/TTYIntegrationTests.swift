@@ -226,12 +226,13 @@ struct TTYIntegrationTests {
             _ = try await changedEnvironmentProbe.fetch()
         }
 
+        // Every /usage starts a fresh process, so each fetch launches once and /status reuses that process.
         let launches = try String(contentsOf: launchLog, encoding: .utf8)
             .split(whereSeparator: \.isNewline)
             .map(String.init)
-        #expect(launches.count == 3)
-        #expect(launches.first?.hasSuffix(":account-a:profile-a") == true)
-        #expect(launches.dropFirst().first?.hasSuffix(":account-b:profile-a") == true)
+        #expect(launches.count == 4)
+        #expect(launches.prefix(2).allSatisfy { $0.hasSuffix(":account-a:profile-a") })
+        #expect(launches.dropFirst(2).first?.hasSuffix(":account-b:profile-a") == true)
         #expect(launches.last?.hasSuffix(":account-b:profile-b") == true)
     }
 

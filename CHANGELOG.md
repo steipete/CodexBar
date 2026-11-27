@@ -2,6 +2,10 @@
 
 ## 0.85.1 — Unreleased
 
+### Fixed
+
+- Claude: keep the all-models weekly limit from the CLI `/usage` panel when Claude redraws only the changed cells, without reusing quotas from an earlier screen (#5143). Thanks @dileep-kishore!
+
 ## 0.85.0 — 2026-11-21
 
 ### Highlights

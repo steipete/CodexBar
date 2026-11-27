@@ -604,33 +604,34 @@ extension ClaudeStatusProbe {
             #"(?i)Account:\s+(\S+)"#,
             #"(?i)Email:\s+(\S+)"#,
         ]
+        // /status is the account panel; the usage capture can also show a custom status line, so it only fills gaps.
         let email = emailPatterns
-            .compactMap { self.extractFirst(pattern: $0, text: usageText) }
+            .compactMap { self.extractFirst(pattern: $0, text: statusText ?? "") }
             .first
             ?? emailPatterns
-            .compactMap { self.extractFirst(pattern: $0, text: statusText ?? "") }
-            .first
-            ?? looseEmailPatterns
             .compactMap { self.extractFirst(pattern: $0, text: usageText) }
             .first
             ?? looseEmailPatterns
             .compactMap { self.extractFirst(pattern: $0, text: statusText ?? "") }
             .first
-            ?? self.extractFirst(
-                pattern: #"(?i)[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}"#,
-                text: usageText)
+            ?? looseEmailPatterns
+            .compactMap { self.extractFirst(pattern: $0, text: usageText) }
+            .first
             ?? self.extractFirst(
                 pattern: #"(?i)[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}"#,
                 text: statusText ?? "")
+            ?? self.extractFirst(
+                pattern: #"(?i)[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}"#,
+                text: usageText)
         let orgPatterns = [
             #"(?i)Org:\s*(.+)"#,
             #"(?i)Organization:\s*(.+)"#,
         ]
         let orgRaw = orgPatterns
-            .compactMap { self.extractFirst(pattern: $0, text: usageText) }
+            .compactMap { self.extractFirst(pattern: $0, text: statusText ?? "") }
             .first
             ?? orgPatterns
-            .compactMap { self.extractFirst(pattern: $0, text: statusText ?? "") }
+            .compactMap { self.extractFirst(pattern: $0, text: usageText) }
             .first
         let org: String? = {
             guard let orgText = orgRaw?.trimmingCharacters(in: .whitespacesAndNewlines), !orgText.isEmpty else {

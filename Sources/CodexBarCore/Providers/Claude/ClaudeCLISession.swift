@@ -144,7 +144,7 @@ actor ClaudeCLISession {
 
     private func captureExclusive(request: CaptureRequest) async throws -> String {
         defer { self.releaseSleepInhibitors() }
-        if try self.ensureStarted(request: request) {
+        if try self.startSession(for: request) {
             // Dismiss /usage or /status before typing; keep Escape separate from the next command's input.
             try self.send("\u{1b}")
             try await Task.sleep(nanoseconds: 150_000_000)
@@ -221,7 +221,7 @@ actor ClaudeCLISession {
                 }
             }
             if !commandSent, !trustPending, !uncheckedFrame, Date() >= readyAt {
-                buffer.removeAll(keepingCapacity: true)
+                Self.discardOutputBeforeCommand(&buffer, command: trimmed)
                 if !trimmed.isEmpty { try self.send(trimmed + "\r") }
                 commandSent = true
                 lastOutputAt = Date()
@@ -256,6 +256,22 @@ actor ClaudeCLISession {
         guard commandSent, !trustPending, !buffer.isEmpty,
               let text = String(data: buffer.data, encoding: .utf8) else { throw SessionError.timedOut }
         return text
+    }
+
+    /// Claude redraws only the cells that changed, so `/usage` replays every byte of a fresh process instead of a
+    /// screen drawn before the capture started. Other commands reuse the session and drop the earlier output.
+    private func startSession(for request: CaptureRequest) throws -> Bool {
+        if Self.capturesFromLaunch(request.subcommand) { self.cleanup() }
+        return try self.ensureStarted(request: request)
+    }
+
+    private static func capturesFromLaunch(_ subcommand: String) -> Bool {
+        subcommand.trimmingCharacters(in: .whitespacesAndNewlines) == "/usage"
+    }
+
+    private static func discardOutputBeforeCommand(_ buffer: inout BoundedOutputBuffer, command: String) {
+        guard !self.capturesFromLaunch(command) else { return }
+        buffer.removeAll(keepingCapacity: true)
     }
 
     /// Returns the key for the workspace trust dialog on screen, or nil when it is not shown. Without `acceptsTrust`,
