@@ -514,6 +514,7 @@ struct AntigravityWarmAgyReuseTests {
 
     @Test
     func `fetchUsingWarmSession allocates warmReuseTimeout budget for quota summary`() async throws {
+        let clock = AntigravityWarmTestClock(date: Date(timeIntervalSince1970: 300))
         let observedTimeouts = AntigravityWarmLockedValues<TimeInterval>()
         let strategy = AntigravityCLIHTTPSFetchStrategy()
 
@@ -530,7 +531,8 @@ struct AntigravityWarmAgyReuseTests {
                 fetchSnapshot: { _, timeout in
                     observedTimeouts.append(timeout)
                     return Self.usableSnapshot(email: "warm@example.com")
-                }),
+                },
+                now: { clock.now() }),
             spawnFetch: { _, _, _ in
                 Issue.record("spawn path must not run when a warm agy is reused")
                 throw AntigravityStatusProbeError.notRunning

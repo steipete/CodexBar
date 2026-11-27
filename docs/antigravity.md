@@ -345,7 +345,7 @@ Quota values, account ownership, and family selection remain unchanged.
     bucket ID/display name only when the cadence is absent.
   - Use the most constrained known bucket as the compact/menu-bar metric.
 - Legacy user-facing quota groups:
-  - `Gemini` groups selectable Gemini text models (including versioned/named tiers beyond Pro and Flash).
+  - `Gemini` groups Gemini Pro and Gemini Flash text models (falling back to unclassified selectable Gemini text models only when no Pro/Flash models exist and all share one exact balance and concrete reset timestamp).
   - `Claude + GPT` groups Claude text models and GPT/GPT-OSS text models.
 - Representative selection:
   - Quota summaries prefer measured ordinary Gemini buckets (`gemini-5h` and `gemini-weekly`, including supported
@@ -371,7 +371,7 @@ Quota values, account ownership, and family selection remain unchanged.
 - Antigravity exposes many model rows, but current local payloads show them collapsing into two real usage pools:
   Gemini and Claude/GPT. Detailed usage should not list every raw Gemini tier unless a future source exposes a genuinely
   distinct unknown or consumed quota window.
-- Remote non-selectable variants are omitted only when their known remaining fraction and concrete reset timestamp exactly match the selected pool representative. Unclassified selectable text models are also omitted when their known remaining fraction and concrete reset timestamp exactly match an already-represented usage pool, preventing shared-pool models from fanning out into duplicate per-model rows during legacy fallback. Local non-selectable rows, unknown usage, differing fractions, and missing or different reset timestamps remain distinct. Extra rows retain canonical model IDs; equal display titles do not establish a shared quota identity. When one canonical model has both known and reset-only observations, known usage wins.
+- Remote non-selectable variants are omitted only when their known remaining fraction and concrete reset timestamp exactly match the selected pool representative. Unclassified selectable text models (such as shared-pool versioned Gemini or orchestrator rows) are also omitted only when their known remaining fraction and concrete reset timestamp exactly match an already-represented usage pool, preserving independently metered versioned Gemini allowances without overwriting ordinary Gemini usage. Local non-selectable rows, unknown usage, differing fractions, and missing or different reset timestamps remain distinct. Extra rows retain canonical model IDs; equal display titles do not establish a shared quota identity. When one canonical model has both known and reset-only observations, known usage wins.
 - Some Antigravity local/CLI model config entries include reset metadata but omit `remainingFraction`. Those windows stay
   in `extraRateWindows` for reset context and are marked with `usageKnown: false`; clients should not render their
   `usedPercent` as a real exhausted quota.

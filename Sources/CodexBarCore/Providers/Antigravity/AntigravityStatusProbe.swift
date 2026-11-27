@@ -35,7 +35,6 @@ private enum AntigravityModelFamily {
     case gpt
     case geminiPro
     case geminiFlash
-    case geminiOther
     case unknown
 }
 
@@ -137,6 +136,7 @@ public struct AntigravityStatusSnapshot: Sendable {
         let normalized = self.modelQuotas.map(Self.normalizeModel)
         let summaryCandidates = normalized.filter(Self.isSummaryCandidate)
         let primaryQuota = Self.representative(for: .geminiAI, in: summaryCandidates)
+            ?? Self.sharedUnclassifiedGeminiRepresentative(in: normalized)
         let secondaryQuota = Self.representative(for: .claudeGPT, in: summaryCandidates)
         let fallbackQuota: AntigravityModelQuota? = if primaryQuota == nil, secondaryQuota == nil {
             switch self.source {
@@ -514,8 +514,7 @@ public struct AntigravityStatusSnapshot: Sendable {
         case .gpt: 1
         case .geminiPro: 2
         case .geminiFlash: 3
-        case .geminiOther: 4
-        case .unknown: 5
+        case .unknown: 4
         }
     }
 
@@ -563,8 +562,6 @@ public struct AntigravityStatusSnapshot: Sendable {
             }
         case .geminiFlash:
             isSelectableTextModel ? 0 : nil
-        case .geminiOther:
-            isSelectableTextModel ? 1 : nil
         case .unknown:
             nil
         }
@@ -643,6 +640,35 @@ public struct AntigravityStatusSnapshot: Sendable {
             }
             return lhs.quota.label.localizedCaseInsensitiveCompare(rhs.quota.label) == .orderedAscending
         }?.quota
+    }
+
+    /// Fallback Gemini representative only when no ordinary Pro/Flash models exist and every
+    /// known unclassified selectable Gemini text model shares one exact fraction and concrete reset.
+    private static func sharedUnclassifiedGeminiRepresentative(
+        in models: [AntigravityNormalizedModel]) -> AntigravityModelQuota?
+    {
+        let candidates = models.filter {
+            $0.family == .unknown &&
+                Self.isSelectableTextModel($0) &&
+                Self.isUnclassifiedGeminiModel($0) &&
+                $0.quota.remainingFraction != nil
+        }
+        guard let first = candidates.first,
+              let expectedFraction = first.quota.remainingFraction,
+              let expectedReset = first.quota.resetTime,
+              candidates.allSatisfy({
+                  $0.quota.remainingFraction == expectedFraction && $0.quota.resetTime == expectedReset
+              })
+        else {
+            return nil
+        }
+        return candidates.min(by: Self.modelOrderPrecedes)?.quota
+    }
+
+    /// Provider-specific by design: fallback Gemini pool detection when Pro/Flash models are absent.
+    private static func isUnclassifiedGeminiModel(_ model: AntigravityNormalizedModel) -> Bool {
+        model.quota.modelId.lowercased().contains("gemini")
+            || model.quota.label.lowercased().contains("gemini")
     }
 
     private static func extraRateWindows(
@@ -737,7 +763,7 @@ public struct AntigravityStatusSnapshot: Sendable {
 
     private static func usagePool(for model: AntigravityNormalizedModel) -> AntigravityUsagePool? {
         switch model.family {
-        case .geminiPro, .geminiFlash, .geminiOther:
+        case .geminiPro, .geminiFlash:
             .geminiAI
         case .claudeModels, .gpt:
             .claudeGPT
@@ -762,14 +788,11 @@ public struct AntigravityStatusSnapshot: Sendable {
         if text.contains("gpt") || text.contains("openai") {
             return .gpt
         }
-        if text.contains("gemini") {
-            if text.contains("pro") {
-                return .geminiPro
-            }
-            if text.contains("flash") {
-                return .geminiFlash
-            }
-            return .geminiOther
+        if text.contains("gemini"), text.contains("pro") {
+            return .geminiPro
+        }
+        if text.contains("gemini"), text.contains("flash") {
+            return .geminiFlash
         }
         return .unknown
     }

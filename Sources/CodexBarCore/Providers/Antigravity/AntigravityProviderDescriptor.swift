@@ -314,10 +314,6 @@ struct AntigravityStatusFetchStrategy: ProviderFetchStrategy {
 /// Fetch structured CLI quotas through legacy HTTPS or a supported print report.
 struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
     static let sourceLabel = "cli"
-    /// Total deadline for external warm `agy` reuse. `RetrieveUserQuotaSummary`
-    /// uses half of the remaining budget so legacy fallback stays reachable, so
-    /// 6s gives the remote summary refresh ~3s instead of timing out under 1s.
-    static let warmReuseTimeout: TimeInterval = 6.0
     let id: String = "antigravity.cli-https"
     let kind: ProviderFetchKind = .cli
     private static let log = CodexBarLog.logger(LogCategories.provider(.antigravity))
@@ -385,12 +381,6 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         }
         guard !cliProcesses.isEmpty else { return nil }
 
-        var bestFallback: (
-            info: AntigravityStatusProbe.ProcessInfoResult,
-            ports: [Int],
-            snapshot: AntigravityStatusSnapshot)?
-        var bestFallbackScore = Int.min
-
         for info in cliProcesses {
             if let expectedBinaryPath {
                 guard Self.process(info, matchesBinaryPath: expectedBinaryPath)
@@ -399,7 +389,7 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
                 }
             }
             guard let portTimeout = Self.remainingWarmProbeTime(deadline: deadline, now: dependencies.now) else {
-                break
+                return nil
             }
             let ports: [Int]
             do {
@@ -412,7 +402,7 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
             try Task.checkCancellation()
             guard !ports.isEmpty else { continue }
             guard let fetchTimeout = Self.remainingWarmProbeTime(deadline: deadline, now: dependencies.now) else {
-                break
+                return nil
             }
             let snapshot: AntigravityStatusSnapshot
             do {
@@ -430,27 +420,13 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
             else {
                 continue
             }
-            if snapshot.hasKnownQuotaSummary {
-                Self.log.debug("Antigravity CLI HTTPS reusing warm agy", metadata: [
-                    "pid": "\(info.pid)",
-                    "ports": ports.map(String.init).joined(separator: ","),
-                ])
-                return snapshot
-            }
-            let score = AntigravityStatusProbe.localSnapshotScore(snapshot)
-            if score > bestFallbackScore {
-                bestFallback = (info: info, ports: ports, snapshot: snapshot)
-                bestFallbackScore = score
-            }
+            Self.log.debug("Antigravity CLI HTTPS reusing warm agy", metadata: [
+                "pid": "\(info.pid)",
+                "ports": ports.map(String.init).joined(separator: ","),
+            ])
+            return snapshot
         }
         try Task.checkCancellation()
-        if let bestFallback {
-            Self.log.debug("Antigravity CLI HTTPS reusing warm agy", metadata: [
-                "pid": "\(bestFallback.info.pid)",
-                "ports": bestFallback.ports.map(String.init).joined(separator: ","),
-            ])
-            return bestFallback.snapshot
-        }
         return nil
     }
 
@@ -816,7 +792,7 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         // External sessions keep their owner's lifecycle. Managed sessions go through spawnFetch
         // so beginProbe/finishProbe protect in-flight work and maintain the idle timer.
         if let warmSnapshot = try await Self.tryWarmAgyFetch(
-            timeout: Self.warmReuseTimeout,
+            timeout: 2.0,
             expectedBinaryPath: binary,
             expectedAccountEmail: expectedAccountEmail,
             dependencies: warmDependencies)
