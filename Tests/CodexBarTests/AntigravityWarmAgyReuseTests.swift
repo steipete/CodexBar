@@ -467,6 +467,80 @@ struct AntigravityWarmAgyReuseTests {
         #expect(spawnCallCount.value == 1)
     }
 
+    @Test
+    func `warm reuse prefers quota summary over earlier degraded model snapshot`() async throws {
+        let listeningPIDs = AntigravityWarmLockedValues<Int>()
+        let summary = try AntigravityStatusProbe.parseQuotaSummaryResponse(Data(antigravityQuotaSummaryJSON().utf8))
+            .withIdentity(from: Self.usableSnapshot(email: "warm@example.com"))
+
+        let result = try await AntigravityCLIHTTPSFetchStrategy.tryWarmAgyFetch(
+            timeout: 6.0,
+            dependencies: makeAntigravityWarmDependencies(
+                processInfos: { _ in [Self.cliProcessInfo(pid: 6401), Self.cliProcessInfo(pid: 6402)] },
+                listeningPorts: { pid, _ in
+                    listeningPIDs.append(pid)
+                    return [pid]
+                },
+                fetchSnapshot: { ports, _ in
+                    ports == [6401] ? Self.usableSnapshot(email: "warm@example.com") : summary
+                }))
+
+        #expect(listeningPIDs.value == [6401, 6402])
+        #expect(result?.hasKnownQuotaSummary == true)
+        #expect(result?.accountEmail == "warm@example.com")
+    }
+
+    @Test
+    func `warm reuse returns earlier legacy fallback if later process exceeds deadline`() async throws {
+        let clock = AntigravityWarmTestClock(date: Date(timeIntervalSince1970: 200))
+        let fetchedPorts = AntigravityWarmLockedValues<[Int]>()
+
+        let result = try await AntigravityCLIHTTPSFetchStrategy.tryWarmAgyFetch(
+            timeout: 2.0,
+            dependencies: makeAntigravityWarmDependencies(
+                processInfos: { _ in [Self.cliProcessInfo(pid: 6501), Self.cliProcessInfo(pid: 6502)] },
+                listeningPorts: { pid, _ in [pid] },
+                fetchSnapshot: { ports, _ in
+                    fetchedPorts.append(ports)
+                    clock.advance(by: 2.5)
+                    return Self.usableSnapshot(email: "fallback@example.com")
+                },
+                now: { clock.now() }))
+
+        #expect(fetchedPorts.value == [[6501]])
+        #expect(result?.accountEmail == "fallback@example.com")
+        #expect(result?.hasKnownQuotaSummary == false)
+    }
+
+    @Test
+    func `fetchUsingWarmSession allocates warmReuseTimeout budget for quota summary`() async throws {
+        let observedTimeouts = AntigravityWarmLockedValues<TimeInterval>()
+        let strategy = AntigravityCLIHTTPSFetchStrategy()
+
+        _ = try await strategy.fetchUsingWarmSession(
+            binary: "/usr/local/bin/agy",
+            idleWindow: nil,
+            resetAfterFetch: true,
+            warmDependencies: makeAntigravityWarmDependencies(
+                processInfos: { timeout in
+                    observedTimeouts.append(timeout)
+                    return [Self.cliProcessInfo(pid: 6601)]
+                },
+                listeningPorts: { _, _ in [50080] },
+                fetchSnapshot: { _, timeout in
+                    observedTimeouts.append(timeout)
+                    return Self.usableSnapshot(email: "warm@example.com")
+                }),
+            spawnFetch: { _, _, _ in
+                Issue.record("spawn path must not run when a warm agy is reused")
+                throw AntigravityStatusProbeError.notRunning
+            })
+
+        #expect(AntigravityCLIHTTPSFetchStrategy.warmReuseTimeout >= 6.0)
+        #expect(observedTimeouts.value.first == AntigravityCLIHTTPSFetchStrategy.warmReuseTimeout)
+        #expect((observedTimeouts.value.last ?? 0) > 2.0)
+    }
+
     // MARK: - Fixtures
 
     private static func cliProcessInfo(

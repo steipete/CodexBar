@@ -35,6 +35,7 @@ private enum AntigravityModelFamily {
     case gpt
     case geminiPro
     case geminiFlash
+    case geminiOther
     case unknown
 }
 
@@ -513,7 +514,8 @@ public struct AntigravityStatusSnapshot: Sendable {
         case .gpt: 1
         case .geminiPro: 2
         case .geminiFlash: 3
-        case .unknown: 4
+        case .geminiOther: 4
+        case .unknown: 5
         }
     }
 
@@ -561,6 +563,8 @@ public struct AntigravityStatusSnapshot: Sendable {
             }
         case .geminiFlash:
             isSelectableTextModel ? 0 : nil
+        case .geminiOther:
+            isSelectableTextModel ? 1 : nil
         case .unknown:
             nil
         }
@@ -681,9 +685,18 @@ public struct AntigravityStatusSnapshot: Sendable {
             }
             .filter { model in
                 let pool = Self.usagePool(for: model) ?? (model.isAutocomplete ? .geminiAI : nil)
+                let matchingPoolQuotas: [AntigravityModelQuota] = if model.family == .unknown,
+                                                                     Self.isSelectableTextModel(model)
+                {
+                    Array(representedQuotas.values)
+                } else if source == .remote {
+                    pool.flatMap { representedQuotas[$0] }.map { [$0] } ?? []
+                } else {
+                    []
+                }
                 return model.quota.modelId == compactFallbackModelID || Self.shouldShowDistinctExtraWindow(
                     model,
-                    poolQuota: source == .remote ? pool.flatMap { representedQuotas[$0] } : nil)
+                    matchingPoolQuotas: matchingPoolQuotas)
             }
             .sorted(by: Self.modelOrderPrecedes)
             .map { m in
@@ -705,11 +718,14 @@ public struct AntigravityStatusSnapshot: Sendable {
 
     private static func shouldShowDistinctExtraWindow(
         _ model: AntigravityNormalizedModel,
-        poolQuota: AntigravityModelQuota?) -> Bool
+        matchingPoolQuotas: [AntigravityModelQuota]) -> Bool
     {
         guard !self.isSummaryCandidate(model) else { return false }
-        if let poolQuota, let reset = model.quota.resetTime,
-           reset == poolQuota.resetTime, model.quota.remainingFraction == poolQuota.remainingFraction
+        if let reset = model.quota.resetTime,
+           let fraction = model.quota.remainingFraction,
+           matchingPoolQuotas.contains(where: { poolQuota in
+               reset == poolQuota.resetTime && fraction == poolQuota.remainingFraction
+           })
         {
             return false
         }
@@ -721,7 +737,7 @@ public struct AntigravityStatusSnapshot: Sendable {
 
     private static func usagePool(for model: AntigravityNormalizedModel) -> AntigravityUsagePool? {
         switch model.family {
-        case .geminiPro, .geminiFlash:
+        case .geminiPro, .geminiFlash, .geminiOther:
             .geminiAI
         case .claudeModels, .gpt:
             .claudeGPT
@@ -746,11 +762,14 @@ public struct AntigravityStatusSnapshot: Sendable {
         if text.contains("gpt") || text.contains("openai") {
             return .gpt
         }
-        if text.contains("gemini"), text.contains("pro") {
-            return .geminiPro
-        }
-        if text.contains("gemini"), text.contains("flash") {
-            return .geminiFlash
+        if text.contains("gemini") {
+            if text.contains("pro") {
+                return .geminiPro
+            }
+            if text.contains("flash") {
+                return .geminiFlash
+            }
+            return .geminiOther
         }
         return .unknown
     }
