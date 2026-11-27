@@ -285,7 +285,7 @@ extension SettingsStore {
 
     var usageBarsShowUsed: Bool {
         get { self.defaultsState.usageBarsShowUsed }
-        set { self.setDefault(\.usageBarsShowUsed, newValue, key: "usageBarsShowUsed") }
+        set { self.setDefault(\.usageBarsShowUsed, newValue, key: QuotaDisplayPreference.key) }
     }
 
     var resetTimesShowAbsolute: Bool {

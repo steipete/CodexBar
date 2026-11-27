@@ -40,27 +40,6 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
     private static let loadCodeAssistEndpoint = "\(baseURL)/v1internal:loadCodeAssist"
     private static let onboardUserEndpoint = "\(baseURL)/v1internal:onboardUser"
     private static let refreshSafetyWindow: TimeInterval = 60
-    private static let clientMetadata = [
-        "ideType": "ANTIGRAVITY",
-        "platform": "PLATFORM_UNSPECIFIED",
-        "pluginType": "GEMINI",
-    ]
-
-    /// Cloud Code requires the Hub client family for quota access; pin a shared compatibility identity.
-    private static let userAgent: String = {
-        #if arch(arm64)
-        let architecture = "arm64"
-        #else
-        let architecture = "amd64"
-        #endif
-        #if os(Linux)
-        let platform = "linux"
-        #else
-        let platform = "darwin"
-        #endif
-        return "antigravity/hub/2.9.1 \(platform)/\(architecture)"
-    }()
-
     private struct FetchContext {
         let timeout: TimeInterval
         let store: AntigravityOAuthCredentialsStore?
@@ -194,7 +173,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         try await self.sendRequest(
             endpoint: self.loadCodeAssistEndpoint,
             accessToken: accessToken,
-            body: ["metadata": self.clientMetadata],
+            body: ["metadata": AntigravityRemoteClient.clientMetadata],
             timeout: timeout,
             dataLoader: dataLoader)
     }
@@ -344,7 +323,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
 
         let onboardBody: [String: Any] = [
             "tierId": tierID,
-            "metadata": Self.clientMetadata,
+            "metadata": AntigravityRemoteClient.clientMetadata,
         ]
 
         do {
@@ -394,7 +373,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         request.timeoutInterval = timeout
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue(AntigravityRemoteClient.userAgent, forHTTPHeaderField: "User-Agent")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let httpResponse = try await ProviderHTTPTransportHandler(dataLoader).response(for: request)

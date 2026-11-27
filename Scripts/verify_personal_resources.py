@@ -1,4 +1,4 @@
-import os
+"""Check the shipped executable, its provider list and resources outside the checkout."""
 from pathlib import Path
 import subprocess
 import tempfile
@@ -6,18 +6,16 @@ import tempfile
 root = Path(__file__).resolve().parent.parent
 app = root / 'CodexBar.app'
 with tempfile.TemporaryDirectory(prefix='codexbar-personal-resources-') as folder:
-    stage = Path(folder)
-    copy = stage / 'CodexBar.app'
+    copy = Path(folder) / 'CodexBar.app'
     subprocess.run(['ditto', str(app), str(copy)], check=True)
-    cli = copy / 'Contents/Helpers/CodexBarCLI'
-    link = stage / 'codexbar'
-    link.symlink_to(cli)
-    profile = '(version 1)(allow default)(deny file-read* (subpath "' + str(root) + '"))'
-    env = dict(os.environ, CODEXBAR_RESOURCE_SMOKE='1', CODEXBAR_SUPPRESS_TEST_KEYCHAIN_ACCESS='1')
-    env.pop('CODEXBAR_ALLOW_TEST_KEYCHAIN_ACCESS', None)
-    for name, target in [('app', copy / 'Contents/MacOS/CodexBar'), ('cli', cli), ('cli-symlink', link)]:
-        result = subprocess.run(['sandbox-exec', '-p', profile, str(target)], env=env, cwd=stage,
-                                capture_output=True, text=True, timeout=30)
-        if result.returncode != 0 or 'CODEXBAR_RESOURCE_SMOKE_OK' not in result.stdout:
-            raise SystemExit(f'{name} failed: {result.returncode}\n{result.stdout}\n{result.stderr}')
-        print(f'{name}: CODEXBAR_RESOURCE_SMOKE_OK; repository reads denied')
+    contents = copy / 'Contents'
+    binary = contents / 'MacOS/CodexBar'
+    executables = {p for p in contents.rglob('*') if p.is_file() and p.stat().st_mode & 0o111}
+    if executables != {binary} or not (contents / 'Resources/Icon.icns').is_file():
+        raise SystemExit('Personal bundle has unexpected executables or is missing its icon')
+    profile = '(version 1)(allow default)(deny network*)(deny file-read* (subpath "' + str(root) + '"))'
+    result = subprocess.run(['sandbox-exec', '-p', profile, str(binary), '--list-subscriptions'],
+                            cwd=folder, capture_output=True, text=True, check=True, timeout=15)
+    if result.stdout.splitlines() != ['codex', 'kimi', 'antigravity']:
+        raise SystemExit(f'Unexpected compiled subscriptions: {result.stdout!r}')
+    print('Verified standalone CodexBar, icon, and compiled subscriptions: codex, kimi, antigravity')

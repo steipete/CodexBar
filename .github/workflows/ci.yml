@@ -16,6 +16,22 @@ env:
   SWIFTLY_SIGNING_FINGERPRINT: E813C892820A6FA13755B268F167DF1ACF9CE069
 
 jobs:
+  personal-quotas:
+    if: github.repository == 'allgemeiner-intellekt/CodexBar'
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Test personal quota menus and direct access
+        run: swift test --package-path Personal
+      - name: Verify personal bundle and provider inventory
+        run: |
+          ./Scripts/package_personal_app.sh
+          python3 Scripts/verify_personal_resources.py
+          python3 Scripts/prepare_personal_artifact.py
+
   changes:
     runs-on: ubuntu-24.04
     timeout-minutes: 5

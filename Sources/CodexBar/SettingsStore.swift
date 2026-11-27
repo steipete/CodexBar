@@ -577,7 +577,7 @@ extension SettingsStore {
             weeklyProgressWorkDays: userDefaults.object(forKey: "weeklyProgressWorkDays") as? Int,
             workdayTickAppearanceRaw: userDefaults.string(forKey: "workdayTickAppearance")
                 ?? WorkdayTickAppearance.subtle.rawValue,
-            usageBarsShowUsed: userDefaults.object(forKey: "usageBarsShowUsed") as? Bool ?? false,
+            usageBarsShowUsed: QuotaDisplayPreference.showUsed(in: userDefaults, defaultValue: false),
             resetTimesShowAbsolute: userDefaults.object(forKey: "resetTimesShowAbsolute") as? Bool ?? false,
             providerChangelogLinksEnabled: userDefaults.object(
                 forKey: "providerChangelogLinksEnabled") as? Bool ?? false,

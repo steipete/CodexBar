@@ -1,6 +1,6 @@
 import Foundation
 
-public enum KimiRegion: String, CaseIterable, Sendable {
+public enum KimiRegion: String, CaseIterable, Codable, Sendable {
     case china
     case international
 

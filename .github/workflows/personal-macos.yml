@@ -59,6 +59,7 @@ jobs:
         run: |
           mkdir -p logs
           make check 2>&1 | tee logs/check.log
+          swift test --package-path Personal 2>&1 | tee logs/personal-tests.log
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
@@ -165,7 +166,7 @@ jobs:
       - name: Build and verify personal app
         run: |
           mkdir -p logs
-          ./Scripts/package_app.sh release 2>&1 | tee logs/package.log
+          ./Scripts/package_personal_app.sh 2>&1 | tee logs/package.log
           python3 Scripts/verify_personal_resources.py 2>&1 | tee logs/resources.log
           python3 Scripts/prepare_personal_artifact.py
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
