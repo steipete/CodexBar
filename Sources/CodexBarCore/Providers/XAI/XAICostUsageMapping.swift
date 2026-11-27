@@ -6,12 +6,16 @@ public enum XAICostUsageMapping {
 
     /// True when prepaid balance arrived but `/usage` history did not.
     public static func isAnalyticsUnavailable(_ snapshot: UsageSnapshot) -> Bool {
-        !snapshot.details.contains { $0.chart != nil }
+        snapshot.costUsage == nil && !snapshot.details.contains { $0.chart != nil }
     }
 
-    /// Maps the Management API daily-spend chart onto the shared spend catalog.
+    /// Maps Management API usage analytics onto the shared spend catalog.
+    /// Prefers the structured `costUsage` payload and retains the legacy `details[].chart` fallback.
     /// Prepaid ledger balance is remaining credit, not spend, so it is never used here.
     public static func tokenSnapshot(from snapshot: UsageSnapshot, historyDays _: Int) -> CostUsageTokenSnapshot? {
+        if let costUsage = snapshot.costUsage {
+            return costUsage
+        }
         guard let chart = snapshot.details.compactMap(\.chart).first else { return nil }
         let entries = chart.points
             .compactMap { point -> CostUsageDailyReport.Entry? in

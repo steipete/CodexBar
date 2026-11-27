@@ -63,6 +63,8 @@ interface CodexBarCostSnapshot {
 interface CodexBarCostUsageEntry {
   date: string;
   inputTokens: number;
+  /** Nonnegative cached input token count; added to inputTokens + outputTokens for totalTokens. */
+  cacheReadTokens?: number | null;
   outputTokens: number;
   /** Independent reported count; may exceed outputTokens and is not added to input + output totals. */
   reasoningTokens?: number | null;
@@ -79,6 +81,10 @@ interface CodexBarCostUsageSnapshot {
   historyLabel?: string | null;
   /** Inclusive YYYY-MM-DD end of the reported window. */
   windowEnd: string;
+  /** True when windowEnd is the current in-progress UTC day; populates today's session metrics and uses fetch time for updatedAt. */
+  includesCurrentDay?: boolean | null;
+  /** True when the provider truncated or capped the history window (for example, analytics limitReached). */
+  partial?: boolean | null;
   entries: CodexBarCostUsageEntry[];
 }
 

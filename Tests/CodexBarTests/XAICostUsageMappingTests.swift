@@ -76,6 +76,74 @@ struct XAICostUsageMappingTests {
         #expect(mapped.historyLabel == "Last 30 days (partial)")
     }
 
+    @Test
+    func `structured costUsage snapshot is preferred over legacy chart`() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let costUsage = CostUsageTokenSnapshot(
+            sessionTokens: 850,
+            sessionCostUSD: 0.25,
+            sessionRequests: 1,
+            last30DaysTokens: 4050,
+            last30DaysCostUSD: 2.01,
+            last30DaysRequests: 9,
+            historyDays: 30,
+            historyCoverageIsEstablished: true,
+            costProvenance: .vendorMetered,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2027-01-15",
+                    inputTokens: 600,
+                    outputTokens: 250,
+                    cacheReadTokens: 0,
+                    totalTokens: 850,
+                    requestCount: 1,
+                    costUSD: 0.25,
+                    modelsUsed: ["grok-4.7"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "grok-4.7",
+                            costUSD: 0.25,
+                            totalTokens: 850,
+                            requestCount: 1),
+                    ]),
+            ],
+            updatedAt: now)
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            costUsage: costUsage,
+            updatedAt: now,
+            dataConfidence: .exact)
+        #expect(XAICostUsageMapping.isAnalyticsUnavailable(snapshot) == false)
+        #expect(XAIProviderDescriptor.descriptor.tokenCost.isUsageUnavailable(snapshot) == false)
+        #expect(XAICostUsageMapping.tokenSnapshot(from: snapshot, historyDays: 365) == costUsage)
+    }
+
+    @Test
+    func `empty structured costUsage is confirmed empty not unavailable`() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let costUsage = CostUsageTokenSnapshot(
+            sessionTokens: nil,
+            sessionCostUSD: nil,
+            sessionRequests: nil,
+            last30DaysTokens: 0,
+            last30DaysCostUSD: 0,
+            last30DaysRequests: 0,
+            historyDays: 30,
+            historyCoverageIsEstablished: true,
+            costProvenance: .vendorMetered,
+            daily: [],
+            updatedAt: now)
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            costUsage: costUsage,
+            updatedAt: now,
+            dataConfidence: .exact)
+        #expect(XAICostUsageMapping.isAnalyticsUnavailable(snapshot) == false)
+        #expect(XAICostUsageMapping.tokenSnapshot(from: snapshot, historyDays: 30) == costUsage)
+    }
+
     private func snapshot(
         points: [(String, Double)],
         confidence: UsageDataConfidence,
