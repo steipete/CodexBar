@@ -1049,6 +1049,306 @@ struct VertexAIUsageSnapshotEdgeCaseTests {
         let reportCost = try #require(report.summary?.totalCostUSD)
         #expect(abs(reportCost - 0.90) < 1e-9)
     }
+
+    @Test
+    func `fetchUsageSnapshot preserves unknown tokens when token_count returns 503`() async throws {
+        let labels = #""location":"us-central1","publisher":"google","model_user_id":"gemini-2.5-pro""#
+        let transport = VertexAIUsageFetcherTests.routerTransport { _, filter in
+            if filter.contains("online_serving/token_count") {
+                return (503, #"{"error":{"code":503}}"#)
+            }
+            if filter.contains("online_serving/model_invocation_count") {
+                return (200, """
+                {"timeSeries":[
+                  {"metric":{"labels":{"request_type":"shared"}},
+                   "resource":{"labels":{\(labels)}},
+                   "points":[{"value":{"int64Value":"12"}}]}
+                ]}
+                """)
+            }
+            return (200, #"{"timeSeries":[]}"#)
+        }
+
+        let response = try await VertexAIUsageFetcher.fetchUsageSnapshot(
+            accessToken: "token",
+            projectId: "proj-1",
+            options: VertexAIQueryOptions(includeOnlineServing: true, estimateServingCost: true),
+            transport: transport)
+        let summary = try #require(response.onlineServingSummary)
+        #expect(summary.totalInvocations == 12)
+        #expect(!summary.tokensAreComplete)
+        #expect(summary.estimatedCostUSD == nil)
+        let model = try #require(summary.models.first)
+        #expect(!model.tokensAreComplete)
+        #expect(model.invocations == 12)
+
+        let credentials = VertexAIOAuthCredentials(
+            accessToken: "token",
+            refreshToken: "refresh",
+            clientId: "client",
+            clientSecret: "secret",
+            projectId: "proj-1",
+            email: "dev@example.com",
+            expiryDate: Date().addingTimeInterval(3600))
+        let snapshot = VertexAIOAuthFetchStrategy.mapUsage(response, credentials: credentials)
+        let section = try #require(snapshot.details.first { $0.title == "Online serving (24h)" })
+        let totalTokensRow = try #require(section.rows.first { $0.label == "Total tokens" })
+        #expect(totalTokensRow.value == "Unavailable")
+        #expect(totalTokensRow.value != "0")
+        #expect(totalTokensRow.secondaryValue == nil)
+        let modelRow = try #require(section.rows.first { $0.label == "gemini-2.5-pro" })
+        #expect(modelRow.value == "Unavailable")
+        #expect(!modelRow.value.contains("0"))
+        #expect(modelRow.secondaryValue?.contains("In 0") != true)
+        #expect(modelRow.secondaryValue?.contains("12 req") == true)
+    }
+
+    @Test
+    func `fetchUsageSnapshot isolates allocation usage across multiple base_model buckets`() async throws {
+        let allocMetric = "aiplatform.googleapis.com/concurrent_requests_per_project_per_base_model"
+        let prefix = "projects/p/services/aiplatform.googleapis.com/consumerQuotaMetrics/\(allocMetric)"
+        let consumerQuotaJSON = """
+        {
+          "metrics": [
+            {
+              "metric": "\(allocMetric)",
+              "displayName": "Concurrent requests",
+              "consumerQuotaLimits": [
+                {
+                  "name": "\(prefix)/limits/Concurrent",
+                  "quotaBuckets": [
+                    {
+                      "effectiveLimit": "100",
+                      "dimensions": {"region": "us-central1", "base_model": "gemini-2.5-pro"}
+                    },
+                    {
+                      "effectiveLimit": "50",
+                      "dimensions": {"region": "us-central1", "base_model": "gemini-2.5-flash"}
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+        """
+        let limitJSON = """
+        {
+          "timeSeries": [
+            {
+              "metric": {
+                "labels": {
+                  "quota_metric": "\(allocMetric)",
+                  "limit_name": "Concurrent",
+                  "base_model": "gemini-2.5-pro"
+                }
+              },
+              "resource": {"labels": {"location": "us-central1"}},
+              "points": [{"value": {"doubleValue": 100}}]
+            },
+            {
+              "metric": {
+                "labels": {
+                  "quota_metric": "\(allocMetric)",
+                  "limit_name": "Concurrent",
+                  "base_model": "gemini-2.5-flash"
+                }
+              },
+              "resource": {"labels": {"location": "us-central1"}},
+              "points": [{"value": {"doubleValue": 50}}]
+            }
+          ]
+        }
+        """
+
+        // 60 units attributed to gemini-2.5-pro must not bleed into gemini-2.5-flash's 50-unit bucket.
+        let attributedTransport = VertexAIUsageFetcherTests.routerTransport { url, filter in
+            if url.host == "serviceusage.googleapis.com" {
+                return (200, consumerQuotaJSON)
+            }
+            if filter.contains("quota/allocation/usage") {
+                return (200, """
+                {
+                  "timeSeries": [
+                    {
+                      "metric": {
+                        "labels": {
+                          "quota_metric": "\(allocMetric)",
+                          "limit_name": "Concurrent",
+                          "base_model": "gemini-2.5-pro"
+                        }
+                      },
+                      "resource": {"labels": {"location": "us-central1"}},
+                      "points": [{"value": {"doubleValue": 60}}]
+                    }
+                  ]
+                }
+                """)
+            }
+            if filter.contains("quota/limit") {
+                return (200, limitJSON)
+            }
+            return (200, #"{"timeSeries":[]}"#)
+        }
+
+        let unfiltered = try await VertexAIUsageFetcher.fetchUsageSnapshot(
+            accessToken: "token",
+            projectId: "proj-1",
+            options: VertexAIQueryOptions(locationFilter: "us-central1", baseModelFilter: nil),
+            transport: attributedTransport)
+        #expect(unfiltered.allocationQuotas.count == 1)
+        let proBucket = try #require(unfiltered.allocationQuotas.first)
+        #expect(proBucket.baseModel == "gemini-2.5-pro")
+        #expect(proBucket.limit == 100)
+        #expect(proBucket.usedPercent == 60)
+
+        await #expect(throws: VertexAIFetchError.noData) {
+            _ = try await VertexAIUsageFetcher.fetchUsageSnapshot(
+                accessToken: "token",
+                projectId: "proj-1",
+                options: VertexAIQueryOptions(locationFilter: "us-central1", baseModelFilter: "gemini-2.5-flash"),
+                transport: attributedTransport)
+        }
+
+        // Unattributed allocation usage across multiple base_model buckets must withhold model percentages.
+        let unattributedTransport = VertexAIUsageFetcherTests.routerTransport { url, filter in
+            if url.host == "serviceusage.googleapis.com" {
+                return (200, consumerQuotaJSON)
+            }
+            if filter.contains("quota/allocation/usage") {
+                return (200, """
+                {
+                  "timeSeries": [
+                    {
+                      "metric": {"labels": {"quota_metric": "\(allocMetric)", "limit_name": "Concurrent"}},
+                      "resource": {"labels": {"location": "us-central1"}},
+                      "points": [{"value": {"doubleValue": 60}}]
+                    }
+                  ]
+                }
+                """)
+            }
+            if filter.contains("quota/limit") {
+                return (200, """
+                {
+                  "timeSeries": [
+                    {
+                      "metric": {"labels": {"quota_metric": "\(allocMetric)", "limit_name": "Concurrent"}},
+                      "resource": {"labels": {"location": "us-central1"}},
+                      "points": [{"value": {"doubleValue": 100}}]
+                    }
+                  ]
+                }
+                """)
+            }
+            return (200, #"{"timeSeries":[]}"#)
+        }
+
+        await #expect(throws: VertexAIFetchError.noData) {
+            _ = try await VertexAIUsageFetcher.fetchUsageSnapshot(
+                accessToken: "token",
+                projectId: "proj-1",
+                options: VertexAIQueryOptions(locationFilter: "us-central1", baseModelFilter: "gemini-2.5-flash"),
+                transport: unattributedTransport)
+        }
+    }
+
+    @Test
+    func `fetchOnlineServingReport marks missing token buckets as partial even when both queries succeed`()
+        async throws
+    {
+        let now = Date(timeIntervalSince1970: 1_795_653_000)
+        let isoNow = ISO8601DateFormatter().string(from: now)
+        let proLabels = #""location":"us-central1","publisher":"google","model_user_id":"gemini-2.5-pro""#
+        let flashLabels = #""location":"us-central1","publisher":"google","model_user_id":"gemini-2.5-flash""#
+        let transport = VertexAIUsageFetcherTests.routerTransport { _, filter in
+            if filter.contains("online_serving/token_count") {
+                return (200, """
+                {"timeSeries":[
+                  {"metric":{"labels":{"type":"input","request_type":"shared"}},
+                   "resource":{"labels":{\(proLabels)}},
+                   "points":[{"interval":{"startTime":"\(isoNow)"},"value":{"int64Value":"1000"}}]}
+                ]}
+                """)
+            }
+            if filter.contains("online_serving/model_invocation_count") {
+                return (200, """
+                {"timeSeries":[
+                  {"metric":{"labels":{"request_type":"shared"}},
+                   "resource":{"labels":{\(proLabels)}},
+                   "points":[{"interval":{"startTime":"\(isoNow)"},"value":{"int64Value":"5"}}]},
+                  {"metric":{"labels":{"request_type":"shared"}},
+                   "resource":{"labels":{\(flashLabels)}},
+                   "points":[{"interval":{"startTime":"\(isoNow)"},"value":{"int64Value":"3"}}]}
+                ]}
+                """)
+            }
+            return (200, #"{"timeSeries":[]}"#)
+        }
+
+        let resolver = CostUsagePricing.ClaudeResolver(catalog: ModelsDevCatalog(providers: [:]))
+        let outcome = try await VertexAIUsageFetcher.fetchOnlineServingReport(
+            accessToken: "token",
+            projectId: "proj-1",
+            config: VertexAIUsageFetcher.OnlineServingReportConfig(
+                since: now.addingTimeInterval(-3600),
+                until: now,
+                calendar: CostUsageBucketTimeZone.calendar(identifier: "UTC"),
+                options: VertexAIQueryOptions(estimateServingCost: false),
+                estimateCost: false),
+            pricingResolver: resolver,
+            transport: transport)
+        guard case let .report(_, isPartial) = outcome else {
+            Issue.record("Expected partial online serving report outcome")
+            return
+        }
+        #expect(isPartial)
+    }
+
+    @Test
+    func `fetchUsageSnapshot queries full Pacific quota day across DST fall-back`() async throws {
+        // 2026-11-01 23:30 PST = 2026-11-02T07:30:00Z; Pacific midnight was 2026-11-01T07:00:00Z (24.5h earlier).
+        let formatter = ISO8601DateFormatter()
+        let now = try #require(formatter.date(from: "2026-11-02T07:30:00Z"))
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            let filter = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first { $0.name == "filter" }?.value ?? ""
+            let body = if filter.contains("quota/allocation/usage") {
+                """
+                {"timeSeries":[{"metric":{"labels":{"quota_metric":"alloc-m","limit_name":"L1"}},
+                "resource":{"labels":{"location":"global"}},"points":[{"value":{"doubleValue":10}}]}]}
+                """
+            } else if filter.contains("quota/limit") {
+                """
+                {"timeSeries":[{"metric":{"labels":{"quota_metric":"alloc-m","limit_name":"L1"}},
+                "resource":{"labels":{"location":"global"}},"points":[{"value":{"doubleValue":100}}]}]}
+                """
+            } else {
+                #"{"timeSeries":[]}"#
+            }
+            let response = try #require(HTTPURLResponse(
+                url: url, statusCode: 200, httpVersion: nil, headerFields: nil))
+            return (Data(body.utf8), response)
+        }
+
+        _ = try await VertexAIUsageFetcher.fetchUsageSnapshot(
+            accessToken: "token",
+            projectId: "proj-1",
+            now: now,
+            transport: transport)
+
+        let rateRequest = try #require(await transport.requests().first { request in
+            guard let url = request.url else { return false }
+            let filter = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first { $0.name == "filter" }?.value ?? ""
+            return filter.contains("quota/rate/net_usage")
+        })
+        let rateURL = try #require(rateRequest.url)
+        let startTime = URLComponents(url: rateURL, resolvingAgainstBaseURL: false)?
+            .queryItems?.first { $0.name == "interval.startTime" }?.value
+        #expect(startTime == "2026-11-01T07:00:00Z")
+    }
 }
 
 extension VertexAIFetchError: Equatable {

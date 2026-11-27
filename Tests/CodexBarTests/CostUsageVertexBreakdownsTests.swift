@@ -612,4 +612,84 @@ struct CostUsageVertexBreakdownsTests {
         #expect(hourly.totalTokens == nil)
         #expect(!hourly.tokensAreComplete)
     }
+
+    @Test
+    func `auto mode still loads cloud history when optional local scan fails`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let now = try env.makeLocalNoon(year: 2026, month: 11, day: 25)
+        let isoNow = ISO8601DateFormatter().string(from: now)
+
+        let gcloudDir = env.root.appendingPathComponent("gcloud-local-fail", isDirectory: true)
+        try FileManager.default.createDirectory(at: gcloudDir, withIntermediateDirectories: true)
+        try """
+        {
+          "client_id": "cid",
+          "client_secret": "csecret",
+          "refresh_token": "rtoken",
+          "access_token": "valid-token",
+          "token_expiry": "2099-01-01T00:00:00Z"
+        }
+        """.write(
+            to: gcloudDir.appendingPathComponent("application_default_credentials.json"),
+            atomically: true,
+            encoding: .utf8)
+
+        // Create an unreadable directory to force local Claude root inventory failure.
+        let unreadableDir = env.root.appendingPathComponent("unreadable-claude", isDirectory: true)
+        try FileManager.default.createDirectory(at: unreadableDir, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: unreadableDir.path)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: unreadableDir.path)
+        }
+
+        let labels = #""location":"us-central1","publisher":"google","model_user_id":"gemini-2.5-pro""#
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            let filter = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first { $0.name == "filter" }?.value ?? ""
+            let body = if filter.contains("online_serving/token_count") {
+                """
+                {"timeSeries":[
+                  {"metric":{"labels":{"type":"input","request_type":"shared"}},
+                   "resource":{"labels":{\(labels)}},
+                   "points":[{"interval":{"endTime":"\(isoNow)"},"value":{"int64Value":"1000"}}]}
+                ]}
+                """
+            } else {
+                """
+                {"timeSeries":[
+                  {"metric":{"labels":{"request_type":"shared"}},
+                   "resource":{"labels":{\(labels)}},
+                   "points":[{"interval":{"endTime":"\(isoNow)"},"value":{"int64Value":"4"}}]}
+                ]}
+                """
+            }
+            let response = try #require(HTTPURLResponse(
+                url: url, statusCode: 200, httpVersion: nil, headerFields: nil))
+            return (Data(body.utf8), response)
+        }
+
+        let options = CostUsageScanner.Options(
+            claudeProjectsRoots: [unreadableDir],
+            cacheRoot: env.cacheRoot)
+        let testEnv = [
+            "CLOUDSDK_CONFIG": gcloudDir.path,
+            "GOOGLE_CLOUD_PROJECT": "vertex-cloud-ok-proj",
+        ]
+
+        let snapshot = try await CostUsageFetcher.loadTokenResult(
+            provider: .vertexai,
+            environment: testEnv,
+            vertexAISettings: VertexAIProviderSettings(telemetryCostSource: .auto),
+            vertexAITransport: transport,
+            now: now,
+            forceRefresh: true,
+            allowPricingRefresh: false,
+            scannerOptions: options).snapshot
+
+        #expect(snapshot.historyCoverageIsEstablished)
+        #expect(snapshot.last30DaysTokens == 1000)
+        #expect(!snapshot.detailsAreComplete)
+    }
 }

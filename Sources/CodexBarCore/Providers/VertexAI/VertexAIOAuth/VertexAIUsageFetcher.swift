@@ -104,6 +104,7 @@ public enum VertexAIUsageFetcher {
         }
 
         let quotaStart = now.addingTimeInterval(-Self.usageWindowSeconds)
+        let rateStart = min(quotaStart, Self.startOfPacificDay(for: now))
         let allocationFilter = """
         metric.type="serviceruntime.googleapis.com/quota/allocation/usage" \
         AND resource.type="consumer_quota" \
@@ -150,7 +151,7 @@ public enum VertexAIUsageFetcher {
             projectId: projectId,
             query: TimeSeriesQuery(
                 filter: rateFilter,
-                start: quotaStart,
+                start: rateStart,
                 end: now,
                 alignmentPeriod: "60s",
                 perSeriesAligner: "ALIGN_SUM"),
@@ -184,7 +185,7 @@ public enum VertexAIUsageFetcher {
                     alignmentPeriod: "3600s",
                     perSeriesAligner: "ALIGN_SUM"),
                 transport: transport)
-            let tokenSeries = try await Self.fetchOptionalTimeSeries(
+            let tokenResult = try await Self.fetchServingTimeSeriesResult(
                 accessToken: accessToken,
                 projectId: projectId,
                 query: TimeSeriesQuery(
@@ -196,7 +197,8 @@ public enum VertexAIUsageFetcher {
                 transport: transport)
             onlineServingSummary = Self.makeOnlineServingSummary(
                 invocationSeries: invocationSeries,
-                tokenSeries: tokenSeries,
+                tokenSeries: tokenResult ?? [],
+                tokenQueryFailed: tokenResult == nil,
                 options: options,
                 pricingDate: now)
         }

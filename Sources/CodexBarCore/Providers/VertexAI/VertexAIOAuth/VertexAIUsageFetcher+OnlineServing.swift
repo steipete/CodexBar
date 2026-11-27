@@ -34,6 +34,7 @@ extension VertexAIUsageFetcher {
     static func makeOnlineServingSummary(
         invocationSeries: [MonitoringTimeSeries],
         tokenSeries: [MonitoringTimeSeries],
+        tokenQueryFailed: Bool = false,
         options: VertexAIQueryOptions,
         pricingDate: Date = Date(),
         pricingResolver: CostUsagePricing.ClaudeResolver? = nil) -> VertexAIOnlineServingSummary?
@@ -48,6 +49,7 @@ extension VertexAIUsageFetcher {
             var invocations: Int = 0
             var inputTokens: Int = 0
             var outputTokens: Int = 0
+            var hasTokenData: Bool = false
         }
 
         var byModel: [ModelKey: Accumulator] = [:]
@@ -79,6 +81,7 @@ extension VertexAIUsageFetcher {
             } else {
                 byModel[modelKey, default: Accumulator()].inputTokens += sum
             }
+            byModel[modelKey, default: Accumulator()].hasTokenData = true
         }
 
         guard !byModel.isEmpty else { return nil }
@@ -92,8 +95,9 @@ extension VertexAIUsageFetcher {
 
         let models = byModel.map { key, acc in
             let isDedicated = key.requestType.caseInsensitiveCompare("dedicated") == .orderedSame
+            let modelTokensComplete = !tokenQueryFailed && (acc.hasTokenData || acc.invocations == 0)
             let totalTokens = acc.inputTokens + acc.outputTokens
-            let estimatedCostUSD: Double? = if let resolvedPricing, !isDedicated, totalTokens > 0 {
+            let estimatedCostUSD: Double? = if let resolvedPricing, !isDedicated, modelTokensComplete, totalTokens > 0 {
                 Self.estimateServingCostUSD(
                     modelName: Self.normalizedModelName(key.modelUserID),
                     inputTokens: acc.inputTokens,
@@ -111,7 +115,8 @@ extension VertexAIUsageFetcher {
                 invocations: acc.invocations,
                 inputTokens: acc.inputTokens,
                 outputTokens: acc.outputTokens,
-                estimatedCostUSD: estimatedCostUSD)
+                estimatedCostUSD: estimatedCostUSD,
+                tokensAreComplete: modelTokensComplete)
         }.sorted { lhs, rhs in
             if lhs.totalTokens != rhs.totalTokens {
                 return lhs.totalTokens > rhs.totalTokens
@@ -132,11 +137,15 @@ extension VertexAIUsageFetcher {
         var totalEstimatedCost = 0.0
         var hasPricedModel = false
         var hasUnpricedTokens = false
+        var tokensAreComplete = !tokenQueryFailed
 
         for model in models {
             totalInvocations += model.invocations
             inputTokens += model.inputTokens
             outputTokens += model.outputTokens
+            if !model.tokensAreComplete {
+                tokensAreComplete = false
+            }
             if model.requestType.caseInsensitiveCompare("dedicated") == .orderedSame {
                 dedicatedInvocations += model.invocations
                 dedicatedTokens += model.totalTokens
@@ -147,7 +156,7 @@ extension VertexAIUsageFetcher {
             if let cost = model.estimatedCostUSD {
                 totalEstimatedCost += cost
                 hasPricedModel = true
-            } else if model.totalTokens > 0 {
+            } else if model.totalTokens > 0 || !model.tokensAreComplete {
                 hasUnpricedTokens = true
             }
         }
@@ -162,6 +171,7 @@ extension VertexAIUsageFetcher {
             dedicatedTokens: dedicatedTokens,
             estimatedCostUSD: hasPricedModel ? totalEstimatedCost : nil,
             hasUnpricedTokens: hasUnpricedTokens,
+            tokensAreComplete: tokensAreComplete,
             models: models)
     }
 
@@ -209,7 +219,7 @@ extension VertexAIUsageFetcher {
             return (tokenQueryFailed || invocationQueryFailed) ? .failed : .empty
         }
 
-        guard let report = Self.buildOnlineServingReport(
+        guard let built = Self.buildOnlineServingReport(
             tokenSeries: tokenSeries,
             invocationSeries: invocationSeries,
             tokenQueryFailed: tokenQueryFailed,
@@ -218,10 +228,12 @@ extension VertexAIUsageFetcher {
         else {
             return (tokenQueryFailed || invocationQueryFailed) ? .failed : .empty
         }
-        return .report(report, isPartial: tokenQueryFailed || invocationQueryFailed)
+        return .report(
+            built.report,
+            isPartial: tokenQueryFailed || invocationQueryFailed || built.hasIncompleteTokens)
     }
 
-    private static func fetchServingTimeSeriesResult(
+    static func fetchServingTimeSeriesResult(
         accessToken: String,
         projectId: String,
         query: TimeSeriesQuery,
@@ -271,7 +283,7 @@ extension VertexAIUsageFetcher {
         invocationSeries: [MonitoringTimeSeries],
         tokenQueryFailed: Bool,
         config: OnlineServingReportConfig,
-        pricingResolver: CostUsagePricing.ClaudeResolver) -> CostUsageDailyReport?
+        pricingResolver: CostUsagePricing.ClaudeResolver) -> (report: CostUsageDailyReport, hasIncompleteTokens: Bool)?
     {
         let buckets = Self.collectServingBuckets(
             tokenSeries: tokenSeries,
@@ -285,11 +297,15 @@ extension VertexAIUsageFetcher {
 
         var rawEntries: [CostUsageDailyReport.Entry] = []
         var hourlyBuckets: [Date: CostUsageTemporalTotals] = [:]
+        var hasIncompleteTokens = false
 
         for (key, totals) in buckets {
             let hasKnownTokens = !tokenQueryFailed && (totals.hasTokenData || totals.invocations == 0)
             let knownTotalTokens = totals.inputTokens + totals.outputTokens
             guard (hasKnownTokens && knownTotalTokens > 0) || totals.invocations > 0 else { continue }
+            if !hasKnownTokens {
+                hasIncompleteTokens = true
+            }
 
             let inputTokens: Int? = hasKnownTokens ? totals.inputTokens : nil
             let outputTokens: Int? = hasKnownTokens ? totals.outputTokens : nil
@@ -342,7 +358,7 @@ extension VertexAIUsageFetcher {
             hourlyBuckets[hour, default: CostUsageTemporalTotals()].hourlyEntry(hour: hour)
         }
         let summary = CostUsageDailyReport.summary(for: entries)
-        return CostUsageDailyReport(data: entries, summary: summary, hourly: hourly)
+        return (CostUsageDailyReport(data: entries, summary: summary, hourly: hourly), hasIncompleteTokens)
     }
 
     private static func collectServingBuckets(

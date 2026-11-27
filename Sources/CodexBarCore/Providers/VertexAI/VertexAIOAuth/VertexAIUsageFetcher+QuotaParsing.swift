@@ -42,6 +42,14 @@ extension VertexAIUsageFetcher {
         let quotaMetric: String
         let limitName: String
         let location: String
+        let baseModel: String?
+
+        init(quotaMetric: String, limitName: String, location: String, baseModel: String? = nil) {
+            self.quotaMetric = quotaMetric
+            self.limitName = limitName
+            self.location = location
+            self.baseModel = baseModel
+        }
     }
 
     struct ConsumerQuotaMetricsResponse: Decodable {
@@ -312,28 +320,61 @@ extension VertexAIUsageFetcher {
             guard Self.matchesLocationFilter(usageKey.location, filter: context.options.locationFilter) else {
                 continue
             }
-            guard let (limitKey, limit) = Self.matchingLimit(for: usageKey, in: context.limitByKey) else { continue }
-            let meta = context.metadataIndex[usageKey.quotaMetric]
-            let bucketMeta = meta?.matchingBucket(
-                limitName: limitKey.limitName,
-                location: usageKey.location,
-                baseModelFilter: context.options.baseModelFilter)
-            if context.options.baseModelFilter != nil, bucketMeta?.baseModel == nil {
+            if let seriesBaseModel = usageKey.baseModel,
+               !Self.matchesModelFilter(seriesBaseModel, filter: context.options.baseModelFilter)
+            {
                 continue
             }
-            let effectiveLimit = bucketMeta?.effectiveLimit ?? limit
-            guard effectiveLimit > 0 else { continue }
+
+            let monitoringLimitMatch = Self.matchingLimit(for: usageKey, in: context.limitByKey)
+            let resolvedLimitName = monitoringLimitMatch?.key.limitName ?? usageKey.limitName
+            let meta = context.metadataIndex[usageKey.quotaMetric]
+            let candidateModelFilter = context.options.baseModelFilter ?? usageKey.baseModel
+            let bucketMeta = meta?.matchingBucket(
+                limitName: resolvedLimitName,
+                location: usageKey.location,
+                baseModelFilter: candidateModelFilter)
+
+            if let seriesBaseModel = usageKey.baseModel {
+                if let metaBaseModel = bucketMeta?.baseModel,
+                   !Self.matchesModelFilter(metaBaseModel, filter: seriesBaseModel)
+                {
+                    continue
+                }
+            } else {
+                if context.options.baseModelFilter != nil, bucketMeta?.baseModel == nil {
+                    continue
+                }
+                if bucketMeta?.baseModel != nil {
+                    let metaModelCount = meta?.distinctBaseModelCount(
+                        limitName: resolvedLimitName,
+                        location: usageKey.location) ?? 0
+                    let limitModelCount = Self.distinctLimitBaseModelCount(
+                        quotaMetric: usageKey.quotaMetric,
+                        limitName: resolvedLimitName,
+                        location: usageKey.location,
+                        in: context.limitByKey)
+                    if max(metaModelCount, limitModelCount) > 1 {
+                        continue
+                    }
+                }
+            }
+
+            let resolvedBaseModel = bucketMeta?.baseModel ?? usageKey.baseModel
+            let effectiveLimit = bucketMeta?.effectiveLimit ?? monitoringLimitMatch?.value
+            guard let effectiveLimit, effectiveLimit > 0 else { continue }
             let exceeded = Self.matchingExceeded(
                 quotaMetric: usageKey.quotaMetric,
-                limitName: limitKey.limitName,
+                limitName: resolvedLimitName,
                 location: usageKey.location,
+                baseModel: resolvedBaseModel,
                 in: context.exceededByKey)
             results.append(VertexAIQuotaBucketUsage(
                 quotaMetric: usageKey.quotaMetric,
-                limitName: limitKey.limitName,
+                limitName: resolvedLimitName,
                 displayName: meta?.displayName,
                 location: usageKey.location,
-                baseModel: bucketMeta?.baseModel,
+                baseModel: resolvedBaseModel,
                 cadence: .allocation,
                 usage: usage,
                 limit: effectiveLimit,
@@ -343,6 +384,26 @@ extension VertexAIUsageFetcher {
                 resetsAt: nil))
         }
         return results
+    }
+
+    private static func distinctLimitBaseModelCount(
+        quotaMetric: String,
+        limitName: String,
+        location: String,
+        in limitByKey: [QuotaKey: Double]) -> Int
+    {
+        let models = limitByKey.compactMap { key, limit -> String? in
+            guard limit > 0,
+                  key.quotaMetric == quotaMetric,
+                  key.location == location,
+                  limitName.isEmpty || key.limitName.isEmpty || key.limitName == limitName,
+                  let baseModel = key.baseModel
+            else {
+                return nil
+            }
+            return baseModel
+        }
+        return Set(models).count
     }
 
     private struct RateSeriesKey: Hashable {
@@ -421,6 +482,7 @@ extension VertexAIUsageFetcher {
                         quotaMetric: rateKey.quotaMetric,
                         limitName: candidate.limitName,
                         location: rateKey.location,
+                        baseModel: candidate.baseModel,
                         in: context.exceededByKey)
                     results.append(VertexAIQuotaBucketUsage(
                         quotaMetric: rateKey.quotaMetric,
@@ -529,7 +591,7 @@ extension VertexAIUsageFetcher {
         }
         if limitName.isEmpty {
             let candidates = limitByKey.filter { key, limit in
-                limit > 0 && key.quotaMetric == quotaMetric && key.location == location
+                limit > 0 && key.quotaMetric == quotaMetric && key.location == location && key.baseModel == nil
             }
             if candidates.count == 1 {
                 return candidates.first?.value
@@ -542,16 +604,23 @@ extension VertexAIUsageFetcher {
         quotaMetric: String,
         limitName: String,
         location: String,
+        baseModel: String? = nil,
         in exceededByKey: [QuotaKey: Double]) -> Int
     {
+        let normalizedBaseModel = baseModel.map { Self.normalizedModelName($0).lowercased() }
         if !limitName.isEmpty,
-           let exact = exceededByKey[QuotaKey(quotaMetric: quotaMetric, limitName: limitName, location: location)]
+           let exact = exceededByKey[QuotaKey(
+               quotaMetric: quotaMetric,
+               limitName: limitName,
+               location: location,
+               baseModel: normalizedBaseModel)]
         {
             return Int(exact.rounded())
         }
         let matching = exceededByKey.filter { key, _ in
             key.quotaMetric == quotaMetric && key.location == location
                 && (limitName.isEmpty || key.limitName.isEmpty || key.limitName == limitName)
+                && (normalizedBaseModel == nil || key.baseModel == nil || key.baseModel == normalizedBaseModel)
         }
         return Int(matching.values.reduce(0, +).rounded())
     }
@@ -569,6 +638,7 @@ extension VertexAIUsageFetcher {
             limit > 0
                 && limitKey.quotaMetric == usageKey.quotaMetric
                 && limitKey.location == usageKey.location
+                && limitKey.baseModel == usageKey.baseModel
         }
         guard candidates.count == 1, let candidate = candidates.first else { return nil }
         return candidate
@@ -717,7 +787,12 @@ extension VertexAIUsageFetcher {
         guard let quotaMetric, !quotaMetric.isEmpty else { return nil }
         let limitName = metricLabels["limit_name"] ?? ""
         let location = resourceLabels["location"] ?? "global"
-        return QuotaKey(quotaMetric: quotaMetric, limitName: limitName, location: location)
+        let rawBaseModel = (metricLabels["base_model"] ?? resourceLabels["base_model"])?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let baseModel = (rawBaseModel?.isEmpty == false)
+            ? Self.normalizedModelName(rawBaseModel!).lowercased()
+            : nil
+        return QuotaKey(quotaMetric: quotaMetric, limitName: limitName, location: location, baseModel: baseModel)
     }
 
     static func pointValue(from point: MonitoringPoint) -> Double? {

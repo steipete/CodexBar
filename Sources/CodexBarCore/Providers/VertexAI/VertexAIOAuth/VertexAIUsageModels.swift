@@ -64,6 +64,7 @@ public struct VertexAIOnlineServingModelSummary: Sendable, Equatable {
     public let inputTokens: Int
     public let outputTokens: Int
     public let estimatedCostUSD: Double?
+    public let tokensAreComplete: Bool
 
     public var totalTokens: Int {
         self.inputTokens + self.outputTokens
@@ -77,7 +78,8 @@ public struct VertexAIOnlineServingModelSummary: Sendable, Equatable {
         invocations: Int,
         inputTokens: Int,
         outputTokens: Int,
-        estimatedCostUSD: Double? = nil)
+        estimatedCostUSD: Double? = nil,
+        tokensAreComplete: Bool = true)
     {
         self.modelUserID = modelUserID
         self.location = location
@@ -87,6 +89,7 @@ public struct VertexAIOnlineServingModelSummary: Sendable, Equatable {
         self.inputTokens = inputTokens
         self.outputTokens = outputTokens
         self.estimatedCostUSD = estimatedCostUSD
+        self.tokensAreComplete = tokensAreComplete
     }
 }
 
@@ -100,6 +103,7 @@ public struct VertexAIOnlineServingSummary: Sendable, Equatable {
     public let dedicatedTokens: Int
     public let estimatedCostUSD: Double?
     public let hasUnpricedTokens: Bool
+    public let tokensAreComplete: Bool
     public let models: [VertexAIOnlineServingModelSummary]
 
     public var totalTokens: Int {
@@ -116,6 +120,7 @@ public struct VertexAIOnlineServingSummary: Sendable, Equatable {
         dedicatedTokens: Int,
         estimatedCostUSD: Double? = nil,
         hasUnpricedTokens: Bool = false,
+        tokensAreComplete: Bool = true,
         models: [VertexAIOnlineServingModelSummary])
     {
         self.totalInvocations = totalInvocations
@@ -127,6 +132,7 @@ public struct VertexAIOnlineServingSummary: Sendable, Equatable {
         self.dedicatedTokens = dedicatedTokens
         self.estimatedCostUSD = estimatedCostUSD
         self.hasUnpricedTokens = hasUnpricedTokens
+        self.tokensAreComplete = tokensAreComplete
         self.models = models
     }
 }

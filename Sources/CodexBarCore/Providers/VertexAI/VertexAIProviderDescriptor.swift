@@ -337,11 +337,18 @@ struct VertexAIOAuthFetchStrategy: ProviderFetchStrategy {
                 label: "Invocations",
                 value: UsageFormatter.tokenCountString(serving.totalInvocations),
                 secondaryValue: splitText))
-            rows.append(ProviderDetailSection.makeRow(
-                label: "Total tokens",
-                value: UsageFormatter.tokenCountString(serving.totalTokens),
-                secondaryValue: "In \(UsageFormatter.tokenCountString(serving.inputTokens)) · " +
-                    "Out \(UsageFormatter.tokenCountString(serving.outputTokens))"))
+            if serving.tokensAreComplete {
+                rows.append(ProviderDetailSection.makeRow(
+                    label: "Total tokens",
+                    value: UsageFormatter.tokenCountString(serving.totalTokens),
+                    secondaryValue: "In \(UsageFormatter.tokenCountString(serving.inputTokens)) · " +
+                        "Out \(UsageFormatter.tokenCountString(serving.outputTokens))"))
+            } else {
+                rows.append(ProviderDetailSection.makeRow(
+                    label: "Total tokens",
+                    value: "Unavailable",
+                    secondaryValue: nil))
+            }
             if let estimatedCostUSD = serving.estimatedCostUSD {
                 let costNote = serving.hasUnpricedTokens
                     ? "Partial estimate · excludes dedicated/unpriced"
@@ -355,16 +362,23 @@ struct VertexAIOAuthFetchStrategy: ProviderFetchStrategy {
             for model in serving.models.prefix(8) {
                 let modelName = VertexAIUsageFetcher.normalizedModelName(model.modelUserID)
                 let reqText = UsageFormatter.tokenCountString(model.invocations)
-                let tokensText = "\(UsageFormatter.tokenCountString(model.totalTokens)) tokens"
-                let value = model.estimatedCostUSD.map {
-                    "\(UsageFormatter.usdString($0)) · \(tokensText)"
-                } ?? tokensText
-                let inOutText = "In \(UsageFormatter.tokenCountString(model.inputTokens)) · " +
-                    "Out \(UsageFormatter.tokenCountString(model.outputTokens))"
-                rows.append(ProviderDetailSection.makeRow(
-                    label: modelName,
-                    value: value,
-                    secondaryValue: "\(reqText) req · \(inOutText) · \(model.location) · \(model.requestType)"))
+                if model.tokensAreComplete {
+                    let tokensText = "\(UsageFormatter.tokenCountString(model.totalTokens)) tokens"
+                    let value = model.estimatedCostUSD.map {
+                        "\(UsageFormatter.usdString($0)) · \(tokensText)"
+                    } ?? tokensText
+                    let inOutText = "In \(UsageFormatter.tokenCountString(model.inputTokens)) · " +
+                        "Out \(UsageFormatter.tokenCountString(model.outputTokens))"
+                    rows.append(ProviderDetailSection.makeRow(
+                        label: modelName,
+                        value: value,
+                        secondaryValue: "\(reqText) req · \(inOutText) · \(model.location) · \(model.requestType)"))
+                } else {
+                    rows.append(ProviderDetailSection.makeRow(
+                        label: modelName,
+                        value: "Unavailable",
+                        secondaryValue: "\(reqText) req · \(model.location) · \(model.requestType)"))
+                }
             }
             sections.append(ProviderDetailSection.makeSection(title: "Online serving (24h)", rows: rows))
         }

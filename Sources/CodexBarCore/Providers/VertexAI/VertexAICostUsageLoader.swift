@@ -111,70 +111,98 @@ extension CostUsageFetcher {
             }
 
         case .auto:
-            let localResult = try await Self.loadLocalTokenScanResult(
+            return try await Self.loadAutoVertexAITokenResult(
+                context: context,
+                calendar: calendar,
+                localScanOptions: localScanOptions)
+        }
+    }
+
+    private static func loadAutoVertexAITokenResult(
+        context: VertexAITokenLoadContext,
+        calendar: Calendar,
+        localScanOptions: LocalTokenScanOptions) async throws -> CostUsageTokenResult
+    {
+        let localResult: LocalTokenScanResult?
+        do {
+            localResult = try await Self.loadLocalTokenScanResult(
                 provider: .vertexai,
                 since: context.since,
                 now: context.now,
                 options: localScanOptions)
-            let hasLocalClaudeEntries = !localResult.inclusive.daily.data.isEmpty
-            let cloudOutcome = try await Self.fetchVertexCloudServingReport(
-                context: context,
-                calendar: calendar)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            localResult = nil
+        }
+        let hasLocalClaudeEntries = !(localResult?.inclusive.daily.data.isEmpty ?? true)
+        let cloudOutcome = try await Self.fetchVertexCloudServingReport(
+            context: context,
+            calendar: calendar)
 
-            switch cloudOutcome {
-            case .failed:
-                guard hasLocalClaudeEntries else {
-                    return CostUsageTokenResult(
-                        snapshot: Self.unavailableLocalSnapshot(
-                            now: context.now,
-                            historyDays: context.historyDays,
-                            calendar: calendar),
-                        accounting: nil)
-                }
-                let snapshot = Self.tokenSnapshot(
-                    from: localResult.inclusive.daily,
-                    now: context.now,
-                    historyDays: context.historyDays,
-                    calendar: calendar,
-                    historyCoverageIsEstablished: localResult.inclusive.historyCoverageIsEstablished,
-                    historyScanIsPartial: true,
-                    costProvenance: .listPriceEstimate,
-                    projects: localResult.inclusive.projects,
-                    sessions: localResult.inclusive.sessions,
-                    detailsAreComplete: localResult.inclusive.detailsAreComplete,
-                    updatedAt: localResult.inclusive.staleSnapshotUpdatedAt)
-                return CostUsageTokenResult(snapshot: snapshot, accounting: nil)
-
-            case .empty:
-                let snapshot = Self.tokenSnapshot(
-                    from: localResult.inclusive.daily,
-                    now: context.now,
-                    historyDays: context.historyDays,
-                    calendar: calendar,
-                    historyCoverageIsEstablished: localResult.inclusive.historyCoverageIsEstablished,
-                    historyScanIsPartial: false,
-                    costProvenance: .listPriceEstimate,
-                    projects: localResult.inclusive.projects,
-                    sessions: localResult.inclusive.sessions,
-                    detailsAreComplete: localResult.inclusive.detailsAreComplete,
-                    updatedAt: localResult.inclusive.staleSnapshotUpdatedAt)
-                return CostUsageTokenResult(snapshot: snapshot, accounting: nil)
-
-            case let .report(cloudReport, isPartial):
-                // Keep Cloud Monitoring totals authoritative across all publishers (including Anthropic)
-                // so remote, other-machine, or other-day traffic is never dropped when local Claude logs exist.
-                // Local project/session breakdowns stay attached separately.
+        switch cloudOutcome {
+        case .failed:
+            guard let localResult, hasLocalClaudeEntries else {
                 return CostUsageTokenResult(
-                    snapshot: Self.vertexCloudTokenSnapshot(
-                        from: cloudReport,
-                        context: context,
-                        calendar: calendar,
-                        isPartial: isPartial,
-                        projects: localResult.inclusive.projects,
-                        sessions: localResult.inclusive.sessions,
-                        detailsAreComplete: localResult.inclusive.detailsAreComplete),
+                    snapshot: Self.unavailableLocalSnapshot(
+                        now: context.now,
+                        historyDays: context.historyDays,
+                        calendar: calendar),
                     accounting: nil)
             }
+            let snapshot = Self.tokenSnapshot(
+                from: localResult.inclusive.daily,
+                now: context.now,
+                historyDays: context.historyDays,
+                calendar: calendar,
+                historyCoverageIsEstablished: localResult.inclusive.historyCoverageIsEstablished,
+                historyScanIsPartial: true,
+                costProvenance: .listPriceEstimate,
+                projects: localResult.inclusive.projects,
+                sessions: localResult.inclusive.sessions,
+                detailsAreComplete: localResult.inclusive.detailsAreComplete,
+                updatedAt: localResult.inclusive.staleSnapshotUpdatedAt)
+            return CostUsageTokenResult(snapshot: snapshot, accounting: nil)
+
+        case .empty:
+            guard let localResult else {
+                return CostUsageTokenResult(
+                    snapshot: Self.vertexCloudTokenSnapshot(
+                        from: CostUsageDailyReport(data: [], summary: nil),
+                        context: context,
+                        calendar: calendar,
+                        isPartial: true,
+                        detailsAreComplete: false),
+                    accounting: nil)
+            }
+            let snapshot = Self.tokenSnapshot(
+                from: localResult.inclusive.daily,
+                now: context.now,
+                historyDays: context.historyDays,
+                calendar: calendar,
+                historyCoverageIsEstablished: localResult.inclusive.historyCoverageIsEstablished,
+                historyScanIsPartial: false,
+                costProvenance: .listPriceEstimate,
+                projects: localResult.inclusive.projects,
+                sessions: localResult.inclusive.sessions,
+                detailsAreComplete: localResult.inclusive.detailsAreComplete,
+                updatedAt: localResult.inclusive.staleSnapshotUpdatedAt)
+            return CostUsageTokenResult(snapshot: snapshot, accounting: nil)
+
+        case let .report(cloudReport, isPartial):
+            // Keep Cloud Monitoring totals authoritative across all publishers (including Anthropic)
+            // so remote, other-machine, or other-day traffic is never dropped when local Claude logs exist.
+            // Local project/session breakdowns stay attached separately.
+            return CostUsageTokenResult(
+                snapshot: Self.vertexCloudTokenSnapshot(
+                    from: cloudReport,
+                    context: context,
+                    calendar: calendar,
+                    isPartial: isPartial,
+                    projects: localResult?.inclusive.projects ?? [],
+                    sessions: localResult?.inclusive.sessions ?? [],
+                    detailsAreComplete: localResult?.inclusive.detailsAreComplete ?? false),
+                accounting: nil)
         }
     }
 
