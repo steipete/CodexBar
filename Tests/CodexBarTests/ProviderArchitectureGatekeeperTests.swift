@@ -2538,10 +2538,18 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "Claude OAuth history requires corroborated ownership before reset detection or persistence."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore/UsageStore+PlanUtilization.swift",
-            anchor: "if provider == .antigravity,",
+            occurrence: 1,
+            anchor: "if provider == .antigravity {",
+            expectedProviderIDs: ["antigravity"],
+            expectedReferenceCount: 1,
+            expectedReferenceFingerprint: ["antigravity@0"],
+            reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
+        AllowedProviderConstruct(
+            path: "Sources/CodexBar/UsageStore/UsageStore+PlanUtilization.swift",
+            anchor: "if ![UsageProvider.codex, .claude, .antigravity].contains(provider) {",
             expectedProviderIDs: ["antigravity", "claude", "codex"],
-            expectedReferenceCount: 4,
-            expectedReferenceFingerprint: ["antigravity@0", "antigravity@8", "claude@8", "codex@8"],
+            expectedReferenceCount: 3,
+            expectedReferenceFingerprint: ["antigravity@0", "claude@0", "codex@0"],
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore/UsageStore+PlanUtilization.swift",
@@ -2575,10 +2583,10 @@ struct ProviderArchitectureGatekeeperTests {
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore/UsageStore+PlanUtilization.swift",
             occurrence: 2,
-            anchor: "if ![UsageProvider.codex, .claude, .antigravity].contains(provider) {",
+            anchor: "if provider == .antigravity {",
             expectedProviderIDs: ["antigravity", "claude", "codex"],
-            expectedReferenceCount: 3,
-            expectedReferenceFingerprint: ["antigravity@0", "claude@0", "codex@0"],
+            expectedReferenceCount: 4,
+            expectedReferenceFingerprint: ["antigravity@0", "antigravity@8", "claude@8", "codex@8"],
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore/UsageStore+ProviderStorage.swift",
@@ -3049,7 +3057,7 @@ struct ProviderArchitectureGatekeeperTests {
             anchor: "if provider == .antigravity,",
             expectedProviderIDs: ["alibabatokenplan", "amp", "antigravity"],
             expectedReferenceCount: 3,
-            expectedReferenceFingerprint: ["antigravity@0", "amp@7", "alibabatokenplan@9"],
+            expectedReferenceFingerprint: ["antigravity@0", "amp@9", "alibabatokenplan@11"],
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore/UsageStore+WidgetSnapshot.swift",
