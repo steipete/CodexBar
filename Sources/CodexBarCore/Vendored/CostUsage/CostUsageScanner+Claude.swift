@@ -41,8 +41,10 @@ extension CostUsageScanner {
             checkCancellation: checkCancellation)
     }
 
-    /// Native Claude daily report plus per-project and per-session projections of the same reconciled rows.
+    /// Provider-specific by design: Claude and Claude-on-Vertex transcripts share this projection entry point.
+    /// Native Claude or Vertex daily report plus per-project and per-session projections of the same reconciled rows.
     static func loadClaudeReportProjectionsCancellable(
+        provider: UsageProvider = .claude,
         since: Date,
         until: Date,
         now: Date = Date(),
@@ -52,7 +54,7 @@ extension CostUsageScanner {
     {
         try checkCancellation?()
         return try self.loadClaudeReport(
-            provider: .claude,
+            provider: provider,
             range: CostUsageDayRange(since: since, until: until, calendar: options.calendar),
             now: now,
             options: options,
@@ -795,8 +797,8 @@ extension CostUsageScanner {
         includeBreakdowns: Bool = false,
         checkCancellation: CancellationCheck?) throws -> ClaudeReportProjections
     {
-        // Provider-specific by design: only native Claude transcripts carry project and session attribution.
-        let buildsBreakdowns = includeBreakdowns && provider == .claude
+        // Provider-specific by design: Claude and Claude-on-Vertex transcripts carry project and session attribution.
+        let buildsBreakdowns = includeBreakdowns && (provider == .claude || provider == .vertexai)
         let roots = self.defaultClaudeProjectsRoots(options: options)
         let sourceInventory = try Self.inventoryClaudeRoots(roots, checkCancellation: checkCancellation)
         try checkCancellation?()

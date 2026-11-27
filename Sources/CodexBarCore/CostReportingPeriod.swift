@@ -92,12 +92,24 @@ extension CostUsageTokenSnapshot {
         self.historyLabel ?? self.reportingPeriod?.label ?? CostReportingPeriod.rolling(days: self.historyDays).label
     }
 
+    private static func preservedEstimateSuffix(from historyLabel: String?) -> String? {
+        guard let historyLabel else { return nil }
+        for suffix in [" (Cloud est.)", " (Cloud + Local est.)"] where historyLabel.hasSuffix(suffix) {
+            return suffix
+        }
+        return nil
+    }
+
     /// Attach the selection only after a scan of the resolved window, never to a previous-period cache entry.
     public func reporting(_ period: CostReportingPeriod) -> Self {
         if case .rolling = period { return self }
         var result = self
         result.reportingPeriod = period
-        result.historyLabel = period.label
+        if let suffix = Self.preservedEstimateSuffix(from: self.historyLabel) {
+            result.historyLabel = period.label + suffix
+        } else {
+            result.historyLabel = period.label
+        }
         return result
     }
 
@@ -120,6 +132,7 @@ extension CostUsageTokenSnapshot {
             monetaryValuesAreAvailable: self.last30DaysCostUSD != nil || self.daily.contains { $0.costUSD != nil },
             costProvenance: self.costProvenance,
             credentialScopeFingerprint: self.credentialScopeFingerprint,
+            historyLabel: self.historyLabel,
             updatedAt: self.updatedAt).reporting(period)
         if result.daily.isEmpty, result.historyIsFullyScanned, self.last30DaysRequests != nil {
             result.sessionRequests = 0

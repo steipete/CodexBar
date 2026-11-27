@@ -1,0 +1,527 @@
+import Foundation
+import Testing
+@testable import CodexBar
+@testable import CodexBarCore
+
+@Suite(.serialized)
+struct VertexAIProviderDescriptorTests {
+    @Test
+    func `descriptor metadata and tokenCost configuration match M2 parity contract`() {
+        let descriptor = VertexAIProviderDescriptor.descriptor
+        #expect(descriptor.id == .vertexai)
+        #expect(descriptor.metadata.widgetSelectable)
+        #expect(descriptor.tokenCost.settingsStatusOrder == 4)
+        #expect(descriptor.tokenCost.showsHintInProviderDetails)
+        #expect(descriptor.tokenCost.menuHintLines == [.localized("cost_estimate_hint")])
+        #expect(descriptor.tokenCost.chartEstimateDisclaimer == .localized("vertexai_cost_estimate_hint"))
+        #expect(descriptor.history == .unavailable)
+        #expect(descriptor.cli.supportsCostCommand)
+        #expect(VertexAIProviderDescriptor.estimateHintKey(forHistoryLabel: "Last 30 days (Cloud est.)") ==
+            VertexAIProviderDescriptor.cloudEstimateHintKey)
+        #expect(VertexAIProviderDescriptor.estimateHintKey(forHistoryLabel: "Last 30 days (Cloud + Local est.)") ==
+            VertexAIProviderDescriptor.estimateHintKey)
+        #expect(VertexAIProviderDescriptor.estimateHintKey(forHistoryLabel: nil) == nil)
+        #expect(descriptor.presentation.menuCard.supportsInlineTokenCostDashboard)
+        #expect(descriptor.presentation.menuCard.primaryDescriptionPlacement == .detail)
+        #expect(descriptor.presentation.menuCard.hidesPrimaryResetWithoutDate)
+        #expect(descriptor.presentation.menuCard.showsSecondaryBalanceDescription)
+    }
+
+    @Test
+    func `mapUsage honors primaryBarMetric builds provider-siloed details and keeps continuous quotas reset-free`()
+        throws
+    {
+        let credentials = VertexAIOAuthCredentials(
+            accessToken: "token",
+            refreshToken: "refresh",
+            clientId: "client",
+            clientSecret: "secret",
+            projectId: "my-vertex-project",
+            email: "dev@example.com",
+            expiryDate: Date().addingTimeInterval(3600))
+
+        let rateBucket = VertexAIQuotaBucketUsage(
+            quotaMetric: "aiplatform.googleapis.com/generate_content_requests_per_minute",
+            limitName: "PerMinute",
+            displayName: "Generate requests",
+            location: "us-central1",
+            baseModel: "gemini-2.5-pro",
+            cadence: .perMinute,
+            usage: 45,
+            limit: 100,
+            usedPercent: 45,
+            exceededCount: 2,
+            unit: "1/min/{project}",
+            resetsAt: nil)
+        let allocBucket = VertexAIQuotaBucketUsage(
+            quotaMetric: "aiplatform.googleapis.com/concurrent_requests",
+            limitName: "Concurrent",
+            displayName: "Concurrent requests",
+            location: "global",
+            baseModel: nil,
+            cadence: .allocation,
+            usage: 80,
+            limit: 100,
+            usedPercent: 80,
+            exceededCount: 0,
+            unit: nil,
+            resetsAt: nil)
+        let serving = VertexAIOnlineServingSummary(
+            totalInvocations: 25,
+            inputTokens: 12000,
+            outputTokens: 3000,
+            sharedInvocations: 20,
+            dedicatedInvocations: 5,
+            sharedTokens: 13000,
+            dedicatedTokens: 2000,
+            models: [
+                VertexAIOnlineServingModelSummary(
+                    modelUserID: "gemini-2.5-pro",
+                    location: "us-central1",
+                    publisher: "google",
+                    requestType: "shared",
+                    invocations: 20,
+                    inputTokens: 10000,
+                    outputTokens: 3000),
+            ])
+        let response = VertexAIUsageResponse(
+            requestsUsedPercent: 80,
+            tokensUsedPercent: nil,
+            resetsAt: nil,
+            resetDescription: nil,
+            rawData: nil,
+            rateQuotas: [rateBucket],
+            allocationQuotas: [allocBucket],
+            highestRateQuota: rateBucket,
+            highestAllocationQuota: allocBucket,
+            totalExceededCount: 2,
+            onlineServingSummary: serving)
+
+        // Auto picks highest % (80% allocation) first, 45% rate second
+        let autoSnap = VertexAIOAuthFetchStrategy.mapUsage(
+            response,
+            credentials: credentials,
+            settings: VertexAIProviderSettings(regionFilter: "us-central1", primaryBarMetric: .auto))
+        #expect(autoSnap.primary?.usedPercent == 80)
+        #expect(autoSnap.primary?.title == "Allocation quota")
+        #expect(autoSnap.secondary?.usedPercent == 45)
+        #expect(autoSnap.secondary?.title == "Rate quota (RPM)")
+        #expect(autoSnap.identity?.providerID == .vertexai)
+        #expect(autoSnap.identity?.accountOrganization == "my-vertex-project")
+        #expect(autoSnap.identity?.loginMethod == "gcloud")
+
+        // Rate quota preference forces rate primary
+        let rateSnap = VertexAIOAuthFetchStrategy.mapUsage(
+            response,
+            credentials: credentials,
+            settings: VertexAIProviderSettings(primaryBarMetric: .rateQuota))
+        #expect(rateSnap.primary?.usedPercent == 45)
+        #expect(rateSnap.primary?.title == "Rate quota (RPM)")
+        #expect(rateSnap.primary?.windowMinutes == 1)
+        #expect(rateSnap.primary?.resetsAt == nil)
+        #expect(rateSnap.secondary?.usedPercent == 80)
+
+        let labels = VertexAIProviderDescriptor.descriptor.presentation.rateWindowLabels(
+            metadata: VertexAIProviderDescriptor.descriptor.metadata,
+            snapshot: rateSnap)
+        #expect(labels.primary == "Rate quota (RPM)")
+        #expect(labels.secondary == "Allocation quota")
+
+        // MenuCardView must not prefix continuous quotas with "Resets "
+        let cardModel = UsageMenuCardView.Model.make(.init(
+            provider: .vertexai,
+            metadata: VertexAIProviderDescriptor.descriptor.metadata,
+            snapshot: rateSnap,
+            credits: nil,
+            creditsError: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: true,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: Date()))
+        #expect(cardModel.metrics.first?.resetText == nil)
+        #expect(cardModel.metrics.first?.detailText?.contains("peak/min") == true)
+        #expect(cardModel.metrics.dropFirst().first?.resetText == nil)
+        #expect(cardModel.metrics.dropFirst().first?.detailText?.contains("allocated") == true)
+
+        #expect(autoSnap.details.map(\.title) == ["Quota breakdown", "Online serving (24h)", "Active filter"])
+        let quotaSection = try #require(autoSnap.details.first)
+        #expect(quotaSection.rows.first?.severity == .warning)
+        #expect(quotaSection.rows.last?.severity == .critical)
+    }
+
+    @Test
+    func `projectIDOverride precedes CODEXBAR_VERTEX_PROJECT_ID config_default and env`() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vertex-creds-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let configsDir = dir.appendingPathComponent("configurations", isDirectory: true)
+        try FileManager.default.createDirectory(at: configsDir, withIntermediateDirectories: true)
+        let configFile = configsDir.appendingPathComponent("config_default")
+        try """
+        [other]
+        project = wrong-section-project
+
+        [core]
+        project = core-config-project
+        """.write(to: configFile, atomically: true, encoding: .utf8)
+
+        let baseEnv = [
+            "CLOUDSDK_CONFIG": dir.path,
+            "GOOGLE_CLOUD_PROJECT": "env-gcp-project",
+        ]
+        #expect(VertexAIOAuthCredentialsStore.loadProjectId(environment: baseEnv) == "core-config-project")
+
+        var withCodexBarEnv = baseEnv
+        withCodexBarEnv["CODEXBAR_VERTEX_PROJECT_ID"] = "codexbar-env-project"
+        #expect(VertexAIOAuthCredentialsStore.loadProjectId(environment: withCodexBarEnv) == "codexbar-env-project")
+        #expect(VertexAIOAuthCredentialsStore.loadProjectId(
+            environment: withCodexBarEnv,
+            projectIDOverride: "explicit-override-project") == "explicit-override-project")
+    }
+
+    @Test
+    func `localClaudeLogsOnly short-circuits Cloud Monitoring HTTP calls`() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vertex-local-only-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let adcURL = dir.appendingPathComponent("application_default_credentials.json")
+        try """
+        {
+          "client_id": "cid",
+          "client_secret": "csecret",
+          "refresh_token": "rtoken",
+          "access_token": "valid-access",
+          "token_expiry": "2099-01-01T00:00:00Z"
+        }
+        """.write(to: adcURL, atomically: true, encoding: .utf8)
+
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            Issue.record("Unexpected HTTP call for localClaudeLogsOnly: \(url.absoluteString)")
+            throw URLError(.badURL)
+        }
+        let context = ProviderFetchContext(
+            runtime: .app,
+            sourceMode: .auto,
+            includeCredits: false,
+            webTimeout: 5,
+            webDebugDumpHTML: false,
+            verbose: false,
+            env: [
+                "CLOUDSDK_CONFIG": dir.path,
+                "GOOGLE_CLOUD_PROJECT": "local-only-proj",
+            ],
+            settings: ProviderSettingsSnapshot.make(
+                vertexai: VertexAIProviderSettings(telemetryCostSource: .localClaudeLogsOnly)),
+            fetcher: UsageFetcher(environment: [:]),
+            claudeFetcher: ClaudeUsageFetcher(browserDetection: BrowserDetection(cacheTTL: 0)),
+            browserDetection: BrowserDetection(cacheTTL: 0))
+
+        let result = try await VertexAIOAuthFetchStrategy.$transportForTesting.withValue(transport) {
+            try await VertexAIOAuthFetchStrategy().fetch(context)
+        }
+        #expect(await transport.requests().isEmpty)
+        #expect(result.usage.primary == nil)
+        #expect(result.usage.identity?.accountOrganization == "local-only-proj")
+    }
+
+    @Test
+    func `selectBuckets falls back primary when preferred rateQuota or allocationQuota category is absent`() {
+        let credentials = VertexAIOAuthCredentials(
+            accessToken: "token",
+            refreshToken: "refresh",
+            clientId: "client",
+            clientSecret: "secret",
+            projectId: "proj-1",
+            email: "dev@example.com",
+            expiryDate: Date().addingTimeInterval(3600))
+        let rateBucket = VertexAIQuotaBucketUsage(
+            quotaMetric: "aiplatform.googleapis.com/generate_content_requests_per_minute",
+            limitName: "PerMinute",
+            location: "us-central1",
+            cadence: .perMinute,
+            usage: 25,
+            limit: 100,
+            usedPercent: 25)
+        let allocBucket = VertexAIQuotaBucketUsage(
+            quotaMetric: "aiplatform.googleapis.com/concurrent_requests",
+            limitName: "Concurrent",
+            location: "global",
+            cadence: .allocation,
+            usage: 60,
+            limit: 100,
+            usedPercent: 60)
+
+        let allocOnlyResponse = VertexAIUsageResponse(
+            requestsUsedPercent: 60,
+            tokensUsedPercent: nil,
+            resetsAt: nil,
+            resetDescription: nil,
+            rawData: nil,
+            rateQuotas: [],
+            allocationQuotas: [allocBucket],
+            highestRateQuota: nil,
+            highestAllocationQuota: allocBucket)
+        let rateFallback = VertexAIOAuthFetchStrategy.mapUsage(
+            allocOnlyResponse,
+            credentials: credentials,
+            settings: VertexAIProviderSettings(primaryBarMetric: .rateQuota))
+        #expect(rateFallback.primary?.title == "Allocation quota")
+        #expect(rateFallback.primary?.usedPercent == 60)
+        #expect(rateFallback.secondary == nil)
+
+        let rateOnlyResponse = VertexAIUsageResponse(
+            requestsUsedPercent: 25,
+            tokensUsedPercent: nil,
+            resetsAt: nil,
+            resetDescription: nil,
+            rawData: nil,
+            rateQuotas: [rateBucket],
+            allocationQuotas: [],
+            highestRateQuota: rateBucket,
+            highestAllocationQuota: nil)
+        let allocFallback = VertexAIOAuthFetchStrategy.mapUsage(
+            rateOnlyResponse,
+            credentials: credentials,
+            settings: VertexAIProviderSettings(primaryBarMetric: .allocationQuota))
+        #expect(allocFallback.primary?.title == "Rate quota (RPM)")
+        #expect(allocFallback.primary?.usedPercent == 25)
+        #expect(allocFallback.secondary == nil)
+    }
+
+    @Test
+    func `mapUsage clamps non-finite and extreme double quota values without trapping`() throws {
+        let credentials = VertexAIOAuthCredentials(
+            accessToken: "token",
+            refreshToken: "refresh",
+            clientId: "client",
+            clientSecret: "secret",
+            projectId: "proj-clamp",
+            email: "dev@example.com",
+            expiryDate: Date().addingTimeInterval(3600))
+        let buckets = [
+            VertexAIQuotaBucketUsage(
+                quotaMetric: "aiplatform.googleapis.com/inf_metric",
+                limitName: "Inf",
+                location: "us-central1",
+                cadence: .perMinute,
+                usage: 1e25,
+                limit: 1e-320,
+                usedPercent: .infinity),
+            VertexAIQuotaBucketUsage(
+                quotaMetric: "aiplatform.googleapis.com/nan_metric",
+                limitName: "NaN",
+                location: "global",
+                cadence: .perDay,
+                usage: -1e25,
+                limit: .nan,
+                usedPercent: .nan),
+            VertexAIQuotaBucketUsage(
+                quotaMetric: "aiplatform.googleapis.com/neg_inf_metric",
+                limitName: "NegInf",
+                location: "europe-west1",
+                cadence: .allocation,
+                usage: -.infinity,
+                limit: .infinity,
+                usedPercent: -.infinity),
+        ]
+        let response = VertexAIUsageResponse(
+            requestsUsedPercent: 100,
+            tokensUsedPercent: nil,
+            resetsAt: nil,
+            resetDescription: nil,
+            rawData: nil,
+            rateQuotas: [buckets[0], buckets[1]],
+            allocationQuotas: [buckets[2]],
+            highestRateQuota: buckets[0],
+            highestAllocationQuota: buckets[2])
+
+        let snapshot = VertexAIOAuthFetchStrategy.mapUsage(response, credentials: credentials)
+        let quotaSection = try #require(snapshot.details.first { $0.title == "Quota breakdown" })
+        #expect(quotaSection.rows.count == 3)
+        for row in quotaSection.rows {
+            #expect(!row.value.isEmpty)
+            if let usageValue = row.usageValue {
+                #expect(usageValue.isFinite)
+            }
+        }
+    }
+
+    @Test
+    func `online serving detail section surfaces total tokens total estimated cost and per-model rows`() throws {
+        let credentials = VertexAIOAuthCredentials(
+            accessToken: "token",
+            refreshToken: "refresh",
+            clientId: "client",
+            clientSecret: "secret",
+            projectId: "proj-serving",
+            email: "dev@example.com",
+            expiryDate: Date().addingTimeInterval(3600))
+        let serving = VertexAIOnlineServingSummary(
+            totalInvocations: 42,
+            inputTokens: 150_000,
+            outputTokens: 50000,
+            sharedInvocations: 30,
+            dedicatedInvocations: 12,
+            sharedTokens: 160_000,
+            dedicatedTokens: 40000,
+            estimatedCostUSD: 1.25,
+            hasUnpricedTokens: true,
+            models: [
+                VertexAIOnlineServingModelSummary(
+                    modelUserID: "claude-sonnet-4-5@20250929",
+                    location: "us-east5",
+                    publisher: "anthropic",
+                    requestType: "shared",
+                    invocations: 30,
+                    inputTokens: 120_000,
+                    outputTokens: 40000,
+                    estimatedCostUSD: 1.25),
+                VertexAIOnlineServingModelSummary(
+                    modelUserID: "gemini-2.5-pro",
+                    location: "us-central1",
+                    publisher: "google",
+                    requestType: "dedicated",
+                    invocations: 12,
+                    inputTokens: 30000,
+                    outputTokens: 10000,
+                    estimatedCostUSD: nil),
+            ])
+        let response = VertexAIUsageResponse(
+            requestsUsedPercent: 0,
+            tokensUsedPercent: nil,
+            resetsAt: nil,
+            resetDescription: nil,
+            rawData: nil,
+            onlineServingSummary: serving)
+
+        let snapshot = VertexAIOAuthFetchStrategy.mapUsage(response, credentials: credentials)
+        let section = try #require(snapshot.details.first { $0.title == "Online serving (24h)" })
+        #expect(section.rows.map(\.label) == [
+            "Invocations",
+            "Total tokens",
+            "Est. cost",
+            "claude-sonnet-4-5",
+            "gemini-2.5-pro",
+        ])
+
+        let totalTokensRow = try #require(section.rows.first { $0.label == "Total tokens" })
+        #expect(totalTokensRow.value == UsageFormatter.tokenCountString(200_000))
+        #expect(totalTokensRow.secondaryValue?.contains("In") == true)
+        #expect(totalTokensRow.secondaryValue?.contains("Out") == true)
+
+        let costRow = try #require(section.rows.first { $0.label == "Est. cost" })
+        #expect(costRow.value == "$1.25")
+        #expect(costRow.secondaryValue == "Partial estimate · excludes dedicated/unpriced")
+
+        let pricedModelRow = try #require(section.rows.first { $0.label == "claude-sonnet-4-5" })
+        #expect(pricedModelRow.value.contains("$1.25"))
+        #expect(pricedModelRow.value.contains("tokens"))
+        #expect(pricedModelRow.secondaryValue?.contains("30 req") == true)
+        #expect(pricedModelRow.secondaryValue?.contains("shared") == true)
+
+        let dedicatedModelRow = try #require(section.rows.first { $0.label == "gemini-2.5-pro" })
+        #expect(!dedicatedModelRow.value.contains("$"))
+        #expect(dedicatedModelRow.value.contains("tokens"))
+        #expect(dedicatedModelRow.secondaryValue?.contains("dedicated") == true)
+    }
+
+    @Test
+    func `fetch forwards estimateCloudCost and suppresses dollar estimates when disabled`() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vertex-est-cost-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let adcURL = dir.appendingPathComponent("application_default_credentials.json")
+        try """
+        {
+          "client_id": "cid",
+          "client_secret": "csecret",
+          "refresh_token": "rtoken",
+          "access_token": "valid-access",
+          "token_expiry": "2099-01-01T00:00:00Z"
+        }
+        """.write(to: adcURL, atomically: true, encoding: .utf8)
+
+        let labels = #""location":"us-east5","publisher":"anthropic","model_user_id":"claude-sonnet-4-5@20250929""#
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            let filter = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first { $0.name == "filter" }?.value ?? ""
+            let body = if filter.contains("online_serving/model_invocation_count") {
+                """
+                {"timeSeries":[
+                  {"metric":{"labels":{"request_type":"shared"}},
+                   "resource":{"labels":{\(labels)}},
+                   "points":[{"value":{"int64Value":"10"}}]}
+                ]}
+                """
+            } else if filter.contains("online_serving/token_count") {
+                """
+                {"timeSeries":[
+                  {"metric":{"labels":{"type":"input","request_type":"shared"}},
+                   "resource":{"labels":{\(labels)}},
+                   "points":[{"value":{"int64Value":"100000"}}]},
+                  {"metric":{"labels":{"type":"output","request_type":"shared"}},
+                   "resource":{"labels":{\(labels)}},
+                   "points":[{"value":{"int64Value":"20000"}}]}
+                ]}
+                """
+            } else {
+                #"{"timeSeries":[]}"#
+            }
+            let response = try #require(HTTPURLResponse(
+                url: url, statusCode: 200, httpVersion: nil, headerFields: nil))
+            return (Data(body.utf8), response)
+        }
+
+        func makeContext(estimateCloudCost: Bool) -> ProviderFetchContext {
+            ProviderFetchContext(
+                runtime: .app,
+                sourceMode: .auto,
+                includeCredits: false,
+                webTimeout: 5,
+                webDebugDumpHTML: false,
+                verbose: false,
+                env: [
+                    "CLOUDSDK_CONFIG": dir.path,
+                    "GOOGLE_CLOUD_PROJECT": "est-cost-proj",
+                ],
+                settings: ProviderSettingsSnapshot.make(
+                    vertexai: VertexAIProviderSettings(estimateCloudCost: estimateCloudCost)),
+                fetcher: UsageFetcher(environment: [:]),
+                claudeFetcher: ClaudeUsageFetcher(browserDetection: BrowserDetection(cacheTTL: 0)),
+                browserDetection: BrowserDetection(cacheTTL: 0))
+        }
+
+        let disabledResult = try await VertexAIOAuthFetchStrategy.$transportForTesting.withValue(transport) {
+            try await VertexAIOAuthFetchStrategy().fetch(makeContext(estimateCloudCost: false))
+        }
+        let disabledSection = try #require(disabledResult.usage.details.first { $0.title == "Online serving (24h)" })
+        #expect(!disabledSection.rows.contains { $0.label == "Est. cost" })
+        let disabledModelRow = try #require(disabledSection.rows.first { $0.label == "claude-sonnet-4-5" })
+        #expect(!disabledModelRow.value.contains("$"))
+        #expect(disabledModelRow.value.contains("tokens"))
+
+        let enabledResult = try await VertexAIOAuthFetchStrategy.$transportForTesting.withValue(transport) {
+            try await VertexAIOAuthFetchStrategy().fetch(makeContext(estimateCloudCost: true))
+        }
+        let enabledSection = try #require(enabledResult.usage.details.first { $0.title == "Online serving (24h)" })
+        #expect(enabledSection.rows.contains { $0.label == "Est. cost" })
+        let enabledModelRow = try #require(enabledSection.rows.first { $0.label == "claude-sonnet-4-5" })
+        #expect(enabledModelRow.value.contains("$"))
+    }
+}

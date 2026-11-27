@@ -788,6 +788,7 @@ enum CostUsagePricing {
         normalizedModel key: String,
         tokens: ClaudeCostTokens,
         pricingDate: Date?,
+        applyLongContextThreshold: Bool = true,
         modelsDevLookup: () -> ModelsDevPricingLookup?) -> Double?
     {
         if let pricingDate,
@@ -798,33 +799,37 @@ enum CostUsagePricing {
                 pricing: pricingDate < self.claudeFullContextStandardPricingCutoff
                     ? historicalPricing
                     : currentPricing,
-                tokens: tokens)
+                tokens: tokens,
+                applyLongContextThreshold: applyLongContextThreshold)
         }
         if let lookup = modelsDevLookup() {
             return self.claudeCostUSD(
                 pricing: lookup.pricing,
-                tokens: tokens)
+                tokens: tokens,
+                applyLongContextThreshold: applyLongContextThreshold)
         }
 
         guard let pricing = self.claude[key] else { return nil }
         return self.claudeCostUSD(
             pricing: pricing,
-            tokens: tokens)
+            tokens: tokens,
+            applyLongContextThreshold: applyLongContextThreshold)
     }
 
     private static func claudeCostUSD(
         pricing: ClaudePricing,
-        tokens: ClaudeCostTokens) -> Double
+        tokens: ClaudeCostTokens,
+        applyLongContextThreshold: Bool = true) -> Double
     {
         let input = max(0, tokens.input)
         let cacheRead = max(0, tokens.cacheRead)
         let cacheCreationTotal = max(0, tokens.cacheCreation)
         let cacheCreation1h = min(max(0, tokens.cacheCreation1h), cacheCreationTotal)
         let cacheCreation5m = cacheCreationTotal - cacheCreation1h
-        let usesLongContextRates = pricing.thresholdTokens.map { threshold in
+        let usesLongContextRates = applyLongContextThreshold && (pricing.thresholdTokens.map { threshold in
             // Nonnegative components that overflow necessarily exceed every representable threshold.
             CheckedSum.integers([input, cacheRead, cacheCreationTotal]).map { $0 > threshold } ?? true
-        } ?? false
+        } ?? false)
         let inputRate = usesLongContextRates
             ? pricing.inputCostPerTokenAboveThreshold ?? pricing.inputCostPerToken
             : pricing.inputCostPerToken
@@ -845,7 +850,11 @@ enum CostUsagePricing {
             + Double(max(0, tokens.output)) * outputRate
     }
 
-    static func claudeCostUSD(pricing: ModelsDevPricingInfo, tokens: ClaudeCostTokens) -> Double {
+    static func claudeCostUSD(
+        pricing: ModelsDevPricingInfo,
+        tokens: ClaudeCostTokens,
+        applyLongContextThreshold: Bool = true) -> Double
+    {
         // Provider-specific by design: OpenAI's threshold also applies to usage recorded by Claude Code.
         let bundledThreshold = pricing.providerID == self.codexModelsDevProviderID
             ? self.codex[self.normalizeCodexModel(pricing.modelID)]?.thresholdTokens
@@ -861,7 +870,8 @@ enum CostUsagePricing {
                 outputCostPerTokenAboveThreshold: pricing.outputCostPerTokenAboveThreshold,
                 cacheCreationInputCostPerTokenAboveThreshold: pricing.cacheCreationInputCostPerTokenAboveThreshold,
                 cacheReadInputCostPerTokenAboveThreshold: pricing.cacheReadInputCostPerTokenAboveThreshold),
-            tokens: tokens)
+            tokens: tokens,
+            applyLongContextThreshold: applyLongContextThreshold)
     }
 
     static func modelsDevCatalog(now: Date = Date(), cacheRoot: URL? = nil) -> ModelsDevCatalog? {
@@ -962,7 +972,8 @@ extension CostUsagePricing {
             cacheCreationInputTokens: Int,
             cacheCreationInputTokens1h: Int = 0,
             outputTokens: Int,
-            pricingDate: Date? = nil) -> Double?
+            pricingDate: Date? = nil,
+            applyLongContextThreshold: Bool = true) -> Double?
         {
             let tokens = ClaudeCostTokens(
                 input: inputTokens,
@@ -974,10 +985,18 @@ extension CostUsagePricing {
             if let providerID {
                 guard let lookup = self.prepareCatalog().pricing(providerID: providerID, modelID: model)
                 else { return nil }
-                return CostUsagePricing.claudeCostUSD(pricing: lookup.pricing, tokens: tokens)
+                return CostUsagePricing.claudeCostUSD(
+                    pricing: lookup.pricing,
+                    tokens: tokens,
+                    applyLongContextThreshold: applyLongContextThreshold)
             }
             let key = self.normalize(model)
-            return CostUsagePricing.claudeCostUSD(normalizedModel: key, tokens: tokens, pricingDate: pricingDate) {
+            return CostUsagePricing.claudeCostUSD(
+                normalizedModel: key,
+                tokens: tokens,
+                pricingDate: pricingDate,
+                applyLongContextThreshold: applyLongContextThreshold)
+            {
                 self.lookup(model)
             }
         }

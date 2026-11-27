@@ -127,6 +127,9 @@ struct DashboardSnapshotProducer: Sendable {
                             provider: provider,
                             antigravityAdditionalProfileHomes:
                             config.providerConfig(for: provider.instanceID)?.antigravityAdditionalProfileHomes ?? [],
+                            vertexAISettings:
+                            config.providerConfig(for: provider.instanceID)?.resolvedVertexAISettings
+                                ?? VertexAIProviderSettings(),
                             forceRefresh: false,
                             cursorCookieHeaderOverride: cursorCookieHeaderOverride,
                             refreshPricingInBackground: context.costRefreshesPricingInBackground,

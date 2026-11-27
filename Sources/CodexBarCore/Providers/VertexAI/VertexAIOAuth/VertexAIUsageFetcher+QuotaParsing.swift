@@ -1,0 +1,860 @@
+import Foundation
+
+extension VertexAIUsageFetcher {
+    struct MonitoringTimeSeriesResponse: Decodable {
+        let timeSeries: [MonitoringTimeSeries]?
+        let nextPageToken: String?
+    }
+
+    struct MonitoringTimeSeries: Decodable {
+        let metric: MonitoringMetric
+        let resource: MonitoringResource
+        let points: [MonitoringPoint]
+    }
+
+    struct MonitoringMetric: Decodable {
+        let type: String?
+        let labels: [String: String]?
+    }
+
+    struct MonitoringResource: Decodable {
+        let type: String?
+        let labels: [String: String]?
+    }
+
+    struct MonitoringInterval: Decodable {
+        let startTime: String?
+        let endTime: String?
+    }
+
+    struct MonitoringPoint: Decodable {
+        let interval: MonitoringInterval?
+        let value: MonitoringValue
+    }
+
+    struct MonitoringValue: Decodable {
+        let doubleValue: Double?
+        let int64Value: String?
+        let boolValue: Bool?
+    }
+
+    struct QuotaKey: Hashable {
+        let quotaMetric: String
+        let limitName: String
+        let location: String
+        let baseModel: String?
+
+        init(quotaMetric: String, limitName: String, location: String, baseModel: String? = nil) {
+            self.quotaMetric = quotaMetric
+            self.limitName = limitName
+            self.location = location
+            self.baseModel = baseModel
+        }
+    }
+
+    struct ConsumerQuotaMetricsResponse: Decodable {
+        let metrics: [ConsumerQuotaMetric]?
+        let nextPageToken: String?
+    }
+
+    struct ConsumerQuotaMetric: Decodable {
+        let metric: String?
+        let displayName: String?
+        let consumerQuotaLimits: [ConsumerQuotaLimit]?
+    }
+
+    struct ConsumerQuotaLimit: Decodable {
+        let name: String?
+        let metric: String?
+        let unit: String?
+        let quotaBuckets: [ConsumerQuotaBucket]?
+    }
+
+    struct ConsumerQuotaBucket: Decodable {
+        let effectiveLimit: String?
+        let defaultLimit: String?
+        let dimensions: [String: String]?
+    }
+
+    struct ConsumerQuotaBucketInfo: Equatable {
+        let limitName: String
+        let unit: String?
+        let region: String?
+        let baseModel: String?
+        let effectiveLimit: Double
+        let cadence: VertexAIQuotaCadence
+    }
+
+    struct ConsumerQuotaMetricInfo {
+        let displayName: String?
+        let buckets: [ConsumerQuotaBucketInfo]
+
+        func matchingBucket(
+            limitName: String,
+            location: String,
+            baseModelFilter: String?) -> ConsumerQuotaBucketInfo?
+        {
+            let matching = self.buckets.filter { bucket in
+                (limitName.isEmpty || bucket.limitName.isEmpty || bucket.limitName == limitName)
+                    && (bucket.region == nil || bucket.region?.caseInsensitiveCompare(location) == .orderedSame)
+                    && VertexAIUsageFetcher.matchesModelFilter(bucket.baseModel, filter: baseModelFilter)
+            }
+            let candidates: [ConsumerQuotaBucketInfo]
+            if baseModelFilter == nil {
+                let nonModel = matching.filter { $0.baseModel == nil }
+                candidates = nonModel.isEmpty ? matching : nonModel
+            } else {
+                candidates = matching
+            }
+            return candidates.max { lhs, rhs in
+                let lhsScore = (lhs.region != nil ? 2 : 0) + (lhs.baseModel != nil ? 1 : 0)
+                let rhsScore = (rhs.region != nil ? 2 : 0) + (rhs.baseModel != nil ? 1 : 0)
+                return lhsScore < rhsScore
+            }
+        }
+
+        func rateCandidates(location: String, baseModelFilter: String?) -> [ConsumerQuotaBucketInfo] {
+            let rateBuckets = self.buckets.filter { bucket in
+                VertexAIUsageFetcher.explicitCadence(unit: bucket.unit, limitName: bucket.limitName) != nil
+            }
+            let filtered = rateBuckets.filter { bucket in
+                (bucket.region == nil || bucket.region?.caseInsensitiveCompare(location) == .orderedSame)
+                    && VertexAIUsageFetcher.matchesModelFilter(bucket.baseModel, filter: baseModelFilter)
+            }
+            let scoped: [ConsumerQuotaBucketInfo]
+            if baseModelFilter == nil {
+                let nonModel = filtered.filter { $0.baseModel == nil }
+                scoped = nonModel.isEmpty ? filtered : nonModel
+            } else {
+                scoped = filtered
+            }
+            var bestByKey: [String: ConsumerQuotaBucketInfo] = [:]
+            for bucket in scoped {
+                let key = "\(bucket.limitName)|\(bucket.baseModel ?? "")"
+                let existing = bestByKey[key]
+                let candidateSpecificity = (bucket.region != nil ? 2 : 0) + (bucket.baseModel != nil ? 1 : 0)
+                let existingSpecificity = existing.map { ($0.region != nil ? 2 : 0) + ($0.baseModel != nil ? 1 : 0) }
+                    ?? -1
+                if candidateSpecificity > existingSpecificity {
+                    bestByKey[key] = bucket
+                }
+            }
+            return Array(bestByKey.values)
+        }
+
+        func distinctBaseModelCount(limitName: String, location: String) -> Int {
+            let models = self.buckets.compactMap { bucket -> String? in
+                guard limitName.isEmpty || bucket.limitName.isEmpty || bucket.limitName == limitName,
+                      bucket.region == nil || bucket.region?.caseInsensitiveCompare(location) == .orderedSame,
+                      let baseModel = bucket.baseModel?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !baseModel.isEmpty
+                else {
+                    return nil
+                }
+                return VertexAIUsageFetcher.normalizedModelName(baseModel).lowercased()
+            }
+            return Set(models).count
+        }
+    }
+
+    struct SnapshotInputs {
+        let allocationSeries: [MonitoringTimeSeries]
+        let rateSeries: [MonitoringTimeSeries]
+        let limitSeries: [MonitoringTimeSeries]
+        let exceededSeries: [MonitoringTimeSeries]
+        let consumerMetrics: [ConsumerQuotaMetric]
+        let onlineServingSummary: VertexAIOnlineServingSummary?
+        let options: VertexAIQueryOptions
+        let now: Date
+    }
+
+    private struct BucketBuildContext {
+        let limitByKey: [QuotaKey: Double]
+        let exceededByKey: [QuotaKey: Double]
+        let metadataIndex: [String: ConsumerQuotaMetricInfo]
+        let options: VertexAIQueryOptions
+        let now: Date
+    }
+
+    static func makeQuotaUsageResponse(
+        usageSeries: [MonitoringTimeSeries],
+        limitSeries: [MonitoringTimeSeries]) throws -> VertexAIUsageResponse
+    {
+        let usageByKey = Self.aggregate(series: usageSeries)
+        let limitByKey = Self.aggregate(series: limitSeries)
+
+        guard !usageByKey.isEmpty, !limitByKey.isEmpty else {
+            throw VertexAIFetchError.noData
+        }
+
+        var maxPercent: Double?
+        var matchedCount = 0
+        var matchedUsageKeys: Set<QuotaKey> = []
+        var matchedLimitKeys: Set<QuotaKey> = []
+        for (usageKey, usage) in usageByKey {
+            guard let (limitKey, limit) = Self.matchingLimit(
+                for: usageKey,
+                in: limitByKey)
+            else { continue }
+            matchedUsageKeys.insert(usageKey)
+            matchedLimitKeys.insert(limitKey)
+            matchedCount += 1
+            let percent = (usage / limit) * 100.0
+            maxPercent = max(maxPercent ?? percent, percent)
+        }
+
+        guard let usedPercent = maxPercent, matchedCount > 0 else {
+            throw VertexAIFetchError.noData
+        }
+
+        let unmatchedUsage = Set(usageByKey.keys).subtracting(matchedUsageKeys).count
+        let unmatchedLimit = Set(limitByKey.keys).subtracting(matchedLimitKeys).count
+        Self.log.debug("Quota series preview", metadata: [
+            "usageKeys": Self.previewKeys(usageByKey),
+            "limitKeys": Self.previewKeys(limitByKey),
+        ])
+        Self.log.info("Parsed quota", metadata: [
+            "usedPercent": "\(usedPercent)",
+            "usageSeries": "\(usageByKey.count)",
+            "limitSeries": "\(limitByKey.count)",
+            "matchedSeries": "\(matchedCount)",
+            "unmatchedUsage": "\(unmatchedUsage)",
+            "unmatchedLimit": "\(unmatchedLimit)",
+        ])
+
+        return VertexAIUsageResponse(
+            requestsUsedPercent: usedPercent,
+            tokensUsedPercent: nil,
+            resetsAt: nil,
+            resetDescription: nil,
+            rawData: nil)
+    }
+
+    static func makeSnapshotUsageResponse(_ inputs: SnapshotInputs) throws -> VertexAIUsageResponse {
+        let context = BucketBuildContext(
+            limitByKey: Self.aggregate(series: inputs.limitSeries),
+            exceededByKey: Self.aggregateSum(series: inputs.exceededSeries),
+            metadataIndex: Self.buildConsumerQuotaIndex(metrics: inputs.consumerMetrics),
+            options: inputs.options,
+            now: inputs.now)
+
+        let allocationBuckets = Self.buildAllocationBuckets(
+            usageByKey: Self.aggregate(series: inputs.allocationSeries),
+            context: context)
+        let rateBuckets = Self.buildRateBuckets(
+            rateSeries: inputs.rateSeries,
+            context: context)
+
+        let hasServing = (inputs.onlineServingSummary?.totalInvocations ?? 0) > 0
+            || (inputs.onlineServingSummary?.totalTokens ?? 0) > 0
+        guard !allocationBuckets.isEmpty || !rateBuckets.isEmpty || hasServing else {
+            throw VertexAIFetchError.noData
+        }
+
+        let highestRate = rateBuckets.max { Self.bucketRank($0, $1) }
+        let highestAllocation = allocationBuckets.max { Self.bucketRank($0, $1) }
+        let overallPercent = [highestRate?.usedPercent, highestAllocation?.usedPercent]
+            .compactMap(\.self)
+            .max() ?? 0
+        let tokenPercent = rateBuckets
+            .filter(\.isTokenQuota)
+            .max { Self.bucketRank($0, $1) }?.usedPercent
+        let totalExceeded = context.exceededByKey.reduce(0) { partial, entry in
+            guard Self.matchesLocationFilter(entry.key.location, filter: context.options.locationFilter) else {
+                return partial
+            }
+            return partial + Int(entry.value.rounded())
+        }
+
+        return VertexAIUsageResponse(
+            requestsUsedPercent: overallPercent,
+            tokensUsedPercent: tokenPercent,
+            resetsAt: highestRate?.resetsAt,
+            resetDescription: nil,
+            rawData: nil,
+            rateQuotas: rateBuckets.sorted { Self.bucketRank($1, $0) },
+            allocationQuotas: allocationBuckets.sorted { Self.bucketRank($1, $0) },
+            highestRateQuota: highestRate,
+            highestAllocationQuota: highestAllocation,
+            totalExceededCount: totalExceeded,
+            onlineServingSummary: hasServing ? inputs.onlineServingSummary : nil)
+    }
+
+    private static func bucketRank(_ lhs: VertexAIQuotaBucketUsage, _ rhs: VertexAIQuotaBucketUsage) -> Bool {
+        let lhsPercent = lhs.usedPercent.isFinite ? lhs.usedPercent : -Double.infinity
+        let rhsPercent = rhs.usedPercent.isFinite ? rhs.usedPercent : -Double.infinity
+        if lhsPercent != rhsPercent {
+            return lhsPercent < rhsPercent
+        }
+        if lhs.exceededCount != rhs.exceededCount {
+            return lhs.exceededCount < rhs.exceededCount
+        }
+        if lhs.quotaMetric != rhs.quotaMetric {
+            return lhs.quotaMetric > rhs.quotaMetric
+        }
+        if lhs.limitName != rhs.limitName {
+            return lhs.limitName > rhs.limitName
+        }
+        if lhs.location != rhs.location {
+            return lhs.location > rhs.location
+        }
+        let lhsModel = lhs.baseModel ?? ""
+        let rhsModel = rhs.baseModel ?? ""
+        if lhsModel != rhsModel {
+            return lhsModel > rhsModel
+        }
+        return lhs.cadence.rawValue > rhs.cadence.rawValue
+    }
+
+    private static func buildAllocationBuckets(
+        usageByKey: [QuotaKey: Double],
+        context: BucketBuildContext) -> [VertexAIQuotaBucketUsage]
+    {
+        var results: [VertexAIQuotaBucketUsage] = []
+        for (usageKey, usage) in usageByKey {
+            guard Self.matchesLocationFilter(usageKey.location, filter: context.options.locationFilter) else {
+                continue
+            }
+            if let seriesBaseModel = usageKey.baseModel,
+               !Self.matchesModelFilter(seriesBaseModel, filter: context.options.baseModelFilter)
+            {
+                continue
+            }
+
+            let monitoringLimitMatch = Self.matchingLimit(for: usageKey, in: context.limitByKey)
+            let resolvedLimitName = monitoringLimitMatch?.key.limitName ?? usageKey.limitName
+            let meta = context.metadataIndex[usageKey.quotaMetric]
+            let candidateModelFilter = context.options.baseModelFilter ?? usageKey.baseModel
+            let bucketMeta = meta?.matchingBucket(
+                limitName: resolvedLimitName,
+                location: usageKey.location,
+                baseModelFilter: candidateModelFilter)
+
+            if let seriesBaseModel = usageKey.baseModel {
+                if let metaBaseModel = bucketMeta?.baseModel,
+                   !Self.matchesModelFilter(metaBaseModel, filter: seriesBaseModel)
+                {
+                    continue
+                }
+            } else {
+                if context.options.baseModelFilter != nil, bucketMeta?.baseModel == nil {
+                    continue
+                }
+                if bucketMeta?.baseModel != nil {
+                    let metaModelCount = meta?.distinctBaseModelCount(
+                        limitName: resolvedLimitName,
+                        location: usageKey.location) ?? 0
+                    let limitModelCount = Self.distinctLimitBaseModelCount(
+                        quotaMetric: usageKey.quotaMetric,
+                        limitName: resolvedLimitName,
+                        location: usageKey.location,
+                        in: context.limitByKey)
+                    if max(metaModelCount, limitModelCount) > 1 {
+                        continue
+                    }
+                }
+            }
+
+            let resolvedBaseModel = bucketMeta?.baseModel ?? usageKey.baseModel
+            let effectiveLimit = bucketMeta?.effectiveLimit ?? monitoringLimitMatch?.value
+            guard let effectiveLimit, effectiveLimit > 0 else { continue }
+            let exceeded = Self.matchingExceeded(
+                quotaMetric: usageKey.quotaMetric,
+                limitName: resolvedLimitName,
+                location: usageKey.location,
+                baseModel: resolvedBaseModel,
+                in: context.exceededByKey)
+            results.append(VertexAIQuotaBucketUsage(
+                quotaMetric: usageKey.quotaMetric,
+                limitName: resolvedLimitName,
+                displayName: meta?.displayName,
+                location: usageKey.location,
+                baseModel: resolvedBaseModel,
+                cadence: .allocation,
+                usage: usage,
+                limit: effectiveLimit,
+                usedPercent: (usage / effectiveLimit) * 100.0,
+                exceededCount: exceeded,
+                unit: bucketMeta?.unit,
+                resetsAt: nil))
+        }
+        return results
+    }
+
+    private static func distinctLimitBaseModelCount(
+        quotaMetric: String,
+        limitName: String,
+        location: String,
+        in limitByKey: [QuotaKey: Double]) -> Int
+    {
+        let models = limitByKey.compactMap { key, limit -> String? in
+            guard limit > 0,
+                  key.quotaMetric == quotaMetric,
+                  key.location == location,
+                  limitName.isEmpty || key.limitName.isEmpty || key.limitName == limitName,
+                  let baseModel = key.baseModel
+            else {
+                return nil
+            }
+            return baseModel
+        }
+        return Set(models).count
+    }
+
+    private struct RateSeriesKey: Hashable {
+        let quotaMetric: String
+        let limitName: String
+        let location: String
+        let baseModel: String?
+    }
+
+    private struct RateBucketPoint {
+        let date: Date?
+        let value: Double
+    }
+
+    private static func buildRateBuckets(
+        rateSeries: [MonitoringTimeSeries],
+        context: BucketBuildContext) -> [VertexAIQuotaBucketUsage]
+    {
+        let summedByBucket = Self.summedRateBuckets(
+            rateSeries: rateSeries,
+            locationFilter: context.options.locationFilter)
+        let startOfPacificDay = Self.startOfPacificDay(for: context.now)
+        let nextPacificMidnight = Self.nextPacificMidnight(after: context.now)
+        var results: [VertexAIQuotaBucketUsage] = []
+
+        for (rateKey, buckets) in summedByBucket {
+            if let seriesBaseModel = rateKey.baseModel,
+               !Self.matchesModelFilter(seriesBaseModel, filter: context.options.baseModelFilter)
+            {
+                continue
+            }
+            let peakPerMinute = buckets.values.map(\.value).max() ?? 0
+            let pacificDailySum = buckets.values.reduce(0.0) { partial, point in
+                if let date = point.date, date < startOfPacificDay {
+                    return partial
+                }
+                return partial + point.value
+            }
+
+            let meta = context.metadataIndex[rateKey.quotaMetric]
+            let candidateModelFilter = context.options.baseModelFilter ?? rateKey.baseModel
+            let consumerCandidates = meta?.rateCandidates(
+                location: rateKey.location,
+                baseModelFilter: candidateModelFilter) ?? []
+
+            if !consumerCandidates.isEmpty {
+                let exactMatches = consumerCandidates.filter { candidate in
+                    rateKey.limitName.isEmpty || rateKey.limitName == candidate.limitName
+                }
+                let limitCompatibleCandidates: [ConsumerQuotaBucketInfo] = if !exactMatches.isEmpty {
+                    exactMatches
+                } else {
+                    consumerCandidates.filter { candidate in
+                        Self.isCompatibleRateLimitName(rateKey.limitName, candidate: candidate)
+                    }
+                }
+                if !limitCompatibleCandidates.isEmpty {
+                    let matchingCandidates = limitCompatibleCandidates.filter { candidate in
+                        if let seriesBaseModel = rateKey.baseModel {
+                            return Self.matchesModelFilter(candidate.baseModel, filter: seriesBaseModel)
+                        }
+                        if candidate.baseModel != nil {
+                            let modelCount = meta?.distinctBaseModelCount(
+                                limitName: candidate.limitName,
+                                location: rateKey.location) ?? 0
+                            return modelCount <= 1
+                        }
+                        return true
+                    }
+                    for candidate in matchingCandidates {
+                        let lookupLimitName = rateKey.limitName.isEmpty ? candidate.limitName : rateKey.limitName
+                        let monitoringLimit: Double? = if candidate.baseModel == nil {
+                            Self.matchingMonitoringLimit(
+                                quotaMetric: rateKey.quotaMetric,
+                                limitName: lookupLimitName,
+                                location: rateKey.location,
+                                in: context.limitByKey)
+                        } else {
+                            nil
+                        }
+                        let resolvedLimit = monitoringLimit ?? candidate.effectiveLimit
+                        guard resolvedLimit > 0 else { continue }
+                        let usage = candidate.cadence == .perDay ? pacificDailySum : peakPerMinute
+                        let exceeded = Self.matchingExceeded(
+                            quotaMetric: rateKey.quotaMetric,
+                            limitName: lookupLimitName,
+                            location: rateKey.location,
+                            baseModel: candidate.baseModel,
+                            in: context.exceededByKey)
+                        results.append(VertexAIQuotaBucketUsage(
+                            quotaMetric: rateKey.quotaMetric,
+                            limitName: lookupLimitName,
+                            displayName: meta?.displayName,
+                            location: rateKey.location,
+                            baseModel: candidate.baseModel,
+                            cadence: candidate.cadence,
+                            usage: usage,
+                            limit: resolvedLimit,
+                            usedPercent: (usage / resolvedLimit) * 100.0,
+                            exceededCount: exceeded,
+                            unit: candidate.unit,
+                            resetsAt: candidate.cadence == .perDay ? nextPacificMidnight : nil))
+                    }
+                    continue
+                }
+            }
+
+            guard context.options.baseModelFilter == nil, rateKey.baseModel == nil else { continue }
+
+            let matchingLimits = context.limitByKey.filter { key, limit in
+                limit > 0
+                    && key.quotaMetric == rateKey.quotaMetric
+                    && key.location == rateKey.location
+                    && (rateKey.limitName.isEmpty || rateKey.limitName == key.limitName)
+            }
+            for (limitKey, limit) in matchingLimits {
+                let cadence = Self.inferredCadence(unit: nil, limitName: limitKey.limitName)
+                let usage = cadence == .perDay ? pacificDailySum : peakPerMinute
+                let exceeded = Self.matchingExceeded(
+                    quotaMetric: rateKey.quotaMetric,
+                    limitName: limitKey.limitName,
+                    location: rateKey.location,
+                    in: context.exceededByKey)
+                results.append(VertexAIQuotaBucketUsage(
+                    quotaMetric: rateKey.quotaMetric,
+                    limitName: limitKey.limitName,
+                    displayName: meta?.displayName,
+                    location: rateKey.location,
+                    baseModel: nil,
+                    cadence: cadence,
+                    usage: usage,
+                    limit: limit,
+                    usedPercent: (usage / limit) * 100.0,
+                    exceededCount: exceeded,
+                    unit: nil,
+                    resetsAt: cadence == .perDay ? nextPacificMidnight : nil))
+            }
+        }
+        return results
+    }
+
+    private static func summedRateBuckets(
+        rateSeries: [MonitoringTimeSeries],
+        locationFilter: String?) -> [RateSeriesKey: [String: RateBucketPoint]]
+    {
+        var summedByBucket: [RateSeriesKey: [String: RateBucketPoint]] = [:]
+        for series in rateSeries {
+            let metricLabels = series.metric.labels ?? [:]
+            let resourceLabels = series.resource.labels ?? [:]
+            guard let quotaMetric = metricLabels["quota_metric"] ?? resourceLabels["quota_id"],
+                  !quotaMetric.isEmpty
+            else { continue }
+            let location = resourceLabels["location"] ?? "global"
+            guard Self.matchesLocationFilter(location, filter: locationFilter) else { continue }
+
+            let limitName = metricLabels["limit_name"] ?? ""
+            let rawBaseModel = (metricLabels["base_model"] ?? resourceLabels["base_model"])?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let baseModel = (rawBaseModel?.isEmpty == false)
+                ? Self.normalizedModelName(rawBaseModel!).lowercased()
+                : nil
+            let key = RateSeriesKey(
+                quotaMetric: quotaMetric,
+                limitName: limitName,
+                location: location,
+                baseModel: baseModel)
+            for (index, point) in series.points.enumerated() {
+                guard let value = Self.pointValue(from: point), value.isFinite else { continue }
+                let date = Self.pointDate(from: point)
+                let bucketKey = if let date {
+                    String(Int64((date.timeIntervalSince1970 / 60.0).rounded(.down)))
+                } else {
+                    "idx-\(index)"
+                }
+                let existing = summedByBucket[key]?[bucketKey]
+                summedByBucket[key, default: [:]][bucketKey] = RateBucketPoint(
+                    date: existing?.date ?? date,
+                    value: (existing?.value ?? 0) + value)
+            }
+        }
+        return summedByBucket
+    }
+
+    private static func matchingMonitoringLimit(
+        quotaMetric: String,
+        limitName: String,
+        location: String,
+        in limitByKey: [QuotaKey: Double]) -> Double?
+    {
+        if !limitName.isEmpty,
+           let exact = limitByKey[QuotaKey(quotaMetric: quotaMetric, limitName: limitName, location: location)],
+           exact > 0
+        {
+            return exact
+        }
+        if limitName.isEmpty {
+            let candidates = limitByKey.filter { key, limit in
+                limit > 0 && key.quotaMetric == quotaMetric && key.location == location && key.baseModel == nil
+            }
+            if candidates.count == 1 {
+                return candidates.first?.value
+            }
+        }
+        return nil
+    }
+
+    private static func matchingExceeded(
+        quotaMetric: String,
+        limitName: String,
+        location: String,
+        baseModel: String? = nil,
+        in exceededByKey: [QuotaKey: Double]) -> Int
+    {
+        let normalizedBaseModel = baseModel.map { Self.normalizedModelName($0).lowercased() }
+        if !limitName.isEmpty,
+           let exact = exceededByKey[QuotaKey(
+               quotaMetric: quotaMetric,
+               limitName: limitName,
+               location: location,
+               baseModel: normalizedBaseModel)]
+        {
+            return Int(exact.rounded())
+        }
+        let matching = exceededByKey.filter { key, _ in
+            key.quotaMetric == quotaMetric && key.location == location
+                && (limitName.isEmpty || key.limitName.isEmpty || key.limitName == limitName)
+                && (normalizedBaseModel == nil || key.baseModel == nil || key.baseModel == normalizedBaseModel)
+        }
+        return Int(matching.values.reduce(0, +).rounded())
+    }
+
+    private static func matchingLimit(
+        for usageKey: QuotaKey,
+        in limitByKey: [QuotaKey: Double]) -> (key: QuotaKey, value: Double)?
+    {
+        if let exactLimit = limitByKey[usageKey], exactLimit > 0 {
+            return (usageKey, exactLimit)
+        }
+
+        guard usageKey.limitName.isEmpty else { return nil }
+        let candidates = limitByKey.filter { limitKey, limit in
+            limit > 0
+                && limitKey.quotaMetric == usageKey.quotaMetric
+                && limitKey.location == usageKey.location
+                && limitKey.baseModel == usageKey.baseModel
+        }
+        guard candidates.count == 1, let candidate = candidates.first else { return nil }
+        return candidate
+    }
+
+    private static func buildConsumerQuotaIndex(metrics: [ConsumerQuotaMetric]) -> [String: ConsumerQuotaMetricInfo] {
+        var index: [String: ConsumerQuotaMetricInfo] = [:]
+        for metric in metrics {
+            guard let metricName = metric.metric, !metricName.isEmpty else { continue }
+            var buckets: [ConsumerQuotaBucketInfo] = []
+            for limit in metric.consumerQuotaLimits ?? [] {
+                let limitName = Self.extractLimitName(from: limit.name)
+                let cadence = Self.inferredCadence(unit: limit.unit, limitName: limitName)
+                for bucket in limit.quotaBuckets ?? [] {
+                    let rawLimit = bucket.effectiveLimit ?? bucket.defaultLimit
+                    guard let rawLimit, let numericLimit = Double(rawLimit),
+                          numericLimit.isFinite, numericLimit > 0
+                    else { continue }
+                    let dimensions = bucket.dimensions ?? [:]
+                    buckets.append(ConsumerQuotaBucketInfo(
+                        limitName: limitName,
+                        unit: limit.unit,
+                        region: dimensions["region"] ?? dimensions["location"],
+                        baseModel: dimensions["base_model"],
+                        effectiveLimit: numericLimit,
+                        cadence: cadence))
+                }
+            }
+            let existing = index[metricName]
+            let existingDisplayName = existing?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let incomingDisplayName = metric.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let mergedDisplayName: String? = if let existingDisplayName, !existingDisplayName.isEmpty {
+                existing?.displayName
+            } else if let incomingDisplayName, !incomingDisplayName.isEmpty {
+                metric.displayName
+            } else {
+                existing?.displayName ?? metric.displayName
+            }
+            var mergedBuckets = existing?.buckets ?? []
+            for bucket in buckets where !mergedBuckets.contains(bucket) {
+                mergedBuckets.append(bucket)
+            }
+            index[metricName] = ConsumerQuotaMetricInfo(displayName: mergedDisplayName, buckets: mergedBuckets)
+        }
+        return index
+    }
+
+    private static func extractLimitName(from resourceName: String?) -> String {
+        guard let resourceName, !resourceName.isEmpty else { return "" }
+        if let range = resourceName.range(of: "/limits/") {
+            return String(resourceName[range.upperBound...])
+        }
+        return resourceName.split(separator: "/").last.map(String.init) ?? ""
+    }
+
+    static func matchesLocationFilter(_ location: String, filter: String?) -> Bool {
+        guard let filter = filter?.trimmingCharacters(in: .whitespacesAndNewlines), !filter.isEmpty else {
+            return true
+        }
+        return location.caseInsensitiveCompare(filter) == .orderedSame
+    }
+
+    static func matchesModelFilter(_ model: String?, filter: String?) -> Bool {
+        guard let filter = filter?.trimmingCharacters(in: .whitespacesAndNewlines), !filter.isEmpty else {
+            return true
+        }
+        guard let model = model?.trimmingCharacters(in: .whitespacesAndNewlines), !model.isEmpty else {
+            return false
+        }
+        let normalizedModel = Self.normalizedModelName(model)
+        let normalizedFilter = Self.normalizedModelName(filter)
+        return model.caseInsensitiveCompare(filter) == .orderedSame
+            || normalizedModel.caseInsensitiveCompare(normalizedFilter) == .orderedSame
+    }
+
+    static func normalizedModelName(_ rawModel: String) -> String {
+        var trimmed = rawModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let range = trimmed.range(of: "/models/") {
+            trimmed = String(trimmed[range.upperBound...])
+        }
+        if let atIndex = trimmed.firstIndex(of: "@") {
+            trimmed = String(trimmed[..<atIndex])
+        }
+        return trimmed
+    }
+
+    private static func isOpaqueServiceUsageLimitName(_ limitName: String) -> Bool {
+        let decoded = limitName.removingPercentEncoding ?? limitName
+        return decoded.hasPrefix("/")
+    }
+
+    private static func isCompatibleRateLimitName(
+        _ seriesLimitName: String,
+        candidate: ConsumerQuotaBucketInfo) -> Bool
+    {
+        if seriesLimitName.isEmpty || seriesLimitName == candidate.limitName {
+            return true
+        }
+        guard self.isOpaqueServiceUsageLimitName(candidate.limitName),
+              let seriesCadence = explicitCadence(unit: nil, limitName: seriesLimitName)
+        else {
+            return false
+        }
+        return seriesCadence == candidate.cadence
+    }
+
+    static func explicitCadence(unit: String?, limitName: String) -> VertexAIQuotaCadence? {
+        let normalizedUnit = unit?.lowercased() ?? ""
+        let decodedLimit = (limitName.removingPercentEncoding ?? limitName).lowercased()
+        if normalizedUnit.contains("/d/") || normalizedUnit.hasSuffix("/d")
+            || decodedLimit.contains("perday") || decodedLimit.contains("per_day")
+            || decodedLimit.contains("/d/") || decodedLimit.hasSuffix("/d") || decodedLimit.hasPrefix("/d")
+        {
+            return .perDay
+        }
+        if normalizedUnit.contains("/min")
+            || decodedLimit.contains("perminute") || decodedLimit.contains("per_minute")
+            || decodedLimit.contains("/min")
+        {
+            return .perMinute
+        }
+        return nil
+    }
+
+    static func inferredCadence(unit: String?, limitName: String) -> VertexAIQuotaCadence {
+        self.explicitCadence(unit: unit, limitName: limitName) ?? .perMinute
+    }
+
+    static func startOfPacificDay(for date: Date) -> Date {
+        let tz = TimeZone(identifier: "America/Los_Angeles") ?? TimeZone(secondsFromGMT: -8 * 3600)!
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = tz
+        return calendar.startOfDay(for: date)
+    }
+
+    static func nextPacificMidnight(after date: Date) -> Date {
+        let tz = TimeZone(identifier: "America/Los_Angeles") ?? TimeZone(secondsFromGMT: -8 * 3600)!
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = tz
+        let startOfToday = calendar.startOfDay(for: date)
+        return calendar.date(byAdding: .day, value: 1, to: startOfToday)
+            ?? startOfToday.addingTimeInterval(24 * 60 * 60)
+    }
+
+    private static func aggregate(series: [MonitoringTimeSeries]) -> [QuotaKey: Double] {
+        var buckets: [QuotaKey: Double] = [:]
+
+        for entry in series {
+            guard let key = Self.quotaKey(from: entry),
+                  let value = entry.points.compactMap(Self.pointValue).max()
+            else {
+                continue
+            }
+            buckets[key] = max(buckets[key] ?? 0, value)
+        }
+
+        return buckets
+    }
+
+    private static func aggregateSum(series: [MonitoringTimeSeries]) -> [QuotaKey: Double] {
+        var buckets: [QuotaKey: Double] = [:]
+
+        for entry in series {
+            guard let key = Self.quotaKey(from: entry) else { continue }
+            let total = entry.points.compactMap(Self.pointValue).reduce(0, +)
+            buckets[key] = (buckets[key] ?? 0) + total
+        }
+
+        return buckets
+    }
+
+    private static func quotaKey(from series: MonitoringTimeSeries) -> QuotaKey? {
+        let metricLabels = series.metric.labels ?? [:]
+        let resourceLabels = series.resource.labels ?? [:]
+        let quotaMetric = metricLabels["quota_metric"]
+            ?? resourceLabels["quota_id"]
+        guard let quotaMetric, !quotaMetric.isEmpty else { return nil }
+        let limitName = metricLabels["limit_name"] ?? ""
+        let location = resourceLabels["location"] ?? "global"
+        let rawBaseModel = (metricLabels["base_model"] ?? resourceLabels["base_model"])?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let baseModel = (rawBaseModel?.isEmpty == false)
+            ? Self.normalizedModelName(rawBaseModel!).lowercased()
+            : nil
+        return QuotaKey(quotaMetric: quotaMetric, limitName: limitName, location: location, baseModel: baseModel)
+    }
+
+    static func pointValue(from point: MonitoringPoint) -> Double? {
+        if let doubleValue = point.value.doubleValue {
+            return doubleValue
+        }
+        if let int64Value = point.value.int64Value {
+            return Double(int64Value)
+        }
+        if let boolValue = point.value.boolValue {
+            return boolValue ? 1.0 : 0.0
+        }
+        return nil
+    }
+
+    static func pointDate(from point: MonitoringPoint) -> Date? {
+        CostUsageDateParser.parse(point.interval?.startTime)
+            ?? CostUsageDateParser.parse(point.interval?.endTime)
+    }
+
+    private static func previewKeys(_ map: [QuotaKey: Double], maxCount: Int = 3) -> String {
+        guard !map.isEmpty else { return "none" }
+        let keys = map.keys.prefix(maxCount).map { key in
+            "\(key.quotaMetric)|\(key.limitName)|\(key.location)"
+        }
+        let suffix = map.count > maxCount ? " +\(map.count - maxCount)" : ""
+        return keys.joined(separator: ", ") + suffix
+    }
+}

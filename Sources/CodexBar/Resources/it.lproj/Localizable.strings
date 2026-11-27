@@ -2876,3 +2876,31 @@
 "MiMo is rate limiting requests. Try again later." = "MiMo sta limitando la frequenza delle richieste. Riprova più tardi.";
 "MiMo request failed. Try refreshing later." = "La richiesta a MiMo non è riuscita. Riprova ad aggiornare più tardi.";
 "Skip cost refresh" = "Salta l’aggiornamento dei costi";
+
+/* Vertex AI parity */
+"vertexai_cost_estimate_hint" = "Stimato da Cloud Monitoring e dai log di Claude-on-Vertex · può differire dalla fattura GCP";
+"vertexai_cloud_cost_estimate_hint" = "Stimato da token_count di Cloud Monitoring × tariffe API pubbliche · esclude il throughput dedicato";
+"Quota breakdown" = "Dettaglio quote";
+"Online serving (24h)" = "Erogazione online (24h)";
+"Active filter" = "Filtro attivo";
+"Invocations" = "Invocazioni";
+"Total tokens" = "Token totali";
+"Est. cost" = "Costo stim.";
+"Project" = "Progetto";
+"Last 30 days (Cloud est.)" = "Ultimi 30 giorni (stima Cloud)";
+"Last 30 days (Cloud + Local est.)" = "Ultimi 30 giorni (stima Cloud + Locale)";
+"Primary bar metric" = "Metrica barra principale";
+"Choose whether the main quota bar favors the highest quota %, rate limits (RPM/TPM/RPD), or allocation limits." = "Scegli se la barra delle quote principale privilegia la % di quota più alta, i limiti di frequenza (RPM/TPM/RPD) o i limiti di allocazione.";
+"Telemetry and cost source" = "Origine telemetria e costi";
+"Choose between Cloud Monitoring plus local Claude-on-Vertex logs, Cloud Monitoring only, or local Claude logs only." = "Scegli tra Cloud Monitoring più log locali di Claude-on-Vertex, solo Cloud Monitoring o solo log locali di Claude.";
+"Region filter" = "Filtro regione";
+"Optional. Scope Cloud Monitoring quotas and serving telemetry to a specific GCP location." = "Facoltativo. Limita le quote e la telemetria di erogazione di Cloud Monitoring a una specifica area geografica GCP.";
+"GCP Project ID override" = "Sostituzione ID progetto GCP";
+"Optional. Overrides gcloud config_default and environment project variables." = "Facoltativo. Sostituisce gcloud config_default e le variabili d’ambiente del progetto.";
+"gcloud config_default / env" = "gcloud config_default / ambiente";
+"Base model filter" = "Filtro modello di base";
+"Optional. Filter Cloud Monitoring quotas and serving telemetry by model (for example claude-sonnet-4-6 or gemini-2.5-pro)." = "Facoltativo. Filtra le quote e la telemetria di erogazione di Cloud Monitoring per modello (ad esempio claude-sonnet-4-6 o gemini-2.5-pro).";
+"Include all Claude logs fallback" = "Includi fallback su tutti i log di Claude";
+"Optional. Include non-Vertex Claude Code logs from ~/.claude/projects when computing Vertex AI token and cost breakdowns." = "Facoltativo. Includi i log di Claude Code non Vertex da ~/.claude/projects nel calcolo dei dettagli di token e costi di Vertex AI.";
+"Estimate USD cost from Cloud Monitoring tokens" = "Stima costo USD dai token di Cloud Monitoring";
+"Optional. Estimate USD spend from Cloud Monitoring token_count using public API list prices for shared pay-as-you-go traffic." = "Facoltativo. Stima la spesa in USD da token_count di Cloud Monitoring usando i prezzi di listino API pubblici per il traffico condiviso a consumo.";

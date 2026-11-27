@@ -249,7 +249,7 @@ extension UsageMenuCardView.Model {
             details.append("\(L("Top model")): \(Self.shortModelName(topModel))")
         }
         let tokenCost = ProviderDescriptorRegistry.descriptor(for: input.provider).tokenCost
-        let hintLines = Self.tokenUsageHintLines(provider: input.provider)
+        let hintLines = Self.tokenUsageHintLines(provider: input.provider, snapshot: snapshot)
         if tokenCost.hintPlacement == .beforeRequestHistory {
             details.append(contentsOf: hintLines)
         }
@@ -498,7 +498,7 @@ extension UsageMenuCardView.Model {
                 value: L("%@ tokens", snapshot.last30DaysTokens.map(UsageFormatter.tokenCountString) ?? "—"),
                 emphasis: false))
         }
-        var details = Self.tokenUsageHintLines(provider: provider)
+        var details = Self.tokenUsageHintLines(provider: provider, snapshot: snapshot)
         if details.isEmpty { details.append(L("Local token history · dollar costs unavailable")) }
         if let coverage = Self.tokenHistoryCoverageHint(snapshot) { details.append(coverage) }
         if comparisonPeriodsEnabled {
@@ -665,17 +665,24 @@ extension UsageMenuCardView.Model {
                 && $0.coverageCounts.unpriced == 0
                 && $0.coverageCounts.unmetered == 0
         }) else { return nil }
+        var hasPricedBreakdown = false
         var scores: [String: (cost: Double, tokens: Int)] = [:]
         for entry in entries {
             for model in entry.modelBreakdowns ?? [] {
+                guard let costUSD = model.costUSD else {
+                    if model.totalTokens != 0 { return nil }
+                    continue
+                }
+                hasPricedBreakdown = true
                 var score = scores[model.modelName] ?? (0, 0)
-                score.cost += model.costUSD ?? 0
+                score.cost += costUSD
                 let addition = score.tokens.addingReportingOverflow(model.totalTokens ?? 0)
                 guard !addition.overflow else { return nil }
                 score.tokens = addition.partialValue
                 scores[model.modelName] = score
             }
         }
+        guard hasPricedBreakdown else { return nil }
         return scores.max {
             if $0.value.cost == $1.value.cost {
                 return $0.value.tokens < $1.value.tokens
