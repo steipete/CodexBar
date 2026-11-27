@@ -473,6 +473,83 @@ struct AntigravitySettingsDescriptorTests {
     }
 
     @Test
+    func `fallback card metrics honor explicit antigravityPrimaryPool while preserving family labels and windows`()
+        throws
+    {
+        let now = Date(timeIntervalSince1970: 1_787_832_000)
+        let geminiReset = now.addingTimeInterval(3600)
+        let claudeReset = now.addingTimeInterval(7200)
+        let statusSnapshot = AntigravityStatusSnapshot(
+            modelQuotas: [
+                AntigravityModelQuota(
+                    label: "Gemini 3.1 Pro (High)",
+                    modelId: "gemini-3-1-pro-high",
+                    remainingFraction: 0.90,
+                    resetTime: geminiReset,
+                    resetDescription: nil),
+                AntigravityModelQuota(
+                    label: "Claude Sonnet 4.6",
+                    modelId: "claude-sonnet-4-6",
+                    remainingFraction: 0.40,
+                    resetTime: claudeReset,
+                    resetDescription: nil),
+            ],
+            accountEmail: "fallback@example.com",
+            accountPlan: "Pro",
+            source: .remote)
+        let usage = try statusSnapshot.toUsageSnapshot(primaryPool: .auto)
+        let metadata = try #require(ProviderDefaults.metadata[.antigravity])
+
+        func makeCard(pool: AntigravityPrimaryPoolPreference) -> UsageMenuCardView.Model {
+            UsageMenuCardView.Model.make(.init(
+                provider: .antigravity,
+                metadata: metadata,
+                snapshot: usage,
+                credits: nil,
+                creditsError: nil,
+                dashboardError: nil,
+                tokenSnapshot: nil,
+                tokenError: nil,
+                account: AccountInfo(email: nil, plan: nil),
+                isRefreshing: false,
+                lastError: nil,
+                usageBarsShowUsed: false,
+                resetTimeDisplayStyle: .countdown,
+                tokenCostUsageEnabled: false,
+                showOptionalCreditsAndExtraUsage: true,
+                antigravityPrimaryPool: pool,
+                hidePersonalInfo: false,
+                now: now))
+        }
+
+        let expectedGeminiReset = try UsageFormatter.resetLine(
+            for: #require(usage.primary),
+            style: .countdown,
+            now: now)
+        let expectedClaudeReset = try UsageFormatter.resetLine(
+            for: #require(usage.secondary),
+            style: .countdown,
+            now: now)
+        #expect(expectedGeminiReset != expectedClaudeReset)
+
+        for pool: AntigravityPrimaryPoolPreference in [.claudeGPTWeekly, .claudeGPTFiveHour] {
+            let card = makeCard(pool: pool)
+            #expect(card.metrics.map(\.id) == ["secondary", "primary"])
+            #expect(card.metrics.map(\.title) == ["Claude and GPT", "Gemini Models"])
+            #expect(card.metrics.map(\.percentLabel) == ["40% left", "90% left"])
+            #expect(card.metrics.map(\.resetText) == [expectedClaudeReset, expectedGeminiReset])
+        }
+
+        for pool: AntigravityPrimaryPoolPreference in [.auto, .geminiWeekly, .geminiFiveHour] {
+            let card = makeCard(pool: pool)
+            #expect(card.metrics.map(\.id) == ["primary", "secondary"])
+            #expect(card.metrics.map(\.title) == ["Gemini Models", "Claude and GPT"])
+            #expect(card.metrics.map(\.percentLabel) == ["90% left", "40% left"])
+            #expect(card.metrics.map(\.resetText) == [expectedGeminiReset, expectedClaudeReset])
+        }
+    }
+
+    @Test
     func `tokenSnapshotScopeSignature invalidates when scan source toggles or project grouping change`() {
         let suite = "AntigravitySettingsDescriptorTests-scope"
         let settings = testSettingsStore(

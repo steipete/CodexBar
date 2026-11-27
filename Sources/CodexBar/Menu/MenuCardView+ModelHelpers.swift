@@ -924,22 +924,43 @@ extension UsageMenuCardView.Model {
             return idleIDs.isEmpty ? metrics : metrics.filter { !idleIDs.contains($0.id) }
         }
 
-        var metrics: [Metric] = []
-        if let primary = snapshot.primary {
-            metrics.append(Self.antigravityMetric(
+        let primaryMetric = snapshot.primary.map { primary in
+            Self.antigravityMetric(
                 id: "primary",
                 title: L(input.metadata.sessionLabel),
                 window: primary,
                 input: input,
-                percentStyle: percentStyle))
+                percentStyle: percentStyle)
         }
-        if let secondary = snapshot.secondary {
-            metrics.append(Self.antigravityMetric(
+        let secondaryMetric = snapshot.secondary.map { secondary in
+            Self.antigravityMetric(
                 id: "secondary",
                 title: L(input.metadata.weeklyLabel),
                 window: secondary,
                 input: input,
-                percentStyle: percentStyle))
+                percentStyle: percentStyle)
+        }
+        let prefersSecondaryFirst = switch input.antigravityPrimaryPool {
+        case .claudeGPTWeekly, .claudeGPTFiveHour:
+            true
+        case .auto, .geminiWeekly, .geminiFiveHour, nil:
+            false
+        }
+        var metrics: [Metric] = []
+        if prefersSecondaryFirst {
+            if let secondaryMetric {
+                metrics.append(secondaryMetric)
+            }
+            if let primaryMetric {
+                metrics.append(primaryMetric)
+            }
+        } else {
+            if let primaryMetric {
+                metrics.append(primaryMetric)
+            }
+            if let secondaryMetric {
+                metrics.append(secondaryMetric)
+            }
         }
         if input.metadata.supportsOpus, let tertiary = snapshot.tertiary {
             metrics.append(Self.antigravityMetric(
