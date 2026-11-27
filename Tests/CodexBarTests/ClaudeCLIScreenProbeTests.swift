@@ -109,6 +109,17 @@ struct ClaudeCLIScreenProbeTests {
     }
 
     @Test
+    func `status identity wins over a status line in the usage capture`() throws {
+        let usage = "Current session\n9% used\nEmail: stale@example.com\nOrg: Stale Org"
+        let status = "Email: current@example.com\nOrg: Current Org\nLogin method: Claude Max Account"
+        let snapshot = try ClaudeStatusProbe.parse(text: usage, statusText: status)
+        #expect(snapshot.accountEmail == "current@example.com")
+        #expect(snapshot.accountOrganization == "Current Org")
+        let usageOnly = try ClaudeStatusProbe.parse(text: usage, statusText: "Login method: Claude Max Account")
+        #expect(usageOnly.accountEmail == "stale@example.com")
+    }
+
+    @Test
     func `styled plain reports preserve CR delimiters and ignore OSC contents`() throws {
         let title = "\u{1b}]0;\u{1b}[HCurrent session 99% used\u{7}"
         let text = title + "\u{1b}[35mCurrent session\u{1b}[0m\r3% used\r"
