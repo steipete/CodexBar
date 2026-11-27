@@ -611,8 +611,9 @@ struct AntigravityLocalScanTests {
         let report = try fixture.report(dayRange: ("2026-07-29", "2026-08-27"))
         #expect(report.coverage == .complete)
         #expect(report.statistics.files == 1)
-        #expect(report.statistics.sqliteHandlesOpened == 1)
-        #expect(report.statistics.sqliteHandlesClosed == 1)
+        #expect(report.statistics.rows == 1)
+        #expect(report.statistics.sqliteHandlesOpened == 2)
+        #expect(report.statistics.sqliteHandlesClosed == 2)
         #expect(report.report.summary?.totalTokens == 197)
     }
 
@@ -927,6 +928,39 @@ extension AntigravityLocalScanTests {
         #expect(!snapshot.historyCoverageIsEstablished)
         #expect(snapshot.daily.isEmpty)
         #expect(snapshot.last30DaysTokens == nil)
+    }
+
+    @Test
+    func `rolling window scan with recent supported history and old drifted database stays partial`() async throws {
+        let fixture = try Fixture()
+        let sinceDate = try #require(CostUsageLocalDay.date(fromKey: "2026-07-29", calendar: Fixture.calendar))
+        let root = fixture.context.databaseRoots[0]
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let recentHistory = try fixture.database("history", blobs: [Fixture.blob(input: 100)])
+        try FileManager.default.setAttributes([.modificationDate: Fixture.now], ofItemAtPath: recentHistory.path)
+
+        let driftedDB = root.appendingPathComponent("drifted.db")
+        let driftedHandle = try Fixture.open(driftedDB)
+        defer { sqlite3_close(driftedHandle) }
+        try Fixture.execute(driftedHandle, "CREATE TABLE gen_metadata (idx INTEGER, wrong TEXT)")
+        try FileManager.default.setAttributes(
+            [.modificationDate: sinceDate.addingTimeInterval(-86400)],
+            ofItemAtPath: driftedDB.path)
+
+        let report = try fixture.report(dayRange: ("2026-07-29", "2026-08-27"))
+        #expect(report.coverage == .partial)
+        #expect(!report.isComplete)
+        #expect(!report.isAvailable)
+        #expect(report.report.summary?.totalTokens == 187)
+        #expect(report.statistics.files == 1)
+        #expect(report.statistics.foreignDatabases == 0)
+        #expect(report.statistics.sqliteHandlesOpened == report.statistics.sqliteHandlesClosed)
+
+        let snapshot = try await fixture.snapshot()
+        #expect(!snapshot.historyCoverageIsEstablished)
+        #expect(snapshot.historyScanIsPartial)
+        #expect(snapshot.last30DaysTokens == 187)
     }
 
     @Test

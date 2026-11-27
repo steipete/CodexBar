@@ -192,13 +192,11 @@ enum AntigravityLocalReader {
                     source.conversationSummariesBySession = summaries.summaries
                     source.isComplete = source.isComplete && summaries.isComplete
                 }
-                if databases.isComplete, source.isComplete, !source.containsHistorySource,
-                   !databases.skippedOldPaths.isEmpty
-                {
+                if databases.isComplete, source.isComplete, !databases.skippedOldPaths.isEmpty {
                     let probed = try self.probeSkippedDatabasesForHistorySource(
                         databases.skippedOldPaths,
                         budget: budget)
-                    source.containsHistorySource = probed.containsHistorySource
+                    source.containsHistorySource = source.containsHistorySource || probed.containsHistorySource
                     source.isComplete = source.isComplete && probed.isComplete
                 }
                 return try self.aggregate(
