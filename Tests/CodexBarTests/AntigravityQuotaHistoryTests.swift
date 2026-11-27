@@ -359,6 +359,123 @@ struct AntigravityQuotaHistoryTests {
 
     @MainActor
     @Test
+    func `canonical weekly history is preserved when first session bucket arrives`() async throws {
+        let store = UsageStorePlanUtilizationTests.makeStore()
+        let firstCapture = self.now
+        let secondCapture = self.now.addingTimeInterval(2 * 3600)
+        let weeklyReset = self.now.addingTimeInterval(5 * 86400)
+        let sessionReset = secondCapture.addingTimeInterval(5 * 3600)
+
+        let weeklyOnly = UsageSnapshot(
+            primary: RateWindow(usedPercent: 22, windowMinutes: 10080, resetsAt: weeklyReset, resetDescription: nil),
+            secondary: nil,
+            extraRateWindows: [
+                .init(
+                    id: "antigravity-quota-summary-gemini-weekly",
+                    title: "Gemini weekly",
+                    window: RateWindow(
+                        usedPercent: 22,
+                        windowMinutes: 10080,
+                        resetsAt: weeklyReset,
+                        resetDescription: nil)),
+            ],
+            updatedAt: firstCapture)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .antigravity,
+            snapshot: weeklyOnly,
+            now: firstCapture)
+
+        let withSession = UsageSnapshot(
+            primary: RateWindow(usedPercent: 18, windowMinutes: 300, resetsAt: sessionReset, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 31, windowMinutes: 10080, resetsAt: weeklyReset, resetDescription: nil),
+            extraRateWindows: [
+                .init(
+                    id: "antigravity-quota-summary-gemini-5h",
+                    title: "Gemini 5-hour",
+                    window: RateWindow(
+                        usedPercent: 18,
+                        windowMinutes: 300,
+                        resetsAt: sessionReset,
+                        resetDescription: nil)),
+                .init(
+                    id: "antigravity-quota-summary-gemini-weekly",
+                    title: "Gemini weekly",
+                    window: RateWindow(
+                        usedPercent: 31,
+                        windowMinutes: 10080,
+                        resetsAt: weeklyReset,
+                        resetDescription: nil)),
+            ],
+            updatedAt: secondCapture)
+        let account = ProviderTokenAccount(
+            id: UUID(), label: "Canonical", token: "canonical-token", addedAt: 0, lastUsed: nil)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .antigravity,
+            snapshot: withSession,
+            account: account,
+            now: secondCapture)
+
+        let histories = store.planUtilizationHistory(for: .antigravity)
+        let weekly = try #require(histories.first { $0.name == .weekly })
+        let session = try #require(histories.first { $0.name == .session })
+        #expect(weekly.entries.map(\.usedPercent) == [22, 31])
+        #expect(session.entries.map(\.usedPercent) == [18])
+    }
+
+    @MainActor
+    @Test
+    func `legacy unmarked weekly history is still dropped when first session bucket arrives`() async throws {
+        let store = UsageStorePlanUtilizationTests.makeStore()
+        let firstCapture = self.now
+        let secondCapture = self.now.addingTimeInterval(2 * 3600)
+        let weeklyReset = self.now.addingTimeInterval(5 * 86400)
+        let sessionReset = secondCapture.addingTimeInterval(5 * 3600)
+
+        var legacyBuckets = PlanUtilizationHistoryBuckets()
+        legacyBuckets.setHistories([
+            PlanUtilizationSeriesHistory(
+                name: .weekly,
+                windowMinutes: 10080,
+                entries: [.init(capturedAt: firstCapture, usedPercent: 88, resetsAt: weeklyReset)]),
+        ], for: nil)
+        store.planUtilizationHistory[.antigravity] = legacyBuckets
+
+        let withSession = UsageSnapshot(
+            primary: RateWindow(usedPercent: 14, windowMinutes: 300, resetsAt: sessionReset, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 25, windowMinutes: 10080, resetsAt: weeklyReset, resetDescription: nil),
+            extraRateWindows: [
+                .init(
+                    id: "antigravity-quota-summary-gemini-5h",
+                    title: "Gemini 5-hour",
+                    window: RateWindow(
+                        usedPercent: 14,
+                        windowMinutes: 300,
+                        resetsAt: sessionReset,
+                        resetDescription: nil)),
+                .init(
+                    id: "antigravity-quota-summary-gemini-weekly",
+                    title: "Gemini weekly",
+                    window: RateWindow(
+                        usedPercent: 25,
+                        windowMinutes: 10080,
+                        resetsAt: weeklyReset,
+                        resetDescription: nil)),
+            ],
+            updatedAt: secondCapture)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .antigravity,
+            snapshot: withSession,
+            now: secondCapture)
+
+        let histories = store.planUtilizationHistory(for: .antigravity)
+        let weekly = try #require(histories.first { $0.name == .weekly })
+        let session = try #require(histories.first { $0.name == .session })
+        #expect(weekly.entries.map(\.usedPercent) == [25])
+        #expect(session.entries.map(\.usedPercent) == [14])
+    }
+
+    @MainActor
+    @Test
     func `four lane summary snapshot records Gemini and Claude GPT session and weekly series`() async {
         let store = UsageStorePlanUtilizationTests.makeStore()
         let geminiSession = RateWindow(

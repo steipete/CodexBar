@@ -380,6 +380,64 @@ struct AntigravityLocalBreakdownsTests {
     }
 
     @Test
+    func `gitRepository prefers primaryWorkspaceURI over earlier repository workspace and falls back cleanly`() throws {
+        let fixture = try Fixture()
+        let primarySecondRepoBlob = Fixture.trajectoryMetadataBlob(
+            workspaces: [
+                .init(
+                    workspaceURI: "file:///Users/fixture/dev/repo-a",
+                    gitRootURI: "file:///Users/fixture/dev/repo-a",
+                    repoSlug: "owner/repo-a",
+                    repoRemoteURL: "https://github.com/owner/repo-a.git"),
+                .init(
+                    workspaceURI: "file:///Users/fixture/dev/repo-b",
+                    gitRootURI: "file:///Users/fixture/dev/repo-b",
+                    repoSlug: "owner/repo-b",
+                    repoRemoteURL: "https://github.com/owner/repo-b.git"),
+            ],
+            primaryWorkspaceURI: "file:///Users/fixture/dev/repo-b/")
+        let nonRepoPrimaryBlob = Fixture.trajectoryMetadataBlob(
+            workspaces: [
+                .init(workspaceURI: "file:///Users/fixture/dev/scratch"),
+                .init(
+                    workspaceURI: "file:///Users/fixture/dev/repo-c",
+                    gitRootURI: "file:///Users/fixture/dev/repo-c",
+                    repoSlug: "owner/repo-c",
+                    repoRemoteURL: "https://github.com/owner/repo-c.git"),
+            ],
+            primaryWorkspaceURI: "file:///Users/fixture/dev/scratch")
+
+        try fixture.database(
+            "s-primary-b",
+            blobs: [Fixture.blob(input: 100, output: 20, cacheRead: 10, reasoning: 5, seconds: 1_787_832_000)],
+            trajectoryMetadataBlob: primarySecondRepoBlob)
+        try fixture.database(
+            "s-nonrepo-primary",
+            blobs: [Fixture.blob(input: 50, output: 10, cacheRead: 0, reasoning: 0, seconds: 1_787_832_100)],
+            trajectoryMetadataBlob: nonRepoPrimaryBlob)
+
+        let workspaceReport = try fixture.report(
+            scanOptions: AntigravityLocalScanOptions(projectGrouping: .workspace),
+            includeBreakdowns: true)
+        let workspaceSessionB = try #require(workspaceReport.sessions.first { $0.sessionID == "s-primary-b" })
+        #expect(workspaceSessionB.projectName == "repo-b")
+        #expect(workspaceSessionB.projectPath == "/Users/fixture/dev/repo-b")
+
+        let repoReport = try fixture.report(
+            scanOptions: AntigravityLocalScanOptions(projectGrouping: .gitRepository),
+            includeBreakdowns: true)
+        let repoSessionB = try #require(repoReport.sessions.first { $0.sessionID == "s-primary-b" })
+        #expect(repoSessionB.projectName == "owner/repo-b")
+        #expect(repoSessionB.projectPath == "/Users/fixture/dev/repo-b")
+        #expect(repoReport.projects.contains { $0.name == "owner/repo-b" && $0.totalTokens == 135 })
+        #expect(!repoReport.projects.contains { $0.name == "owner/repo-a" })
+
+        let fallbackSession = try #require(repoReport.sessions.first { $0.sessionID == "s-nonrepo-primary" })
+        #expect(fallbackSession.projectName == "owner/repo-c")
+        #expect(fallbackSession.projectPath == "/Users/fixture/dev/repo-c")
+    }
+
+    @Test
     func `partial scan reads trajectory_metadata_blob even when step timestamp recovery fails`() throws {
         let fixture = try Fixture()
         let tmb = Fixture.trajectoryMetadataBlob(

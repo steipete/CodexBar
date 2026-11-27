@@ -757,10 +757,18 @@ extension AntigravityLocalReader {
     {
         let trajectory = source.trajectoryMetadataBySession[sessionID]
         let summary = source.conversationSummariesBySession[sessionID]
-        let workspacePath = self.normalizedLocalPath(trajectory?.primaryWorkspaceURI)
+        let primaryWorkspacePath = self.normalizedLocalPath(trajectory?.primaryWorkspaceURI)
+        let workspacePath = primaryWorkspacePath
             ?? trajectory?.workspaces.lazy.compactMap { self.normalizedLocalPath($0.workspaceURI) }.first
             ?? summary?.workspaceURIs.lazy.compactMap { self.normalizedLocalPath($0) }.first
-        let gitRootPath = trajectory?.workspaces.lazy.compactMap { self.normalizedLocalPath($0.gitRootURI) }.first
+        let primaryGitRootPath = primaryWorkspacePath.flatMap { primary in
+            trajectory?.workspaces.first {
+                self.normalizedLocalPath($0.workspaceURI) == primary
+                    || self.normalizedLocalPath($0.gitRootURI) == primary
+            }.flatMap { self.normalizedLocalPath($0.gitRootURI) }
+        }
+        let gitRootPath = primaryGitRootPath
+            ?? trajectory?.workspaces.lazy.compactMap { self.normalizedLocalPath($0.gitRootURI) }.first
 
         switch projectGrouping {
         case .workspace:
@@ -773,17 +781,19 @@ extension AntigravityLocalReader {
                 sourcePath: path,
                 sourceName: name)
         case .gitRepository:
-            let resolvedRepoWorkspace = trajectory?.workspaces.lazy
-                .compactMap { workspace -> (
-                    workspace: AntigravityProtoReader.WorkspaceMetadata,
-                    repo: (key: String, name: String))? in
-                    guard let repo = Self.canonicalRepositoryIdentity(
-                        repoSlug: workspace.repoSlug,
-                        repoRemoteURL: workspace.repoRemoteURL)
-                    else { return nil }
-                    return (workspace, repo)
-                }
-                .first
+            let repoWorkspaces: [(
+                workspace: AntigravityProtoReader.WorkspaceMetadata,
+                repo: (key: String, name: String))] = (trajectory?.workspaces ?? []).compactMap { workspace in
+                guard let repo = Self.canonicalRepositoryIdentity(
+                    repoSlug: workspace.repoSlug,
+                    repoRemoteURL: workspace.repoRemoteURL)
+                else { return nil }
+                return (workspace, repo)
+            }
+            let resolvedRepoWorkspace = primaryWorkspacePath.flatMap { primary in
+                repoWorkspaces.first { self.normalizedLocalPath($0.workspace.workspaceURI) == primary }
+                    ?? repoWorkspaces.first { self.normalizedLocalPath($0.workspace.gitRootURI) == primary }
+            } ?? repoWorkspaces.first
             if let (repoWorkspace, repo) = resolvedRepoWorkspace {
                 let repoGitRoot = self.normalizedLocalPath(repoWorkspace.gitRootURI)
                 let repoWorkspacePath = self.normalizedLocalPath(repoWorkspace.workspaceURI)

@@ -14,6 +14,7 @@ extension UsageStore {
     nonisolated static let sessionWindowMinutes = 5 * 60
     nonisolated static let weeklyWindowMinutes = 7 * 24 * 60
     nonisolated static let planUtilizationUnscopedPreferredKey = "__unscoped__"
+    private nonisolated static let antigravityCanonicalGeminiWeeklyHistoryIdentity = "antigravity:gemini-weekly"
     private nonisolated static let claudeOAuthPlanUtilizationAccountKeyPrefix = "__claude_oauth__:"
     nonisolated static let claudeSwapPlanUtilizationAccountKeyPrefix = "__claude_swap__:"
 
@@ -314,13 +315,29 @@ extension UsageStore {
             var histories = providerBuckets.histories(for: accountKey)
             let originalHistories = histories
             var samplesToPersist = samples
-            if provider == .antigravity,
-               samples.contains(where: { $0.name == .session }),
-               !histories.contains(where: { $0.name == .session })
-            {
-                // Pre-feature Antigravity history could contain a provider-wide weekly maximum.
-                // Drop it before starting the Gemini-pinned session/weekly pair.
-                histories.removeAll { $0.name == .weekly }
+            if provider == .antigravity {
+                let hasSessionSample = samples.contains { $0.name == .session }
+                let hasWeeklySample = samples.contains { $0.name == .weekly }
+                let hasExistingSession = histories.contains { $0.name == .session }
+                let hasExistingWeekly = histories.contains { $0.name == .weekly }
+                let hasCanonicalWeeklyMarker = providerBuckets.sessionEquivalentWindowPairIdentity(for: accountKey)
+                    == Self.antigravityCanonicalGeminiWeeklyHistoryIdentity
+
+                if hasSessionSample, !hasExistingSession {
+                    if hasCanonicalWeeklyMarker {
+                        providerBuckets.setSessionEquivalentWindowPairIdentity(nil, for: accountKey)
+                    } else {
+                        // Pre-feature Antigravity history could contain a provider-wide weekly maximum.
+                        // Drop it before starting the Gemini-pinned session/weekly pair.
+                        histories.removeAll { $0.name == .weekly }
+                    }
+                } else if hasWeeklySample, !hasSessionSample, !hasExistingSession, !hasExistingWeekly {
+                    // Mark canonical Gemini-only weekly history so a later first session bucket
+                    // preserves it instead of treating it as legacy provider-wide weekly data.
+                    providerBuckets.setSessionEquivalentWindowPairIdentity(
+                        Self.antigravityCanonicalGeminiWeeklyHistoryIdentity,
+                        for: accountKey)
+                }
             }
             if ![UsageProvider.codex, .claude, .antigravity].contains(provider) {
                 self.reconcileGenericSessionEquivalentHistory(
@@ -1335,7 +1352,15 @@ extension UsageStore {
         ])
         providerBuckets.setHistories(mergedHistory, for: accountKey)
         providerBuckets.setHistories([], for: nil)
-        if ![UsageProvider.codex, .claude, .antigravity].contains(provider) {
+        if provider == .antigravity {
+            if !targetHasHistory {
+                providerBuckets.moveSessionEquivalentWindowPairIdentity(from: nil, to: accountKey)
+            } else if providerBuckets.sessionEquivalentWindowPairIdentity(for: nil)
+                == Self.antigravityCanonicalGeminiWeeklyHistoryIdentity
+            {
+                providerBuckets.setSessionEquivalentWindowPairIdentity(nil, for: nil)
+            }
+        } else if ![UsageProvider.codex, .claude, .antigravity].contains(provider) {
             self.materializeLegacySessionEquivalentHistoryIdentityDuringAccountAdoption(
                 provider: provider,
                 from: nil,
