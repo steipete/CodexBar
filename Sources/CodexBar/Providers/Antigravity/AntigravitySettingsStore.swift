@@ -24,6 +24,110 @@ extension SettingsStore {
         }
     }
 
+    var antigravityPrimaryPoolPreference: AntigravityPrimaryPoolPreference {
+        get {
+            self.configSnapshot.providerConfig(for: .antigravity)?.resolvedAntigravityPrimaryPoolPreference ?? .auto
+        }
+        set {
+            self.updateProviderConfig(provider: .antigravity) { entry in
+                entry.antigravityPrimaryPoolPreference = newValue == .auto ? nil : newValue.rawValue
+            }
+            self.logProviderModeChange(
+                provider: .antigravity,
+                field: "primaryPoolPreference",
+                value: newValue.rawValue)
+        }
+    }
+
+    var antigravityShowCredits: Bool {
+        get {
+            self.configSnapshot.providerConfig(for: .antigravity)?.antigravityShowCredits ?? true
+        }
+        set {
+            self.updateProviderConfig(provider: .antigravity) { entry in
+                entry.antigravityShowCredits = newValue
+            }
+            self.logProviderModeChange(
+                provider: .antigravity,
+                field: "showCredits",
+                value: "\(newValue)")
+        }
+    }
+
+    var antigravityScanDesktopEnabled: Bool {
+        get {
+            self.configSnapshot.providerConfig(for: .antigravity)?.antigravityScanDesktopEnabled ?? true
+        }
+        set {
+            self.updateProviderConfig(provider: .antigravity) { entry in
+                entry.antigravityScanDesktopEnabled = newValue
+            }
+            self.logProviderModeChange(
+                provider: .antigravity,
+                field: "scanDesktopEnabled",
+                value: "\(newValue)")
+        }
+    }
+
+    var antigravityScanCLIEnabled: Bool {
+        get {
+            self.configSnapshot.providerConfig(for: .antigravity)?.antigravityScanCLIEnabled ?? true
+        }
+        set {
+            self.updateProviderConfig(provider: .antigravity) { entry in
+                entry.antigravityScanCLIEnabled = newValue
+            }
+            self.logProviderModeChange(
+                provider: .antigravity,
+                field: "scanCLIEnabled",
+                value: "\(newValue)")
+        }
+    }
+
+    var antigravityTokscaleFallbackEnabled: Bool {
+        get {
+            self.configSnapshot.providerConfig(for: .antigravity)?.antigravityTokscaleFallbackEnabled ?? true
+        }
+        set {
+            self.updateProviderConfig(provider: .antigravity) { entry in
+                entry.antigravityTokscaleFallbackEnabled = newValue
+            }
+            self.logProviderModeChange(
+                provider: .antigravity,
+                field: "tokscaleFallbackEnabled",
+                value: "\(newValue)")
+        }
+    }
+
+    var antigravityProjectGrouping: AntigravityProjectGrouping {
+        get {
+            self.configSnapshot.providerConfig(for: .antigravity)?.resolvedAntigravityProjectGrouping ?? .workspace
+        }
+        set {
+            self.updateProviderConfig(provider: .antigravity) { entry in
+                entry.antigravityProjectGrouping = newValue == .workspace ? nil : newValue.rawValue
+            }
+            self.logProviderModeChange(
+                provider: .antigravity,
+                field: "projectGrouping",
+                value: newValue.rawValue)
+        }
+    }
+
+    var antigravityLocalScanOptions: AntigravityLocalScanOptions {
+        AntigravityLocalScanOptions(
+            includeDesktopDatabases: self.antigravityScanDesktopEnabled,
+            includeCLIDatabases: self.antigravityScanCLIEnabled,
+            includeTokscaleFallback: self.antigravityTokscaleFallbackEnabled,
+            projectGrouping: self.antigravityProjectGrouping)
+    }
+
+    func antigravitySettingsSnapshot() -> AntigravityProviderSettings {
+        AntigravityProviderSettings(
+            primaryPoolPreference: self.antigravityPrimaryPoolPreference,
+            showCredits: self.antigravityShowCredits)
+    }
+
     var antigravityUsageDataSource: AntigravityUsageDataSource {
         get {
             let source = self.configSnapshot.providerConfig(for: .antigravity)?.source

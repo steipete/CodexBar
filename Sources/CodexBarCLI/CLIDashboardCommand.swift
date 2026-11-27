@@ -127,6 +127,9 @@ struct DashboardSnapshotProducer: Sendable {
                             provider: provider,
                             antigravityAdditionalProfileHomes:
                             config.providerConfig(for: provider.instanceID)?.antigravityAdditionalProfileHomes ?? [],
+                            antigravityScanOptions:
+                            config.providerConfig(for: provider.instanceID)?.resolvedAntigravityScanOptions
+                                ?? .defaultOptions,
                             forceRefresh: false,
                             cursorCookieHeaderOverride: cursorCookieHeaderOverride,
                             refreshPricingInBackground: context.costRefreshesPricingInBackground,

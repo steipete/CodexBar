@@ -257,6 +257,8 @@ extension AntigravityCLIHTTPSFetchStrategy {
         environment: [String: String],
         timeout: TimeInterval = 90,
         versionResolver: AgyVersionResolver = AgyVersionResolver(),
+        primaryPool: AntigravityPrimaryPoolPreference = .auto,
+        showCredits: Bool = true,
         dataLoader: (@Sendable (URLRequest) async throws -> (Data, URLResponse))? = nil,
         credentialsUpdateHandler: (@Sendable (AntigravityOAuthCredentials) async throws -> Void)? = nil)
         async throws
@@ -327,7 +329,9 @@ extension AntigravityCLIHTTPSFetchStrategy {
         try Task.checkCancellation()
         let snapshot = parsed.withIdentity(from: AntigravityStatusSnapshot(
             modelQuotas: [], accountEmail: expectedAccountEmail, accountPlan: nil, source: parsed.source))
-        return try self.makeResult(usage: snapshot.toUsageSnapshot(), sourceLabel: Self.sourceLabel)
+        return try self.makeResult(
+            usage: snapshot.toUsageSnapshot(primaryPool: primaryPool, showCredits: showCredits),
+            sourceLabel: Self.sourceLabel)
     }
 }
 #endif

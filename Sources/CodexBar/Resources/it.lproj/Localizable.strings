@@ -2876,3 +2876,27 @@
 "MiMo is rate limiting requests. Try again later." = "MiMo sta limitando la frequenza delle richieste. Riprova più tardi.";
 "MiMo request failed. Try refreshing later." = "La richiesta a MiMo non è riuscita. Riprova ad aggiornare più tardi.";
 "Skip cost refresh" = "Salta l’aggiornamento dei costi";
+
+/* Antigravity detail sections and settings */
+"Model availability" = "Disponibilità modelli";
+"Bucket amounts" = "Quote residue";
+"Prompt credits" = "Crediti prompt";
+"Flow credits" = "Crediti flow";
+"Flex credits" = "Crediti flex";
+"Auto top-up" = "Ricarica automatica";
+"Available credits" = "Crediti disponibili";
+"Google One credits" = "Crediti Google One";
+"Quota groups" = "Gruppi di quota";
+"Model catalog" = "Catalogo modelli";
+"Show Prompt, Flow & Flex credits" = "Mostra crediti Prompt, Flow e Flex";
+"Display Antigravity credit balances and plan renewal details when available." = "Mostra i saldi dei crediti Antigravity e i dettagli di rinnovo del piano quando disponibili.";
+"Scan Antigravity desktop logs" = "Scansiona i log desktop di Antigravity";
+"Include local trajectories from ~/.gemini/antigravity." = "Includi le traiettorie locali da ~/.gemini/antigravity.";
+"Scan agy CLI logs" = "Scansiona i log di agy CLI";
+"Include local trajectories from ~/.gemini/antigravity-cli." = "Includi le traiettorie locali da ~/.gemini/antigravity-cli.";
+"Use tokscale cache fallback" = "Usa la cache di fallback di tokscale";
+"Fall back to ~/.config/tokscale/antigravity-cache when no SQLite logs exist." = "Usa ~/.config/tokscale/antigravity-cache come fallback quando non esistono log SQLite.";
+"Primary quota pool" = "Pool di quota principale";
+"Choose which pool leads Automatic mode and the top card bar." = "Scegli quale pool guida la modalità automatica e la barra superiore della scheda.";
+"Project grouping" = "Raggruppamento progetti";
+"Group local conversation costs by workspace folder or Git repository." = "Raggruppa i costi delle conversazioni locali per cartella workspace o repository Git.";

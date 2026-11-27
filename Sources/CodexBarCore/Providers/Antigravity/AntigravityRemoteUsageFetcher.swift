@@ -154,6 +154,8 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
             }
         }
         let plan = Self.resolvePlan(response: codeAssist, claims: claims)
+        let accountMetadata = Self.resolveAccountMetadata(from: codeAssist)
+        let credits = Self.resolveCredits(from: codeAssist)
         do {
             let response: AntigravityQuotaSummaryResponse = try await Self.fetchQuotaResponse(
                 endpoint: "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
@@ -162,16 +164,32 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
                 timeout: min(self.timeout, 2),
                 dataLoader: self.dataLoader)
             try Task.checkCancellation()
-            let summary = try response.snapshot(accountEmail: claims.email, accountPlan: plan, source: .remote)
+            let summary = try response.snapshot(
+                accountEmail: claims.email,
+                accountPlan: plan,
+                source: .remote,
+                credits: credits,
+                accountMetadata: accountMetadata)
             if summary.hasKnownQuotaSummary {
+                let modelCatalog = try await Self.fetchModelCatalogBestEffort(
+                    accessToken: accessToken,
+                    projectId: projectId,
+                    timeout: min(self.timeout, 2),
+                    dataLoader: self.dataLoader)
+                let enrichedSummary = summary.withModelCatalog(modelCatalog)
                 if plan?.lowercased() == "free",
-                   try summary.toUsageSnapshot().extraRateWindows?.contains(where: {
+                   try enrichedSummary.toUsageSnapshot().extraRateWindows?.contains(where: {
                        $0.usageKnown && $0.window.windowMinutes == 300
                    }) == true
                 {
-                    return try response.snapshot(accountEmail: claims.email, source: .remote)
+                    return try response.snapshot(
+                        accountEmail: claims.email,
+                        source: .remote,
+                        credits: credits,
+                        accountMetadata: accountMetadata)
+                        .withModelCatalog(modelCatalog)
                 }
-                return summary
+                return enrichedSummary
             }
         } catch {
             if error is CancellationError || (error as? URLError)?.code == .cancelled ||
@@ -181,7 +199,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
             }
             try Task.checkCancellation()
         }
-        let models = try await Self.fetchModelQuotas(
+        let (models, catalog) = try await Self.fetchModelQuotas(
             accessToken: accessToken,
             projectId: projectId,
             timeout: self.timeout,
@@ -191,7 +209,10 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
             modelQuotas: models,
             accountEmail: claims.email,
             accountPlan: plan,
-            source: .remote)
+            source: .remote,
+            credits: credits,
+            accountMetadata: accountMetadata,
+            modelCatalog: catalog)
     }
 
     private static func loadCodeAssist(
@@ -225,12 +246,12 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
             dataLoader: dataLoader)
     }
 
-    private static func fetchModelQuotas(
+    private static func fetchModelCatalogBestEffort(
         accessToken: String,
         projectId: String?,
         timeout: TimeInterval,
         dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse)) async throws
-        -> [AntigravityModelQuota]
+        -> [AntigravityModelCatalogEntry]
     {
         do {
             let response: FetchAvailableModelsResponse = try await Self.fetchQuotaResponse(
@@ -239,6 +260,32 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
                 projectId: projectId,
                 timeout: timeout,
                 dataLoader: dataLoader)
+            try Task.checkCancellation()
+            return Self.parseModelCatalog(response)
+        } catch {
+            if error is CancellationError || (error as? URLError)?.code == .cancelled {
+                throw error
+            }
+            try Task.checkCancellation()
+            return []
+        }
+    }
+
+    private static func fetchModelQuotas(
+        accessToken: String,
+        projectId: String?,
+        timeout: TimeInterval,
+        dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse)) async throws
+        -> (quotas: [AntigravityModelQuota], catalog: [AntigravityModelCatalogEntry])
+    {
+        do {
+            let response: FetchAvailableModelsResponse = try await Self.fetchQuotaResponse(
+                endpoint: "\(Self.baseURL)/v1internal:fetchAvailableModels",
+                accessToken: accessToken,
+                projectId: projectId,
+                timeout: timeout,
+                dataLoader: dataLoader)
+            let catalog = Self.parseModelCatalog(response)
             let modelQuotas = try Self.parseModelQuotas(response)
             if Self.shouldVerifyFullRemoteQuotas(modelQuotas) {
                 let quotaBuckets = try await Self.fetchQuotaBucketsIfPermitted(
@@ -247,21 +294,22 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
                     timeout: timeout,
                     dataLoader: dataLoader)
                 guard let quotaBuckets, quotaBuckets.contains(where: { $0.remainingFraction != nil }) else {
-                    return []
+                    return ([], catalog)
                 }
-                return Self.mergeVerifiedQuotas(modelQuotas: modelQuotas, verifiedQuotas: quotaBuckets)
+                return (Self.mergeVerifiedQuotas(modelQuotas: modelQuotas, verifiedQuotas: quotaBuckets), catalog)
             }
-            return modelQuotas
+            return (modelQuotas, catalog)
         } catch let error as AntigravityRemoteFetchError {
             guard case .permissionDenied = error else {
                 throw error
             }
             Self.log.info("Falling back to retrieveUserQuota for Antigravity remote usage")
-            return try await Self.fetchQuotaBucketsIfPermitted(
+            let buckets = try await Self.fetchQuotaBucketsIfPermitted(
                 accessToken: accessToken,
                 projectId: projectId,
                 timeout: timeout,
                 dataLoader: dataLoader) ?? []
+            return (buckets, [])
         }
     }
 
@@ -281,7 +329,8 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
                 modelId: modelQuota.modelId,
                 remainingFraction: verifiedQuota.remainingFraction ?? modelQuota.remainingFraction,
                 resetTime: resetTime,
-                resetDescription: resetTime.map { UsageFormatter.resetDescription(from: $0) })
+                resetDescription: resetTime.map { UsageFormatter.resetDescription(from: $0) },
+                remainingAmount: verifiedQuota.remainingAmount ?? modelQuota.remainingAmount)
         }
         let unmatchedVerifiedQuotas = verifiedByModelID.values
             .filter { $0.remainingFraction != nil }
@@ -417,6 +466,25 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         }
     }
 
+    private static func parseModelCatalog(_ response: FetchAvailableModelsResponse) -> [AntigravityModelCatalogEntry] {
+        let models = response.models ?? [:]
+        return models.compactMap { modelID, model in
+            let label = model.displayName?.trimmedNonEmpty
+                ?? model.label?.trimmedNonEmpty
+                ?? modelID
+            return AntigravityModelCatalogEntry(
+                modelId: modelID,
+                label: label,
+                creditMultiplier: model.creditMultiplier?.value,
+                pricingType: model.pricingType?.rawValue,
+                isPremium: model.isPremium,
+                tagTitle: model.tagTitle).normalizedIfAttributed
+        }
+        .sorted { lhs, rhs in
+            lhs.modelId.localizedCaseInsensitiveCompare(rhs.modelId) == .orderedAscending
+        }
+    }
+
     private static func parseModelQuotas(_ response: FetchAvailableModelsResponse) throws -> [AntigravityModelQuota] {
         let models = response.models ?? [:]
         return models.compactMap { modelID, model in
@@ -439,14 +507,26 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
             throw AntigravityRemoteFetchError.parseFailed("No quota buckets in response")
         }
 
-        var modelQuotaMap: [String: (fraction: Double?, resetTime: String?)] = [:]
+        var modelQuotaMap: [String: (fraction: Double?, amount: Int?, resetTime: String?)] = [:]
         for bucket in buckets {
             guard let modelID = bucket.modelId?.trimmedNonEmpty else { continue }
-            let next = (bucket.remainingFraction, bucket.resetTime)
-            if let existing = modelQuotaMap[modelID],
-               (existing.fraction ?? .greatestFiniteMagnitude) <= (next.0 ?? .greatestFiniteMagnitude)
-            {
-                continue
+            let next = (
+                fraction: bucket.remainingFraction,
+                amount: bucket.remainingAmount?.value,
+                resetTime: bucket.resetTime)
+            if let existing = modelQuotaMap[modelID] {
+                let existingFraction = existing.fraction ?? .greatestFiniteMagnitude
+                let nextFraction = next.fraction ?? .greatestFiniteMagnitude
+                if existingFraction < nextFraction {
+                    continue
+                }
+                if existingFraction == nextFraction {
+                    modelQuotaMap[modelID] = (
+                        fraction: existing.fraction,
+                        amount: existing.amount ?? next.amount,
+                        resetTime: existing.resetTime ?? next.resetTime)
+                    continue
+                }
             }
             modelQuotaMap[modelID] = next
         }
@@ -458,7 +538,8 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
                 modelId: modelID,
                 remainingFraction: info.fraction,
                 resetTime: resetTime,
-                resetDescription: resetTime.map { UsageFormatter.resetDescription(from: $0) })
+                resetDescription: resetTime.map { UsageFormatter.resetDescription(from: $0) },
+                remainingAmount: info.amount)
         }
     }
 
@@ -466,7 +547,17 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         if let tier = response.paidTier,
            tier.name?.trimmedNonEmpty != nil || tier.id?.trimmedNonEmpty != nil
         {
-            return tier.name?.trimmedNonEmpty ?? "Paid"
+            return AntigravityAccountMetadata.resolvedG1TierDisplayName(
+                tierID: tier.id,
+                g1Tier: response.g1Tier,
+                rawName: tier.name) ?? "Paid"
+        }
+        if let g1TierPlan = AntigravityAccountMetadata.resolvedG1TierDisplayName(
+            tierID: nil,
+            g1Tier: response.g1Tier,
+            rawName: nil)
+        {
+            return g1TierPlan
         }
         if let planType = response.planInfo?.planType?.trimmedNonEmpty {
             return planType
@@ -474,14 +565,51 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
 
         switch response.currentTier?.id?.trimmedNonEmpty {
         case "standard-tier":
-            return "Paid"
+            return AntigravityAccountMetadata.resolvedG1TierDisplayName(
+                tierID: response.currentTier?.id,
+                g1Tier: response.g1Tier,
+                rawName: nil) ?? "Paid"
         case "free-tier":
             return claims.hostedDomain == nil ? "Free" : "Workspace"
         case "legacy-tier":
             return "Legacy"
         default:
-            return response.currentTier?.name?.trimmedNonEmpty
+            return AntigravityAccountMetadata.resolvedG1TierDisplayName(
+                tierID: response.currentTier?.id,
+                g1Tier: response.g1Tier,
+                rawName: response.currentTier?.name)
         }
+    }
+
+    private static func resolveAccountMetadata(from response: CodeAssistResponse) -> AntigravityAccountMetadata? {
+        let manageURI = response.manageSubscriptionUri?.trimmedNonEmpty
+            ?? response.paidTier?.manageSubscriptionUri?.trimmedNonEmpty
+            ?? response.currentTier?.manageSubscriptionUri?.trimmedNonEmpty
+        let upgradeURI = response.upgradeSubscriptionUri?.trimmedNonEmpty
+            ?? response.paidTier?.upgradeSubscriptionUri?.trimmedNonEmpty
+            ?? response.currentTier?.upgradeSubscriptionUri?.trimmedNonEmpty
+        let metadata = AntigravityAccountMetadata(
+            g1Tier: response.g1Tier?.trimmedNonEmpty,
+            gcpManaged: response.gcpManaged,
+            manageSubscriptionURI: manageURI,
+            upgradeSubscriptionURI: upgradeURI)
+        return metadata.isEmpty ? nil : metadata
+    }
+
+    private static func resolveCredits(from response: CodeAssistResponse) -> AntigravityCreditsSnapshot? {
+        let rawCredits = response.paidTier?.availableCredits ?? response.currentTier?.availableCredits ?? []
+        let tierCredits = rawCredits.compactMap { credit -> AntigravityTierCredit? in
+            let type = credit.creditType?.trimmedNonEmpty
+            let amount = credit.creditAmount?.value
+            let minimum = credit.minimumCreditAmountForUsage?.value
+            guard type != nil || amount != nil || minimum != nil else { return nil }
+            return AntigravityTierCredit(
+                creditType: type,
+                creditAmount: amount,
+                minimumCreditAmountForUsage: minimum)
+        }
+        guard !tierCredits.isEmpty else { return nil }
+        return AntigravityCreditsSnapshot(availableCredits: tierCredits)
     }
 
     private static func pickOnboardTier(from response: CodeAssistResponse) -> String? {
@@ -627,6 +755,10 @@ private struct CodeAssistResponse: Decodable {
     let allowedTiers: [AllowedTier]?
     let ineligibleTiers: [IneligibleTier]?
     let cloudaicompanionProject: ProjectReference?
+    let g1Tier: String?
+    let gcpManaged: Bool?
+    let manageSubscriptionUri: String?
+    let upgradeSubscriptionUri: String?
 
     var projectID: String? {
         self.cloudaicompanionProject?.value?.trimmedNonEmpty
@@ -647,11 +779,22 @@ private struct CodeAssistPlanInfo: Decodable {
 private struct TierInfo: Decodable {
     let id: String?
     let name: String?
+    let manageSubscriptionUri: String?
+    let upgradeSubscriptionUri: String?
+    let availableCredits: [CodeAssistCredit]?
 }
 
 private struct AllowedTier: Decodable {
     let id: String?
     let isDefault: Bool?
+    let upgradeSubscriptionUri: String?
+    let availableCredits: [CodeAssistCredit]?
+}
+
+private struct CodeAssistCredit: Decodable {
+    let creditType: String?
+    let creditAmount: FlexibleInt?
+    let minimumCreditAmountForUsage: FlexibleInt?
 }
 
 private struct IneligibleTier: Decodable {
@@ -681,16 +824,86 @@ private struct RetrieveUserQuotaResponse: Decodable {
 private struct RetrieveUserQuotaBucket: Decodable {
     let modelId: String?
     let remainingFraction: Double?
+    let remainingAmount: FlexibleInt?
     let resetTime: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case modelId
+        case remainingFraction
+        case remainingAmount
+        case resetTime
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.modelId = try container.decodeIfPresent(String.self, forKey: .modelId)
+        self.remainingFraction = try container.decodeIfPresent(Double.self, forKey: .remainingFraction)
+        self.remainingAmount = try? container.decodeIfPresent(FlexibleInt.self, forKey: .remainingAmount)
+        self.resetTime = try container.decodeIfPresent(String.self, forKey: .resetTime)
+    }
 }
 
 private struct AntigravityRemoteModel: Decodable {
     let displayName: String?
     let label: String?
     let quotaInfo: AntigravityRemoteQuotaInfo?
+    let creditMultiplier: FlexibleDouble?
+    let pricingType: CodeValue?
+    let isPremium: Bool?
+    let tagTitle: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case displayName
+        case displayNameSnake = "display_name"
+        case label
+        case quotaInfo
+        case quotaInfoSnake = "quota_info"
+        case creditMultiplier
+        case creditMultiplierSnake = "credit_multiplier"
+        case pricingType
+        case pricingTypeSnake = "pricing_type"
+        case isPremium
+        case isPremiumSnake = "is_premium"
+        case premium
+        case tagTitle
+        case tagTitleSnake = "tag_title"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.displayName = try container.decodeIfPresent(String.self, forKey: .displayName)
+            ?? container.decodeIfPresent(String.self, forKey: .displayNameSnake)
+        self.label = try container.decodeIfPresent(String.self, forKey: .label)
+        self.quotaInfo = try container.decodeIfPresent(AntigravityRemoteQuotaInfo.self, forKey: .quotaInfo)
+            ?? container.decodeIfPresent(AntigravityRemoteQuotaInfo.self, forKey: .quotaInfoSnake)
+        self.creditMultiplier = (try? container.decodeIfPresent(FlexibleDouble.self, forKey: .creditMultiplier))
+            ?? (try? container.decodeIfPresent(FlexibleDouble.self, forKey: .creditMultiplierSnake))
+        self.pricingType = (try? container.decodeIfPresent(CodeValue.self, forKey: .pricingType))
+            ?? (try? container.decodeIfPresent(CodeValue.self, forKey: .pricingTypeSnake))
+        self.isPremium = (try? container.decodeIfPresent(Bool.self, forKey: .isPremium))
+            ?? (try? container.decodeIfPresent(Bool.self, forKey: .isPremiumSnake))
+            ?? (try? container.decodeIfPresent(Bool.self, forKey: .premium))
+        self.tagTitle = (try? container.decodeIfPresent(String.self, forKey: .tagTitle))
+            ?? (try? container.decodeIfPresent(String.self, forKey: .tagTitleSnake))
+    }
 }
 
 private struct AntigravityRemoteQuotaInfo: Decodable {
     let remainingFraction: Double?
     let resetTime: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case remainingFraction
+        case remainingFractionSnake = "remaining_fraction"
+        case resetTime
+        case resetTimeSnake = "reset_time"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.remainingFraction = try container.decodeIfPresent(Double.self, forKey: .remainingFraction)
+            ?? container.decodeIfPresent(Double.self, forKey: .remainingFractionSnake)
+        self.resetTime = try container.decodeIfPresent(String.self, forKey: .resetTime)
+            ?? container.decodeIfPresent(String.self, forKey: .resetTimeSnake)
+    }
 }

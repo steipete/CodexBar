@@ -247,6 +247,98 @@ struct AntigravityProtoReader {
         }
     }
 
+    struct WorkspaceMetadata: Equatable, Sendable {
+        var workspaceURI: String?
+        var gitRootURI: String?
+        var repoSlug: String?
+        var repoRemoteURL: String?
+        var repoUpstreamURL: String?
+        var branch: String?
+    }
+
+    struct TrajectoryMetadata: Equatable, Sendable {
+        var workspaces: [WorkspaceMetadata] = []
+        var parentCascadeID: String?
+        var rootCascadeID: String?
+        var primaryWorkspaceURI: String?
+        var projectID: String?
+    }
+
+    static func parseTrajectoryMetadata(
+        _ bytes: [UInt8],
+        checkCancellation: () throws -> Void = {}) throws -> TrajectoryMetadata?
+    {
+        var metadata = TrajectoryMetadata()
+        do {
+            try self.fields(bytes[...], checkCancellation: checkCancellation) { field in
+                switch field.number {
+                case 1:
+                    let workspace = try self.parseWorkspaceMetadata(
+                        field.message(),
+                        checkCancellation: checkCancellation)
+                    metadata.workspaces.append(workspace)
+                case 5:
+                    metadata.parentCascadeID = try field.string()
+                case 6:
+                    metadata.rootCascadeID = try field.string()
+                case 7:
+                    metadata.primaryWorkspaceURI = try field.string()
+                case 18:
+                    metadata.projectID = try field.string()
+                default:
+                    break
+                }
+            }
+            return metadata
+        } catch AntigravityLocalReader.ScanFailure.invalid {
+            return nil
+        }
+    }
+
+    private static func parseWorkspaceMetadata(
+        _ bytes: ArraySlice<UInt8>,
+        checkCancellation: () throws -> Void) throws -> WorkspaceMetadata
+    {
+        var workspace = WorkspaceMetadata()
+        try self.fields(bytes, checkCancellation: checkCancellation) { field in
+            switch field.number {
+            case 1:
+                workspace.workspaceURI = try field.string()
+            case 2:
+                workspace.gitRootURI = try field.string()
+            case 3:
+                try self.parseRepositoryMetadata(
+                    field.message(),
+                    workspace: &workspace,
+                    checkCancellation: checkCancellation)
+            case 4:
+                workspace.branch = try field.string()
+            default:
+                break
+            }
+        }
+        return workspace
+    }
+
+    private static func parseRepositoryMetadata(
+        _ bytes: ArraySlice<UInt8>,
+        workspace: inout WorkspaceMetadata,
+        checkCancellation: () throws -> Void) throws
+    {
+        try self.fields(bytes, checkCancellation: checkCancellation) { field in
+            switch field.number {
+            case 1:
+                workspace.repoSlug = try field.string()
+            case 2:
+                workspace.repoRemoteURL = try field.string()
+            case 3:
+                workspace.repoUpstreamURL = try field.string()
+            default:
+                break
+            }
+        }
+    }
+
     private static func parseChat(
         _ bytes: ArraySlice<UInt8>,
         turn: inout ParsedTurn,

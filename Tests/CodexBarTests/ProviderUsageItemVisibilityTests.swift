@@ -474,6 +474,89 @@ struct ProviderUsageItemVisibilityTests {
     }
 
     @Test
+    func `antigravity detail sections expose independent visibility and credits gating`() throws {
+        let now = Date()
+        let snapshot = try UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 20,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: nil),
+            secondary: nil,
+            details: [
+                ProviderDetailSection(title: "Credits", rows: [
+                    .init(label: "Prompt credits", value: "400 / 500", secondaryValue: "100 used"),
+                ]),
+                ProviderDetailSection(title: "Model availability", rows: [
+                    .init(label: "Gemini 3 Flash", value: "Degraded"),
+                ]),
+                ProviderDetailSection(title: "Bucket amounts", rows: [
+                    .init(label: "Standard pool", value: "750 remaining"),
+                ]),
+                ProviderDetailSection(title: "Quota groups", rows: [
+                    .init(label: "Gemini Models", value: "Gemini Flash, Gemini Pro"),
+                ]),
+                ProviderDetailSection(title: "Model catalog", rows: [
+                    .init(label: "Gemini 3.1 Pro", value: "1.5× · Static credit"),
+                ]),
+            ],
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .antigravity,
+                accountEmail: "ag@example.com",
+                accountOrganization: nil,
+                loginMethod: "Pro"))
+
+        func makeModel(showOptionalCreditsAndExtraUsage: Bool) throws -> UsageMenuCardView.Model {
+            try UsageMenuCardView.Model.make(.init(
+                provider: .antigravity,
+                metadata: #require(ProviderDefaults.metadata[.antigravity]),
+                snapshot: snapshot,
+                credits: nil,
+                creditsError: nil,
+                dashboardError: nil,
+                tokenSnapshot: nil,
+                tokenError: nil,
+                account: AccountInfo(email: nil, plan: nil),
+                isRefreshing: false,
+                lastError: nil,
+                usageBarsShowUsed: false,
+                resetTimeDisplayStyle: .countdown,
+                tokenCostUsageEnabled: false,
+                showOptionalCreditsAndExtraUsage: showOptionalCreditsAndExtraUsage,
+                hidePersonalInfo: false,
+                now: now))
+        }
+
+        let fullModel = try makeModel(showOptionalCreditsAndExtraUsage: true)
+        let detailItems = fullModel.usageItemDescriptors.filter { $0.id.detailSectionTitle != nil }
+        #expect(detailItems.map(\.id) == [
+            .detailSection("Credits"),
+            .detailSection("Model availability"),
+            .detailSection("Bucket amounts"),
+            .detailSection("Quota groups"),
+            .detailSection("Model catalog"),
+        ])
+        #expect(detailItems.filter(\.requiresOptionalUsage).map(\.id) == [
+            .detailSection("Credits"),
+            .detailSection("Quota groups"),
+            .detailSection("Model catalog"),
+        ])
+
+        let hiddenCredits = fullModel.applyingUsageItemVisibility(hiddenItemIDs: [.detailSection("Credits")])
+        #expect(hiddenCredits.providerDetails.map(\.title) == [
+            "Model availability",
+            "Bucket amounts",
+            "Quota groups",
+            "Model catalog",
+        ])
+
+        let withoutOptional = try makeModel(showOptionalCreditsAndExtraUsage: false)
+        #expect(!withoutOptional.providerDetails.contains { $0.title == "Credits" })
+        #expect(withoutOptional.providerDetails.map(\.title) == ["Model availability", "Bucket amounts"])
+    }
+
+    @Test
     func `legacy codex spark choice migrates and explicit defaults survive reload`() {
         let suite = "ProviderUsageItemVisibilityTests-migration-\(UUID().uuidString)"
         let defaults = InMemoryUserDefaults()

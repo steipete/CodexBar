@@ -89,8 +89,8 @@ struct AntigravityHistoryUpgradeTests {
         #expect(restarted.planUtilizationHistory[UsageProvider.antigravity.instanceID] == expected)
         for (snapshot, names) in [
             (pool, ["antigravityGemini:0", "antigravityClaudeGPT:0"]),
-            // Structured chart presentation intentionally shows the weekly lane; session remains persisted.
-            (structured, ["weekly:10080"]),
+            // Structured Antigravity summary snapshots expose both Session and Weekly tabs.
+            (structured, ["session:300", "weekly:10080"]),
         ] {
             let chart = PlanUtilizationHistoryChartMenuView._modelSnapshotForTesting(
                 histories: histories, provider: .antigravity, snapshot: snapshot, referenceDate: now)
@@ -98,5 +98,111 @@ struct AntigravityHistoryUpgradeTests {
             print("Antigravity upgrade chart: \(chart.visibleSeries); selected=\(chart.selectedSeries ?? "none")")
         }
         print("Antigravity upgrade: 2 accounts and unscoped history preserved; both formats saved and reloaded")
+    }
+
+    @Test
+    func `legacy v0_85_0 config history and serialized usage snapshot decode cleanly with defaults intact`()
+        async throws
+    {
+        // 1. Legacy v0.85.0 config.json without any of the 6 new Antigravity fields.
+        let legacyConfigJSON = """
+        {
+          "version": 1,
+          "providers": [
+            {
+              "id": "antigravity",
+              "enabled": true,
+              "source": "cli",
+              "antigravityAdditionalProfileHomes": ["/Users/example/.gemini-work"],
+              "antigravityPrioritizeExhaustedQuotas": true
+            }
+          ]
+        }
+        """
+        let decodedConfig = try JSONDecoder().decode(CodexBarConfig.self, from: Data(legacyConfigJSON.utf8))
+        let antigravityConfig = try #require(decodedConfig.providerConfig(for: .antigravity))
+        #expect(antigravityConfig.enabled == true)
+        #expect(antigravityConfig.source == .cli)
+        #expect(antigravityConfig.antigravityAdditionalProfileHomes == ["/Users/example/.gemini-work"])
+        #expect(antigravityConfig.antigravityPrioritizeExhaustedQuotas == true)
+        #expect(antigravityConfig.antigravityPrimaryPoolPreference == nil)
+        #expect(antigravityConfig.resolvedAntigravityPrimaryPoolPreference == .auto)
+        #expect(antigravityConfig.antigravityShowCredits == nil)
+        #expect(antigravityConfig.antigravityScanDesktopEnabled == nil)
+        #expect(antigravityConfig.antigravityScanCLIEnabled == nil)
+        #expect(antigravityConfig.antigravityTokscaleFallbackEnabled == nil)
+        #expect(antigravityConfig.antigravityProjectGrouping == nil)
+        #expect(antigravityConfig.resolvedAntigravityProjectGrouping == .workspace)
+        #expect(antigravityConfig.resolvedAntigravityScanOptions == .defaultOptions)
+
+        // 2. Legacy v0.85.0 history/antigravity.json with only session and weekly series.
+        let store = UsageStorePlanUtilizationTests.makeStore()
+        let disk = store.planUtilizationHistoryStore
+        let root = try #require(disk.directoryURL)
+        let legacyHistoryJSON = """
+        {
+          "version": 1,
+          "unscoped": [
+            {
+              "name": "session",
+              "windowMinutes": 300,
+              "entries": [
+                {"capturedAt": "2026-09-12T00:00:00Z", "usedPercent": 18, "resetsAt": "2026-09-12T05:00:00Z"}
+              ]
+            },
+            {
+              "name": "weekly",
+              "windowMinutes": 10080,
+              "entries": [
+                {"capturedAt": "2026-09-12T00:00:00Z", "usedPercent": 42, "resetsAt": "2026-09-19T00:00:00Z"}
+              ]
+            }
+          ],
+          "accounts": {}
+        }
+        """
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try Data(legacyHistoryJSON.utf8).write(to: root.appendingPathComponent("antigravity.json"))
+        store.planUtilizationHistoryLoaded = false
+        store.startPlanUtilizationHistoryLoad(gate: nil, enabled: true)
+        await store.planUtilizationHistoryLoadTask?.value
+        let loadedHistory = store.planUtilizationHistory(for: .antigravity)
+        #expect(loadedHistory.first(where: { $0.name == .session })?.entries.first?.usedPercent == 18)
+        #expect(loadedHistory.first(where: { $0.name == .weekly })?.entries.first?.usedPercent == 42)
+
+        // 3. Legacy v0.85.0 serialized UsageSnapshot without new Antigravity catalog/tier/credits fields.
+        let legacySnapshotJSON = """
+        {
+          "primary": {
+            "usedPercent": 21,
+            "windowMinutes": 300,
+            "resetsAt": "2026-09-12T05:00:00Z",
+            "resetDescription": "Resets in 4h"
+          },
+          "secondary": {
+            "usedPercent": 9,
+            "windowMinutes": 10080,
+            "resetsAt": "2026-09-19T00:00:00Z"
+          },
+          "updatedAt": "2026-09-12T01:00:00Z",
+          "identity": {
+            "providerID": "antigravity",
+            "accountEmail": "user@example.com",
+            "loginMethod": "Google AI Ultra"
+          }
+        }
+        """
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let decodedSnapshot = try decoder.decode(UsageSnapshot.self, from: Data(legacySnapshotJSON.utf8))
+        #expect(decodedSnapshot.primary?.usedPercent == 21)
+        #expect(decodedSnapshot.primary?.windowMinutes == 300)
+        #expect(decodedSnapshot.secondary?.usedPercent == 9)
+        #expect(decodedSnapshot.secondary?.windowMinutes == 10080)
+        #expect(decodedSnapshot.identity?.accountEmail == "user@example.com")
+        #expect(decodedSnapshot.identity?.loginMethod == "Google AI Ultra")
+        #expect(decodedSnapshot.antigravityCredits == nil)
+        #expect(decodedSnapshot.antigravityAccountMetadata == nil)
+        #expect(decodedSnapshot.antigravityCatalog == nil)
     }
 }

@@ -18,6 +18,8 @@ struct PlanUtilizationSeriesName: RawRepresentable, Hashable, Codable, Expressib
     static let opus: Self = "opus"
     static let antigravityGemini: Self = "antigravityGemini"
     static let antigravityClaudeGPT: Self = "antigravityClaudeGPT"
+    static let antigravityClaudeGPTSession: Self = "antigravityClaudeGPTSession"
+    static let antigravityClaudeGPTWeekly: Self = "antigravityClaudeGPTWeekly"
 
     var isQuotaObservation: Bool {
         self == .antigravityGemini || self == .antigravityClaudeGPT
@@ -25,9 +27,11 @@ struct PlanUtilizationSeriesName: RawRepresentable, Hashable, Codable, Expressib
 
     func canonicalWindowMinutes(_ windowMinutes: Int) -> Int {
         switch self {
-        case .session where (295...305).contains(windowMinutes):
+        case .session where (295...305).contains(windowMinutes),
+             .antigravityClaudeGPTSession where (295...305).contains(windowMinutes):
             300
-        case .weekly where (10070...10090).contains(windowMinutes):
+        case .weekly where (10070...10090).contains(windowMinutes),
+             .antigravityClaudeGPTWeekly where (10070...10090).contains(windowMinutes):
             10080
         default:
             windowMinutes

@@ -20,6 +20,11 @@ public enum AntigravityProviderDescriptor {
                     "antigravity-quota-summary-gemini-weekly": "Gemini weekly",
                     "antigravity-quota-summary-3p-weekly": "Claude/GPT weekly",
                 ]),
+            settingsSection: .init(AntigravityProviderSettingsKey.self, credentialSettings: { context in
+                AntigravityProviderSettings(
+                    primaryPoolPreference: context.config?.resolvedAntigravityPrimaryPoolPreference ?? .auto,
+                    showCredits: context.config?.antigravityShowCredits ?? true)
+            }),
             credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .antigravity,
@@ -63,7 +68,7 @@ public enum AntigravityProviderDescriptor {
                 settingsStatusOrder: 3,
                 showsHintInProviderDetails: true,
                 estimateDisclaimer: "Local usage × public API prices · not Antigravity charges or credits",
-                historyTitleStyle: .compact,
+                historyTitleStyle: .standard,
                 hintPlacement: .beforeRequestHistory,
                 chartEstimateDisclaimer: .localized(self.estimateHintKey),
                 presentation: .costAndTokens),
@@ -81,6 +86,7 @@ public enum AntigravityProviderDescriptor {
                 ],
                 automaticSelectionPrioritizesExhaustedWindow: false,
                 menuBarWindowResolver: self.menuBarWindow,
+                planUtilizationSeriesResolver: self.planUtilizationSeries,
                 widgetRowLimitResolver: { rows, family in
                     guard rows?.contains(where: { $0.id.hasPrefix(Self.quotaSummaryPrefix) }) == true else {
                         return nil
@@ -96,7 +102,9 @@ public enum AntigravityProviderDescriptor {
                     quotaWindowNote: self.quotaWindowNoteKey,
                     // Because that surfaced reset belongs to whichever family currently leads, stored
                     // observations name unrelated families' resets and must not become boundaries.
-                    ignoresObservedQuotaResetBoundaries: true)),
+                    ignoresObservedQuotaResetBoundaries: true),
+                optionalDetails: ProviderOptionalDetailsPresentation(
+                    hiddenTitlesWithoutOptionalUsage: ["Credits", "Quota groups", "Model catalog"])),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .cli, .oauth],
                 pipeline: ProviderFetchPipeline(
@@ -113,6 +121,33 @@ public enum AntigravityProviderDescriptor {
     static let quotaWindowNoteKey = "antigravity_quota_window_note"
     static let noDataMessageKey = "antigravity_no_priced_token_history"
 
+    public static func subscriptionDashboardURL(from snapshot: UsageSnapshot?) -> URL? {
+        let candidates = [
+            snapshot?.antigravityAccountMetadata?.manageSubscriptionURI,
+            snapshot?.antigravityAccountMetadata?.upgradeSubscriptionURI,
+        ]
+        for raw in candidates {
+            guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !trimmed.isEmpty,
+                  let url = URL(string: trimmed),
+                  url.scheme?.lowercased() == "https",
+                  url.host?.isEmpty == false
+            else { continue }
+            return url
+        }
+        return nil
+    }
+
+    static func snapshotOptions(from context: ProviderFetchContext) -> (
+        primaryPool: AntigravityPrimaryPoolPreference,
+        showCredits: Bool)
+    {
+        let settings = context.settings?[AntigravityProviderSettingsKey.self]
+        return (
+            primaryPool: settings?.primaryPoolPreference ?? .auto,
+            showCredits: (settings?.showCredits ?? true) && context.includeOptionalUsage)
+    }
+
     private static let quotaSummaryPrefix = "antigravity-quota-summary-"
     private static let compactFallbackPrefix = "antigravity-compact-fallback-"
 
@@ -126,6 +161,64 @@ public enum AntigravityProviderDescriptor {
         return ProviderSemanticWindows(
             session: self.mostConstrained(windows: known, minutes: 300),
             weekly: self.mostConstrained(windows: known, minutes: 7 * 24 * 60))
+    }
+
+    private static func planUtilizationSeries(
+        snapshot: UsageSnapshot) -> Set<ProviderPlanUtilizationSeries>?
+    {
+        let summaryRows = (snapshot.extraRateWindows ?? []).filter {
+            $0.usageKnown && $0.id.hasPrefix(self.quotaSummaryPrefix)
+        }
+        guard !summaryRows.isEmpty else {
+            let semantic = self.semanticWindows(snapshot: snapshot)
+            var series: Set<ProviderPlanUtilizationSeries> = []
+            if semantic.session != nil {
+                series.insert(.session)
+            }
+            if semantic.weekly != nil {
+                series.insert(.weekly)
+            }
+            return series.isEmpty ? nil : series
+        }
+
+        let idleIDs = AntigravityQuotaFamilyVisibility.idleWindowIDs(in: snapshot)
+        // Provider-specific by design: KnownFamily.gemini classifies an Antigravity quota family.
+        let geminiRows = summaryRows.filter {
+            AntigravityQuotaFamilyVisibility.knownFamily(windowID: $0.id, title: $0.title) == .gemini
+        }
+        let claudeGPTRows = summaryRows.filter {
+            AntigravityQuotaFamilyVisibility.knownFamily(windowID: $0.id, title: $0.title) == .claudeGPT
+        }
+        let primaryRows = geminiRows.isEmpty
+            ? summaryRows.filter {
+                AntigravityQuotaFamilyVisibility.knownFamily(windowID: $0.id, title: $0.title) != .claudeGPT
+            }
+            : geminiRows
+
+        var series: Set<ProviderPlanUtilizationSeries> = []
+        if self.mostConstrained(windows: primaryRows, minutes: 300) != nil {
+            series.insert(.session)
+        }
+        if self.mostConstrained(windows: primaryRows, minutes: 7 * 24 * 60) != nil {
+            series.insert(.weekly)
+        }
+        let activeClaudeGPTRows = claudeGPTRows.filter { !idleIDs.contains($0.id) }
+        if self.mostConstrained(windows: activeClaudeGPTRows, minutes: 300) != nil {
+            series.insert(.supplementarySession)
+        }
+        if self.mostConstrained(windows: activeClaudeGPTRows, minutes: 7 * 24 * 60) != nil {
+            series.insert(.supplementaryWeekly)
+        }
+        if series.isEmpty {
+            let semantic = self.semanticWindows(snapshot: snapshot)
+            if semantic.session != nil {
+                series.insert(.session)
+            }
+            if semantic.weekly != nil {
+                series.insert(.weekly)
+            }
+        }
+        return series.isEmpty ? nil : series
     }
 
     private static func iconWindows(context: ProviderIconWindowContext) -> ProviderUsageWindowPair {
@@ -165,6 +258,13 @@ public enum AntigravityProviderDescriptor {
                 in: context.snapshot,
                 following: [.primary, .secondary, .tertiary]))
         case .automatic:
+            if context.antigravityPrimaryPool != .auto,
+               let preferred = self.preferredAutomaticWindow(
+                   snapshot: context.snapshot,
+                   pool: context.antigravityPrimaryPool)
+            {
+                return .resolved(preferred)
+            }
             if context.prioritizesExhaustedQuotas,
                let ranked = self.rankedQuotaSummaryWindow(snapshot: context.snapshot, now: context.now)
             {
@@ -181,6 +281,41 @@ public enum AntigravityProviderDescriptor {
                         prefix: self.compactFallbackPrefix))
         default:
             return .unhandled
+        }
+    }
+
+    private static func preferredAutomaticWindow(
+        snapshot: UsageSnapshot,
+        pool: AntigravityPrimaryPoolPreference) -> RateWindow?
+    {
+        guard pool != .auto else { return nil }
+        let summaryWindows = (snapshot.extraRateWindows ?? [])
+            .filter { $0.usageKnown && $0.id.hasPrefix(self.quotaSummaryPrefix) }
+        if !summaryWindows.isEmpty {
+            if let preferredID = pool.preferredQuotaSummaryWindowID,
+               let exact = summaryWindows.first(where: { $0.id == preferredID })
+            {
+                return exact.window
+            }
+            if let family = pool.preferredFamily,
+               let minutes = pool.preferredWindowMinutes,
+               let fallback = summaryWindows.first(where: {
+                   AntigravityQuotaFamilyVisibility.knownFamily(windowID: $0.id, title: $0.title) == family &&
+                       $0.window.windowMinutes == minutes
+               })
+            {
+                return fallback.window
+            }
+            return nil
+        }
+        // Provider-specific by design: KnownFamily.gemini classifies an Antigravity quota family.
+        switch pool.preferredFamily {
+        case .gemini:
+            return snapshot.primary
+        case .claudeGPT:
+            return snapshot.secondary
+        case nil:
+            return nil
         }
     }
 
@@ -299,7 +434,10 @@ struct AntigravityStatusFetchStrategy: ProviderFetchStrategy {
             nil
         }
         let snap = try await probe.fetch(matchingAccountEmail: selectedAccountEmail)
-        let usage = try snap.toUsageSnapshot()
+        let options = AntigravityProviderDescriptor.snapshotOptions(from: context)
+        let usage = try snap.toUsageSnapshot(
+            primaryPool: options.primaryPool,
+            showCredits: options.showCredits)
         try AntigravitySelectedAccountGuard.validate(usage, context: context)
         return self.makeResult(
             usage: usage,
@@ -491,10 +629,19 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        try await self.fetch(
+        let options = AntigravityProviderDescriptor.snapshotOptions(from: context)
+        return try await self.fetch(
             context,
             warmDependencies: Self.liveWarmAgyDependencies(),
-            spawnFetch: self.fetchBySpawning)
+            spawnFetch: { binary, idleWindow, resetAfterFetch, expectedAccountEmail in
+                try await self.fetchBySpawning(
+                    binary: binary,
+                    idleWindow: idleWindow,
+                    resetAfterFetch: resetAfterFetch,
+                    expectedAccountEmail: expectedAccountEmail,
+                    primaryPool: options.primaryPool,
+                    showCredits: options.showCredits)
+            })
     }
 
     func fetch(
@@ -513,6 +660,7 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         } else {
             nil
         }
+        let options = AntigravityProviderDescriptor.snapshotOptions(from: context)
         let versionResolver = AgyVersionResolver()
         #if os(macOS)
         let scopedReportFetch: (@Sendable () async throws -> ProviderFetchResult)? = {
@@ -520,6 +668,8 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
                 binary: binary,
                 environment: context.env,
                 versionResolver: versionResolver,
+                primaryPool: options.primaryPool,
+                showCredits: options.showCredits,
                 credentialsUpdateHandler: {
                     try await AntigravityOAuthFetchStrategy.persistCredentials($0, context: context)
                 })
@@ -535,6 +685,8 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
                     idleWindow: context.persistentCLISessionIdleWindow,
                     resetAfterFetch: Self.shouldResetSessionAfterFetch(context),
                     expectedAccountEmail: expectedAccountEmail,
+                    primaryPool: options.primaryPool,
+                    showCredits: options.showCredits,
                     warmDependencies: warmDependencies,
                     spawnFetch: { binary, idleWindow, resetAfterFetch in
                         let version = try? await Self.agyVersion(
@@ -547,7 +699,11 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
             },
             reportFetch: {
                 try await self.fetchPrintUsage(
-                    binary: binary, environment: context.env, versionResolver: versionResolver)
+                    binary: binary,
+                    environment: context.env,
+                    versionResolver: versionResolver,
+                    primaryPool: options.primaryPool,
+                    showCredits: options.showCredits)
             },
             scopedReportFetch: scopedReportFetch)
     }
@@ -590,7 +746,9 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         binary: String,
         environment: [String: String],
         timeout: TimeInterval = 90,
-        versionResolver: AgyVersionResolver = AgyVersionResolver()) async throws -> ProviderFetchResult
+        versionResolver: AgyVersionResolver = AgyVersionResolver(),
+        primaryPool: AntigravityPrimaryPoolPreference = .auto,
+        showCredits: Bool = true) async throws -> ProviderFetchResult
     {
         let environment = Self.childEnvironment(environment)
         let directory = FileManager.default.temporaryDirectory
@@ -604,7 +762,9 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
             directory: directory,
             timeout: timeout,
             versionResolver: versionResolver)
-        return try self.makeResult(usage: snapshot.toUsageSnapshot(), sourceLabel: Self.sourceLabel)
+        return try self.makeResult(
+            usage: snapshot.toUsageSnapshot(primaryPool: primaryPool, showCredits: showCredits),
+            sourceLabel: Self.sourceLabel)
     }
 
     static func runPrintUsage(
@@ -785,6 +945,8 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         idleWindow: TimeInterval?,
         resetAfterFetch: Bool,
         expectedAccountEmail: String? = nil,
+        primaryPool: AntigravityPrimaryPoolPreference = .auto,
+        showCredits: Bool = true,
         warmDependencies: WarmAgyDependencies,
         spawnFetch: @Sendable (String, TimeInterval?, Bool) async throws -> ProviderFetchResult)
         async throws -> ProviderFetchResult
@@ -799,7 +961,9 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         {
             // `tryWarmAgyFetch` only returns a snapshot whose `toUsageSnapshot()`
             // already succeeded, so this conversion must not silently fail.
-            let warmUsage = try warmSnapshot.toUsageSnapshot()
+            let warmUsage = try warmSnapshot.toUsageSnapshot(
+                primaryPool: primaryPool,
+                showCredits: showCredits)
             return self.makeResult(
                 usage: warmUsage,
                 sourceLabel: Self.sourceLabel)
@@ -815,7 +979,9 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         binary: String,
         idleWindow: TimeInterval?,
         resetAfterFetch: Bool,
-        expectedAccountEmail: String?) async throws -> ProviderFetchResult
+        expectedAccountEmail: String?,
+        primaryPool: AntigravityPrimaryPoolPreference = .auto,
+        showCredits: Bool = true) async throws -> ProviderFetchResult
     {
         let session = AntigravityCLISession.shared
         let pid = try await session.beginProbe(binary: binary, idleWindow: idleWindow)
@@ -842,7 +1008,7 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
                             .fetchFromPorts(ports, deadline: deadline)
                     },
                     now: Date.init))
-            usage = try snap.toUsageSnapshot()
+            usage = try snap.toUsageSnapshot(primaryPool: primaryPool, showCredits: showCredits)
             await session.finishProbe(success: true, resetAfterFetch: resetAfterFetch)
         } catch {
             let authenticationRequired = (error as? AntigravityStatusProbeError) == .authenticationRequired
@@ -988,13 +1154,25 @@ struct AntigravityOAuthFetchStrategy: ProviderFetchStrategy {
 
     static func usageSnapshot(
         from snapshot: AntigravityStatusSnapshot,
-        updatedAt: Date = Date()) throws -> UsageSnapshot
+        updatedAt: Date = Date(),
+        primaryPool: AntigravityPrimaryPoolPreference = .auto,
+        showCredits: Bool = true) throws -> UsageSnapshot
     {
         if snapshot.modelQuotas.isEmpty, snapshot.quotaSummary == nil {
+            let catalog = snapshot.catalogSnapshot
+            let details = AntigravityStatusSnapshot.detailSections(
+                quotaSummary: nil,
+                catalog: catalog,
+                credits: snapshot.credits,
+                showCredits: showCredits)
             return UsageSnapshot(
                 primary: nil,
                 secondary: nil,
                 tertiary: nil,
+                details: details,
+                antigravityCredits: snapshot.credits,
+                antigravityAccountMetadata: snapshot.accountMetadata,
+                antigravityCatalog: catalog,
                 updatedAt: updatedAt,
                 identity: ProviderIdentitySnapshot(
                     providerID: .antigravity,
@@ -1002,7 +1180,7 @@ struct AntigravityOAuthFetchStrategy: ProviderFetchStrategy {
                     accountOrganization: nil,
                     loginMethod: snapshot.accountPlan))
         }
-        return try snapshot.toUsageSnapshot()
+        return try snapshot.toUsageSnapshot(primaryPool: primaryPool, showCredits: showCredits)
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
@@ -1010,7 +1188,11 @@ struct AntigravityOAuthFetchStrategy: ProviderFetchStrategy {
             environment: context.env,
             credentialsUpdateHandler: { try await Self.persistCredentials($0, context: context) })
         let snapshot = try await fetcher.fetch()
-        let usage = try Self.usageSnapshot(from: snapshot)
+        let options = AntigravityProviderDescriptor.snapshotOptions(from: context)
+        let usage = try Self.usageSnapshot(
+            from: snapshot,
+            primaryPool: options.primaryPool,
+            showCredits: options.showCredits)
         return self.makeResult(
             usage: usage,
             sourceLabel: "oauth")

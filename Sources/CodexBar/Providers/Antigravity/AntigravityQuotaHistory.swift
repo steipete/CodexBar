@@ -56,4 +56,52 @@ extension UsageStore {
                 && [self.sessionWindowMinutes, self.weeklyWindowMinutes].contains($0.window.windowMinutes ?? 0)
         } == true
     }
+
+    nonisolated static func antigravityStructuredSeriesWindows(
+        snapshot: UsageSnapshot) -> [(name: PlanUtilizationSeriesName, window: RateWindow)]
+    {
+        let summaryRows = (snapshot.extraRateWindows ?? []).filter {
+            $0.usageKnown &&
+                $0.id.hasPrefix("antigravity-quota-summary-") &&
+                !$0.window.isSyntheticPlaceholder &&
+                $0.window.usedPercent.isFinite
+        }
+        guard !summaryRows.isEmpty else { return [] }
+
+        // Provider-specific by design: pin .session and .weekly strictly to the canonical gemini family
+        // matching antigravitySessionEquivalentWindows so secondary pools such as Argon never overwrite Gemini history.
+        let canonicalGeminiRows = summaryRows.filter {
+            Self.antigravityQuotaFamilyKey($0.id) == "gemini"
+        }
+        let claudeGPTRows = summaryRows.filter {
+            AntigravityQuotaFamilyVisibility.knownFamily(windowID: $0.id, title: $0.title) == .claudeGPT
+        }
+
+        func mostConstrained(_ rows: [NamedRateWindow], minutes: Int) -> RateWindow? {
+            rows
+                .filter { $0.window.windowMinutes == minutes }
+                .max { lhs, rhs in
+                    if lhs.window.usedPercent != rhs.window.usedPercent {
+                        return lhs.window.usedPercent < rhs.window.usedPercent
+                    }
+                    return lhs.id > rhs.id
+                }?
+                .window
+        }
+
+        var result: [(name: PlanUtilizationSeriesName, window: RateWindow)] = []
+        if let session = mostConstrained(canonicalGeminiRows, minutes: Self.sessionWindowMinutes) {
+            result.append((.session, session))
+        }
+        if let weekly = mostConstrained(canonicalGeminiRows, minutes: Self.weeklyWindowMinutes) {
+            result.append((.weekly, weekly))
+        }
+        if let claudeSession = mostConstrained(claudeGPTRows, minutes: Self.sessionWindowMinutes) {
+            result.append((.antigravityClaudeGPTSession, claudeSession))
+        }
+        if let claudeWeekly = mostConstrained(claudeGPTRows, minutes: Self.weeklyWindowMinutes) {
+            result.append((.antigravityClaudeGPTWeekly, claudeWeekly))
+        }
+        return result
+    }
 }

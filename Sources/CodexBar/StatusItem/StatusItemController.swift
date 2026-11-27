@@ -358,6 +358,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             snapshot: snapshot,
             supportsAverage: self.settings.menuBarMetricSupportsAverage(for: provider),
             antigravityPrioritizeExhaustedQuotas: self.settings.antigravityPrioritizeExhaustedQuotas,
+            antigravityPrimaryPool: self.settings.antigravityPrimaryPoolPreference,
             now: now)
     }
 
@@ -373,8 +374,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         updater: UpdaterProviding,
         preferencesSelection: PreferencesSelection,
         agentSessions: AgentSessionsStore? = nil,
-        managedCodexAccountCoordinator: ManagedCodexAccountCoordinator =
-            ManagedCodexAccountCoordinator(),
+        managedCodexAccountCoordinator: ManagedCodexAccountCoordinator = ManagedCodexAccountCoordinator(),
         codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator? = nil,
         statusBar: NSStatusBar = .system,
         menuCardRenderingEnabled: Bool = StatusItemController.menuCardRenderingEnabled,

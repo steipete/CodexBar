@@ -83,16 +83,16 @@ struct CLICostTests {
     func `session and project grouping keep all local session providers in text mode`() {
         for groupBy in [CodexBarCLI.CostGroupBy.session, .project] {
             let textProviders = CodexBarCLI.costProviders(
-                [.claude, .codex, .pi, .vertexai],
+                [.claude, .codex, .pi, .antigravity, .vertexai],
                 groupBy: groupBy,
                 format: .text)
-            #expect(textProviders.map(\.rawValue) == ["claude", "codex", "pi"])
+            #expect(textProviders.map(\.rawValue) == ["claude", "codex", "pi", "antigravity"])
 
             let jsonProviders = CodexBarCLI.costProviders(
-                [.claude, .codex, .pi, .vertexai],
+                [.claude, .codex, .pi, .antigravity, .vertexai],
                 groupBy: groupBy,
                 format: .json)
-            #expect(jsonProviders.map(\.rawValue) == ["claude", "codex", "pi", "vertexai"])
+            #expect(jsonProviders.map(\.rawValue) == ["claude", "codex", "pi", "antigravity", "vertexai"])
         }
     }
 

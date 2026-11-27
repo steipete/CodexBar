@@ -603,7 +603,12 @@ struct MenuDescriptor {
                 .appendActionMenuEntries(context: actionContext, entries: &entries)
         }
 
-        if metadata?.dashboardURL != nil {
+        // Provider-specific by design: Antigravity exposes a per-account subscription/upgrade URL in snapshot metadata.
+        let hasDashboardURL = metadata?.dashboardURL != nil
+            || (targetProvider == .antigravity
+                && AntigravityProviderDescriptor.subscriptionDashboardURL(
+                    from: store.snapshot(for: UsageProvider.antigravity.instanceID)) != nil)
+        if hasDashboardURL {
             entries.append(.action(L("Usage Dashboard"), .dashboard))
         }
         if metadata?.statusPageURL != nil || metadata?.statusLinkURL != nil {

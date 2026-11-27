@@ -903,31 +903,64 @@ extension UsageMenuCardView.Model {
     static func antigravityMetrics(input: Input, snapshot: UsageSnapshot) -> [Metric] {
         let percentStyle: PercentStyle = input.usageBarsShowUsed ? .used : .left
         if Self.hasAntigravityQuotaSummaryWindows(snapshot) {
+            let effectiveSnapshot: UsageSnapshot = if let primaryPool = input.antigravityPrimaryPool,
+                                                      primaryPool != .auto,
+                                                      let windows = snapshot.extraRateWindows
+            {
+                snapshot.with(extraRateWindows: AntigravityStatusSnapshot.reorderedWindows(
+                    windows,
+                    primaryPool: primaryPool))
+            } else {
+                snapshot
+            }
             let metrics = Self.extraRateWindowMetrics(
-                snapshot: snapshot,
+                snapshot: effectiveSnapshot,
                 input: input,
                 percentStyle: percentStyle)
             guard !input.showsAllUsageLanes else { return metrics }
-            let idleIDs = AntigravityQuotaFamilyVisibility.idleWindowIDs(in: snapshot)
+            let idleIDs = AntigravityQuotaFamilyVisibility.idleWindowIDs(
+                in: effectiveSnapshot,
+                primaryPool: input.antigravityPrimaryPool)
             return idleIDs.isEmpty ? metrics : metrics.filter { !idleIDs.contains($0.id) }
         }
 
-        var metrics: [Metric] = []
-        if let primary = snapshot.primary {
-            metrics.append(Self.antigravityMetric(
+        let primaryMetric = snapshot.primary.map { primary in
+            Self.antigravityMetric(
                 id: "primary",
                 title: L(input.metadata.sessionLabel),
                 window: primary,
                 input: input,
-                percentStyle: percentStyle))
+                percentStyle: percentStyle)
         }
-        if let secondary = snapshot.secondary {
-            metrics.append(Self.antigravityMetric(
+        let secondaryMetric = snapshot.secondary.map { secondary in
+            Self.antigravityMetric(
                 id: "secondary",
                 title: L(input.metadata.weeklyLabel),
                 window: secondary,
                 input: input,
-                percentStyle: percentStyle))
+                percentStyle: percentStyle)
+        }
+        let prefersSecondaryFirst = switch input.antigravityPrimaryPool {
+        case .claudeGPTWeekly, .claudeGPTFiveHour:
+            true
+        case .auto, .geminiWeekly, .geminiFiveHour, nil:
+            false
+        }
+        var metrics: [Metric] = []
+        if prefersSecondaryFirst {
+            if let secondaryMetric {
+                metrics.append(secondaryMetric)
+            }
+            if let primaryMetric {
+                metrics.append(primaryMetric)
+            }
+        } else {
+            if let primaryMetric {
+                metrics.append(primaryMetric)
+            }
+            if let secondaryMetric {
+                metrics.append(secondaryMetric)
+            }
         }
         if input.metadata.supportsOpus, let tertiary = snapshot.tertiary {
             metrics.append(Self.antigravityMetric(
