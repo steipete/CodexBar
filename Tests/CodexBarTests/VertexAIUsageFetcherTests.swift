@@ -205,6 +205,96 @@ struct VertexAIUsageFetcherTests {
         #expect(pricedEntry.modelBreakdowns?.first { $0.modelName == "gemini-2.5-pro" }?.costUSD == nil)
     }
 
+    @Test
+    func `online serving marks same-model missing-hour tokens incomplete in summary and partial in report`()
+        async throws
+    {
+        let formatter = ISO8601DateFormatter()
+        let hour10 = try #require(formatter.date(from: "2026-11-25T10:00:00Z"))
+        let hour11 = try #require(formatter.date(from: "2026-11-25T11:00:00Z"))
+        let proLabels = #""location":"us-central1","publisher":"google","model_user_id":"gemini-2.5-pro""#
+        let transport = Self.routerTransport { _, filter in
+            if filter.contains("online_serving/token_count") {
+                return (200, """
+                {"timeSeries":[
+                  {"metric":{"labels":{"type":"input","request_type":"shared"}},
+                   "resource":{"labels":{\(proLabels)}},
+                   "points":[
+                     {"interval":{"startTime":"2026-11-25T10:00:00Z"},"value":{"int64Value":"1000"}}
+                   ]}
+                ]}
+                """)
+            }
+            if filter.contains("online_serving/model_invocation_count") {
+                return (200, """
+                {"timeSeries":[
+                  {"metric":{"labels":{"request_type":"shared"}},
+                   "resource":{"labels":{\(proLabels)}},
+                   "points":[
+                     {"interval":{"startTime":"2026-11-25T10:00:00Z"},"value":{"int64Value":"5"}},
+                     {"interval":{"startTime":"2026-11-25T11:00:00Z"},"value":{"int64Value":"3"}}
+                   ]}
+                ]}
+                """)
+            }
+            return (200, #"{"timeSeries":[]}"#)
+        }
+
+        let response = try await VertexAIUsageFetcher.fetchUsageSnapshot(
+            accessToken: "token",
+            projectId: "proj-1",
+            options: VertexAIQueryOptions(includeOnlineServing: true, estimateServingCost: true),
+            now: hour11.addingTimeInterval(3600),
+            transport: transport)
+        let summary = try #require(response.onlineServingSummary)
+        #expect(summary.totalInvocations == 8)
+        #expect(!summary.tokensAreComplete)
+        #expect(summary.estimatedCostUSD == nil)
+        let model = try #require(summary.models.first)
+        #expect(model.invocations == 8)
+        #expect(!model.tokensAreComplete)
+        #expect(model.estimatedCostUSD == nil)
+
+        let credentials = VertexAIOAuthCredentials(
+            accessToken: "token",
+            refreshToken: "refresh",
+            clientId: "client",
+            clientSecret: "secret",
+            projectId: "proj-1",
+            email: "dev@example.com",
+            expiryDate: hour11.addingTimeInterval(7200))
+        let snapshot = VertexAIOAuthFetchStrategy.mapUsage(response, credentials: credentials)
+        let section = try #require(snapshot.details.first { $0.title == "Online serving (24h)" })
+        let totalTokensRow = try #require(section.rows.first { $0.label == "Total tokens" })
+        #expect(totalTokensRow.value == "Unavailable")
+        #expect(totalTokensRow.secondaryValue == nil)
+        #expect(!section.rows.contains { $0.label == "Est. cost" })
+        let modelRow = try #require(section.rows.first { $0.label == "gemini-2.5-pro" })
+        #expect(modelRow.value == "Unavailable")
+        #expect(modelRow.secondaryValue?.contains("8 req") == true)
+
+        let resolver = CostUsagePricing.ClaudeResolver(catalog: ModelsDevCatalog(providers: [:]))
+        let outcome = try await VertexAIUsageFetcher.fetchOnlineServingReport(
+            accessToken: "token",
+            projectId: "proj-1",
+            config: VertexAIUsageFetcher.OnlineServingReportConfig(
+                since: hour10,
+                until: hour11.addingTimeInterval(3600),
+                calendar: CostUsageBucketTimeZone.calendar(identifier: "UTC"),
+                options: VertexAIQueryOptions(estimateServingCost: true),
+                estimateCost: true),
+            pricingResolver: resolver,
+            transport: transport)
+        guard case let .report(report, isPartial) = outcome else {
+            Issue.record("Expected partial online serving report outcome")
+            return
+        }
+        #expect(isPartial)
+        #expect(report.hourly.count == 2)
+        #expect(report.hourly.first { $0.hour == hour10 }?.tokensAreComplete == true)
+        #expect(report.hourly.first { $0.hour == hour11 }?.tokensAreComplete == false)
+    }
+
     private static func makeConsumerQuotaJSON(rateMetric: String) -> String {
         let prefix = "projects/p/services/aiplatform.googleapis.com/consumerQuotaMetrics/\(rateMetric)"
         return """

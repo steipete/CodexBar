@@ -31,6 +31,100 @@ extension VertexAIUsageFetcher {
     AND resource.type="aiplatform.googleapis.com/PublisherModel"
     """
 
+    private struct OnlineServingModelKey: Hashable {
+        let modelUserID: String
+        let location: String
+        let publisher: String
+        let requestType: String
+    }
+
+    private struct OnlineServingBucketKey: Hashable {
+        let modelKey: OnlineServingModelKey
+        let hour: Date?
+    }
+
+    private struct OnlineServingBucketAccumulator {
+        var invocations: Int = 0
+        var inputTokens: Int = 0
+        var outputTokens: Int = 0
+        var hasTokenData: Bool = false
+    }
+
+    private struct OnlineServingModelAccumulator {
+        var invocations: Int = 0
+        var inputTokens: Int = 0
+        var outputTokens: Int = 0
+        var hasIncompleteBucket: Bool = false
+    }
+
+    private static func collectOnlineServingModels(
+        invocationSeries: [MonitoringTimeSeries],
+        tokenSeries: [MonitoringTimeSeries],
+        tokenQueryFailed: Bool,
+        options: VertexAIQueryOptions) -> [OnlineServingModelKey: OnlineServingModelAccumulator]
+    {
+        let utcCalendar = CostUsageBucketTimeZone.calendar(identifier: "UTC")
+        var buckets: [OnlineServingBucketKey: OnlineServingBucketAccumulator] = [:]
+
+        for series in invocationSeries {
+            guard let key = Self.servingSeriesKey(series, options: options) else { continue }
+            let modelKey = OnlineServingModelKey(
+                modelUserID: key.modelUserID,
+                location: key.location,
+                publisher: key.publisher,
+                requestType: key.requestType)
+            for point in series.points {
+                guard let rawValue = Self.pointValue(from: point), rawValue.isFinite, rawValue > 0 else { continue }
+                let count = Int(rawValue.rounded())
+                guard count > 0 else { continue }
+                let hour = Self.pointDate(from: point).map { date in
+                    utcCalendar.dateInterval(of: .hour, for: date)?.start ?? date
+                }
+                let bucketKey = OnlineServingBucketKey(modelKey: modelKey, hour: hour)
+                buckets[bucketKey, default: OnlineServingBucketAccumulator()].invocations += count
+            }
+        }
+
+        for series in tokenSeries {
+            guard let key = Self.servingSeriesKey(series, options: options) else { continue }
+            let tokenType = (series.metric.labels?["type"] ?? "input").lowercased()
+            let modelKey = OnlineServingModelKey(
+                modelUserID: key.modelUserID,
+                location: key.location,
+                publisher: key.publisher,
+                requestType: key.requestType)
+            for point in series.points {
+                guard let rawValue = Self.pointValue(from: point), rawValue.isFinite, rawValue > 0 else { continue }
+                let count = Int(rawValue.rounded())
+                guard count > 0 else { continue }
+                let hour = Self.pointDate(from: point).map { date in
+                    utcCalendar.dateInterval(of: .hour, for: date)?.start ?? date
+                }
+                let bucketKey = OnlineServingBucketKey(modelKey: modelKey, hour: hour)
+                if tokenType == "output" {
+                    buckets[bucketKey, default: OnlineServingBucketAccumulator()].outputTokens += count
+                } else {
+                    buckets[bucketKey, default: OnlineServingBucketAccumulator()].inputTokens += count
+                }
+                buckets[bucketKey, default: OnlineServingBucketAccumulator()].hasTokenData = true
+            }
+        }
+
+        var byModel: [OnlineServingModelKey: OnlineServingModelAccumulator] = [:]
+        for (bucketKey, bucket) in buckets {
+            var acc = byModel[bucketKey.modelKey, default: OnlineServingModelAccumulator()]
+            acc.invocations += bucket.invocations
+            acc.inputTokens += bucket.inputTokens
+            acc.outputTokens += bucket.outputTokens
+            let bucketTokensComplete = !tokenQueryFailed && (bucket.hasTokenData || bucket.invocations == 0)
+            if !bucketTokensComplete {
+                acc.hasIncompleteBucket = true
+            }
+            byModel[bucketKey.modelKey] = acc
+        }
+        return byModel
+    }
+
     static func makeOnlineServingSummary(
         invocationSeries: [MonitoringTimeSeries],
         tokenSeries: [MonitoringTimeSeries],
@@ -39,50 +133,11 @@ extension VertexAIUsageFetcher {
         pricingDate: Date = Date(),
         pricingResolver: CostUsagePricing.ClaudeResolver? = nil) -> VertexAIOnlineServingSummary?
     {
-        struct ModelKey: Hashable {
-            let modelUserID: String
-            let location: String
-            let publisher: String
-            let requestType: String
-        }
-        struct Accumulator {
-            var invocations: Int = 0
-            var inputTokens: Int = 0
-            var outputTokens: Int = 0
-            var hasTokenData: Bool = false
-        }
-
-        var byModel: [ModelKey: Accumulator] = [:]
-
-        for series in invocationSeries {
-            guard let key = Self.servingSeriesKey(series, options: options) else { continue }
-            let sum = Int(series.points.compactMap(Self.pointValue).reduce(0, +).rounded())
-            guard sum > 0 else { continue }
-            let modelKey = ModelKey(
-                modelUserID: key.modelUserID,
-                location: key.location,
-                publisher: key.publisher,
-                requestType: key.requestType)
-            byModel[modelKey, default: Accumulator()].invocations += sum
-        }
-
-        for series in tokenSeries {
-            guard let key = Self.servingSeriesKey(series, options: options) else { continue }
-            let sum = Int(series.points.compactMap(Self.pointValue).reduce(0, +).rounded())
-            guard sum > 0 else { continue }
-            let tokenType = (series.metric.labels?["type"] ?? "input").lowercased()
-            let modelKey = ModelKey(
-                modelUserID: key.modelUserID,
-                location: key.location,
-                publisher: key.publisher,
-                requestType: key.requestType)
-            if tokenType == "output" {
-                byModel[modelKey, default: Accumulator()].outputTokens += sum
-            } else {
-                byModel[modelKey, default: Accumulator()].inputTokens += sum
-            }
-            byModel[modelKey, default: Accumulator()].hasTokenData = true
-        }
+        let byModel = Self.collectOnlineServingModels(
+            invocationSeries: invocationSeries,
+            tokenSeries: tokenSeries,
+            tokenQueryFailed: tokenQueryFailed,
+            options: options)
 
         guard !byModel.isEmpty else { return nil }
 
@@ -95,7 +150,7 @@ extension VertexAIUsageFetcher {
 
         let models = byModel.map { key, acc in
             let isDedicated = key.requestType.caseInsensitiveCompare("dedicated") == .orderedSame
-            let modelTokensComplete = !tokenQueryFailed && (acc.hasTokenData || acc.invocations == 0)
+            let modelTokensComplete = !tokenQueryFailed && !acc.hasIncompleteBucket
             let totalTokens = acc.inputTokens + acc.outputTokens
             let estimatedCostUSD: Double? = if let resolvedPricing, !isDedicated, modelTokensComplete, totalTokens > 0 {
                 Self.estimateServingCostUSD(
