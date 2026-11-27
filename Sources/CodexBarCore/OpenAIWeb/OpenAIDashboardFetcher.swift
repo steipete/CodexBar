@@ -1261,7 +1261,7 @@ extension OpenAIDashboardFetcher {
         guard !Task.isCancelled, Date() < deadline else { return .unavailable }
         let apiResult = await Self.fetchSubscriptionFromAPI(
             cookieHeader: cookieHeader,
-            accountEmail: cacheScope == nil ? accountEmail : nil,
+            accountEmail: CodexIdentityResolver.normalizeEmail(accountEmail),
             expectedAccountID: accountID,
             deadline: min(deadline, Date().addingTimeInterval(4)),
             logger: logLine)

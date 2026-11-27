@@ -59,26 +59,7 @@ final class OpenAISubscriptionMetadataTests: XCTestCase {
             ("other@example.com", accountID, false),
             ("owner@example.com", "10000000-0000-0000-0000-000000000002", false),
         ] {
-            let transport = ProviderHTTPTransportStub { request in
-                let url = try XCTUnwrap(request.url)
-                let status: Int
-                let body: String
-                if url.path == "/api/auth/session" {
-                    status = 200
-                    body = """
-                    {"accessToken":"fixture-token","user":{"email":"owner@example.com"},"account":{"id":"\(accountID)"}}
-                    """
-                } else if request.value(forHTTPHeaderField: "Authorization") != nil {
-                    status = 200
-                    body = #"{"active_until":"2026-08-20T14:30:07Z","will_renew":false}"#
-                } else {
-                    status = 401
-                    body = "{}"
-                }
-                let response = try XCTUnwrap(HTTPURLResponse(
-                    url: url, statusCode: status, httpVersion: nil, headerFields: nil))
-                return (Data(body.utf8), response)
-            }
+            let transport = Self.subscriptionTransport(accountID: accountID)
             let result = await CodexAuthenticatedHTTPTransport.$overrideForTesting.withValue(transport) {
                 await OpenAIDashboardFetcher.fetchSubscriptionFromAPI(
                     cookieHeader: "session=fixture",
@@ -100,6 +81,28 @@ final class OpenAISubscriptionMetadataTests: XCTestCase {
                 XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer fixture-token")
                 XCTAssertEqual(request.value(forHTTPHeaderField: "ChatGPT-Account-Id"), accountID)
             }
+        }
+    }
+
+    @MainActor
+    func test_scopedSubscriptionMetadataRetriesWithTheMatchingSession() async throws {
+        let accountID = "10000000-0000-0000-0000-000000000001"
+        let email = " OWNER@example.com "
+        for scope in [CookieHeaderCache.Scope.managedAccount(UUID()), .profileHome("/fixture/\(UUID())")] {
+            let store = OpenAIDashboardWebsiteDataStore.store(forAccountEmail: email, scope: scope)
+            let cookie = try XCTUnwrap(HTTPCookie(properties: [
+                .domain: "chatgpt.com", .path: "/", .name: "session", .value: "fixture",
+            ]))
+            await store.httpCookieStore.setCookie(cookie)
+            let transport = Self.subscriptionTransport(accountID: accountID)
+            let result = await CodexAuthenticatedHTTPTransport.$overrideForTesting.withValue(transport) {
+                await OpenAIDashboardFetcher().fetchSubscriptionMetadata(
+                    accountEmail: email, accountID: accountID, cacheScope: scope)
+            }
+            await store.httpCookieStore.deleteCookie(cookie)
+            let requests = await transport.requests()
+            XCTAssertEqual(requests.count, 3)
+            XCTAssertEqual(result.metadata?.expiresAt, ISO8601DateParser.parse("2026-08-20T14:30:07Z"))
         }
     }
 
@@ -150,6 +153,29 @@ final class OpenAISubscriptionMetadataTests: XCTestCase {
             let metadata = state?["metadata"] as? [String: Any]
             XCTAssertTrue(metadata?["activeUntil"] is NSNull)
             XCTAssertTrue(metadata?["willRenew"] is NSNull)
+        }
+    }
+
+    private static func subscriptionTransport(accountID: String) -> ProviderHTTPTransportStub {
+        ProviderHTTPTransportStub { request in
+            let url = try XCTUnwrap(request.url)
+            let status: Int
+            let body: String
+            if url.path == "/api/auth/session" {
+                status = 200
+                body = """
+                {"accessToken":"fixture-token","user":{"email":"owner@example.com"},"account":{"id":"\(accountID)"}}
+                """
+            } else if request.value(forHTTPHeaderField: "Authorization") != nil {
+                status = 200
+                body = #"{"active_until":"2026-08-20T14:30:07Z","will_renew":false}"#
+            } else {
+                status = 401
+                body = "{}"
+            }
+            let response = try XCTUnwrap(HTTPURLResponse(
+                url: url, statusCode: status, httpVersion: nil, headerFields: nil))
+            return (Data(body.utf8), response)
         }
     }
 
