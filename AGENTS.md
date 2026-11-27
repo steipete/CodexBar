@@ -1,6 +1,7 @@
 # Repository Guidelines
 
 ## Personal maintenance
+- Consult `docs/adr/` when changing provider scope or quota data sources.
 - For feature discussions, behavior changes, bug fixes, and upstream evaluations, read `.agents/skills/personal-requirements/SKILL.md`.
 - For compilation, tests, checks, packaging, or artifact retrieval, read `.agents/skills/cloud-build/SKILL.md`; prefer GitHub execution to avoid occupying the local device. Finishing development does not authorize installation or app restart.
 - Local Swift builds use `--jobs 2` by default; run build/test/package operations sequentially on this device.
