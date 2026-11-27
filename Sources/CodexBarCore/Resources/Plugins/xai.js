@@ -35,18 +35,27 @@ defineProvider({
       throw ctx.fail.parseFailure("Could not parse xAI billing data: balance total.val is not a cent amount");
     }
     const balance = -Number(raw) / 100;
+    const parseSignedCents = (value) => {
+      if (typeof value !== "string" || !/^-?\d+$/.test(value)) return undefined;
+      const parsed = Number(value);
+      return Number.isSafeInteger(parsed) ? parsed : undefined;
+    };
     let liveRemaining;
     try {
       const preview = await ctx.http.getJSON(`${root}/postpaid/invoice/preview`, { timeoutSeconds: 5 });
-      const cents = preview.json?.coreInvoice?.amountAfterVat;
-      if (
-        preview.status >= 200 &&
-        preview.status < 300 &&
-        typeof cents === "string" &&
-        /^-?\d+$/.test(cents) &&
-        Number.isSafeInteger(Number(cents))
-      ) {
-        liveRemaining = balance - Number(cents) / 100;
+      if (preview.status >= 200 && preview.status < 300) {
+        const invoice = preview.json?.coreInvoice;
+        const invoiceDueCents = parseSignedCents(invoice?.amountAfterVat);
+        const rawPrepaidUsed = invoice?.prepaidCreditsUsed;
+        const prepaidUsedVal =
+          rawPrepaidUsed === undefined || rawPrepaidUsed === null ? 0 : parseSignedCents(rawPrepaidUsed?.val);
+        if (
+          invoiceDueCents !== undefined &&
+          prepaidUsedVal !== undefined &&
+          Number.isSafeInteger(invoiceDueCents - prepaidUsedVal)
+        ) {
+          liveRemaining = balance - (invoiceDueCents - prepaidUsedVal) / 100;
+        }
       }
     } catch (error) {
       if (error.transportClass === "cancelled") throw error;

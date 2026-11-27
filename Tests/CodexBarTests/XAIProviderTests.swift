@@ -117,6 +117,26 @@ struct XAIProviderTests {
     }
 
     @Test(arguments: BundledPluginTestSupport.engines, [
+        ("-4104", "0", "-7", "$40.97"),
+        ("-4104", "0", "0", "$41.04"),
+        ("-1000", "500", "-1000", "$-5.00"),
+        ("-1000", "0", "100", "$11.00"),
+    ])
+    func `live estimate subtracts prepaid credits used alongside invoice due`(
+        engine: ProviderPluginEngineKind,
+        fixture: (String, String, String, String)) async throws
+    {
+        let previewBody = #"{"coreInvoice":{"amountAfterVat":"\#(fixture.1)","#
+            + #""prepaidCreditsUsed":{"val":"\#(fixture.2)"}}}"#
+        let snapshot = try await Self.fetch(
+            balanceBody: #"{"total":{"val":"\#(fixture.0)"}}"#,
+            previewBody: previewBody,
+            engine: engine)
+        #expect(snapshot.detailRow(label: "Live remaining (est.)")?.value == fixture.3)
+        #expect(snapshot.dataConfidence == .exact)
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines, [
         (403, #"{"coreInvoice":{"amountAfterVat":"350"}}"#),
         (404, #"{"coreInvoice":{"amountAfterVat":"350"}}"#),
         (200, ""),
@@ -125,6 +145,9 @@ struct XAIProviderTests {
         (200, #"{"coreInvoice":{"amountAfterVat":""}}"#),
         (200, #"{"coreInvoice":{"amountAfterVat":"n/a"}}"#),
         (200, #"{"coreInvoice":{"amountAfterVat":"9007199254740993"}}"#),
+        (200, #"{"coreInvoice":{"amountAfterVat":"0","prepaidCreditsUsed":{"val":"n/a"}}}"#),
+        (200, #"{"coreInvoice":{"amountAfterVat":"0","prepaidCreditsUsed":{}}}"#),
+        (200, #"{"coreInvoice":{"amountAfterVat":"0","prepaidCreditsUsed":{"val":"9007199254740993"}}}"#),
     ])
     func `unavailable invoice preview omits only the estimate`(
         engine: ProviderPluginEngineKind, response: (Int, String)) async throws
