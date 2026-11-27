@@ -65,6 +65,7 @@ public struct VertexAIOnlineServingModelSummary: Sendable, Equatable {
     public let outputTokens: Int
     public let estimatedCostUSD: Double?
     public let tokensAreComplete: Bool
+    public let invocationsAreComplete: Bool
 
     public var totalTokens: Int {
         self.inputTokens + self.outputTokens
@@ -79,7 +80,8 @@ public struct VertexAIOnlineServingModelSummary: Sendable, Equatable {
         inputTokens: Int,
         outputTokens: Int,
         estimatedCostUSD: Double? = nil,
-        tokensAreComplete: Bool = true)
+        tokensAreComplete: Bool = true,
+        invocationsAreComplete: Bool = true)
     {
         self.modelUserID = modelUserID
         self.location = location
@@ -90,6 +92,7 @@ public struct VertexAIOnlineServingModelSummary: Sendable, Equatable {
         self.outputTokens = outputTokens
         self.estimatedCostUSD = estimatedCostUSD
         self.tokensAreComplete = tokensAreComplete
+        self.invocationsAreComplete = invocationsAreComplete
     }
 }
 
@@ -104,6 +107,7 @@ public struct VertexAIOnlineServingSummary: Sendable, Equatable {
     public let estimatedCostUSD: Double?
     public let hasUnpricedTokens: Bool
     public let tokensAreComplete: Bool
+    public let invocationsAreComplete: Bool
     public let models: [VertexAIOnlineServingModelSummary]
 
     public var totalTokens: Int {
@@ -121,6 +125,7 @@ public struct VertexAIOnlineServingSummary: Sendable, Equatable {
         estimatedCostUSD: Double? = nil,
         hasUnpricedTokens: Bool = false,
         tokensAreComplete: Bool = true,
+        invocationsAreComplete: Bool = true,
         models: [VertexAIOnlineServingModelSummary])
     {
         self.totalInvocations = totalInvocations
@@ -133,6 +138,7 @@ public struct VertexAIOnlineServingSummary: Sendable, Equatable {
         self.estimatedCostUSD = estimatedCostUSD
         self.hasUnpricedTokens = hasUnpricedTokens
         self.tokensAreComplete = tokensAreComplete
+        self.invocationsAreComplete = invocationsAreComplete
         self.models = models
     }
 }

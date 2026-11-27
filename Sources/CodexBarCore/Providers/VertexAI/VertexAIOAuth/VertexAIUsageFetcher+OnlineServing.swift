@@ -54,12 +54,14 @@ extension VertexAIUsageFetcher {
         var invocations: Int = 0
         var inputTokens: Int = 0
         var outputTokens: Int = 0
-        var hasIncompleteBucket: Bool = false
+        var hasIncompleteTokenBucket: Bool = false
+        var hasIncompleteInvocationBucket: Bool = false
     }
 
     private static func collectOnlineServingModels(
         invocationSeries: [MonitoringTimeSeries],
         tokenSeries: [MonitoringTimeSeries],
+        invocationQueryFailed: Bool,
         tokenQueryFailed: Bool,
         options: VertexAIQueryOptions) -> [OnlineServingModelKey: OnlineServingModelAccumulator]
     {
@@ -118,7 +120,11 @@ extension VertexAIUsageFetcher {
             acc.outputTokens += bucket.outputTokens
             let bucketTokensComplete = !tokenQueryFailed && (bucket.hasTokenData || bucket.invocations == 0)
             if !bucketTokensComplete {
-                acc.hasIncompleteBucket = true
+                acc.hasIncompleteTokenBucket = true
+            }
+            let bucketInvocationsComplete = !invocationQueryFailed && (bucket.invocations > 0 || !bucket.hasTokenData)
+            if !bucketInvocationsComplete {
+                acc.hasIncompleteInvocationBucket = true
             }
             byModel[bucketKey.modelKey] = acc
         }
@@ -128,6 +134,7 @@ extension VertexAIUsageFetcher {
     static func makeOnlineServingSummary(
         invocationSeries: [MonitoringTimeSeries],
         tokenSeries: [MonitoringTimeSeries],
+        invocationQueryFailed: Bool = false,
         tokenQueryFailed: Bool = false,
         options: VertexAIQueryOptions,
         pricingDate: Date = Date(),
@@ -136,6 +143,7 @@ extension VertexAIUsageFetcher {
         let byModel = Self.collectOnlineServingModels(
             invocationSeries: invocationSeries,
             tokenSeries: tokenSeries,
+            invocationQueryFailed: invocationQueryFailed,
             tokenQueryFailed: tokenQueryFailed,
             options: options)
 
@@ -150,7 +158,8 @@ extension VertexAIUsageFetcher {
 
         let models = byModel.map { key, acc in
             let isDedicated = key.requestType.caseInsensitiveCompare("dedicated") == .orderedSame
-            let modelTokensComplete = !tokenQueryFailed && !acc.hasIncompleteBucket
+            let modelTokensComplete = !tokenQueryFailed && !acc.hasIncompleteTokenBucket
+            let modelInvocationsComplete = !invocationQueryFailed && !acc.hasIncompleteInvocationBucket
             let totalTokens = acc.inputTokens + acc.outputTokens
             let estimatedCostUSD: Double? = if let resolvedPricing, !isDedicated, modelTokensComplete, totalTokens > 0 {
                 Self.estimateServingCostUSD(
@@ -171,7 +180,8 @@ extension VertexAIUsageFetcher {
                 inputTokens: acc.inputTokens,
                 outputTokens: acc.outputTokens,
                 estimatedCostUSD: estimatedCostUSD,
-                tokensAreComplete: modelTokensComplete)
+                tokensAreComplete: modelTokensComplete,
+                invocationsAreComplete: modelInvocationsComplete)
         }.sorted { lhs, rhs in
             if lhs.totalTokens != rhs.totalTokens {
                 return lhs.totalTokens > rhs.totalTokens
@@ -193,6 +203,7 @@ extension VertexAIUsageFetcher {
         var hasPricedModel = false
         var hasUnpricedTokens = false
         var tokensAreComplete = !tokenQueryFailed
+        var invocationsAreComplete = !invocationQueryFailed
 
         for model in models {
             totalInvocations += model.invocations
@@ -200,6 +211,9 @@ extension VertexAIUsageFetcher {
             outputTokens += model.outputTokens
             if !model.tokensAreComplete {
                 tokensAreComplete = false
+            }
+            if !model.invocationsAreComplete {
+                invocationsAreComplete = false
             }
             if model.requestType.caseInsensitiveCompare("dedicated") == .orderedSame {
                 dedicatedInvocations += model.invocations
@@ -227,6 +241,7 @@ extension VertexAIUsageFetcher {
             estimatedCostUSD: hasPricedModel ? totalEstimatedCost : nil,
             hasUnpricedTokens: hasUnpricedTokens,
             tokensAreComplete: tokensAreComplete,
+            invocationsAreComplete: invocationsAreComplete,
             models: models)
     }
 
@@ -322,7 +337,9 @@ extension VertexAIUsageFetcher {
     private struct ServingBucketKey: Hashable {
         let dayKey: String
         let hour: Date
-        let modelName: String
+        let modelUserID: String
+        let location: String
+        let publisher: String
         let isDedicated: Bool
     }
 
@@ -362,13 +379,14 @@ extension VertexAIUsageFetcher {
                 hasIncompleteTokens = true
             }
 
+            let modelName = Self.normalizedModelName(key.modelUserID)
             let inputTokens: Int? = hasKnownTokens ? totals.inputTokens : nil
             let outputTokens: Int? = hasKnownTokens ? totals.outputTokens : nil
             let totalTokens: Int? = hasKnownTokens ? knownTotalTokens : nil
 
             let costUSD: Double? = if config.estimateCost, !key.isDedicated, hasKnownTokens, knownTotalTokens > 0 {
                 Self.estimateServingCostUSD(
-                    modelName: key.modelName,
+                    modelName: modelName,
                     inputTokens: totals.inputTokens,
                     outputTokens: totals.outputTokens,
                     pricingDate: key.hour,
@@ -388,10 +406,10 @@ extension VertexAIUsageFetcher {
                 totalTokens: totalTokens,
                 requestCount: requestCount,
                 costUSD: costUSD,
-                modelsUsed: [key.modelName],
+                modelsUsed: [modelName],
                 modelBreakdowns: [
                     CostUsageDailyReport.ModelBreakdown(
-                        modelName: key.modelName,
+                        modelName: modelName,
                         costUSD: costUSD,
                         totalTokens: totalTokens,
                         requestCount: requestCount),
@@ -425,7 +443,6 @@ extension VertexAIUsageFetcher {
 
         for series in tokenSeries {
             guard let key = Self.servingSeriesKey(series, options: config.options) else { continue }
-            let modelName = Self.normalizedModelName(key.modelUserID)
             let tokenType = (series.metric.labels?["type"] ?? "input").lowercased()
             let isDedicated = key.requestType.caseInsensitiveCompare("dedicated") == .orderedSame
             for point in series.points {
@@ -436,7 +453,9 @@ extension VertexAIUsageFetcher {
                 let bucketKey = ServingBucketKey(
                     dayKey: dayKey,
                     hour: hour,
-                    modelName: modelName,
+                    modelUserID: key.modelUserID,
+                    location: key.location,
+                    publisher: key.publisher,
                     isDedicated: isDedicated)
                 let count = Int(rawValue.rounded())
                 if tokenType == "output" {
@@ -450,7 +469,6 @@ extension VertexAIUsageFetcher {
 
         for series in invocationSeries {
             guard let key = Self.servingSeriesKey(series, options: config.options) else { continue }
-            let modelName = Self.normalizedModelName(key.modelUserID)
             let isDedicated = key.requestType.caseInsensitiveCompare("dedicated") == .orderedSame
             for point in series.points {
                 guard let rawValue = Self.pointValue(from: point), rawValue.isFinite, rawValue > 0 else { continue }
@@ -460,7 +478,9 @@ extension VertexAIUsageFetcher {
                 let bucketKey = ServingBucketKey(
                     dayKey: dayKey,
                     hour: hour,
-                    modelName: modelName,
+                    modelUserID: key.modelUserID,
+                    location: key.location,
+                    publisher: key.publisher,
                     isDedicated: isDedicated)
                 buckets[bucketKey, default: ServingBucketTotals()].invocations += Int(rawValue.rounded())
             }

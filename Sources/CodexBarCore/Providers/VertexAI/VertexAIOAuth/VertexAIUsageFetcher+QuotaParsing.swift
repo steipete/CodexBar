@@ -115,12 +115,7 @@ extension VertexAIUsageFetcher {
 
         func rateCandidates(location: String, baseModelFilter: String?) -> [ConsumerQuotaBucketInfo] {
             let rateBuckets = self.buckets.filter { bucket in
-                let normalizedUnit = bucket.unit?.lowercased() ?? ""
-                return normalizedUnit.contains("/min") || normalizedUnit.contains("/d")
-                    || bucket.limitName.lowercased().contains("perminute")
-                    || bucket.limitName.lowercased().contains("perday")
-                    || bucket.limitName.lowercased().contains("per_minute")
-                    || bucket.limitName.lowercased().contains("per_day")
+                VertexAIUsageFetcher.explicitCadence(unit: bucket.unit, limitName: bucket.limitName) != nil
             }
             let filtered = rateBuckets.filter { bucket in
                 (bucket.region == nil || bucket.region?.caseInsensitiveCompare(location) == .orderedSame)
@@ -450,55 +445,65 @@ extension VertexAIUsageFetcher {
                 baseModelFilter: candidateModelFilter) ?? []
 
             if !consumerCandidates.isEmpty {
-                let matchingCandidates = consumerCandidates.filter { candidate in
-                    guard rateKey.limitName.isEmpty || rateKey.limitName == candidate.limitName else {
-                        return false
-                    }
-                    if let seriesBaseModel = rateKey.baseModel {
-                        return Self.matchesModelFilter(candidate.baseModel, filter: seriesBaseModel)
-                    }
-                    if candidate.baseModel != nil {
-                        let modelCount = meta?.distinctBaseModelCount(
-                            limitName: candidate.limitName,
-                            location: rateKey.location) ?? 0
-                        return modelCount <= 1
-                    }
-                    return true
+                let exactMatches = consumerCandidates.filter { candidate in
+                    rateKey.limitName.isEmpty || rateKey.limitName == candidate.limitName
                 }
-                for candidate in matchingCandidates {
-                    let monitoringLimit: Double? = if candidate.baseModel == nil {
-                        Self.matchingMonitoringLimit(
+                let limitCompatibleCandidates: [ConsumerQuotaBucketInfo] = if !exactMatches.isEmpty {
+                    exactMatches
+                } else {
+                    consumerCandidates.filter { candidate in
+                        Self.isCompatibleRateLimitName(rateKey.limitName, candidate: candidate)
+                    }
+                }
+                if !limitCompatibleCandidates.isEmpty {
+                    let matchingCandidates = limitCompatibleCandidates.filter { candidate in
+                        if let seriesBaseModel = rateKey.baseModel {
+                            return Self.matchesModelFilter(candidate.baseModel, filter: seriesBaseModel)
+                        }
+                        if candidate.baseModel != nil {
+                            let modelCount = meta?.distinctBaseModelCount(
+                                limitName: candidate.limitName,
+                                location: rateKey.location) ?? 0
+                            return modelCount <= 1
+                        }
+                        return true
+                    }
+                    for candidate in matchingCandidates {
+                        let lookupLimitName = rateKey.limitName.isEmpty ? candidate.limitName : rateKey.limitName
+                        let monitoringLimit: Double? = if candidate.baseModel == nil {
+                            Self.matchingMonitoringLimit(
+                                quotaMetric: rateKey.quotaMetric,
+                                limitName: lookupLimitName,
+                                location: rateKey.location,
+                                in: context.limitByKey)
+                        } else {
+                            nil
+                        }
+                        let resolvedLimit = monitoringLimit ?? candidate.effectiveLimit
+                        guard resolvedLimit > 0 else { continue }
+                        let usage = candidate.cadence == .perDay ? pacificDailySum : peakPerMinute
+                        let exceeded = Self.matchingExceeded(
                             quotaMetric: rateKey.quotaMetric,
-                            limitName: candidate.limitName,
+                            limitName: lookupLimitName,
                             location: rateKey.location,
-                            in: context.limitByKey)
-                    } else {
-                        nil
+                            baseModel: candidate.baseModel,
+                            in: context.exceededByKey)
+                        results.append(VertexAIQuotaBucketUsage(
+                            quotaMetric: rateKey.quotaMetric,
+                            limitName: lookupLimitName,
+                            displayName: meta?.displayName,
+                            location: rateKey.location,
+                            baseModel: candidate.baseModel,
+                            cadence: candidate.cadence,
+                            usage: usage,
+                            limit: resolvedLimit,
+                            usedPercent: (usage / resolvedLimit) * 100.0,
+                            exceededCount: exceeded,
+                            unit: candidate.unit,
+                            resetsAt: candidate.cadence == .perDay ? nextPacificMidnight : nil))
                     }
-                    let resolvedLimit = monitoringLimit ?? candidate.effectiveLimit
-                    guard resolvedLimit > 0 else { continue }
-                    let usage = candidate.cadence == .perDay ? pacificDailySum : peakPerMinute
-                    let exceeded = Self.matchingExceeded(
-                        quotaMetric: rateKey.quotaMetric,
-                        limitName: candidate.limitName,
-                        location: rateKey.location,
-                        baseModel: candidate.baseModel,
-                        in: context.exceededByKey)
-                    results.append(VertexAIQuotaBucketUsage(
-                        quotaMetric: rateKey.quotaMetric,
-                        limitName: candidate.limitName,
-                        displayName: meta?.displayName,
-                        location: rateKey.location,
-                        baseModel: candidate.baseModel,
-                        cadence: candidate.cadence,
-                        usage: usage,
-                        limit: resolvedLimit,
-                        usedPercent: (usage / resolvedLimit) * 100.0,
-                        exceededCount: exceeded,
-                        unit: candidate.unit,
-                        resetsAt: candidate.cadence == .perDay ? nextPacificMidnight : nil))
+                    continue
                 }
-                continue
             }
 
             guard context.options.baseModelFilter == nil, rateKey.baseModel == nil else { continue }
@@ -725,15 +730,46 @@ extension VertexAIUsageFetcher {
         return trimmed
     }
 
-    static func inferredCadence(unit: String?, limitName: String) -> VertexAIQuotaCadence {
+    private static func isOpaqueServiceUsageLimitName(_ limitName: String) -> Bool {
+        let decoded = limitName.removingPercentEncoding ?? limitName
+        return decoded.hasPrefix("/")
+    }
+
+    private static func isCompatibleRateLimitName(
+        _ seriesLimitName: String,
+        candidate: ConsumerQuotaBucketInfo) -> Bool
+    {
+        if seriesLimitName.isEmpty || seriesLimitName == candidate.limitName {
+            return true
+        }
+        guard self.isOpaqueServiceUsageLimitName(candidate.limitName),
+              let seriesCadence = explicitCadence(unit: nil, limitName: seriesLimitName)
+        else {
+            return false
+        }
+        return seriesCadence == candidate.cadence
+    }
+
+    static func explicitCadence(unit: String?, limitName: String) -> VertexAIQuotaCadence? {
         let normalizedUnit = unit?.lowercased() ?? ""
-        let normalizedLimit = limitName.lowercased()
+        let decodedLimit = (limitName.removingPercentEncoding ?? limitName).lowercased()
         if normalizedUnit.contains("/d/") || normalizedUnit.hasSuffix("/d")
-            || normalizedLimit.contains("perday") || normalizedLimit.contains("per_day")
+            || decodedLimit.contains("perday") || decodedLimit.contains("per_day")
+            || decodedLimit.contains("/d/") || decodedLimit.hasSuffix("/d") || decodedLimit.hasPrefix("/d")
         {
             return .perDay
         }
-        return .perMinute
+        if normalizedUnit.contains("/min")
+            || decodedLimit.contains("perminute") || decodedLimit.contains("per_minute")
+            || decodedLimit.contains("/min")
+        {
+            return .perMinute
+        }
+        return nil
+    }
+
+    static func inferredCadence(unit: String?, limitName: String) -> VertexAIQuotaCadence {
+        self.explicitCadence(unit: unit, limitName: limitName) ?? .perMinute
     }
 
     static func startOfPacificDay(for date: Date) -> Date {

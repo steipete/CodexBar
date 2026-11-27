@@ -692,4 +692,69 @@ struct CostUsageVertexBreakdownsTests {
         #expect(snapshot.last30DaysTokens == 1000)
         #expect(!snapshot.detailsAreComplete)
     }
+
+    @Test
+    func `vertexai cloud estimate provenance survives monthToDate and allTime reporting periods`() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let now = try #require(calendar.date(from: DateComponents(
+            year: 2026, month: 11, day: 25, hour: 12, minute: 0, second: 0)))
+        let report = CostUsageDailyReport(
+            data: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-11-25",
+                    inputTokens: 100_000,
+                    outputTokens: 20000,
+                    totalTokens: 120_000,
+                    requestCount: 10,
+                    costUSD: 0.60,
+                    modelsUsed: ["claude-sonnet-4-5"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "claude-sonnet-4-5",
+                            costUSD: 0.60,
+                            totalTokens: 120_000,
+                            requestCount: 10),
+                    ]),
+            ],
+            summary: nil)
+        let baseSnapshot = CostUsageFetcher.tokenSnapshot(
+            from: report,
+            now: now,
+            historyDays: 30,
+            calendar: calendar,
+            historyCoverageIsEstablished: true,
+            historyScanIsPartial: false,
+            monetaryValuesAreAvailable: true,
+            costProvenance: .listPriceEstimate,
+            historyLabel: "Last 30 days (Cloud est.)")
+
+        let tokenCost = VertexAIProviderDescriptor.descriptor.tokenCost
+        for (period, expectedLabel) in [
+            (CostReportingPeriod.monthToDate, "Month to date (Cloud est.)"),
+            (CostReportingPeriod.allTime, "All (Cloud est.)"),
+        ] {
+            let reported = baseSnapshot.reporting(period)
+            #expect(reported.historyLabel == expectedLabel)
+            #expect(tokenCost.resolvedMenuHintLines(for: reported) == [
+                .localized(VertexAIProviderDescriptor.cloudEstimateHintKey),
+            ])
+            #expect(tokenCost.resolvedChartEstimateDisclaimer(historyLabel: reported.historyLabel) ==
+                .localized(VertexAIProviderDescriptor.cloudEstimateHintKey))
+
+            let cliOutput = CodexBarCLI.renderCostText(
+                provider: .vertexai,
+                snapshot: reported,
+                useColor: false,
+                calendar: calendar)
+            #expect(cliOutput.contains(VertexAIProviderDescriptor.cloudEstimateHintText))
+            #expect(!cliOutput.contains("local logs"))
+        }
+
+        let selectedMonth = baseSnapshot.selecting(.monthToDate, now: now, calendar: calendar)
+        #expect(selectedMonth.historyLabel == "Month to date (Cloud est.)")
+        #expect(tokenCost.resolvedMenuHintLines(for: selectedMonth) == [
+            .localized(VertexAIProviderDescriptor.cloudEstimateHintKey),
+        ])
+    }
 }

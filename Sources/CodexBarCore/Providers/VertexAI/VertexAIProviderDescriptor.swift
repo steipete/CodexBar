@@ -325,18 +325,25 @@ struct VertexAIOAuthFetchStrategy: ProviderFetchStrategy {
 
         if let serving = response.onlineServingSummary {
             var rows: [ProviderDetailSection.Row] = []
-            let splitText: String? = if serving.dedicatedInvocations > 0 {
-                "Shared \(UsageFormatter.tokenCountString(serving.sharedInvocations)) · " +
-                    "Dedicated \(UsageFormatter.tokenCountString(serving.dedicatedInvocations))"
-            } else if serving.sharedInvocations > 0 {
-                "Shared pay-as-you-go"
+            if serving.invocationsAreComplete {
+                let splitText: String? = if serving.dedicatedInvocations > 0 {
+                    "Shared \(UsageFormatter.tokenCountString(serving.sharedInvocations)) · " +
+                        "Dedicated \(UsageFormatter.tokenCountString(serving.dedicatedInvocations))"
+                } else if serving.sharedInvocations > 0 {
+                    "Shared pay-as-you-go"
+                } else {
+                    nil
+                }
+                rows.append(ProviderDetailSection.makeRow(
+                    label: "Invocations",
+                    value: UsageFormatter.tokenCountString(serving.totalInvocations),
+                    secondaryValue: splitText))
             } else {
-                nil
+                rows.append(ProviderDetailSection.makeRow(
+                    label: "Invocations",
+                    value: "Unavailable",
+                    secondaryValue: nil))
             }
-            rows.append(ProviderDetailSection.makeRow(
-                label: "Invocations",
-                value: UsageFormatter.tokenCountString(serving.totalInvocations),
-                secondaryValue: splitText))
             if serving.tokensAreComplete {
                 rows.append(ProviderDetailSection.makeRow(
                     label: "Total tokens",
@@ -361,7 +368,9 @@ struct VertexAIOAuthFetchStrategy: ProviderFetchStrategy {
 
             for model in serving.models.prefix(8) {
                 let modelName = VertexAIUsageFetcher.normalizedModelName(model.modelUserID)
-                let reqText = UsageFormatter.tokenCountString(model.invocations)
+                let reqPart = model.invocationsAreComplete
+                    ? "\(UsageFormatter.tokenCountString(model.invocations)) req"
+                    : "Req: Unavailable"
                 if model.tokensAreComplete {
                     let tokensText = "\(UsageFormatter.tokenCountString(model.totalTokens)) tokens"
                     let value = model.estimatedCostUSD.map {
@@ -372,12 +381,12 @@ struct VertexAIOAuthFetchStrategy: ProviderFetchStrategy {
                     rows.append(ProviderDetailSection.makeRow(
                         label: modelName,
                         value: value,
-                        secondaryValue: "\(reqText) req · \(inOutText) · \(model.location) · \(model.requestType)"))
+                        secondaryValue: "\(reqPart) · \(inOutText) · \(model.location) · \(model.requestType)"))
                 } else {
                     rows.append(ProviderDetailSection.makeRow(
                         label: modelName,
                         value: "Unavailable",
-                        secondaryValue: "\(reqText) req · \(model.location) · \(model.requestType)"))
+                        secondaryValue: "\(reqPart) · \(model.location) · \(model.requestType)"))
                 }
             }
             sections.append(ProviderDetailSection.makeSection(title: "Online serving (24h)", rows: rows))

@@ -175,7 +175,7 @@ public enum VertexAIUsageFetcher {
         if options.includeOnlineServing {
             let servingStart = now.addingTimeInterval(
                 -TimeInterval(options.servingWindowDays) * Self.usageWindowSeconds)
-            let invocationSeries = try await Self.fetchOptionalTimeSeries(
+            let invocationResult = try await Self.fetchServingTimeSeriesResult(
                 accessToken: accessToken,
                 projectId: projectId,
                 query: TimeSeriesQuery(
@@ -196,8 +196,9 @@ public enum VertexAIUsageFetcher {
                     perSeriesAligner: "ALIGN_SUM"),
                 transport: transport)
             onlineServingSummary = Self.makeOnlineServingSummary(
-                invocationSeries: invocationSeries,
+                invocationSeries: invocationResult ?? [],
                 tokenSeries: tokenResult ?? [],
+                invocationQueryFailed: invocationResult == nil,
                 tokenQueryFailed: tokenResult == nil,
                 options: options,
                 pricingDate: now)

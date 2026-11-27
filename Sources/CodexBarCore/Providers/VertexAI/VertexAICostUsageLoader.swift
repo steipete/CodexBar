@@ -227,7 +227,9 @@ extension CostUsageFetcher {
             historyScanIsPartial: isPartial,
             monetaryValuesAreAvailable: hasMonetaryCosts,
             costProvenance: hasMonetaryCosts ? .listPriceEstimate : .unknown,
-            historyLabel: estimateCloudCost ? "Last \(context.historyDays) days (Cloud est.)" : nil,
+            historyLabel: estimateCloudCost
+                ? "\(CostReportingPeriod.rolling(days: context.historyDays).label) (Cloud est.)"
+                : nil,
             projects: projects,
             sessions: sessions,
             detailsAreComplete: detailsAreComplete)
