@@ -51,6 +51,59 @@ final class OpenAISubscriptionMetadataTests: XCTestCase {
     }
 
     @MainActor
+    func test_subscriptionRetryUsesOnlyTheVerifiedAccountSelector() async throws {
+        let accountID = "10000000-0000-0000-0000-000000000001"
+        for (email, expectedID, retry) in [
+            ("owner@example.com", accountID, true),
+            ("owner@example.com", "", true),
+            ("other@example.com", accountID, false),
+            ("owner@example.com", "10000000-0000-0000-0000-000000000002", false),
+        ] {
+            let transport = ProviderHTTPTransportStub { request in
+                let url = try XCTUnwrap(request.url)
+                let status: Int
+                let body: String
+                if url.path == "/api/auth/session" {
+                    status = 200
+                    body = """
+                    {"accessToken":"fixture-token","user":{"email":"owner@example.com"},"account":{"id":"\(accountID)"}}
+                    """
+                } else if request.value(forHTTPHeaderField: "Authorization") != nil {
+                    status = 200
+                    body = #"{"active_until":"2026-08-20T14:30:07Z","will_renew":false}"#
+                } else {
+                    status = 401
+                    body = "{}"
+                }
+                let response = try XCTUnwrap(HTTPURLResponse(
+                    url: url, statusCode: status, httpVersion: nil, headerFields: nil))
+                return (Data(body.utf8), response)
+            }
+            let result = await CodexAuthenticatedHTTPTransport.$overrideForTesting.withValue(transport) {
+                await OpenAIDashboardFetcher.fetchSubscriptionFromAPI(
+                    cookieHeader: "session=fixture",
+                    accountEmail: email,
+                    expectedAccountID: expectedID,
+                    deadline: nil,
+                    logger: { _ in })
+            }
+            let requests = await transport.requests()
+            XCTAssertEqual(requests.count, retry ? 3 : 2)
+            XCTAssertEqual(result.metadata?.expiresAt != nil, retry)
+            if retry {
+                let request = try XCTUnwrap(requests.last)
+                let components = try XCTUnwrap(request.url.flatMap {
+                    URLComponents(url: $0, resolvingAgainstBaseURL: false)
+                })
+                XCTAssertEqual(components.path, "/backend-api/subscriptions")
+                XCTAssertEqual(components.queryItems, [URLQueryItem(name: "account_id", value: accountID)])
+                XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer fixture-token")
+                XCTAssertEqual(request.value(forHTTPHeaderField: "ChatGPT-Account-Id"), accountID)
+            }
+        }
+    }
+
+    @MainActor
     func test_productionCaptureIgnoresResetAndCrossOriginResponses() async throws {
         try await Self.withProductionWebView { webView in
             _ = try await webView.evaluateJavaScript("window.fetch('/backend-api/subscriptions'); true")

@@ -675,20 +675,41 @@ public struct OpenAIDashboardFetcher {
 
     static func fetchSubscriptionFromAPI(
         cookieHeader: String,
+        accountEmail: String? = nil,
+        expectedAccountID: String? = nil,
         deadline: Date?,
         logger: @escaping (String) -> Void) async -> OpenAISubscriptionFetchResult
     {
         guard !cookieHeader.isEmpty else { return .unavailable }
         let remaining = deadline.map { self.remainingTimeout(until: $0) } ?? 2
         guard remaining > 0 else { return .unavailable }
+        let expectedWorkspace = self.firstNonEmpty(expectedAccountID)
 
         do {
-            let (data, response) = try await CodexAuthenticatedHTTPTransport.current.data(
+            var (data, response) = try await CodexAuthenticatedHTTPTransport.current.data(
                 for: self.dashboardSubscriptionAPIRequest(
                     cookieHeader: cookieHeader,
                     timeout: min(2, remaining)))
-            let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+            var status = (response as? HTTPURLResponse)?.statusCode ?? -1
             logger("subscription api status=\(status)")
+            if status == 401, let accountEmail,
+               let session = try await self.fetchDashboardSessionAuthorization(
+                   cookieHeader: cookieHeader, deadline: deadline, logger: logger),
+               session.verifiedEmail?.caseInsensitiveCompare(accountEmail) == .orderedSame,
+               let accountID = session.accountID, UUID(uuidString: accountID) != nil,
+               expectedWorkspace == nil || expectedWorkspace?.caseInsensitiveCompare(accountID) == .orderedSame
+            {
+                let retryTimeout = try deadline.map { try self.requiredRemainingTimeout(until: $0) } ?? 2
+                try Task.checkCancellation()
+                (data, response) = try await CodexAuthenticatedHTTPTransport.current.data(
+                    for: self.dashboardSubscriptionAPIRequest(
+                        cookieHeader: cookieHeader,
+                        authentication: (session.accessToken, accountID),
+                        timeout: min(2, retryTimeout)))
+                try Task.checkCancellation()
+                status = (response as? HTTPURLResponse)?.statusCode ?? -1
+                logger("subscription api route-authenticated status=\(status)")
+            }
             guard status >= 200, status < 300 else { return .unavailable }
             let result = self.subscriptionMetadataResult(from: data)
             if case .success = result, result.metadata != nil {
@@ -1155,14 +1176,22 @@ extension OpenAIDashboardFetcher {
 
     nonisolated static func dashboardSubscriptionAPIRequest(
         cookieHeader: String,
+        authentication: (bearerToken: String, accountID: String)? = nil,
         timeout: TimeInterval = 2) -> URLRequest
     {
+        let url = authentication.map {
+            Self.dashboardSubscriptionAPIURL.appending(queryItems: [.init(name: "account_id", value: $0.accountID)])
+        } ?? Self.dashboardSubscriptionAPIURL
         var request = URLRequest(
-            url: Self.dashboardSubscriptionAPIURL,
+            url: url,
             cachePolicy: .reloadIgnoringLocalCacheData,
             timeoutInterval: timeout)
         request.httpMethod = "GET"
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+        if let authentication {
+            request.setValue("Bearer \(authentication.bearerToken)", forHTTPHeaderField: "Authorization")
+            request.setValue(authentication.accountID, forHTTPHeaderField: "ChatGPT-Account-Id")
+        }
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(Self.dashboardAcceptLanguage, forHTTPHeaderField: "Accept-Language")
         request.setValue("CodexBar", forHTTPHeaderField: "User-Agent")
@@ -1210,6 +1239,7 @@ extension OpenAIDashboardFetcher {
 extension OpenAIDashboardFetcher {
     public func fetchSubscriptionMetadata(
         accountEmail: String?,
+        accountID: String? = nil,
         cacheScope: CookieHeaderCache.Scope? = nil,
         logger: ((String) -> Void)? = nil,
         timeout: TimeInterval = 8) async -> OpenAISubscriptionFetchResult
@@ -1231,7 +1261,9 @@ extension OpenAIDashboardFetcher {
         guard !Task.isCancelled, Date() < deadline else { return .unavailable }
         let apiResult = await Self.fetchSubscriptionFromAPI(
             cookieHeader: cookieHeader,
-            deadline: min(deadline, Date().addingTimeInterval(2)),
+            accountEmail: cacheScope == nil ? accountEmail : nil,
+            expectedAccountID: accountID,
+            deadline: min(deadline, Date().addingTimeInterval(4)),
             logger: logLine)
         guard !Task.isCancelled, Date() < deadline else { return .unavailable }
         guard !apiResult.succeeded else { return apiResult }

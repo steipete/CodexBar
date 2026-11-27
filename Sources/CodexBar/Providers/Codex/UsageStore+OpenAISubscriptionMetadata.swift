@@ -78,6 +78,7 @@ extension UsageStore {
             } else {
                 await OpenAIDashboardFetcher().fetchSubscriptionMetadata(
                     accountEmail: targetEmail,
+                    accountID: dashboard.accountID,
                     cacheScope: cacheScope,
                     logger: log)
             }

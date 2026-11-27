@@ -8,13 +8,29 @@ extension OpenAIDashboardFetcher {
         let verifiedSignedInEmail: String?
     }
 
-    private struct SessionAuthorization: Decodable {
+    struct SessionAuthorization: Decodable {
         struct User: Decodable {
             let email: String
         }
 
+        struct Account: Decodable {
+            let id: String?
+        }
+
         let accessToken: String
         let user: User
+        let accountID: String?
+
+        private enum CodingKeys: String, CodingKey {
+            case accessToken, user, account
+        }
+
+        init(from decoder: any Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            self.accessToken = try container.decode(String.self, forKey: .accessToken)
+            self.user = try container.decode(User.self, forKey: .user)
+            self.accountID = (try? container.decode(Account.self, forKey: .account))?.id
+        }
 
         var verifiedEmail: String? {
             let email = self.user.email.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -106,7 +122,7 @@ extension OpenAIDashboardFetcher {
         return (data, status)
     }
 
-    private static func fetchDashboardSessionAuthorization(
+    static func fetchDashboardSessionAuthorization(
         cookieHeader: String,
         deadline: Date?,
         logger: @escaping (String) -> Void) async throws -> SessionAuthorization?
