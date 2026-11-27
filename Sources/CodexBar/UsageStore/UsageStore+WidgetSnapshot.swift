@@ -333,10 +333,13 @@ extension UsageStore {
         } else {
             nil
         }
-        // Provider-specific by design: DeepSeek and OpenRouter expose their widget value as balance text.
+        // Provider-specific by design: these providers expose their widget value as balance text.
         let balanceText: String? = switch provider {
-        case .deepseek, .openrouter:
-            MenuBarLayoutBalanceResolver.balance(provider: provider, snapshot: snapshot)
+        case .deepseek, .openrouter, .claudeplatform:
+            MenuBarLayoutBalanceResolver.balance(
+                provider: provider,
+                snapshot: snapshot,
+                showsOptionalCredits: self.settings.showOptionalCreditsAndExtraUsage)
         default:
             nil
         }

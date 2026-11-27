@@ -709,7 +709,7 @@ struct WidgetBalanceLine: Equatable {
 enum WidgetBalanceFormatter {
     static func providerBalance(for entry: WidgetSnapshot.ProviderEntry) -> WidgetBalanceLine? {
         // Provider-specific by design: these providers publish their widget value through the balance-text field.
-        guard entry.provider == .deepseek || entry.provider == .openrouter,
+        guard entry.provider == .deepseek || entry.provider == .openrouter || entry.provider == .claudeplatform,
               let value = entry.balanceText?.trimmingCharacters(in: .whitespacesAndNewlines),
               !value.isEmpty
         else { return nil }
