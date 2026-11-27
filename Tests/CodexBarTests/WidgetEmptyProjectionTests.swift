@@ -354,6 +354,31 @@ struct WidgetEmptyProjectionTests {
         #expect(saved?.entries.contains(where: { $0.providerCost != nil }) == false)
     }
 
+    @Test(arguments: [true, false])
+    func `Claude Platform widget balance follows optional credit visibility`(showsCredits: Bool) async throws {
+        let (store, settings) = self.makeStore(providers: [.claudeplatform])
+        settings.showOptionalCreditsAndExtraUsage = showsCredits
+        let measuredAt = Date(timeIntervalSince1970: 1_700_000_000)
+        store._setSnapshotForTesting(UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 15, windowMinutes: nil, resetsAt: nil, resetDescription: "$42.50 of $50.00 left"),
+            secondary: nil,
+            providerCost: ProviderCostSnapshot(
+                used: 42.5,
+                limit: 0,
+                currencyCode: "USD",
+                period: "Prepaid credits",
+                balance: 42.5,
+                updatedAt: measuredAt),
+            updatedAt: measuredAt), provider: .claudeplatform)
+        var saved: WidgetSnapshot?
+        store._test_widgetSnapshotSaveOverride = { saved = $0 }
+        store.persistWidgetSnapshot(reason: "synthetic-claude-platform-balance")
+        await store.widgetSnapshotPersistTask?.value
+        let entry = try #require(saved?.entries.first { $0.provider == .claudeplatform })
+        #expect(entry.balanceText == (showsCredits ? "$42.50" : nil))
+    }
+
     @Test(arguments: [
         ([MenuBarMetricPreference.automatic, .monthlyPlan], ["mistral-monthly-plan"]),
         ([MenuBarMetricPreference.automatic, .monthlyPlan, .automatic], ["primary"]),

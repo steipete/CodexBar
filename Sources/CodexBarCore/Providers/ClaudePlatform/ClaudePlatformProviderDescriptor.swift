@@ -15,6 +15,7 @@ public enum ClaudePlatformProviderDescriptor {
         confetti: [0xD97757, 0xF0EEE6, 0x141413],
         noDataMessage: "Claude Platform exposes Console credit balance and monthly spend, "
             + "not local token cost history.",
+        widgetSelectable: true,
         presentation: ProviderUsagePresentation(
             costPresenter: { _ in
                 ProviderCostPresentation(showsGenericFallback: false, menuCardStyle: .prepaidCredits)

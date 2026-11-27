@@ -6,16 +6,21 @@ import Testing
 
 struct ProviderWidgetAvailabilityTests {
     @Test
-    func `provider choice supports DeepSeek and OpenRouter`() {
+    func `provider choice supports DeepSeek, OpenRouter, and Claude Platform`() {
         #expect(ProviderChoice(provider: .deepseek) == .deepseek)
         #expect(ProviderChoice.deepseek.provider == .deepseek)
         #expect(ProviderChoice(provider: .openrouter) == .openrouter)
         #expect(ProviderChoice.openrouter.provider == .openrouter)
+        #expect(ProviderChoice(provider: .claudeplatform) == .claudeplatform)
     }
 
     @Test
-    func `provider balance formatter renders DeepSeek and OpenRouter balances`() {
-        for (provider, value) in [(UsageProvider.deepseek, "$9.32"), (.openrouter, "$60.00")] {
+    func `provider balance formatter renders DeepSeek, OpenRouter, and Claude Platform balances`() {
+        for (provider, value) in [
+            (UsageProvider.deepseek, "$9.32"),
+            (.openrouter, "$60.00"),
+            (.claudeplatform, "$42.50"),
+        ] {
             let entry = Self.entry(provider: provider, balanceText: value)
 
             #expect(WidgetBalanceFormatter.providerBalance(for: entry) == WidgetBalanceLine(
@@ -118,6 +123,23 @@ struct ProviderWidgetAvailabilityTests {
         let decoded = try JSONDecoder().decode(WidgetSnapshot.self, from: encoded)
         #expect(decoded.entries.first?.provider == .codex)
         #expect(decoded.entries.first?.balanceText == nil)
+    }
+
+    @Test
+    func `Claude Platform prepaid credit resolves to widget balance text`() {
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            providerCost: ProviderCostSnapshot(
+                used: 42.5,
+                limit: 0,
+                currencyCode: "USD",
+                period: "Prepaid credits",
+                balance: 42.5,
+                updatedAt: Date()),
+            updatedAt: Date())
+
+        #expect(MenuBarLayoutBalanceResolver.balance(provider: .claudeplatform, snapshot: snapshot) == "$42.50")
     }
 
     private static func entry(

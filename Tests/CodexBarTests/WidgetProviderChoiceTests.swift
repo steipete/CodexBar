@@ -26,6 +26,7 @@ struct WidgetProviderChoiceTests {
         "deepseek": "DeepSeek",
         "openrouter": "OpenRouter",
         "pi": "Pi",
+        "claudeplatform": "Claude Platform",
     ]
 
     @Test

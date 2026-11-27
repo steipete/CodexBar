@@ -50,6 +50,9 @@ public struct PluginProviderSpec: Sendable {
     public var settingsSection: ProviderSettingsSectionRegistration?
     public var pluginResultPolicy = ProviderPluginResultPolicy()
     public var history: ProviderHistoryCapability = .optIn
+    /// Plugins stay out of the per-provider widget picker unless they opt in; each opt-in also needs a
+    /// literal `ProviderChoice` case because AppIntents extracts that enum statically.
+    public var widgetSelectable = false
     public var burnDownWidgetSelectable = true
     public var environmentKey: String = ""
     public var environmentAliases: [String] = []
@@ -104,7 +107,7 @@ public struct PluginProviderSpec: Sendable {
             toggleTitle: self.toggleTitle ?? "Show \(self.displayName) usage",
             cliName: self.id.rawValue,
             defaultEnabled: false,
-            widgetSelectable: false,
+            widgetSelectable: self.widgetSelectable,
             burnDownWidgetSelectable: self.burnDownWidgetSelectable,
             sharePlanLabels: self.sharePlanLabels,
             debugLogUnavailableMessage: self.debugLogUnavailableMessage,
