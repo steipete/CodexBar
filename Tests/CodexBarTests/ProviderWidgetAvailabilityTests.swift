@@ -6,11 +6,12 @@ import Testing
 
 struct ProviderWidgetAvailabilityTests {
     @Test
-    func `provider choice supports DeepSeek and OpenRouter`() {
+    func `provider choice supports DeepSeek, OpenRouter, and Claude Platform`() {
         #expect(ProviderChoice(provider: .deepseek) == .deepseek)
         #expect(ProviderChoice.deepseek.provider == .deepseek)
         #expect(ProviderChoice(provider: .openrouter) == .openrouter)
         #expect(ProviderChoice.openrouter.provider == .openrouter)
+        #expect(ProviderChoice(provider: .claudeplatform) == .claudeplatform)
     }
 
     @Test
