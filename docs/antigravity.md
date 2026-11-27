@@ -281,11 +281,12 @@ Differences from the desktop local probe:
 
 - Before `agy` 1.2.2, the CLI HTTPS endpoint does **not** require `X-Codeium-Csrf-Token`; 1.2.2 and later
   require a token that CodexBar cannot obtain.
-- Before launching `agy`, both menu-bar refreshes and one-shot CLI invocations spend at most two seconds looking for
+- Before launching `agy`, both menu-bar refreshes and one-shot CLI invocations spend at most six seconds looking for
   an already-running, same-user `agy` at the selected binary path and reuse its tokenless local HTTPS endpoint when it
-  returns parseable usage for the selected account. CodexBar-owned pids are excluded from external reuse so managed
-  probe/idle lifecycle accounting stays balanced; if no eligible external server answers, CodexBar uses its managed
-  session as before.
+  returns parseable usage for the selected account, preferring a full `RetrieveUserQuotaSummary` snapshot over a
+  degraded legacy `GetUserStatus` fallback when multiple warm processes exist. CodexBar-owned pids are excluded from
+  external reuse so managed probe/idle lifecycle accounting stays balanced; if no eligible external server answers,
+  CodexBar uses its managed session as before.
 - On macOS, external reuse matches the selected binary against the kernel executable path, not the spelling of
   `argv[0]`; a bare `agy` command can match, but a conflicting executable cannot. Platforms without that identity
   retain the absolute command-path check. User/account and managed-process exclusions are unchanged.
@@ -344,7 +345,7 @@ Quota values, account ownership, and family selection remain unchanged.
     bucket ID/display name only when the cadence is absent.
   - Use the most constrained known bucket as the compact/menu-bar metric.
 - Legacy user-facing quota groups:
-  - `Gemini` groups Gemini Pro and Gemini Flash text models.
+  - `Gemini` groups Gemini Pro and Gemini Flash text models (falling back to unclassified selectable Gemini text models only when no Pro/Flash models exist and all share one exact balance and concrete reset timestamp).
   - `Claude + GPT` groups Claude text models and GPT/GPT-OSS text models.
 - Representative selection:
   - Quota summaries prefer measured ordinary Gemini buckets (`gemini-5h` and `gemini-weekly`, including supported
@@ -370,7 +371,7 @@ Quota values, account ownership, and family selection remain unchanged.
 - Antigravity exposes many model rows, but current local payloads show them collapsing into two real usage pools:
   Gemini and Claude/GPT. Detailed usage should not list every raw Gemini tier unless a future source exposes a genuinely
   distinct unknown or consumed quota window.
-- Remote non-selectable variants are omitted only when their known remaining fraction and concrete reset timestamp exactly match the selected pool representative. Local rows, unknown usage, differing fractions, and missing or different reset timestamps remain distinct. Extra rows retain canonical model IDs; equal display titles do not establish a shared quota identity. When one canonical model has both known and reset-only observations, known usage wins.
+- Remote non-selectable variants are omitted only when their known remaining fraction and concrete reset timestamp exactly match the selected pool representative. Unclassified selectable text models (such as shared-pool versioned Gemini or orchestrator rows) are also omitted only when their known remaining fraction and concrete reset timestamp exactly match an already-represented usage pool, preserving independently metered versioned Gemini allowances without overwriting ordinary Gemini usage. Local non-selectable rows, unknown usage, differing fractions, and missing or different reset timestamps remain distinct. Extra rows retain canonical model IDs; equal display titles do not establish a shared quota identity. When one canonical model has both known and reset-only observations, known usage wins.
 - Some Antigravity local/CLI model config entries include reset metadata but omit `remainingFraction`. Those windows stay
   in `extraRateWindows` for reset context and are marked with `usageKnown: false`; clients should not render their
   `usedPercent` as a real exhausted quota.

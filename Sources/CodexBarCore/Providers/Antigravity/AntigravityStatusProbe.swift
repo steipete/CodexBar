@@ -136,6 +136,7 @@ public struct AntigravityStatusSnapshot: Sendable {
         let normalized = self.modelQuotas.map(Self.normalizeModel)
         let summaryCandidates = normalized.filter(Self.isSummaryCandidate)
         let primaryQuota = Self.representative(for: .geminiAI, in: summaryCandidates)
+            ?? Self.sharedUnclassifiedGeminiRepresentative(in: normalized)
         let secondaryQuota = Self.representative(for: .claudeGPT, in: summaryCandidates)
         let fallbackQuota: AntigravityModelQuota? = if primaryQuota == nil, secondaryQuota == nil {
             switch self.source {
@@ -641,6 +642,35 @@ public struct AntigravityStatusSnapshot: Sendable {
         }?.quota
     }
 
+    /// Fallback Gemini representative only when no ordinary Pro/Flash models exist and every
+    /// known unclassified selectable Gemini text model shares one exact fraction and concrete reset.
+    private static func sharedUnclassifiedGeminiRepresentative(
+        in models: [AntigravityNormalizedModel]) -> AntigravityModelQuota?
+    {
+        let candidates = models.filter {
+            $0.family == .unknown &&
+                Self.isSelectableTextModel($0) &&
+                Self.isUnclassifiedGeminiModel($0) &&
+                $0.quota.remainingFraction != nil
+        }
+        guard let first = candidates.first,
+              let expectedFraction = first.quota.remainingFraction,
+              let expectedReset = first.quota.resetTime,
+              candidates.allSatisfy({
+                  $0.quota.remainingFraction == expectedFraction && $0.quota.resetTime == expectedReset
+              })
+        else {
+            return nil
+        }
+        return candidates.min(by: Self.modelOrderPrecedes)?.quota
+    }
+
+    /// Provider-specific by design: fallback Gemini pool detection when Pro/Flash models are absent.
+    private static func isUnclassifiedGeminiModel(_ model: AntigravityNormalizedModel) -> Bool {
+        model.quota.modelId.lowercased().contains("gemini")
+            || model.quota.label.lowercased().contains("gemini")
+    }
+
     private static func extraRateWindows(
         from models: [AntigravityNormalizedModel],
         summaryCandidates: [AntigravityNormalizedModel],
@@ -681,9 +711,18 @@ public struct AntigravityStatusSnapshot: Sendable {
             }
             .filter { model in
                 let pool = Self.usagePool(for: model) ?? (model.isAutocomplete ? .geminiAI : nil)
+                let matchingPoolQuotas: [AntigravityModelQuota] = if model.family == .unknown,
+                                                                     Self.isSelectableTextModel(model)
+                {
+                    Array(representedQuotas.values)
+                } else if source == .remote {
+                    pool.flatMap { representedQuotas[$0] }.map { [$0] } ?? []
+                } else {
+                    []
+                }
                 return model.quota.modelId == compactFallbackModelID || Self.shouldShowDistinctExtraWindow(
                     model,
-                    poolQuota: source == .remote ? pool.flatMap { representedQuotas[$0] } : nil)
+                    matchingPoolQuotas: matchingPoolQuotas)
             }
             .sorted(by: Self.modelOrderPrecedes)
             .map { m in
@@ -705,11 +744,14 @@ public struct AntigravityStatusSnapshot: Sendable {
 
     private static func shouldShowDistinctExtraWindow(
         _ model: AntigravityNormalizedModel,
-        poolQuota: AntigravityModelQuota?) -> Bool
+        matchingPoolQuotas: [AntigravityModelQuota]) -> Bool
     {
         guard !self.isSummaryCandidate(model) else { return false }
-        if let poolQuota, let reset = model.quota.resetTime,
-           reset == poolQuota.resetTime, model.quota.remainingFraction == poolQuota.remainingFraction
+        if let reset = model.quota.resetTime,
+           let fraction = model.quota.remainingFraction,
+           matchingPoolQuotas.contains(where: { poolQuota in
+               reset == poolQuota.resetTime && fraction == poolQuota.remainingFraction
+           })
         {
             return false
         }

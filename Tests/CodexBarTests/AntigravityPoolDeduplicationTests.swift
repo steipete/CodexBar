@@ -120,4 +120,102 @@ struct AntigravityPoolDeduplicationTests {
         ])
         #expect(usage.extraRateWindows?.map(\.id) == ["antigravity-gemini", "antigravity-claude-gpt"])
     }
+
+    @Test(arguments: [AntigravityModelQuotaSource.local, .remote])
+    func `versioned gemini text models without pro or flash sharing one pool collapse into gemini pool`(
+        source: AntigravityModelQuotaSource) throws
+    {
+        let usage = try Self.usage([
+            Self.quota("MODEL_PLACEHOLDER_M901", fraction: 0.88, label: "Gemini 4 Test Alpha (High)"),
+            Self.quota("MODEL_PLACEHOLDER_M902", fraction: 0.88, label: "Gemini 4 Test Alpha (Low)"),
+            Self.quota("MODEL_PLACEHOLDER_M903", fraction: 0.88, label: "Gemini 4 Test Beta (Medium)"),
+        ], source: source)
+
+        #expect(usage.primary?.remainingPercent.rounded() == 88)
+        #expect(usage.primary?.resetsAt == Self.reset)
+        #expect(usage.extraRateWindows == nil)
+    }
+
+    @Test(arguments: [AntigravityModelQuotaSource.local, .remote])
+    func `separately metered versioned gemini allowance stays visible without replacing ordinary gemini`(
+        source: AntigravityModelQuotaSource) throws
+    {
+        let separateReset = Self.reset.addingTimeInterval(3600)
+        let usage = try Self.usage([
+            Self.quota("gemini-3-flash", fraction: 0.88, label: "Gemini 3 Flash"),
+            Self.quota("MODEL_PLACEHOLDER_M901", fraction: 0.88, label: "Gemini 4 Test Alpha (High)"),
+            Self.quota(
+                "MODEL_PLACEHOLDER_M909",
+                fraction: 0.20,
+                reset: separateReset,
+                label: "Gemini 4 Argon"),
+        ], source: source)
+
+        #expect(usage.primary?.remainingPercent.rounded() == 88)
+        #expect(usage.primary?.resetsAt == Self.reset)
+        let separateRow = try #require(usage.extraRateWindows?.first)
+        #expect(usage.extraRateWindows?.count == 1)
+        #expect(separateRow.id == "MODEL_PLACEHOLDER_M909")
+        #expect(separateRow.title == "Gemini 4 Argon")
+        #expect(separateRow.window.remainingPercent.rounded() == 20)
+        #expect(separateRow.window.resetsAt == separateReset)
+    }
+
+    @Test(arguments: [AntigravityModelQuotaSource.local, .remote])
+    func `mixed versioned gemini allowances without pro or flash stay independent`(
+        source: AntigravityModelQuotaSource) throws
+    {
+        let separateReset = Self.reset.addingTimeInterval(3600)
+        let usage = try Self.usage([
+            Self.quota("MODEL_PLACEHOLDER_M901", fraction: 0.88, label: "Gemini 4 Test Alpha (High)"),
+            Self.quota(
+                "MODEL_PLACEHOLDER_M909",
+                fraction: 0.20,
+                reset: separateReset,
+                label: "Gemini 4 Argon"),
+        ], source: source)
+
+        #expect(usage.primary == nil)
+        #expect(usage.extraRateWindows?.count == 2)
+        #expect(Set(usage.extraRateWindows?.map(\.title) ?? []) == ["Gemini 4 Test Alpha (High)", "Gemini 4 Argon"])
+    }
+
+    @Test(arguments: [AntigravityModelQuotaSource.local, .remote])
+    func `unclassified selectable models mirroring a represented pool are omitted`(
+        source: AntigravityModelQuotaSource) throws
+    {
+        let usage = try Self.usage([
+            Self.quota("gemini-3-flash", fraction: 0.88, label: "Gemini 3 Flash"),
+            Self.quota("MODEL_PLACEHOLDER_M901", fraction: 0.88, label: "Gemini 4 Test Alpha (High)"),
+            Self.quota("MODEL_PLACEHOLDER_M910", fraction: 0.88, label: "Orchestrator (Test Alpha)"),
+            Self.quota("MODEL_PLACEHOLDER_M911", fraction: 0.88, label: "Orchestrator (Test Beta)"),
+        ], source: source)
+
+        #expect(usage.primary?.remainingPercent.rounded() == 88)
+        #expect(usage.extraRateWindows == nil)
+    }
+
+    @Test(arguments: [AntigravityModelQuotaSource.local, .remote])
+    func `unclassified selectable models with distinct fraction or reset stay visible`(
+        source: AntigravityModelQuotaSource) throws
+    {
+        let usage = try Self.usage([
+            Self.quota("gemini-3-flash", fraction: 0.88, label: "Gemini 3 Flash"),
+            Self.quota("MODEL_PLACEHOLDER_M910", fraction: 0.62, label: "Orchestrator (Distinct Fraction)"),
+            Self.quota(
+                "MODEL_PLACEHOLDER_M911",
+                fraction: 0.88,
+                reset: Self.reset.addingTimeInterval(60),
+                label: "Orchestrator (Distinct Reset)"),
+            Self.quota("MODEL_PLACEHOLDER_M912", fraction: 0.88, reset: nil, label: "Orchestrator (No Reset)"),
+        ], source: source)
+
+        #expect(usage.primary?.remainingPercent.rounded() == 88)
+        #expect(
+            Set(usage.extraRateWindows?.map(\.id) ?? []) == [
+                "MODEL_PLACEHOLDER_M910",
+                "MODEL_PLACEHOLDER_M911",
+                "MODEL_PLACEHOLDER_M912",
+            ])
+    }
 }
