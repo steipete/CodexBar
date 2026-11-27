@@ -325,6 +325,7 @@ extension CodexWebDashboardStrategy {
         let subscriptionResult: OpenAISubscriptionFetchResult = if remainingTimeout > 0 {
             await OpenAIDashboardFetcher().fetchSubscriptionMetadata(
                 accountEmail: effectiveEmail,
+                accountID: dashboard.accountID,
                 cacheScope: context.settings?.codex?.openAIWebCacheScope,
                 logger: logger,
                 timeout: min(8, remainingTimeout))

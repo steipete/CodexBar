@@ -77,7 +77,8 @@ let openAISubscriptionResetScript = """
 
 let openAISubscriptionReadScript = """
 (() => ({
-  isBillingRoute: String(window.location.hash || '').toLowerCase().includes('settings/billing'),
+  isBillingRoute: window.location.pathname === '/settings/billing' ||
+    String(window.location.hash || '').toLowerCase().includes('settings/billing'),
   responseStatus: window.__codexbarSubscriptionResponseStatus,
   responseSettled: window.__codexbarSubscriptionResponseSettled,
   metadataParseState: window.__codexbarSubscriptionMetadataParseState,
@@ -89,7 +90,7 @@ let openAISubscriptionReadScript = """
 /// subscription request captured by `openAISubscriptionCaptureScript`.
 @MainActor
 enum OpenAISubscription {
-    private static let billingURL = URL(string: "https://chatgpt.com/#settings/Billing")!
+    private static let billingURL = URL(string: "https://chatgpt.com/settings/billing")!
 
     static func fetch(
         _ webView: WKWebView,
