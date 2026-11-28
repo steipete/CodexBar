@@ -264,8 +264,21 @@ extension UsageStore {
             accountCount: self.claudeSwapAccountSnapshots.count,
             showSingleAccount: self.settings.claudeSwapShowSingleAccount)
         let activeSwapAccount = swapOwnsClaude ? self.claudeSwapAccountSnapshots.first(where: \.isActive) : nil
-        let snapshot = swapOwnsClaude ? activeSwapAccount?.snapshot : self.snapshots[provider.instanceID]
-        let tokenSnapshot = self.tokenSnapshotForCurrentProviderConfig(for: provider)?.snapshot
+        let snapshot = if swapOwnsClaude {
+            activeSwapAccount?.snapshot
+        } else if provider == .deepseek {
+            self.presentationSnapshot(for: .deepseek)
+        } else {
+            self.snapshots[provider.instanceID]
+        }
+        let rawTokenSnapshot = self.tokenSnapshotForCurrentProviderConfig(for: provider)?.snapshot
+        let tokenSnapshot: CostUsageTokenSnapshot? = if provider == .deepseek,
+                                                        !self.settings.showOptionalCreditsAndExtraUsage
+        {
+            nil
+        } else {
+            rawTokenSnapshot
+        }
         let claudeQuotaOwnerKey: String? = if swapOwnsClaude {
             activeSwapAccount.flatMap(Self.claudeSwapWidgetOwnerKey(for:))
         } else if provider == .claude {
@@ -295,14 +308,28 @@ extension UsageStore {
             return nil
         }
 
-        let dailyUsage = tokenSnapshot?.daily.map { entry in
-            WidgetSnapshot.DailyUsagePoint(
-                dayKey: entry.date,
-                totalTokens: entry.totalTokens,
-                costUSD: entry.costUSD)
-        } ?? []
+        let deepseekChartProjection: DeepSeekWidgetChartProjection? = if provider == .deepseek,
+                                                                         let tokenSnapshot
+        {
+            Self.deepSeekWidgetChartProjection(from: tokenSnapshot)
+        } else {
+            nil
+        }
+        let dailyUsage: [WidgetSnapshot.DailyUsagePoint] = if let deepseekChartProjection {
+            deepseekChartProjection.points
+        } else {
+            tokenSnapshot?.daily.map { entry in
+                WidgetSnapshot.DailyUsagePoint(
+                    dayKey: entry.date,
+                    totalTokens: entry.totalTokens,
+                    costUSD: entry.costUSD)
+            } ?? []
+        }
 
-        let tokenUsage = Self.widgetTokenUsageSummary(from: tokenSnapshot, provider: provider)
+        let tokenUsage = Self.widgetTokenUsageSummary(
+            from: tokenSnapshot,
+            provider: provider,
+            chartProjection: deepseekChartProjection)
         let usageRows = snapshot.map {
             self.widgetUsageRows(provider: provider, snapshot: $0, now: now)
         } ?? preservedClaudeUsage?.usageRows ?? []
@@ -341,6 +368,11 @@ extension UsageStore {
             nil
         }
 
+        let widgetDetails = Self.widgetDetails(
+            for: provider,
+            snapshot: snapshot,
+            showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage)
+
         // Provider-specific by design: Pi's local strategy has no quota measurement; age belongs to its history.
         let historyUpdatedAt = provider == .pi ? tokenSnapshot?.updatedAt : nil
         return WidgetSnapshot.ProviderEntry(
@@ -358,7 +390,24 @@ extension UsageStore {
             providerCost: providerCost,
             quotaOwnerKey: snapshot != nil ? claudeQuotaOwnerKey : preservedClaudeUsage?.quotaOwnerKey,
             balanceText: balanceText,
-            details: snapshot.flatMap { $0.details.isEmpty ? nil : $0.details })
+            details: widgetDetails)
+    }
+
+    nonisolated static func widgetDetails(
+        for provider: UsageProvider,
+        snapshot: UsageSnapshot?,
+        showOptionalCreditsAndExtraUsage: Bool) -> [ProviderDetailSection]?
+    {
+        guard let snapshot, !snapshot.details.isEmpty else { return nil }
+        guard provider == .deepseek else { return snapshot.details }
+        guard showOptionalCreditsAndExtraUsage else { return nil }
+        // Widgets render grouped `dailyUsage` bars (<= 45 points), so omit DeepSeek's raw detail charts.
+        let stripped = snapshot.details.compactMap { section -> ProviderDetailSection? in
+            guard section.chart != nil else { return section }
+            guard !section.rows.isEmpty else { return nil }
+            return try? ProviderDetailSection(title: section.title, rows: section.rows, chart: nil)
+        }
+        return stripped.isEmpty ? nil : stripped
     }
 
     private func claudeWidgetQuotaOwnerKey() -> String {
@@ -414,29 +463,289 @@ extension UsageStore {
         return entry
     }
 
+    struct DeepSeekWidgetChartProjection: Sendable, Equatable {
+        let points: [WidgetSnapshot.DailyUsagePoint]
+        let chartTitle: String?
+        let compactPeriodLabel: String?
+        let startDayKey: String?
+        let endDayKey: String?
+        let bucketDays: Int?
+        let prefersCostMode: Bool?
+    }
+
+    private struct WidgetDayBucketAggregate: Sendable {
+        private(set) var tokens: Int?
+        private(set) var tokensInvalid = false
+        private(set) var costUSD: Double?
+        private(set) var costInvalid = false
+
+        mutating func add(tokens: Int?, costUSD: Double?) {
+            self.addTokensOnly(tokens)
+            self.addCostOnly(costUSD)
+        }
+
+        private mutating func addTokensOnly(_ tokens: Int?) {
+            guard let tokens, !self.tokensInvalid else { return }
+            guard tokens >= 0 else {
+                self.tokensInvalid = true
+                self.tokens = nil
+                return
+            }
+            if let existing = self.tokens {
+                let addition = existing.addingReportingOverflow(tokens)
+                if addition.overflow {
+                    self.tokensInvalid = true
+                    self.tokens = nil
+                } else {
+                    self.tokens = addition.partialValue
+                }
+            } else {
+                self.tokens = tokens
+            }
+        }
+
+        private mutating func addCostOnly(_ costUSD: Double?) {
+            guard !self.costInvalid else { return }
+            guard let costUSD, costUSD.isFinite, costUSD.sign != .minus else {
+                self.costInvalid = true
+                self.costUSD = nil
+                return
+            }
+            if let existing = self.costUSD {
+                let sum = existing + costUSD
+                if sum.isFinite {
+                    self.costUSD = sum
+                } else {
+                    self.costInvalid = true
+                    self.costUSD = nil
+                }
+            } else {
+                self.costUSD = costUSD
+            }
+        }
+
+        mutating func merge(_ other: Self) {
+            if other.tokensInvalid {
+                self.tokensInvalid = true
+                self.tokens = nil
+            } else if let otherTokens = other.tokens, !self.tokensInvalid {
+                self.addTokensOnly(otherTokens)
+            }
+            if other.costInvalid {
+                self.costInvalid = true
+                self.costUSD = nil
+            } else if let otherCost = other.costUSD, !self.costInvalid {
+                self.addCostOnly(otherCost)
+            }
+        }
+    }
+
+    nonisolated static func deepSeekWidgetChartProjection(
+        from snapshot: CostUsageTokenSnapshot,
+        maxBuckets: Int = 45) -> DeepSeekWidgetChartProjection
+    {
+        let calendar = CostUsageLocalDay.fixedOffsetGregorianCalendar(secondsFromGMT: 0)
+        var entriesByDay: [String: WidgetDayBucketAggregate] = [:]
+        var orderedDayKeys: [String] = []
+        for entry in snapshot.daily {
+            if entriesByDay[entry.date] == nil {
+                orderedDayKeys.append(entry.date)
+            }
+            var aggregate = entriesByDay[entry.date] ?? WidgetDayBucketAggregate()
+            aggregate.add(tokens: entry.totalTokens, costUSD: entry.costUSD)
+            entriesByDay[entry.date] = aggregate
+        }
+
+        let intervalDates = (snapshot.coveredDayIntervals ?? []).flatMap { interval -> [Date] in
+            [
+                CostUsageLocalDay.date(fromKey: interval.startDay, calendar: calendar),
+                CostUsageLocalDay.date(fromKey: interval.endDay, calendar: calendar),
+            ].compactMap(\.self)
+        }
+        let entryDates = entriesByDay.keys.compactMap { CostUsageLocalDay.date(fromKey: $0, calendar: calendar) }
+        let allDates = intervalDates + entryDates
+        let hasAnyCost = entriesByDay.values.contains { !$0.costInvalid && $0.costUSD != nil }
+        let chartTitle = snapshot.historyLabel
+            ?? (snapshot.historyDays == 1 ? "Today" : "Last \(snapshot.historyDays) days")
+        let compactLabel = Self.deepSeekCompactWidgetPeriodLabel(from: snapshot)
+
+        guard let startDate = allDates.min(), let endDate = allDates.max() else {
+            return DeepSeekWidgetChartProjection(
+                points: [],
+                chartTitle: chartTitle,
+                compactPeriodLabel: compactLabel,
+                startDayKey: nil,
+                endDayKey: nil,
+                bucketDays: nil,
+                prefersCostMode: nil)
+        }
+
+        let startDayKey = CostUsageLocalDay.key(from: startDate, calendar: calendar)
+        let endDayKey = CostUsageLocalDay.key(from: endDate, calendar: calendar)
+        let spanDays = max(1, (calendar.dateComponents([.day], from: startDate, to: endDate).day ?? 0) + 1)
+        let bucketLimit = max(1, maxBuckets)
+
+        if spanDays <= bucketLimit, orderedDayKeys.count <= bucketLimit {
+            let points = orderedDayKeys.map { dayKey in
+                let aggregate = entriesByDay[dayKey]
+                return WidgetSnapshot.DailyUsagePoint(
+                    dayKey: dayKey,
+                    totalTokens: aggregate?.tokensInvalid == true ? nil : aggregate?.tokens,
+                    costUSD: aggregate?.costInvalid == true ? nil : aggregate?.costUSD)
+            }
+            return DeepSeekWidgetChartProjection(
+                points: points,
+                chartTitle: chartTitle,
+                compactPeriodLabel: compactLabel,
+                startDayKey: startDayKey,
+                endDayKey: endDayKey,
+                bucketDays: nil,
+                prefersCostMode: hasAnyCost ? true : nil)
+        }
+
+        let bucketDays = Self.calendarAlignedWidgetBucketDays(spanDays: spanDays, maxBuckets: bucketLimit)
+        let parsedIntervals: [ClosedRange<Date>] = (snapshot.coveredDayIntervals ?? []).compactMap { interval in
+            guard let start = CostUsageLocalDay.date(fromKey: interval.startDay, calendar: calendar),
+                  let end = CostUsageLocalDay.date(fromKey: interval.endDay, calendar: calendar),
+                  start <= end
+            else { return nil }
+            return start...end
+        }
+
+        // Group backwards from endDate so the newest bar ends cleanly on endDayKey, then reverse to chronological.
+        var reversedPoints: [WidgetSnapshot.DailyUsagePoint] = []
+        var bucketEnd = endDate
+        while bucketEnd >= startDate {
+            let candidateStart = calendar.date(byAdding: .day, value: -(bucketDays - 1), to: bucketEnd) ?? startDate
+            let bucketStart = max(startDate, candidateStart)
+
+            var bucket = WidgetDayBucketAggregate()
+            var sawCoveredDay = parsedIntervals.isEmpty
+
+            var day = bucketStart
+            while day <= bucketEnd {
+                if !sawCoveredDay, parsedIntervals.contains(where: { $0.contains(day) }) {
+                    sawCoveredDay = true
+                }
+                let key = CostUsageLocalDay.key(from: day, calendar: calendar)
+                if let entry = entriesByDay[key] {
+                    bucket.merge(entry)
+                }
+                guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+                day = next
+            }
+
+            let isNewestBucket = bucketEnd == endDate
+            let bucketKey = isNewestBucket
+                ? endDayKey
+                : CostUsageLocalDay.key(from: bucketStart, calendar: calendar)
+            let pointTokens: Int? = if bucket.tokensInvalid {
+                nil
+            } else if let total = bucket.tokens {
+                total
+            } else {
+                sawCoveredDay ? 0 : nil
+            }
+            let pointCost: Double? = if bucket.costInvalid {
+                nil
+            } else if let total = bucket.costUSD {
+                total
+            } else {
+                sawCoveredDay && hasAnyCost ? 0 : nil
+            }
+            reversedPoints.append(WidgetSnapshot.DailyUsagePoint(
+                dayKey: bucketKey,
+                totalTokens: pointTokens,
+                costUSD: pointCost))
+
+            guard let previousEnd = calendar.date(byAdding: .day, value: -1, to: bucketStart) else { break }
+            bucketEnd = previousEnd
+        }
+
+        return DeepSeekWidgetChartProjection(
+            points: reversedPoints.reversed(),
+            chartTitle: chartTitle,
+            compactPeriodLabel: compactLabel,
+            startDayKey: startDayKey,
+            endDayKey: endDayKey,
+            bucketDays: bucketDays,
+            prefersCostMode: hasAnyCost ? true : nil)
+    }
+
+    private nonisolated static func calendarAlignedWidgetBucketDays(spanDays: Int, maxBuckets: Int) -> Int {
+        for candidate in [1, 2, 3, 7, 14, 30] where (spanDays + candidate - 1) / candidate <= maxBuckets {
+            return candidate
+        }
+        return max(1, (spanDays + maxBuckets - 1) / maxBuckets)
+    }
+
+    private nonisolated static func deepSeekCompactWidgetPeriodLabel(from snapshot: CostUsageTokenSnapshot) -> String? {
+        guard let label = snapshot.historyLabel else { return nil }
+        if label == "This month" || label == "Month to date" {
+            return label
+        }
+        if let intervals = snapshot.coveredDayIntervals, snapshot.historyScanIsPartial {
+            let calendar = CostUsageLocalDay.fixedOffsetGregorianCalendar(secondsFromGMT: 0)
+            let coveredDays = intervals.reduce(0) { sum, interval in
+                guard let start = CostUsageLocalDay.date(fromKey: interval.startDay, calendar: calendar),
+                      let end = CostUsageLocalDay.date(fromKey: interval.endDay, calendar: calendar),
+                      start <= end
+                else { return sum }
+                return sum + (calendar.dateComponents([.day], from: start, to: end).day ?? 0) + 1
+            }
+            if coveredDays > 0, coveredDays < snapshot.historyDays {
+                return "\(coveredDays)/\(snapshot.historyDays)d"
+            }
+        }
+        if label == "Last \(snapshot.historyDays) days" {
+            return "\(snapshot.historyDays)d"
+        }
+        return label
+    }
+
     nonisolated static func widgetTokenUsageSummary(
         from snapshot: CostUsageTokenSnapshot?,
-        provider: UsageProvider) -> WidgetSnapshot.TokenUsageSummary?
+        provider: UsageProvider,
+        chartProjection: DeepSeekWidgetChartProjection? = nil) -> WidgetSnapshot.TokenUsageSummary?
     {
         guard let snapshot else { return nil }
-        let fallbackTokens = CheckedSum.integers(snapshot.daily.compactMap(\.totalTokens))
-            .flatMap { $0 > 0 ? $0 : nil }
+        let dailyTokens = snapshot.daily.compactMap(\.totalTokens)
+        let fallbackTokens: Int? = if dailyTokens.contains(where: { $0 < 0 }) {
+            nil
+        } else {
+            CheckedSum.integers(dailyTokens).flatMap { $0 > 0 ? $0 : nil }
+        }
+        let validCost: (Double?) -> Double? = { value in
+            guard let value, value.isFinite, value.sign != .minus else { return nil }
+            return value
+        }
+        let sessionTokens = snapshot.sessionTokens.flatMap { $0 >= 0 ? $0 : nil }
+        let last30DaysTokens: Int? = if let reported = snapshot.last30DaysTokens {
+            reported >= 0 ? reported : nil
+        } else {
+            fallbackTokens
+        }
         let sessionLabel = switch provider {
         case .bedrock, .mistral: "Latest billing day"
         default: "Today"
         }
         let defaultMonthLabel = snapshot.historyDays == 1 ? "Today" : "\(snapshot.historyDays)d"
-        let monthLabel = snapshot.historyLabel ?? defaultMonthLabel
+        let monthLabel = chartProjection?.compactPeriodLabel ?? snapshot.historyLabel ?? defaultMonthLabel
         let estimateSuffix = provider == .codex ? " API est. · not billed" : ""
         return WidgetSnapshot.TokenUsageSummary(
-            sessionCostUSD: snapshot.sessionCostUSD,
-            sessionTokens: snapshot.sessionTokens,
-            last30DaysCostUSD: snapshot.last30DaysCostUSD,
-            last30DaysTokens: snapshot.last30DaysTokens ?? fallbackTokens,
+            sessionCostUSD: validCost(snapshot.sessionCostUSD),
+            sessionTokens: sessionTokens,
+            last30DaysCostUSD: validCost(snapshot.last30DaysCostUSD),
+            last30DaysTokens: last30DaysTokens,
             currencyCode: snapshot.currencyCode,
             sessionLabel: sessionLabel + estimateSuffix,
             last30DaysLabel: monthLabel + estimateSuffix,
-            updatedAt: snapshot.updatedAt)
+            updatedAt: snapshot.updatedAt,
+            chartTitle: chartProjection?.chartTitle,
+            chartStartDayKey: chartProjection?.startDayKey,
+            chartEndDayKey: chartProjection?.endDayKey,
+            chartBucketDays: chartProjection?.bucketDays,
+            chartPrefersCostMode: chartProjection?.prefersCostMode)
     }
 
     private nonisolated static func widgetPrimaryTitle(

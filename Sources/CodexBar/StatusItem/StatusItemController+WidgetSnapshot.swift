@@ -6,6 +6,8 @@ extension StatusItemController {
             "privacy=\(self.settings.hidePersonalInfo)",
             "showUsed=\(self.settings.usageBarsShowUsed ? "1" : "0")",
             "optional=\(self.settings.showOptionalCreditsAndExtraUsage ? "1" : "0")",
+            "costPeriod=\(self.settings.costReportingPeriod.rawValue)",
+            "costTZ=\(self.settings.costUsageBucketTimeZoneIdentifier)",
             "claudeScopedWeekly=\(self.settings.claudeModelScopedWeeklyUsageVisible ? "1" : "0")",
             "metrics=\(self.settings.menuBarMetricPreferencesRaw.sorted { $0.key < $1.key })",
         ].joined(separator: "|")

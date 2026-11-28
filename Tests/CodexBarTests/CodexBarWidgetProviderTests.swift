@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+@testable import CodexBar
 @testable import CodexBarCore
 @testable import CodexBarWidget
 
@@ -985,5 +986,369 @@ extension CodexBarWidgetProviderTests {
         #expect(UsageHistoryChartMode.isCostMode(tokenPoints) == false)
         #expect(UsageHistoryChartMode.isCostMode(mixedPoints) == false)
         #expect(UsageHistoryChartMode.isCostMode(emptyPoints) == false)
+    }
+
+    @MainActor
+    @Test
+    func `deepseek 365-day widget export strips detail charts and keeps missing cost nil`() async throws {
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-06-15T12:00:00Z"))
+        let utc = Self.utcGregorianCalendar
+        let plan = DeepSeekHistoryPlan.make(period: .allTime, now: now, calendar: utc)
+        let fixture = try Self.make365DayDeepSeekFixture(now: now, calendar: utc, plan: plan)
+
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "DeepSeekWidgetSize-\(UUID().uuidString)",
+            isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let snapshotURL = root.appendingPathComponent("widget-snapshot.json", isDirectory: false)
+
+        let settings = testSettingsStore(
+            suiteName: "CodexBarWidgetProviderTests-deepseek-size",
+            config: testConfigWithAllProvidersDisabled())
+        settings.showOptionalCreditsAndExtraUsage = true
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(homeDirectory: root.path, fileExists: { _ in false }),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:],
+            widgetSnapshotURL: snapshotURL)
+        defer { store.stopSharedSpendDashboardPublication() }
+
+        let otherChart = try ProviderDetailSection.Chart(
+            kind: .bars,
+            title: "Daily tokens",
+            unit: "tokens",
+            points: [
+                .init(label: "2026-06-13", value: 100),
+                .init(label: "2026-06-14", value: 200),
+                .init(label: "2026-06-15", value: 300),
+            ])
+        let otherDetails = try [ProviderDetailSection(
+            title: "Cloud credits",
+            rows: [ProviderDetailSection.Row(label: "Remaining", value: "$12.00")],
+            chart: otherChart)]
+        let quota = RateWindow(usedPercent: 25, windowMinutes: 300, resetsAt: nil, resetDescription: nil)
+        store._setSnapshotForTesting(fixture.usageSnapshot, provider: .deepseek)
+        store._setTokenSnapshotForTesting(fixture.usageSnapshot.costUsage, provider: .deepseek)
+        store._setSnapshotForTesting(
+            UsageSnapshot(primary: quota, secondary: nil, details: otherDetails, updatedAt: now),
+            provider: .claude)
+
+        store.persistWidgetSnapshot(reason: "deepseek-widget-size")
+        await store.widgetSnapshotPersistTask?.value
+
+        let afterData = try Data(contentsOf: snapshotURL)
+        let decoded = try #require(WidgetSnapshotStore.load(from: snapshotURL))
+        let deepseekEntry = try #require(decoded.entries.first { $0.provider == .deepseek })
+        let otherEntry = try #require(decoded.entries.first { $0.provider == .claude })
+
+        var beforeSnapshot = decoded
+        beforeSnapshot.entries = decoded.entries.map { entry in
+            guard entry.provider == .deepseek else { return entry }
+            return WidgetSnapshot.ProviderEntry(
+                instanceID: entry.provider,
+                updatedAt: entry.updatedAt,
+                primary: entry.primary,
+                secondary: entry.secondary,
+                tertiary: entry.tertiary,
+                usageRows: entry.usageRows,
+                creditsRemaining: entry.creditsRemaining,
+                codeReviewRemainingPercent: entry.codeReviewRemainingPercent,
+                tokenUsage: entry.tokenUsage,
+                dailyUsage: entry.dailyUsage,
+                providerCost: entry.providerCost,
+                quotaOwnerKey: entry.quotaOwnerKey,
+                balanceText: entry.balanceText,
+                details: fixture.usageSnapshot.details)
+        }
+        let beforeData = try WidgetSnapshotStore.encodedData(beforeSnapshot)
+
+        let beforeChartPoints = fixture.usageSnapshot.details.compactMap(\.chart).reduce(0) { $0 + $1.points.count }
+        let afterChartPoints = (deepseekEntry.details ?? []).compactMap(\.chart).reduce(0) { $0 + $1.points.count }
+        print(
+            "[deepseek-widget-size] beforeBytes=\(beforeData.count) afterBytes=\(afterData.count) " +
+                "savedBytes=\(beforeData.count - afterData.count) " +
+                "rawChartPointsBefore=\(beforeChartPoints) rawChartPointsAfter=\(afterChartPoints) " +
+                "dailyUsagePoints=\(deepseekEntry.dailyUsage.count)")
+
+        #expect(beforeChartPoints == 2 * ProviderDetailSection.maximumPointsPerChart)
+        #expect(afterChartPoints == 0)
+        #expect(afterData.count < beforeData.count)
+        #expect(beforeData.count - afterData.count > 4000)
+
+        // App-side live snapshot retains its full charts for menu & Settings previews.
+        let liveChartPoints = (store.snapshots[.deepseek]?.details ?? [])
+            .compactMap(\.chart).reduce(0) { $0 + $1.points.count }
+        #expect(liveChartPoints == beforeChartPoints)
+
+        // DeepSeek keeps text rows while dropping emptied chart-only sections; other providers stay untouched.
+        let exportedDetails = try #require(deepseekEntry.details)
+        #expect(exportedDetails.map(\.title) == ["Usage"])
+        #expect(exportedDetails.allSatisfy { $0.chart == nil })
+        let usageRowLabels = exportedDetails.first?.rows.map(\.label) ?? []
+        #expect(usageRowLabels == ["Today", "Last 365 days", "Requests", "API keys", "Top model"])
+        #expect(otherEntry.details == otherDetails)
+
+        // Verify raw serialized JSON on disk omits `chart` for DeepSeek and keeps it for non-DeepSeek.
+        let json = try #require(JSONSerialization.jsonObject(with: afterData) as? [String: Any])
+        let jsonEntries = try #require(json["entries"] as? [[String: Any]])
+        let deepseekJSON = try #require(jsonEntries.first { $0["provider"] as? String == "deepseek" })
+        let deepseekJSONDetails = try #require(deepseekJSON["details"] as? [[String: Any]])
+        #expect(deepseekJSONDetails.allSatisfy { $0["chart"] == nil })
+
+        // Grouped daily usage stays <= 45 points, preserves exact sums, and keeps missing cost as nil (never 0).
+        #expect(deepseekEntry.dailyUsage.count <= 45)
+        #expect(deepseekEntry.dailyUsage.count == 27)
+        #expect(deepseekEntry.dailyUsage.compactMap(\.totalTokens).reduce(0, +) == fixture.expectedTotalTokens)
+        #expect(abs(deepseekEntry.dailyUsage.compactMap(\.costUSD).reduce(0, +) - fixture.expectedPricedCost) < 1e-6)
+        let missingCostBucket = try #require(deepseekEntry.dailyUsage.first)
+        #expect(missingCostBucket.dayKey == plan.requestedStartDayKey)
+        #expect(missingCostBucket.totalTokens == fixture.missingCostDayTokens)
+        #expect(missingCostBucket.costUSD == nil)
+        #expect(deepseekEntry.tokenUsage?.last30DaysCostUSD == nil)
+
+        // Widget chart renderer helpers consume the retained grouped payload cleanly in cost mode.
+        let tokenUsage = try #require(deepseekEntry.tokenUsage)
+        let isCostMode = tokenUsage.chartPrefersCostMode ?? UsageHistoryChartMode.isCostMode(deepseekEntry.dailyUsage)
+        #expect(UsageHistoryChartMode.isCostMode(deepseekEntry.dailyUsage) == false)
+        #expect(isCostMode == true)
+        #expect(UsageHistoryChartCopy.title(
+            dayCount: deepseekEntry.dailyUsage.count,
+            explicitTitle: tokenUsage.chartTitle) == "Last 365 days")
+        let maxBucketCost = deepseekEntry.dailyUsage.compactMap(\.costUSD).max() ?? 0
+        let peak = try #require(UsageHistoryChartCopy.peak(
+            maximum: maxBucketCost,
+            isCostMode: isCostMode,
+            currencyCode: tokenUsage.currencyCode,
+            bucketDays: tokenUsage.chartBucketDays))
+        #expect(peak.hasPrefix("Peak "))
+        #expect(peak.hasSuffix("/14d"))
+        let range = try #require(UsageHistoryChartCopy.range(
+            points: deepseekEntry.dailyUsage,
+            explicitStartDayKey: tokenUsage.chartStartDayKey,
+            explicitEndDayKey: tokenUsage.chartEndDayKey))
+        #expect(range.start == WidgetFormat.dayLabel(plan.requestedStartDayKey))
+        #expect(range.end == WidgetFormat.dayLabel(plan.requestedEndDayKey))
+    }
+
+    @Test
+    func `deepseek widget export keeps spend model rows and mixed missing cost stays nil`() throws {
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-06-15T12:00:00Z"))
+        let utc = Self.utcGregorianCalendar
+        let todayStart = utc.startOfDay(for: now)
+        func dayKey(daysAgo: Int) throws -> String {
+            let date = try #require(utc.date(byAdding: .day, value: -daysAgo, to: todayStart))
+            return CostUsageLocalDay.key(from: date, calendar: utc)
+        }
+
+        let summaryWithModels = try DeepSeekUsageSummary(
+            todayTokens: 100,
+            currentMonthTokens: 200,
+            todayCost: 0.5,
+            currentMonthCost: 1.0,
+            requestCount: 1,
+            currentMonthRequestCount: 2,
+            topModel: "deepseek-chat",
+            categoryBreakdown: [],
+            daily: [
+                DeepSeekDailyUsage(date: dayKey(daysAgo: 1), totalTokens: 100, cost: 0.5, requestCount: 1),
+                DeepSeekDailyUsage(date: dayKey(daysAgo: 0), totalTokens: 100, cost: 0.5, requestCount: 1),
+            ],
+            currency: "USD",
+            modelCosts: [DeepSeekModelCost(model: "deepseek-chat", cost: 1.0)],
+            apiKeyCount: 1,
+            period: .last30Days,
+            timeZoneSeconds: 0,
+            updatedAt: now)
+        let usageSnapshot = DeepSeekUsageSnapshot(
+            isAvailable: true,
+            currency: "USD",
+            totalBalance: 10.0,
+            grantedBalance: 0,
+            toppedUpBalance: 10.0,
+            usageSummary: summaryWithModels,
+            updatedAt: now).toUsageSnapshot()
+
+        let stripped = try #require(UsageStore.widgetDetails(
+            for: .deepseek,
+            snapshot: usageSnapshot,
+            showOptionalCreditsAndExtraUsage: true))
+        #expect(stripped.map(\.title) == ["Usage", "Spend"])
+        #expect(stripped.allSatisfy { $0.chart == nil })
+        #expect(stripped.last?.rows.map(\.label) == ["deepseek-chat"])
+        #expect(UsageStore.widgetDetails(
+            for: .deepseek,
+            snapshot: usageSnapshot,
+            showOptionalCreditsAndExtraUsage: false) == nil)
+
+        // Chart-only snapshot yields nil details instead of an empty array.
+        let chartOnlySnapshot = try UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            details: [ProviderDetailSection(
+                title: "Spend",
+                rows: [],
+                chart: .init(kind: .bars, points: [.init(label: "2026-06-15", value: 1.0)]))],
+            updatedAt: now)
+        #expect(UsageStore.widgetDetails(
+            for: .deepseek,
+            snapshot: chartOnlySnapshot,
+            showOptionalCreditsAndExtraUsage: true) == nil)
+
+        // A grouped bucket mixing a priced day and a missing-cost day must keep costUSD == nil (never 0 or partial).
+        let d0 = try dayKey(daysAgo: 0)
+        let d1 = try dayKey(daysAgo: 1)
+        let d2 = try dayKey(daysAgo: 2)
+        let d3 = try dayKey(daysAgo: 3)
+        let d89 = try dayKey(daysAgo: 89)
+        let mixedSnapshot = try CostUsageTokenSnapshot(
+            sessionTokens: 100,
+            sessionCostUSD: 1.0,
+            last30DaysTokens: 900,
+            last30DaysCostUSD: nil,
+            currencyCode: "USD",
+            historyDays: 90,
+            coveredDayIntervals: [
+                CostUsageDayInterval(startDay: d89, endDay: dayKey(daysAgo: 60)),
+                CostUsageDayInterval(startDay: dayKey(daysAgo: 29), endDay: d0),
+            ],
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: d89,
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: 100,
+                    costUSD: 1.0,
+                    modelsUsed: nil,
+                    modelBreakdowns: nil),
+                CostUsageDailyReport.Entry(
+                    date: d3,
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: 200,
+                    costUSD: 2.0,
+                    modelsUsed: nil,
+                    modelBreakdowns: nil),
+                CostUsageDailyReport.Entry(
+                    date: d2,
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: 300,
+                    costUSD: nil,
+                    modelsUsed: nil,
+                    modelBreakdowns: nil),
+                CostUsageDailyReport.Entry(
+                    date: d1,
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: 200,
+                    costUSD: 2.0,
+                    modelsUsed: nil,
+                    modelBreakdowns: nil),
+                CostUsageDailyReport.Entry(
+                    date: d0,
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: 100,
+                    costUSD: 1.0,
+                    modelsUsed: nil,
+                    modelBreakdowns: nil),
+            ],
+            updatedAt: now)
+
+        let projection = UsageStore.deepSeekWidgetChartProjection(from: mixedSnapshot)
+        #expect(projection.bucketDays == 2)
+        let mixedBucket = try #require(projection.points.first { $0.dayKey == d3 })
+        #expect(mixedBucket.totalTokens == 500)
+        #expect(mixedBucket.costUSD == nil)
+        let newestBucket = try #require(projection.points.last)
+        #expect(newestBucket.dayKey == d0)
+        #expect(newestBucket.totalTokens == 300)
+        #expect(newestBucket.costUSD == 3.0)
+        // Interior uncovered gap stays nil for both tokens and cost.
+        #expect(projection.points.contains { $0.totalTokens == nil && $0.costUSD == nil })
+    }
+
+    private struct DeepSeek365DayFixture {
+        let usageSnapshot: UsageSnapshot
+        let expectedTotalTokens: Int
+        let expectedPricedCost: Double
+        let missingCostDayTokens: Int
+    }
+
+    private static var utcGregorianCalendar: Calendar {
+        CostUsageLocalDay.fixedOffsetGregorianCalendar(secondsFromGMT: 0)
+    }
+
+    private static func make365DayDeepSeekFixture(
+        now: Date,
+        calendar: Calendar,
+        plan: DeepSeekHistoryPlan) throws -> DeepSeek365DayFixture
+    {
+        let startOfToday = calendar.startOfDay(for: now)
+        let missingCostDayTokens = 750
+        var daily: [DeepSeekDailyUsage] = []
+        var expectedPricedCost = 0.0
+        var expectedTotalTokens = 0
+        for daysAgo in 0..<365 {
+            let date = try #require(calendar.date(byAdding: .day, value: -daysAgo, to: startOfToday))
+            let key = CostUsageLocalDay.key(from: date, calendar: calendar)
+            if daysAgo == 364 {
+                expectedTotalTokens += missingCostDayTokens
+                daily.append(DeepSeekDailyUsage(
+                    date: key,
+                    totalTokens: missingCostDayTokens,
+                    cost: nil,
+                    requestCount: 2))
+            } else {
+                let cost = Double((daysAgo % 5) + 1) * 0.25
+                let tokens = (daysAgo + 1) * 10
+                expectedPricedCost += cost
+                expectedTotalTokens += tokens
+                daily.append(DeepSeekDailyUsage(date: key, totalTokens: tokens, cost: cost, requestCount: 1))
+            }
+        }
+        daily.sort { $0.date < $1.date }
+
+        let summary = DeepSeekUsageSummary(
+            todayTokens: 10,
+            currentMonthTokens: expectedTotalTokens,
+            todayCost: 0.25,
+            currentMonthCost: nil,
+            requestCount: 1,
+            currentMonthRequestCount: 366,
+            topModel: "deepseek-chat",
+            categoryBreakdown: [],
+            daily: daily,
+            currency: "USD",
+            modelCosts: [],
+            apiKeyCount: 2,
+            period: .last30Days,
+            coverage: DeepSeekUsageCoverage(
+                requestedPeriod: .allTime,
+                requestedStartDay: plan.requestedStartDayKey,
+                requestedEndDay: plan.requestedEndDayKey,
+                requestedDays: 365,
+                coveredIntervals: [CostUsageDayInterval(
+                    startDay: plan.requestedStartDayKey,
+                    endDay: plan.requestedEndDayKey)],
+                coveredDays: 365),
+            timeZoneSeconds: 0,
+            updatedAt: now)
+        let usageSnapshot = DeepSeekUsageSnapshot(
+            isAvailable: true,
+            currency: "USD",
+            totalBalance: 14.50,
+            grantedBalance: 2.00,
+            toppedUpBalance: 12.50,
+            usageSummary: summary,
+            updatedAt: now).toUsageSnapshot()
+        return DeepSeek365DayFixture(
+            usageSnapshot: usageSnapshot,
+            expectedTotalTokens: expectedTotalTokens,
+            expectedPricedCost: expectedPricedCost,
+            missingCostDayTokens: missingCostDayTokens)
     }
 }
