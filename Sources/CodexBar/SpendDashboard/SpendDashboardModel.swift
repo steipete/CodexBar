@@ -493,7 +493,14 @@ struct SpendDashboardModel: Equatable, Sendable {
         }
 
         var historyScanIsPartial: Bool {
-            self.input.snapshot.historyScanIsPartial
+            if self.input.snapshot.coveredDayIntervals != nil {
+                return self.hasUncoveredWindowGap
+            }
+            return self.input.snapshot.historyScanIsPartial
+        }
+
+        func covers(_ day: Date) -> Bool {
+            self.coveredIntervals.contains { $0.contains(day) }
         }
 
         let input: ProviderInput
@@ -502,7 +509,9 @@ struct SpendDashboardModel: Equatable, Sendable {
         let totalTokens: Int?
         let totalCost: Double?
         let coveredInterval: ClosedRange<Date>?
+        let coveredIntervals: [ClosedRange<Date>]
         let coveredDayCount: Int
+        let hasUncoveredWindowGap: Bool
         let hasCompleteTokenHistory: Bool
         let hasCompleteRequestHistory: Bool
         let hasInvalidCostHistory: Bool
@@ -527,7 +536,7 @@ struct SpendDashboardModel: Equatable, Sendable {
     }
 
     private struct TokenActivityInputSummary {
-        let coveredInterval: ClosedRange<Date>?
+        let coveredIntervals: [ClosedRange<Date>]
         let totalsByDay: [Date: Int]
         let invalidDays: Set<Date>
         let hasCompleteHistory: Bool
@@ -536,7 +545,7 @@ struct SpendDashboardModel: Equatable, Sendable {
         /// Whether the scan window reached this day at all. A day outside the window is unknown
         /// because nobody looked; a day inside it is unknown because the data itself is missing.
         func scanned(_ day: Date) -> Bool {
-            self.coveredInterval?.contains(day) == true
+            self.coveredIntervals.contains { $0.contains(day) }
         }
 
         func tokens(on day: Date) -> Int? {
@@ -667,7 +676,7 @@ struct SpendDashboardModel: Equatable, Sendable {
             dailySummaries: Self.dailySummaries(summaries: summaries, calendar: calendar),
             totalTokens: Self.knownIntSum(providers.map(\.totalTokens)),
             totalCost: Self.knownCostSum(providers.map(\.totalCost)),
-            coveredDayCount: Self.dayCount(in: Self.commonCoverageInterval(summaries: summaries), calendar: calendar),
+            coveredDayCount: Self.dayCount(in: Self.commonCoveredIntervals(summaries: summaries), calendar: calendar),
             chartDomain: Self.chartDomain(bounds: bounds, calendar: calendar),
             modelHistoryCompleteness: modelHistoryCompleteness,
             modelTokenAttributionCompleteness: tokenCompleteness,
@@ -699,7 +708,9 @@ struct SpendDashboardModel: Equatable, Sendable {
                 totalTokens: summary.totalTokens,
                 totalCost: summary.totalCost,
                 coveredInterval: summary.coveredInterval,
+                coveredIntervals: summary.coveredIntervals,
                 coveredDayCount: summary.coveredDayCount,
+                hasUncoveredWindowGap: summary.hasUncoveredWindowGap,
                 hasCompleteTokenHistory: summary.hasCompleteTokenHistory,
                 hasCompleteRequestHistory: summary.hasCompleteRequestHistory,
                 hasInvalidCostHistory: summary.hasInvalidCostHistory)
@@ -712,10 +723,17 @@ struct SpendDashboardModel: Equatable, Sendable {
         bounds: ClosedRange<Date>,
         calendar: Calendar) -> InputSummary
     {
-        let coveredInterval = Self.coverageInterval(
+        let coveredIntervals = Self.coveredIntervals(
             input: input,
             bounds: bounds,
             displayCalendar: calendar)
+        let coveredInterval: ClosedRange<Date>? = if let first = coveredIntervals.first,
+                                                     let last = coveredIntervals.last
+        {
+            first.lowerBound...last.upperBound
+        } else {
+            nil
+        }
         var entries: [WindowEntry] = []
         var hasInvalidCostHistory = false
         var hasInvalidTokenHistory = false
@@ -726,14 +744,18 @@ struct SpendDashboardModel: Equatable, Sendable {
                 continue
             }
             guard bounds.contains(day) else { continue }
-            guard coveredInterval?.contains(day) == true else {
+            guard coveredIntervals.contains(where: { $0.contains(day) }) else {
                 hasInvalidCostHistory = hasInvalidCostHistory || !Self.hasProvenZeroCost(entry)
                 hasInvalidTokenHistory = hasInvalidTokenHistory || !Self.hasProvenZeroTokens(entry)
                 continue
             }
             entries.append(WindowEntry(day: day, entry: entry))
         }
-        let coveredDayCount = Self.dayCount(in: coveredInterval, calendar: calendar)
+        let coveredDayCount = Self.dayCount(in: coveredIntervals, calendar: calendar)
+        let boundsDayCount = Self.dayCount(in: bounds, calendar: calendar)
+        let hasUncoveredWindowGap = input.snapshot.coveredDayIntervals != nil
+            && (coveredIntervals.count > 1
+                || (input.snapshot.historyScanIsPartial && coveredDayCount < boundsDayCount))
         let hasCompleteTokenHistory = Self.hasCompleteTokenHistory(input, displayCalendar: calendar)
         let tokenAggregateIsConsistent = input.snapshot.last30DaysTokens == nil || hasCompleteTokenHistory
         let totalTokens = hasInvalidTokenHistory || !tokenAggregateIsConsistent
@@ -764,7 +786,9 @@ struct SpendDashboardModel: Equatable, Sendable {
             totalTokens: totalTokens,
             totalCost: totalCost,
             coveredInterval: coveredInterval,
+            coveredIntervals: coveredIntervals,
             coveredDayCount: coveredDayCount,
+            hasUncoveredWindowGap: hasUncoveredWindowGap,
             hasCompleteTokenHistory: hasCompleteTokenHistory,
             hasCompleteRequestHistory: Self.hasCompleteRequestHistory(input, displayCalendar: calendar),
             hasInvalidCostHistory: invalidCostHistory)
@@ -850,7 +874,7 @@ struct SpendDashboardModel: Equatable, Sendable {
                 for entry in project.daily {
                     guard let day = Self.day(entry.date, provider: input.provider, displayCalendar: calendar),
                           bounds.contains(day),
-                          summary.coveredInterval?.contains(day) == true
+                          summary.covers(day)
                     else { continue }
                     if let tokens = Self.nonnegative(entry.totalTokens) {
                         aggregate.sawTokens = true
@@ -971,18 +995,21 @@ struct SpendDashboardModel: Equatable, Sendable {
         displayCalendar: Calendar) -> Bool
     {
         guard let aggregate = validCost(input.snapshot.last30DaysCostUSD) else { return false }
-        let coverage = Self.sourceCoverageInterval(input: input, displayCalendar: displayCalendar)
+        let coveredIntervals = Self.sourceCoveredIntervals(input: input, displayCalendar: displayCalendar)
         var dailyTotal = 0.0
         for entry in input.snapshot.daily {
             guard let day = Self.day(entry.date, provider: input.provider, displayCalendar: displayCalendar) else {
                 guard Self.hasProvenZeroCost(entry) else { return false }
                 continue
             }
-            guard coverage.contains(day) else { continue }
+            guard coveredIntervals.contains(where: { $0.contains(day) }) else { continue }
             guard let cost = validCost(entry.costUSD) else {
-                // Provider-specific by design: Codex and Cursor can omit prices on some model/day rows.
+                // Provider-specific by design: Codex and Cursor can omit prices on some model/day rows,
+                // and DeepSeek function-only days carry zero billed tokens with no cost bucket.
                 let isKnownUnpriced = entry.hasOnlyIncompleteRequests ||
                     Self.hasExplicitlyUnpriceableLedgerCost(input.provider, entry) ||
+                    (input.provider == .deepseek && Self.nonnegative(entry.totalTokens) == 0 &&
+                        (entry.requestCount ?? 0) > 0) ||
                     (input.snapshot.costProvenance == .listPriceEstimate
                         && (entry.unpricedRequestCount ?? 0) > 0)
                 guard isKnownUnpriced,
@@ -1001,14 +1028,14 @@ struct SpendDashboardModel: Equatable, Sendable {
         displayCalendar: Calendar) -> Bool
     {
         guard let aggregate = nonnegative(input.snapshot.last30DaysTokens) else { return false }
-        let coverage = Self.sourceCoverageInterval(input: input, displayCalendar: displayCalendar)
+        let coveredIntervals = Self.sourceCoveredIntervals(input: input, displayCalendar: displayCalendar)
         var dailyTotal = 0
         for entry in input.snapshot.daily {
             guard let day = Self.day(entry.date, provider: input.provider, displayCalendar: displayCalendar) else {
                 guard Self.hasProvenZeroTokens(entry) else { return false }
                 continue
             }
-            guard coverage.contains(day) else { continue }
+            guard coveredIntervals.contains(where: { $0.contains(day) }) else { continue }
             guard let tokens = nonnegative(entry.totalTokens) else {
                 if entry.hasOnlyIncompleteRequests { continue }
                 return false
@@ -1024,15 +1051,17 @@ struct SpendDashboardModel: Equatable, Sendable {
         _ input: ProviderInput,
         displayCalendar: Calendar) -> Bool
     {
-        guard input.snapshot.historyCoverageIsEstablished else { return false }
-        let coverage = Self.sourceCoverageInterval(input: input, displayCalendar: displayCalendar)
+        guard input.snapshot.historyCoverageIsEstablished || input.snapshot.coveredDayIntervals != nil else {
+            return false
+        }
+        let coveredIntervals = Self.sourceCoveredIntervals(input: input, displayCalendar: displayCalendar)
         var dailyTotal = 0
         for entry in input.snapshot.daily {
             guard let day = Self.day(entry.date, provider: input.provider, displayCalendar: displayCalendar) else {
                 guard Self.nonnegative(entry.requestCount) == 0 else { return false }
                 continue
             }
-            guard coverage.contains(day) else { continue }
+            guard coveredIntervals.contains(where: { $0.contains(day) }) else { continue }
             guard let requests = Self.nonnegative(entry.requestCount) else { return false }
             let addition = dailyTotal.addingReportingOverflow(requests)
             guard !addition.overflow else { return false }
@@ -1055,7 +1084,7 @@ struct SpendDashboardModel: Equatable, Sendable {
         var day = coverage.lowerBound
         while day <= coverage.upperBound {
             let providerRows = indexed.map {
-                Self.dailyProviderRow(summary: $0.summary, entries: $0.entries[day] ?? [])
+                Self.dailyProviderRow(summary: $0.summary, day: day, entries: $0.entries[day] ?? [])
             }
             let totalCost = Self.knownCostSum(providerRows.map(\.totalCost))
 
@@ -1082,33 +1111,51 @@ struct SpendDashboardModel: Equatable, Sendable {
         return result
     }
 
-    private static func dailyProviderRow(summary: InputSummary, entries: [WindowEntry]) -> DailyProviderRow {
+    private static func dailyProviderRow(
+        summary: InputSummary,
+        day: Date,
+        entries: [WindowEntry]) -> DailyProviderRow
+    {
+        let dayIsCovered = summary.covers(day)
+        let isExplicitGap = !dayIsCovered
         let costs = entries.map {
             Self.validCost($0.entry.costUSD).map { $0 * summary.costMultiplier }
         }
-        // A day with no row is a proven zero only when the scan covered it; a truncated scan
-        // leaves it unknown.
-        let emptyCost: Double? = summary.historyScanIsPartial
-            || (summary.entries.isEmpty && summary.totalCost == nil && summary.totalTokens != 0) ? nil : 0
-        let totalCost = summary.hasInvalidCostHistory ? nil : entries.isEmpty ? emptyCost : Self.completeCostSum(costs)
+        // A day with no row is a proven zero only when the scan covered that specific day;
+        // an interior failed-page gap or truncated scan leaves it unknown.
+        let emptyCost: Double? = if isExplicitGap {
+            nil
+        } else if summary.input.snapshot.coveredDayIntervals != nil {
+            0
+        } else {
+            summary.historyScanIsPartial
+                || (summary.entries.isEmpty && summary.totalCost == nil && summary.totalTokens != 0) ? nil : 0
+        }
+        let totalCost = summary.hasInvalidCostHistory || isExplicitGap
+            ? nil
+            : entries.isEmpty ? emptyCost : Self.completeCostSum(costs)
+        let treatMissingDayAsUnknown = isExplicitGap
+            || (summary.input.snapshot.coveredDayIntervals == nil && summary.historyScanIsPartial)
 
         return DailyProviderRow(
             incompleteRequestCount: CostUsageIncompleteRequests.sum(entries.map(\.entry.incompleteRequestCount)),
             costIsLowerBound: entries.contains { ($0.entry.unpricedRequestCount ?? 0) > 0 }
-                || summary.historyScanIsPartial,
-            countsAreLowerBound: summary.historyScanIsPartial,
+                || isExplicitGap
+                || (summary.input.snapshot.coveredDayIntervals == nil && summary.historyScanIsPartial),
+            countsAreLowerBound: isExplicitGap
+                || (summary.input.snapshot.coveredDayIntervals == nil && summary.historyScanIsPartial),
             sourceID: summary.input.id,
             provider: summary.input.provider,
             displayName: summary.input.displayName,
-            totalTokens: Self.dailyIntegerTotal(
+            totalTokens: isExplicitGap ? nil : Self.dailyIntegerTotal(
                 entries: entries,
                 isComplete: summary.hasCompleteTokenHistory,
-                scanIsPartial: summary.historyScanIsPartial,
+                scanIsPartial: treatMissingDayAsUnknown,
                 value: \.totalTokens),
-            requestCount: Self.dailyIntegerTotal(
+            requestCount: isExplicitGap ? nil : Self.dailyIntegerTotal(
                 entries: entries,
                 isComplete: summary.hasCompleteRequestHistory,
-                scanIsPartial: summary.historyScanIsPartial,
+                scanIsPartial: treatMissingDayAsUnknown,
                 value: \.requestCount),
             totalCost: totalCost)
     }
@@ -1213,7 +1260,7 @@ struct SpendDashboardModel: Equatable, Sendable {
         bounds: ClosedRange<Date>,
         calendar: Calendar) -> TokenActivityInputSummary
     {
-        let coveredInterval = Self.tokenActivityCoverageInterval(
+        let coveredIntervals = Self.tokenActivityCoveredIntervals(
             input: input,
             bounds: bounds,
             displayCalendar: calendar)
@@ -1225,7 +1272,7 @@ struct SpendDashboardModel: Equatable, Sendable {
                 hasUnplacedTokens = hasUnplacedTokens || !Self.hasProvenZeroTokens(entry)
                 continue
             }
-            guard coveredInterval?.contains(day) == true else { continue }
+            guard coveredIntervals.contains(where: { $0.contains(day) }) else { continue }
             // Heatmap coverage requires complete days; detailed daily/model rows retain known subtotals.
             guard entry.incompleteRequestCount == 0, let tokens = Self.nonnegative(entry.totalTokens) else {
                 invalidDays.insert(day)
@@ -1247,23 +1294,28 @@ struct SpendDashboardModel: Equatable, Sendable {
             && input.snapshot.last30DaysTokens != nil
             && !hasCompleteHistory
         return TokenActivityInputSummary(
-            coveredInterval: coveredInterval,
+            coveredIntervals: coveredIntervals,
             totalsByDay: totalsByDay,
             invalidDays: invalidDays,
             hasCompleteHistory: hasCompleteHistory,
             isGloballyInvalid: hasUnplacedTokens || aggregateIsInconsistent)
     }
 
-    private static func tokenActivityCoverageInterval(
+    private static func tokenActivityCoveredIntervals(
         input: ProviderInput,
         bounds: ClosedRange<Date>,
-        displayCalendar: Calendar) -> ClosedRange<Date>?
+        displayCalendar: Calendar) -> [ClosedRange<Date>]
     {
         guard let cache = input.tokenActivityCache else {
+            // Paginated sources with explicit disjoint intervals can report each verified slice accurately
+            // while leaving failed interior pages unscanned.
+            if input.snapshot.coveredDayIntervals != nil {
+                return self.coveredIntervals(input: input, bounds: bounds, displayCalendar: displayCalendar)
+            }
             // The heatmap renders absence as inactivity, so unlike the spend totals it cannot fall
             // back to the span a truncated scan happened to read.
-            guard input.snapshot.historyCoverageIsEstablished else { return nil }
-            return self.coverageInterval(input: input, bounds: bounds, displayCalendar: displayCalendar)
+            guard input.snapshot.historyCoverageIsEstablished else { return [] }
+            return self.coveredIntervals(input: input, bounds: bounds, displayCalendar: displayCalendar)
         }
         guard let start = Self.day(
             cache.coverageSinceKey,
@@ -1273,17 +1325,17 @@ struct SpendDashboardModel: Equatable, Sendable {
                 cache.coverageUntilKey,
                 provider: input.provider,
                 displayCalendar: displayCalendar)
-        else { return nil }
+        else { return [] }
         let overlapStart = max(bounds.lowerBound, start)
         let overlapEnd = min(bounds.upperBound, end)
-        return overlapStart <= overlapEnd ? overlapStart...overlapEnd : nil
+        return overlapStart <= overlapEnd ? [overlapStart...overlapEnd] : []
     }
 
     private static func bounds(days: Int, now: Date, calendar: Calendar) -> ClosedRange<Date> {
         CostReportingPeriod.rolling(days: days).bounds(now: now, calendar: calendar)
     }
 
-    private static let utcCalendar: Calendar = {
+    static let utcCalendar: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
         return calendar
@@ -1298,115 +1350,6 @@ struct SpendDashboardModel: Equatable, Sendable {
     private static func chartDomain(bounds: ClosedRange<Date>, calendar: Calendar) -> ClosedRange<Date> {
         let end = calendar.dateInterval(of: .day, for: bounds.upperBound)?.end ?? bounds.upperBound
         return bounds.lowerBound...end
-    }
-
-    private static func coverageInterval(
-        input: ProviderInput,
-        bounds: ClosedRange<Date>,
-        displayCalendar: Calendar) -> ClosedRange<Date>?
-    {
-        let sourceCoverage: ClosedRange<Date>
-        if input.snapshot.historyCoverageIsEstablished {
-            sourceCoverage = Self.sourceCoverageInterval(input: input, displayCalendar: displayCalendar)
-        } else {
-            // A truncated scan proves nothing about days it never reached, so it covers only the
-            // span it actually read. Every total over that span is marked as a lower bound.
-            guard input.snapshot.historyScanIsPartial,
-                  let observed = Self.observedCoverageInterval(input: input, displayCalendar: displayCalendar)
-            else { return nil }
-            sourceCoverage = observed
-        }
-        let overlapStart = max(bounds.lowerBound, sourceCoverage.lowerBound)
-        let overlapEnd = min(bounds.upperBound, sourceCoverage.upperBound)
-        guard overlapStart <= overlapEnd else { return nil }
-        return overlapStart...overlapEnd
-    }
-
-    /// The span of days a partial scan actually produced rows for, clamped to the scan window.
-    private static func observedCoverageInterval(
-        input: ProviderInput,
-        displayCalendar: Calendar) -> ClosedRange<Date>?
-    {
-        let scanned = Self.sourceCoverageInterval(input: input, displayCalendar: displayCalendar)
-        let days = input.snapshot.daily
-            .compactMap { Self.day($0.date, provider: input.provider, displayCalendar: displayCalendar) }
-            .filter { scanned.contains($0) }
-        guard let first = days.min(), let last = days.max() else { return nil }
-        return first...last
-    }
-
-    private static func sourceCoverageInterval(
-        input: ProviderInput,
-        displayCalendar: Calendar) -> ClosedRange<Date>
-    {
-        let bucketCalendar = Self.bucketCalendar(for: input.provider, displayCalendar: displayCalendar)
-        // Legacy plugins encode their civil windowEnd at noon UTC, independently of the viewer's zone.
-        let windowEnd = input.provider.firstPartyProvider == nil
-            ? bucketCalendar.date(from: Self.utcCalendar.dateComponents(
-                [.year, .month, .day], from: input.snapshot.updatedAt)) ?? input.snapshot.updatedAt
-            : input.snapshot.updatedAt
-        let bucketEnd = bucketCalendar.startOfDay(for: windowEnd)
-        let scanEnd = displayCalendar.startOfDay(for: bucketEnd)
-        let scanDays = max(1, input.snapshot.historyDays)
-        let bucketStart = bucketCalendar.date(byAdding: .day, value: -(scanDays - 1), to: bucketEnd) ?? bucketEnd
-        let scanStart = displayCalendar.startOfDay(for: bucketStart)
-        return scanStart...scanEnd
-    }
-
-    private static func commonCoverageInterval(summaries: [InputSummary]) -> ClosedRange<Date>? {
-        guard let first = summaries.first?.coveredInterval else { return nil }
-        var intersection = first
-        for summary in summaries.dropFirst() {
-            guard let interval = summary.coveredInterval else { return nil }
-            let start = max(intersection.lowerBound, interval.lowerBound)
-            let end = min(intersection.upperBound, interval.upperBound)
-            guard start <= end else { return nil }
-            intersection = start...end
-        }
-        return intersection
-    }
-
-    static func dayCount(in interval: ClosedRange<Date>?, calendar: Calendar) -> Int {
-        guard let interval,
-              let first = calendar.ordinality(of: .day, in: .era, for: interval.lowerBound),
-              let last = calendar.ordinality(of: .day, in: .era, for: interval.upperBound)
-        else { return 0 }
-        return last - first + 1
-    }
-
-    private static func day(
-        _ rawValue: String,
-        provider: ProviderInstanceID,
-        displayCalendar: Calendar) -> Date?
-    {
-        let bytes = Array(rawValue.utf8)
-        let digitIndices = [0, 1, 2, 3, 5, 6, 8, 9]
-        guard bytes.count == 10,
-              bytes[4] == 45,
-              bytes[7] == 45,
-              digitIndices.allSatisfy({ (48...57).contains(bytes[$0]) })
-        else { return nil }
-        let parts = rawValue.split(separator: "-")
-        let bucketCalendar = Self.bucketCalendar(for: provider, displayCalendar: displayCalendar)
-        guard parts.count == 3,
-              let year = Int(parts[0]),
-              let month = Int(parts[1]),
-              let day = Int(parts[2]),
-              let date = bucketCalendar.date(from: DateComponents(year: year, month: month, day: day)),
-              bucketCalendar.dateComponents([.year, .month, .day], from: date) == DateComponents(
-                  year: year,
-                  month: month,
-                  day: day)
-        else { return nil }
-        return displayCalendar.startOfDay(for: date)
-    }
-
-    static func bucketCalendar(for provider: ProviderInstanceID, displayCalendar: Calendar) -> Calendar {
-        // Provider-specific by design: mistral openrouter xai display calendar
-        guard provider == .mistral || provider == .openrouter || provider == .xai else { return displayCalendar }
-        // Mistral, OpenRouter, and xAI label daily buckets and snapshot coverage by UTC day. Map each UTC boundary into
-        // the containing local dashboard day instead of reinterpreting the label as a local date.
-        return self.utcCalendar
     }
 
     private static func currencyCode(_ rawValue: String) -> String? {
