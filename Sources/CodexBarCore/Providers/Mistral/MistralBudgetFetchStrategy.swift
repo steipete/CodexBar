@@ -50,7 +50,9 @@ enum MistralBudgetError: LocalizedError, Equatable {
         case .noBudget:
             "Mistral's billing API did not return usable allowances. "
                 + "Choose Browser cookies as the usage source for spend, credits, and token history."
-        case .network: "Could not reach the Mistral billing API."
+        case .network:
+            "Could not reach the Mistral billing API. Retry the refresh, or choose Browser cookies "
+                + "as the usage source."
         case let .http(status):
             "Mistral billing budget request failed (HTTP \(status)). "
                 + "Choose Browser cookies as the usage source for spend, credits, and token history."

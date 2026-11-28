@@ -99,6 +99,11 @@ struct MistralProviderImplementation: ProviderImplementation {
                 ProviderCookieRefreshAction.descriptor(
                     provider: .mistral,
                     cookieSource: { context.settings.mistralCookieSource },
+                    // A saved session forces `.manual` and supplies its own header, so a browser re-import
+                    // would neither stage nor store a cookie while that account owns the request.
+                    additionalVisibility: {
+                        context.settings.effectiveSelectedTokenAccount(for: .mistral) == nil
+                    },
                     browserOnly: true,
                     context: context),
             ])

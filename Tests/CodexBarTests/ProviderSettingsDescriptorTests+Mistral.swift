@@ -20,6 +20,32 @@ extension ProviderSettingsDescriptorTests {
     }
 
     @Test
+    func `mistral refresh action hides while a saved session owns the request`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-mistral-refresh-account")
+        let context = fixture.settingsContext(provider: .mistral)
+        let picker = try #require(MistralProviderImplementation().settingsPickers(context: context)
+            .first { $0.id == "mistral-cookie-source" })
+        let action = try #require(picker.trailingActions.first)
+
+        fixture.settings.addTokenAccount(
+            provider: .mistral,
+            label: "Work",
+            token: "ory_session_test=account-cookie")
+        let account = try #require(fixture.settings.selectedTokenAccount(for: .mistral))
+        #expect(fixture.settings.mistralCookieSource == .manual)
+        #expect(action.isVisible?() == false)
+
+        // Switching the picker back to Automatic does not make the saved session passive, so the
+        // browser re-import action must stay hidden while that account still supplies the header.
+        fixture.settings.mistralCookieSource = .auto
+        #expect(action.isVisible?() == false)
+        #expect(fixture.settings.effectiveSelectedTokenAccount(for: .mistral)?.id == account.id)
+
+        fixture.settings.removeTokenAccount(provider: .mistral, accountID: account.id)
+        #expect(action.isVisible?() == true)
+    }
+
+    @Test
     func `mistral configured usage source reaches the app fetch context`() throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-mistral-source")
         fixture.settings.mistralAPIKey = "synthetic-key"
