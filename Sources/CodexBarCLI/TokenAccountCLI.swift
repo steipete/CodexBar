@@ -100,6 +100,14 @@ struct TokenAccountCLIContext {
         {
             return []
         }
+        // A provider that retires its saved account on Off must not select one implicitly here either: the
+        // account override would displace the API key and force a source the disabled cookie setting rules out.
+        if !self.selection.usesOverride,
+           support.disabledCookiesSuppressAccount,
+           (self.providerConfig(for: provider)?.cookieSource ?? .auto) == .off
+        {
+            return []
+        }
         guard let data = self.accountsByProvider[provider], !data.accounts.isEmpty else {
             if self.selection.usesOverride {
                 throw TokenAccountCLIError.noAccounts(provider)

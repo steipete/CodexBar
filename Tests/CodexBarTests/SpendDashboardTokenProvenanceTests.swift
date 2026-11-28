@@ -187,7 +187,7 @@ struct SpendDashboardTokenProvenanceTests {
     }
 
     @Test
-    func `provider success without cost projection confirms empty publication`() async {
+    func `provider success without cost projection marks Mistral spend unavailable`() async {
         let (_, store) = Self.makeStore(provider: .mistral)
         let outcome = Self.mistralOutcomeWithoutCostProjection()
 
@@ -197,9 +197,12 @@ struct SpendDashboardTokenProvenanceTests {
             account: nil,
             fallbackSnapshot: nil)
 
+        // An allowance-only snapshot cannot certify an empty billing history, so it settles as unavailable
+        // instead of confirmed empty and never bumps the publication revision.
         let publication = store.tokenSnapshotPublicationForCurrentProviderConfig(for: .mistral)
         #expect(publication?.snapshot == nil)
-        #expect(publication?.publicationRevision == 1)
+        #expect(publication?.isUnavailable == true)
+        #expect(publication?.publicationRevision == 0)
         #expect(store.tokenSnapshot(for: .mistral) == nil)
     }
 
