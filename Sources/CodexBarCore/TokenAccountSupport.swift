@@ -15,6 +15,9 @@ public struct TokenAccountSupport: Sendable {
     public let environmentKeysToScrub: [String]
     public let minimumDelayBetweenAccountRefreshes: Duration?
     public let selectedAccountRequiresManualCookieSource: Bool
+    /// A disabled cookie source also retires the saved account, so no header is injected and the account stops
+    /// owning the request. Providers leave this off when a saved account is meant to outrank the cookie source.
+    public let disabledCookiesSuppressAccount: Bool
     public let passiveSourceModes: [ProviderSourceMode]
     public let clearsAPIKeyOnMutation: Bool
     public let showsOrganizationField: Bool
@@ -34,6 +37,7 @@ public struct TokenAccountSupport: Sendable {
         environmentKeysToScrub: [String] = [],
         minimumDelayBetweenAccountRefreshes: Duration? = nil,
         selectedAccountRequiresManualCookieSource: Bool = false,
+        disabledCookiesSuppressAccount: Bool = false,
         passiveSourceModes: [ProviderSourceMode] = [],
         clearsAPIKeyOnMutation: Bool = false,
         showsOrganizationField: Bool = false,
@@ -52,6 +56,7 @@ public struct TokenAccountSupport: Sendable {
         self.environmentKeysToScrub = environmentKeysToScrub
         self.minimumDelayBetweenAccountRefreshes = minimumDelayBetweenAccountRefreshes
         self.selectedAccountRequiresManualCookieSource = selectedAccountRequiresManualCookieSource
+        self.disabledCookiesSuppressAccount = disabledCookiesSuppressAccount
         self.passiveSourceModes = passiveSourceModes
         self.clearsAPIKeyOnMutation = clearsAPIKeyOnMutation
         self.showsOrganizationField = showsOrganizationField

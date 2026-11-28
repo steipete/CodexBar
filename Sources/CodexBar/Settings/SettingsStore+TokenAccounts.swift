@@ -26,6 +26,14 @@ extension SettingsStore {
         if support?.passiveSourceModes.contains(self.providerConfig(for: provider)?.source ?? .auto) == true {
             return nil
         }
+        // Disabled cookies outrank a saved session for providers that opt in. Otherwise the account keeps owning
+        // the request and the cookie resolver would rewrite `.off` back to `.manual`, so refreshes would still send
+        // its stored header.
+        if support?.disabledCookiesSuppressAccount == true,
+           (self.providerConfig(for: provider)?.cookieSource ?? .auto) == .off
+        {
+            return nil
+        }
         if support?.selectedAccountRequiresManualCookieSource == true,
            (self.providerConfig(for: provider)?.cookieSource ?? .auto) == .auto
         {

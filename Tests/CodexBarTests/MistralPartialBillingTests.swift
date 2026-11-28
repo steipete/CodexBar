@@ -94,6 +94,53 @@ struct MistralPartialBillingTests {
         }
     }
 
+    @Test
+    func `a session rejected on a supplemental probe still reaches alternate-session recovery`() async {
+        let transport = ProviderHTTPTransportHandler { request in
+            switch request.url?.path {
+            case "/api/billing/v2/usage": try Self.response(request, status: 404)
+            case "/subscription": try Self.response(request, status: 401)
+            case "/api/billing/credits": try Self.response(request, status: 401)
+            default: throw URLError(.unsupportedURL)
+            }
+        }
+
+        // `fetch` only retries another browser session for `.invalidCredentials`, so an expired session that
+        // surfaced on a supplemental request must not be hidden behind the billing error.
+        await #expect {
+            try await MistralWebFetchStrategy.fetchUsageWithVibe(
+                cookieHeader: Self.header,
+                csrfToken: "synthetic-csrf",
+                timeout: 5,
+                transport: transport)
+        } throws: { error in
+            if case MistralUsageError.invalidCredentials = error { return true }
+            return false
+        }
+    }
+
+    @Test
+    func `a partial result still publishes when another supplemental probe is rejected`() async throws {
+        let html = try Self.subscriptionHTML()
+        let transport = ProviderHTTPTransportHandler { request in
+            switch request.url?.path {
+            case "/api/billing/v2/usage": try Self.response(request, status: 404)
+            case "/subscription": try Self.response(request, status: 200, body: html)
+            case "/api/billing/credits": try Self.response(request, status: 401)
+            default: throw URLError(.unsupportedURL)
+            }
+        }
+
+        let usage = try await MistralWebFetchStrategy.fetchUsageWithVibe(
+            cookieHeader: Self.header,
+            csrfToken: "synthetic-csrf",
+            timeout: 5,
+            transport: transport)
+
+        #expect(usage.snapshot.primary?.usedPercent == 20)
+        #expect(usage.diagnostic?.contains("HTTP 404") == true)
+    }
+
     private static func subscriptionHTML() throws -> String {
         let api = #"{"usage_percentage":20,"initial_budget":100,"currency":"EUR"}"#
         let vibe = #"{"usage_percentage":37,"initial_budget":200,"currency":"EUR"}"#

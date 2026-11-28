@@ -7,6 +7,12 @@ public enum MistralUsageError: LocalizedError, Sendable {
     case apiError(String)
     case parseFailed(String)
 
+    /// The provider rejected the session itself, so another browser session may still be valid.
+    var isSessionRejection: Bool {
+        if case .invalidCredentials = self { return true }
+        return false
+    }
+
     var allowsPartialBilling: Bool {
         switch self {
         case .httpStatus(404), .httpStatus(410), .parseFailed:

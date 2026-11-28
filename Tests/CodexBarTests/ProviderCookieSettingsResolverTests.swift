@@ -61,6 +61,18 @@ struct ProviderCookieSettingsResolverTests {
     }
 
     @Test
+    func `disabled cookies ignore a selected cookie-header account`() {
+        let settings = ProviderCookieSettingsResolver.resolve(
+            provider: .mistral,
+            configuredSource: .off,
+            configuredHeader: nil,
+            selectedAccount: Self.account(token: "ory_session_test=account-cookie"))
+
+        #expect(settings.cookieSource == .off)
+        #expect(settings.manualCookieHeader == nil)
+    }
+
+    @Test
     func `providers without token account support ignore selected account`() {
         let settings = ProviderCookieSettingsResolver.resolve(
             provider: .mimo,

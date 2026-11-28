@@ -28,6 +28,9 @@ in to [Mistral Admin](https://admin.mistral.ai/organization/usage) in a supporte
 Manual cookies must include an `ory_session_*` cookie. A `csrftoken` cookie enables fallback Vibe requests that
 require the `X-CSRFTOKEN` header.
 
+**Cookie source → Off** also retires a saved session: no stored `Cookie:` header is sent, and Auto goes back to the
+API key. Saved sessions stay listed, so switching the cookie source back to Automatic or Manual reuses them.
+
 On Linux, use an API key (`MISTRAL_API_KEY` in the environment or the Mistral provider's `apiKey` config field),
 or set `cookieSource` to `manual` and `cookieHeader` to the pasted header in `~/.config/codexbar/config.json`.
 A selected saved cookie account does not inherit the provider-level API key.

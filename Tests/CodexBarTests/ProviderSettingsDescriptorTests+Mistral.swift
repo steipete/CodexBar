@@ -114,6 +114,32 @@ extension ProviderSettingsDescriptorTests {
     }
 
     @Test
+    func `mistral disabled cookie source keeps a saved session passive`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-mistral-token-account-off")
+        fixture.settings.mistralAPIKey = "synthetic-key"
+        fixture.settings.addTokenAccount(
+            provider: .mistral,
+            label: "Work",
+            token: "ory_session_test=account-cookie")
+        fixture.settings.updateProviderConfig(provider: .mistral) { $0.source = .auto }
+        #expect(fixture.store.makeFetchContext(provider: .mistral, override: nil).sourceMode == .web)
+
+        fixture.settings.mistralCookieSource = .off
+
+        // Settings says Mistral cookies are disabled, so no saved header may be sent and the account
+        // must stop forcing the browser source (and the API key must stay in the request).
+        #expect(fixture.settings.effectiveSelectedTokenAccount(for: .mistral) == nil)
+        #expect(fixture.settings.selectedTokenAccount(for: .mistral)?.label == "Work")
+        let fetch = fixture.store.makeFetchContext(provider: .mistral, override: nil)
+        #expect(fetch.sourceMode == .auto)
+        #expect(fetch.env["MISTRAL_API_KEY"] == "synthetic-key")
+        #expect(fetch.settings?.mistral?.cookieSource == .off)
+        // An unset provider field reads as an empty string rather than nil; what matters is that the
+        // saved session's cookie is not injected.
+        #expect(fetch.settings?.mistral?.manualCookieHeader?.isEmpty == true)
+    }
+
+    @Test
     func `mistral cookie refresh uses browser only for that request even with a key`() async throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-mistral-web-refresh")
         fixture.settings.mistralAPIKey = "synthetic-key"
