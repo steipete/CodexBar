@@ -37,6 +37,9 @@ struct CodexPlanFormattingTests {
     func `preserves unrelated already readable plan text`() {
         #expect(CodexPlanFormatting.displayName("Pro 5x") == "Pro 5x")
         #expect(CodexPlanFormatting.displayName("Pro 10x") == "Pro 10x")
+        #expect(CodexPlanFormatting.displayName("Pro 100") == "Pro 100")
+        #expect(CodexPlanFormatting.displayName("Pro 200") == "Pro 200")
+        #expect(CodexPlanFormatting.displayName("Pro 500") == "Pro 500")
         #expect(CodexPlanFormatting.displayName("Enterprise") == "Enterprise")
     }
 }

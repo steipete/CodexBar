@@ -131,6 +131,13 @@ struct OpenAIDashboardParserTests {
         </script>
         """
         #expect(OpenAIDashboardParser.parsePlanFromHTML(html: html) == "Pro 10x")
+
+        let pro100HTML = """
+        <script type="application/json" id="client-bootstrap">
+        {"subscription":{"name":"prolite","displayName":"Pro 100"}}
+        </script>
+        """
+        #expect(OpenAIDashboardParser.parsePlanFromHTML(html: pro100HTML) == "Pro 100")
     }
 
     @Test

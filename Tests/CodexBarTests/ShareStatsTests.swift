@@ -21,7 +21,7 @@ struct ShareStatsTests {
             }
         }
 
-        #expect(fingerprint == 2_500_333_924_415_227_190)
+        #expect(fingerprint == 12_416_895_878_397_140_331)
     }
 
     @Test

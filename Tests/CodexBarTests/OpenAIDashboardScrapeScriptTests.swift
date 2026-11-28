@@ -17,6 +17,7 @@ struct OpenAIDashboardScrapeScriptTests {
     @Test(arguments: [
         (#"{"tier":"Codex Pro Lite"}"#, "Pro Lite"),
         (#"{"name":"prolite","displayName":"Pro 10x"}"#, "Pro 10x"),
+        (#"{"name":"prolite","displayName":"Pro 100"}"#, "Pro 100"),
     ])
     func `scraper returns structured account fields without full html`(
         subscriptionJSON: String,
