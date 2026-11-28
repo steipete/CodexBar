@@ -428,6 +428,11 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
         return error.errorDescription
     }
 
+    /// Auto can fail over from the API key to cookies, so report both causes instead of only the browser note.
+    func combinePriorFailureDiagnostic(_ priorDiagnostic: String, with existing: String?) -> String? {
+        existing.map { "\(priorDiagnostic) \($0)" } ?? priorDiagnostic
+    }
+
     private static func logOptionalFailure(_ source: String, error: any Error) {
         let reason = switch error {
         case MistralUsageError.invalidCredentials: "session rejected"

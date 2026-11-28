@@ -342,11 +342,18 @@ public protocol ProviderFetchStrategy: Sendable {
     /// failed, e.g. an offline fallback that still produced a usable snapshot.
     /// `nil` (the default) leaves the successful result untouched.
     func diagnostic(forPriorFailure error: Error) -> String?
+    /// Composes that prior-failure note with the diagnostic the winning strategy produced itself.
+    /// A winner's own note stays authoritative by default; override to report both causes.
+    func combinePriorFailureDiagnostic(_ priorDiagnostic: String, with existing: String?) -> String?
 }
 
 extension ProviderFetchStrategy {
     public func diagnostic(forPriorFailure _: Error) -> String? {
         nil
+    }
+
+    public func combinePriorFailureDiagnostic(_ priorDiagnostic: String, with existing: String?) -> String? {
+        existing ?? priorDiagnostic
     }
 
     public func makeResult(
@@ -427,9 +434,11 @@ public struct ProviderFetchPipeline: Sendable {
                 }
                 try Task.checkCancellation()
                 if let lastAvailableError,
-                   let priorDiagnostic = strategy.diagnostic(forPriorFailure: lastAvailableError)
+                   let priorDiagnostic = strategy.diagnostic(forPriorFailure: lastAvailableError),
+                   let diagnostic = strategy.combinePriorFailureDiagnostic(
+                       priorDiagnostic,
+                       with: result.diagnostic)
                 {
-                    let diagnostic = result.diagnostic.map { "\(priorDiagnostic) \($0)" } ?? priorDiagnostic
                     result = result.withDiagnostic(diagnostic)
                 }
                 attempts.append(ProviderFetchAttempt(
