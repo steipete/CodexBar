@@ -6,6 +6,7 @@
 "Conversations (%@)" = "会話（%@）";
 "Fast" = "高速";
 "Optional. Reads included API and Vibe allowances without browser cookies." = "任意。ブラウザの Cookie なしで、含まれる API と Vibe の割り当てを読み取ります。";
+"Auto tries the API key first and falls back to browser cookies. Browser cookies are required for spend, credits, and token history." = "自動では API キーを先に試し、失敗するとブラウザの Cookie に切り替えます。支出、クレジット、トークン履歴にはブラウザの Cookie が必要です。";
 "iCloud Sync" = "iCloud同期";
 "Projects" = "プロジェクト";
 "Session %@" = "セッション %@";

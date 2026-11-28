@@ -6,6 +6,7 @@
 "Conversations (%@)" = "Gesprekken (%@)";
 "Fast" = "Snel";
 "Optional. Reads included API and Vibe allowances without browser cookies." = "Optioneel. Leest de inbegrepen API- en Vibe-tegoeden zonder browsercookies.";
+"Auto tries the API key first and falls back to browser cookies. Browser cookies are required for spend, credits, and token history." = "Automatisch probeert eerst de API-sleutel en valt daarna terug op browsercookies. Browsercookies zijn nodig voor uitgaven, tegoed en tokenhistorie.";
 "iCloud Sync" = "iCloud-synchronisatie";
 "Projects" = "Projecten";
 "Session %@" = "Sessie %@";

@@ -1,5 +1,6 @@
 import CodexBarCore
 import Foundation
+import SwiftUI
 
 struct MistralProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .mistral
@@ -11,9 +12,20 @@ struct MistralProviderImplementation: ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
+        _ = settings.providerConfig(for: self.id)?.source
         _ = settings.mistralCookieSource
         _ = settings.mistralCookieHeader
         _ = settings.mistralAPIKey
+    }
+
+    @MainActor
+    func defaultSourceLabel(context: ProviderSourceLabelContext) -> String? {
+        context.settings.providerConfig(for: self.id)?.source?.rawValue
+    }
+
+    @MainActor
+    func sourceMode(context: ProviderSourceModeContext) -> ProviderSourceMode {
+        context.settings.providerConfig(for: self.id)?.source ?? .auto
     }
 
     @MainActor
@@ -32,32 +44,56 @@ struct MistralProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        [
-            ProviderCookieSourceUI.picker(
-                id: "mistral-cookie-source",
-                context: context,
-                source: \.mistralCookieSource,
-                allowsOff: true,
-                subtitles: {
-                    .init(
-                        auto: L("Automatic imports browser cookies from admin.mistral.ai."),
-                        manual: L("Paste a Cookie header captured from %@.", "the billing page"),
-                        off: L("%@ cookies are disabled.", "Mistral"))
-                },
-                trailingText: {
-                    ProviderCookieRefreshAction.trailingText(
-                        provider: .mistral,
-                        cookieSource: context.settings.mistralCookieSource,
-                        context: context)
-                },
-                trailingActions: [
-                    ProviderCookieRefreshAction.descriptor(
-                        provider: .mistral,
-                        cookieSource: { context.settings.mistralCookieSource },
-                        browserOnly: true,
-                        context: context),
-                ]),
-        ]
+        let usageSource = ProviderSettingsPickerDescriptor(
+            id: "mistral-usage-source",
+            title: "Usage source",
+            subtitle: "Auto tries the API key first and falls back to browser cookies. "
+                + "Browser cookies are required for spend, credits, and token history.",
+            binding: Binding(
+                get: { context.settings.providerConfig(for: self.id)?.source?.rawValue ?? "auto" },
+                set: { raw in
+                    let mode = ProviderSourceMode(rawValue: raw) ?? .auto
+                    guard mode != (context.settings.providerConfig(for: self.id)?.source ?? .auto) else { return }
+                    context.store.clearProviderState(self.id)
+                    context.settings.updateProviderConfig(provider: self.id) { $0.source = mode }
+                }),
+            options: [
+                .init(id: "auto", title: "Auto"),
+                .init(id: "api", title: "API key"),
+                .init(id: "web", title: "Browser cookies"),
+            ],
+            isVisible: nil,
+            onChange: nil)
+        return [usageSource, self.cookiePicker(context: context)]
+    }
+
+    @MainActor
+    private func cookiePicker(context: ProviderSettingsContext) -> ProviderSettingsPickerDescriptor {
+        ProviderCookieSourceUI.picker(
+            id: "mistral-cookie-source",
+            context: context,
+            source: \.mistralCookieSource,
+            allowsOff: true,
+            subtitles: {
+                .init(
+                    auto: L("Automatic imports browser cookies from admin.mistral.ai."),
+                    manual: L("Paste a Cookie header captured from %@.", "the billing page"),
+                    off: L("%@ cookies are disabled.", "Mistral"))
+            },
+            isVisible: { context.settings.providerConfig(for: self.id)?.source != .api },
+            trailingText: {
+                ProviderCookieRefreshAction.trailingText(
+                    provider: .mistral,
+                    cookieSource: context.settings.mistralCookieSource,
+                    context: context)
+            },
+            trailingActions: [
+                ProviderCookieRefreshAction.descriptor(
+                    provider: .mistral,
+                    cookieSource: { context.settings.mistralCookieSource },
+                    browserOnly: true,
+                    context: context),
+            ])
     }
 
     @MainActor
@@ -91,7 +127,9 @@ struct MistralProviderImplementation: ProviderImplementation {
                         title: "Open Mistral Admin",
                         url: URL(string: "https://admin.mistral.ai/organization/usage")),
                 ],
-                isVisible: { context.settings.mistralCookieSource == .manual }),
+                isVisible: { context.settings.mistralCookieSource == .manual
+                    && context.settings.providerConfig(for: self.id)?.source != .api
+                }),
         ]
     }
 }

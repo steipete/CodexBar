@@ -15,11 +15,14 @@ and credits, use a Mistral Admin browser session instead.
 
 1. Open **Settings -> Providers**.
 2. Enable **Mistral**.
-3. For allowances only, enter an **API key**. In Auto mode CodexBar tries the key first. If the key request fails,
-   it falls back to the browser if cookies are enabled. Set **Cookie source → Off** to disable this fallback.
+3. Choose **Usage source**. **Auto** tries the API key first and falls back to browser cookies when cookie access is
+   enabled; **API key** reads allowances only; **Browser cookies** reads spend, token history, credits, and allowances.
 
-For spend and token history, leave the API key field empty and sign in to
-[Mistral Admin](https://admin.mistral.ai/organization/usage) in a supported browser. Leave Cookie source on
+For allowances only, enter an **API key**. In Auto mode CodexBar tries the key first. If the key request fails,
+it falls back to the browser if cookies are enabled. Set **Cookie source → Off** to disable this fallback.
+
+For spend and token history, either leave the API key field empty or set **Usage source → Browser cookies**, then sign
+in to [Mistral Admin](https://admin.mistral.ai/organization/usage) in a supported browser. Leave Cookie source on
 **Automatic**, or switch to **Manual** and paste a `Cookie:` header from a request to `admin.mistral.ai`.
 
 Manual cookies must include an `ory_session_*` cookie. A `csrftoken` cookie enables fallback Vibe requests that

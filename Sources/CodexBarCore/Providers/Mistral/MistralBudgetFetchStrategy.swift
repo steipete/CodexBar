@@ -44,10 +44,16 @@ enum MistralBudgetError: LocalizedError, Equatable {
         switch self {
         case .missingKey: "Set a Mistral API key in Settings or through MISTRAL_API_KEY."
         case .invalidKey: "The Mistral API key is malformed. Check the key in Settings."
-        case .rejectedKey: "Mistral rejected the API key. Check its access or replace it in Settings."
-        case .noBudget: "Mistral's billing API did not return usable allowances."
+        case .rejectedKey:
+            "Mistral rejected the API key. Check its access or replace it in Settings, "
+                + "or choose Browser cookies as the usage source."
+        case .noBudget:
+            "Mistral's billing API did not return usable allowances. "
+                + "Choose Browser cookies as the usage source for spend, credits, and token history."
         case .network: "Could not reach the Mistral billing API."
-        case let .http(status): "Mistral billing budget request failed (HTTP \(status))."
+        case let .http(status):
+            "Mistral billing budget request failed (HTTP \(status)). "
+                + "Choose Browser cookies as the usage source for spend, credits, and token history."
         }
     }
 }

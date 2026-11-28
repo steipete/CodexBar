@@ -6,6 +6,7 @@
 "Conversations (%@)" = "会话（%@）";
 "Fast" = "高速";
 "Optional. Reads included API and Vibe allowances without browser cookies." = "可选。无需浏览器 Cookie 即可读取包含的 API 与 Vibe 配额。";
+"Auto tries the API key first and falls back to browser cookies. Browser cookies are required for spend, credits, and token history." = "“自动”会先尝试 API 密钥，失败后改用浏览器 Cookie。支出、额度和令牌历史需要浏览器 Cookie。";
 "iCloud Sync" = "iCloud 同步";
 "Projects" = "项目";
 "Session %@" = "会话 %@";

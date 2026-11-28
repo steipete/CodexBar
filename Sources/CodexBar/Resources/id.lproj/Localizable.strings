@@ -6,6 +6,7 @@
 "Conversations (%@)" = "Percakapan (%@)";
 "Fast" = "Cepat";
 "Optional. Reads included API and Vibe allowances without browser cookies." = "Opsional. Membaca kuota API dan Vibe yang disertakan tanpa cookie browser.";
+"Auto tries the API key first and falls back to browser cookies. Browser cookies are required for spend, credits, and token history." = "Otomatis mencoba kunci API terlebih dahulu, lalu beralih ke cookie browser. Cookie browser diperlukan untuk pengeluaran, kredit, dan riwayat token.";
 "iCloud Sync" = "Sinkronisasi iCloud";
 "Projects" = "Proyek";
 "Session %@" = "Sesi %@";

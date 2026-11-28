@@ -6,6 +6,7 @@
 "Conversations (%@)" = "대화 (%@)";
 "Fast" = "빠름";
 "Optional. Reads included API and Vibe allowances without browser cookies." = "선택 사항. 브라우저 쿠키 없이 포함된 API 및 Vibe 할당량을 읽습니다.";
+"Auto tries the API key first and falls back to browser cookies. Browser cookies are required for spend, credits, and token history." = "자동은 API 키를 먼저 시도하고 브라우저 쿠키로 대체합니다. 지출, 크레딧, 토큰 기록에는 브라우저 쿠키가 필요합니다.";
 "iCloud Sync" = "아이클라우드 동기화";
 "Projects" = "프로젝트";
 "Session %@" = "세션 %@";

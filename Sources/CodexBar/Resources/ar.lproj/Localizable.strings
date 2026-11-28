@@ -6,6 +6,7 @@
 "Conversations (%@)" = "المحادثات (%@)";
 "Fast" = "سريع";
 "Optional. Reads included API and Vibe allowances without browser cookies." = "اختياري. يقرأ المخصصات المضمّنة لواجهة API وVibe دون ملفات تعريف ارتباط المتصفح.";
+"Auto tries the API key first and falls back to browser cookies. Browser cookies are required for spend, credits, and token history." = "يحاول الوضع التلقائي مفتاح API أولاً ثم يعود إلى ملفات تعريف ارتباط المتصفح. ملفات تعريف ارتباط المتصفح مطلوبة للإنفاق والأرصدة وسجل الرموز.";
 "iCloud Sync" = "آي كلاود مزامنة";
 "Projects" = "المشاريع";
 "Session %@" = "الجلسة %@";
