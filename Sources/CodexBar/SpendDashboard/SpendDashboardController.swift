@@ -836,6 +836,11 @@ enum SpendDashboardSource {
         let coverageDate = coverageCalendar?.startOfDay(for: snapshot.updatedAt) ?? snapshot.updatedAt
         encoder.append(coverageDate.timeIntervalSinceReferenceDate)
         encoder.append(snapshot.historyScanIsPartial)
+        encoder.append(snapshot.coveredDayIntervals?.count ?? -1)
+        for interval in snapshot.coveredDayIntervals ?? [] {
+            encoder.append(interval.startDay)
+            encoder.append(interval.endDay)
+        }
         encoder.append(snapshot.meteredCostUSD)
         encoder.append(snapshot.costProvenance.rawValue)
         encoder.append(snapshot.last30DaysTokens)

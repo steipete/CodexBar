@@ -11,28 +11,48 @@ enum DeepSeekPlatformTokenImporter {
         let profiles: [DeepSeekPlatformProfile]
         let selectedSummary: DeepSeekUsageSummary?
         let selectedBalance: DeepSeekUsageSnapshot?
+        let selectedContinuation: DeepSeekWideHistoryContinuation?
         let detailedUsageState: DeepSeekDetailedUsageState
         let selectedTransportError: DeepSeekPlatformTransportError?
+        /// Positive owner identity when the selected session hit a transient non-auth failure.
+        let transientUnavailableOwner: DeepSeekPlatformBalanceOwner?
 
         init(
             profiles: [DeepSeekPlatformProfile],
             selectedSummary: DeepSeekUsageSummary?,
             selectedBalance: DeepSeekUsageSnapshot? = nil,
+            selectedContinuation: DeepSeekWideHistoryContinuation? = nil,
             detailedUsageState: DeepSeekDetailedUsageState,
-            selectedTransportError: DeepSeekPlatformTransportError? = nil)
+            selectedTransportError: DeepSeekPlatformTransportError? = nil,
+            transientUnavailableOwner: DeepSeekPlatformBalanceOwner? = nil)
         {
             self.profiles = profiles
             self.selectedSummary = selectedSummary
             self.selectedBalance = selectedBalance
+            self.selectedContinuation = selectedContinuation
             self.detailedUsageState = detailedUsageState
             self.selectedTransportError = selectedTransportError
+            self.transientUnavailableOwner = transientUnavailableOwner
         }
     }
 
     private struct PlatformSessionData: Sendable {
         let summary: DeepSeekUsageSummary?
+        let continuation: DeepSeekWideHistoryContinuation?
         let balance: DeepSeekUsageSnapshot?
         let detailedUsageState: DeepSeekDetailedUsageState
+
+        init(
+            summary: DeepSeekUsageSummary?,
+            continuation: DeepSeekWideHistoryContinuation? = nil,
+            balance: DeepSeekUsageSnapshot?,
+            detailedUsageState: DeepSeekDetailedUsageState)
+        {
+            self.summary = summary
+            self.continuation = continuation
+            self.balance = balance
+            self.detailedUsageState = detailedUsageState
+        }
     }
 
     private enum ValidationOutcome: Sendable {
@@ -60,6 +80,8 @@ enum DeepSeekPlatformTokenImporter {
         requiresExplicitSelection: Bool = false,
         includePlatformBalance: Bool = false,
         includeOptionalUsage: Bool = true,
+        period: CostReportingPeriod = .rolling(days: 30),
+        bucketTimeZoneIdentifier: String = "",
         browserDetection: BrowserDetection,
         logger: (@Sendable (String) -> Void)? = nil) async -> Resolution
     {
@@ -68,6 +90,7 @@ enum DeepSeekPlatformTokenImporter {
         guard !Task.isCancelled else {
             return Resolution(profiles: [], selectedSummary: nil, detailedUsageState: .unavailable)
         }
+        let calendar = DeepSeekUsageFetcher.resolvedCalendar(bucketTimeZoneIdentifier: bucketTimeZoneIdentifier)
         return await self.resolve(
             candidates: candidates,
             selection: DeepSeekSettingsReader.ProfileSelection(
@@ -75,18 +98,32 @@ enum DeepSeekPlatformTokenImporter {
                 requiresExplicitSelection: requiresExplicitSelection),
             logger: logger,
             cache: self.validationCache,
-            validate: { token in
+            validate: { candidate in
+                // Discovery and validation only inspect the bounded recent chunk; wide pagination is
+                // attached exclusively to the single selected valid profile after resolution completes.
                 if includePlatformBalance {
                     let snapshot = try await DeepSeekUsageFetcher.fetchPlatformUsage(
-                        platformToken: token,
-                        includeOptionalUsage: includeOptionalUsage)
+                        platformToken: candidate.token,
+                        includeOptionalUsage: includeOptionalUsage,
+                        period: period,
+                        bucketTimeZoneIdentifier: bucketTimeZoneIdentifier,
+                        profileID: candidate.id)
                     return PlatformSessionData(
                         summary: snapshot.usageSummary,
+                        continuation: snapshot.historyContinuation,
                         balance: snapshot,
                         detailedUsageState: snapshot.detailedUsageState)
                 }
-                return try await PlatformSessionData(
-                    summary: DeepSeekUsageFetcher.fetchUsageSummary(platformToken: token),
+                let recent = try await DeepSeekUsageFetcher.fetchRecentUsageSummary(
+                    platformToken: candidate.token,
+                    profileID: candidate.id,
+                    period: period,
+                    now: Date(),
+                    localCalendar: calendar,
+                    transport: ProviderHTTPClient.shared)
+                return PlatformSessionData(
+                    summary: recent.summary,
+                    continuation: recent.continuation,
                     balance: nil,
                     detailedUsageState: .available)
             })
@@ -95,6 +132,8 @@ enum DeepSeekPlatformTokenImporter {
         _ = requiresExplicitSelection
         _ = includePlatformBalance
         _ = includeOptionalUsage
+        _ = period
+        _ = bucketTimeZoneIdentifier
         _ = browserDetection
         _ = logger
         return Resolution(profiles: [], selectedSummary: nil, detailedUsageState: .webSessionRequired)
@@ -141,7 +180,7 @@ enum DeepSeekPlatformTokenImporter {
         selection: DeepSeekSettingsReader.ProfileSelection,
         logger: (@Sendable (String) -> Void)?,
         cache: DeepSeekPlatformValidationCache,
-        validate: @escaping @Sendable (String) async throws -> PlatformSessionData) async -> Resolution
+        validate: @escaping @Sendable (TokenInfo) async throws -> PlatformSessionData) async -> Resolution
     {
         guard !Task.isCancelled else {
             return Resolution(profiles: [], selectedSummary: nil, detailedUsageState: .unavailable)
@@ -223,6 +262,10 @@ enum DeepSeekPlatformTokenImporter {
             candidate: unresolvedCandidate,
             outcomes: outcomes,
             statusByID: statusByID)
+        let unresolvedTransientOwner = self.selectedTransientUnavailableOwner(
+            candidate: unresolvedCandidate,
+            outcomes: outcomes,
+            statusByID: statusByID)
         guard !validCandidates.isEmpty else {
             let validationWasUnavailable = outcomes.contains { result in
                 if case .unavailable = result.outcome {
@@ -234,33 +277,45 @@ enum DeepSeekPlatformTokenImporter {
                 profiles: [],
                 selectedSummary: nil,
                 detailedUsageState: validationWasUnavailable ? .unavailable : .webSessionRequired,
-                selectedTransportError: unresolvedTransport)
+                selectedTransportError: unresolvedTransport,
+                transientUnavailableOwner: validationWasUnavailable ? unresolvedTransientOwner : nil)
         }
 
         let selected = self.selectedCandidate(candidates: validCandidates, selection: selection)
         guard let selected else {
             let rejectedSelection = unresolvedCandidate.map { statusByID[$0.id] == false } ?? false
             let transport = rejectedSelection ? nil : unresolvedTransport
+            let transientOwner = rejectedSelection ? nil : unresolvedTransientOwner
             return Resolution(
                 profiles: profiles,
                 selectedSummary: nil,
-                detailedUsageState: transport == nil ? .profileSelectionRequired : .unavailable,
-                selectedTransportError: transport)
+                detailedUsageState: (transport == nil && transientOwner == nil)
+                    ? .profileSelectionRequired : .unavailable,
+                selectedTransportError: transport,
+                transientUnavailableOwner: transientOwner)
         }
 
         if let sessionData = sessionDataByID[selected.id] {
+            let owner = DeepSeekPlatformBalanceOwner(profileID: selected.id, token: selected.token)
+            let transientOwner: DeepSeekPlatformBalanceOwner? =
+                sessionData.continuation == nil && sessionData.summary == nil
+                    && sessionData.detailedUsageState == .unavailable
+                    ? owner : nil
             return Resolution(
                 profiles: profiles,
                 selectedSummary: sessionData.summary,
-                selectedBalance: sessionData.balance?.withPlatformBalanceOwner(
-                    DeepSeekPlatformBalanceOwner(profileID: selected.id, token: selected.token)),
-                detailedUsageState: sessionData.detailedUsageState)
+                selectedBalance: sessionData.balance?.withPlatformBalanceOwner(owner),
+                selectedContinuation: sessionData.continuation,
+                detailedUsageState: sessionData.detailedUsageState,
+                transientUnavailableOwner: transientOwner)
         }
         return Resolution(
             profiles: profiles,
             selectedSummary: nil,
             detailedUsageState: .unavailable,
             selectedTransportError: self.selectedTransportError(
+                candidate: selected, outcomes: outcomes, statusByID: statusByID),
+            transientUnavailableOwner: self.selectedTransientUnavailableOwner(
                 candidate: selected, outcomes: outcomes, statusByID: statusByID))
     }
 
@@ -292,10 +347,25 @@ enum DeepSeekPlatformTokenImporter {
             underlyingError: error)
     }
 
+    private static func selectedTransientUnavailableOwner(
+        candidate: TokenInfo?,
+        outcomes: [ValidationResult],
+        statusByID: [String: Bool]) -> DeepSeekPlatformBalanceOwner?
+    {
+        guard let candidate,
+              statusByID[candidate.id] != false,
+              let latest = outcomes.last(where: { $0.candidate == candidate }),
+              case let .unavailable(error?) = latest.outcome,
+              !(error is CancellationError),
+              (error as? URLError)?.code != .cancelled
+        else { return nil }
+        return DeepSeekPlatformBalanceOwner(profileID: candidate.id, token: candidate.token)
+    }
+
     private static func validate(
         candidates: [TokenInfo],
         logger: (@Sendable (String) -> Void)?,
-        validate: @escaping @Sendable (String) async throws -> PlatformSessionData) async -> [ValidationResult]
+        validate: @escaping @Sendable (TokenInfo) async throws -> PlatformSessionData) async -> [ValidationResult]
     {
         let results = await withTaskGroup(of: ValidationResult.self, returning: [ValidationResult].self) { group in
             for candidate in candidates {
@@ -304,7 +374,7 @@ enum DeepSeekPlatformTokenImporter {
                         return ValidationResult(candidate: candidate, outcome: .unavailable(nil))
                     }
                     do {
-                        let summary = try await validate(candidate.token)
+                        let summary = try await validate(candidate)
                         return ValidationResult(candidate: candidate, outcome: .valid(summary))
                     } catch DeepSeekUsageError.invalidPlatformToken {
                         return ValidationResult(candidate: candidate, outcome: .invalid)
@@ -337,7 +407,7 @@ enum DeepSeekPlatformTokenImporter {
         candidates: [TokenInfo],
         logger: (@Sendable (String) -> Void)?,
         cache: DeepSeekPlatformValidationCache,
-        validate: @escaping @Sendable (String) async throws -> PlatformSessionData)
+        validate: @escaping @Sendable (TokenInfo) async throws -> PlatformSessionData)
     {
         guard !candidates.isEmpty else { return }
         Task(priority: .utility) {
@@ -451,9 +521,9 @@ enum DeepSeekPlatformTokenImporter {
                 requiresExplicitSelection: requiresExplicitSelection),
             logger: nil,
             cache: cache ?? DeepSeekPlatformValidationCache(validityTTL: 0),
-            validate: { token in
+            validate: { candidate in
                 try await PlatformSessionData(
-                    summary: validate(token),
+                    summary: validate(candidate.token),
                     balance: nil,
                     detailedUsageState: detailedUsageState)
             })
@@ -473,10 +543,11 @@ enum DeepSeekPlatformTokenImporter {
                 requiresExplicitSelection: requiresExplicitSelection),
             logger: nil,
             cache: cache,
-            validate: { token in
-                let balance = try await validate(token)
+            validate: { candidate in
+                let balance = try await validate(candidate.token)
                 return PlatformSessionData(
                     summary: balance.usageSummary,
+                    continuation: balance.historyContinuation,
                     balance: balance,
                     detailedUsageState: balance.detailedUsageState)
             })

@@ -112,6 +112,11 @@ public struct WidgetSnapshot: Codable, Sendable {
         public let sessionLabel: String
         public let last30DaysLabel: String
         public let updatedAt: Date?
+        public let chartTitle: String?
+        public let chartStartDayKey: String?
+        public let chartEndDayKey: String?
+        public let chartBucketDays: Int?
+        public let chartPrefersCostMode: Bool?
 
         public init(
             sessionCostUSD: Double?,
@@ -121,7 +126,12 @@ public struct WidgetSnapshot: Codable, Sendable {
             currencyCode: String = "USD",
             sessionLabel: String = "Today",
             last30DaysLabel: String = "30d",
-            updatedAt: Date? = nil)
+            updatedAt: Date? = nil,
+            chartTitle: String? = nil,
+            chartStartDayKey: String? = nil,
+            chartEndDayKey: String? = nil,
+            chartBucketDays: Int? = nil,
+            chartPrefersCostMode: Bool? = nil)
         {
             self.sessionCostUSD = sessionCostUSD
             self.sessionTokens = sessionTokens
@@ -136,6 +146,13 @@ public struct WidgetSnapshot: Codable, Sendable {
                 ? "30d"
                 : last30DaysLabel
             self.updatedAt = updatedAt
+            self.chartTitle = chartTitle?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                ? chartTitle
+                : nil
+            self.chartStartDayKey = chartStartDayKey
+            self.chartEndDayKey = chartEndDayKey
+            self.chartBucketDays = chartBucketDays.flatMap { $0 > 1 ? $0 : nil }
+            self.chartPrefersCostMode = chartPrefersCostMode
         }
 
         /// Unknown age (legacy snapshots) counts as fresh.
@@ -154,11 +171,16 @@ public struct WidgetSnapshot: Codable, Sendable {
                 currencyCode: container.decodeIfPresent(String.self, forKey: .currencyCode) ?? "USD",
                 sessionLabel: container.decodeIfPresent(String.self, forKey: .sessionLabel) ?? "Today",
                 last30DaysLabel: container.decodeIfPresent(String.self, forKey: .last30DaysLabel) ?? "30d",
-                updatedAt: container.decodeIfPresent(Date.self, forKey: .updatedAt))
+                updatedAt: container.decodeIfPresent(Date.self, forKey: .updatedAt),
+                chartTitle: container.decodeIfPresent(String.self, forKey: .chartTitle),
+                chartStartDayKey: container.decodeIfPresent(String.self, forKey: .chartStartDayKey),
+                chartEndDayKey: container.decodeIfPresent(String.self, forKey: .chartEndDayKey),
+                chartBucketDays: container.decodeIfPresent(Int.self, forKey: .chartBucketDays),
+                chartPrefersCostMode: container.decodeIfPresent(Bool.self, forKey: .chartPrefersCostMode))
         }
     }
 
-    public struct DailyUsagePoint: Codable, Sendable {
+    public struct DailyUsagePoint: Codable, Equatable, Sendable {
         public let dayKey: String
         public let totalTokens: Int?
         public let costUSD: Double?

@@ -8,6 +8,27 @@ extension UsageSnapshot {
             deepseekDetailedUsageState: .value(state))
     }
 
+    public func withDeepSeekUsageSummary(
+        _ summary: DeepSeekUsageSummary,
+        detailedUsageState: DeepSeekDetailedUsageState = .available) -> UsageSnapshot
+    {
+        self.replacing(
+            costUsage: .value(summary.toCostUsageTokenSnapshot()),
+            details: .value(DeepSeekUsageSnapshot.detailSections(for: summary, referenceDate: self.updatedAt)),
+            deepseekDetailedUsageState: .value(detailedUsageState))
+    }
+
+    public func withDeepSeekProjectedUsage(
+        costUsage: CostUsageTokenSnapshot,
+        details: [ProviderDetailSection],
+        detailedUsageState: DeepSeekDetailedUsageState = .available) -> UsageSnapshot
+    {
+        self.replacing(
+            costUsage: .value(costUsage),
+            details: .value(details),
+            deepseekDetailedUsageState: .value(detailedUsageState))
+    }
+
     public func preservingDeepSeekPlatformProfiles(from previous: UsageSnapshot?) -> UsageSnapshot {
         guard self.deepseekDetailedUsageState == .unavailable,
               self.deepseekPlatformProfiles.isEmpty,

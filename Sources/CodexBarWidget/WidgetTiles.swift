@@ -150,7 +150,12 @@ struct UsageTile<Header: View>: View {
                         UsageHistoryChart(
                             points: self.entry.dailyUsage,
                             color: color,
-                            currencyCode: self.entry.tokenUsage?.currencyCode)
+                            currencyCode: self.entry.tokenUsage?.currencyCode,
+                            titleOverride: self.entry.tokenUsage?.chartTitle,
+                            startDayKeyOverride: self.entry.tokenUsage?.chartStartDayKey,
+                            endDayKeyOverride: self.entry.tokenUsage?.chartEndDayKey,
+                            bucketDays: self.entry.tokenUsage?.chartBucketDays,
+                            prefersCostMode: self.entry.tokenUsage?.chartPrefersCostMode)
                             .frame(minHeight: 66, maxHeight: .infinity)
                     } else {
                         Spacer(minLength: 0)

@@ -683,8 +683,14 @@ extension UsageStore {
             }
             // Resolve display-only allowances after any suspended request has completed.
             let allowanceCurrent = self.resolvingCurrentCopilotAllowance(in: accountScoped, provider: provider)
-            let backfilled = self.preparePublishedSnapshot(
+            let prepared = self.preparePublishedSnapshot(
                 allowanceCurrent, provider: provider, resetBackfillSource: resetBackfillSource, context: context)
+            let backfilled = provider == .deepseek
+                ? self.reconcileDeepSeekRefreshPublication(
+                    snapshot: prepared,
+                    result: result,
+                    account: currentTokenAccount)
+                : prepared
             let notifications = self.handleProviderRefreshNotifications(
                 provider: provider, result: result, snapshot: backfilled, context: context)
             self.lastKnownResetSnapshots[provider.instanceID] = backfilled
@@ -694,6 +700,12 @@ extension UsageStore {
                 self.clearDeepSeekProfileTransition()
             }
             self.publishProviderDerivedTokenSnapshot(from: backfilled, for: provider)
+            if provider == .deepseek {
+                self.scheduleDeepSeekWideHistoryIfNeeded(
+                    result: result,
+                    account: currentTokenAccount,
+                    isExplicitReload: ProviderInteractionContext.current == .userInitiated)
+            }
             self.lastSourceLabels[provider.instanceID] = result.sourceLabel
             self.recordProviderFetchSuccessErrorState(provider: provider)
             self.diagnostics[provider.instanceID] = result.diagnostic
@@ -1429,6 +1441,9 @@ extension UsageStore {
                 self.errors[provider.instanceID] = error.localizedDescription
                 if !preservesPriorData, !preservesClaudeWebSessionFailure {
                     self.snapshots.removeValue(forKey: provider.instanceID)
+                    if provider == .deepseek {
+                        self.cancelDeepSeekWideHistory()
+                    }
                     if Self.tokenCostRequiresProviderSnapshot(provider), grokLocalFallback == nil {
                         self.clearTokenSnapshot(for: provider)
                     }

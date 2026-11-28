@@ -563,7 +563,12 @@ private struct HistoryView: View {
             UsageHistoryChart(
                 points: self.entry.dailyUsage,
                 color: WidgetColors.color(for: self.entry.provider),
-                currencyCode: self.entry.tokenUsage?.currencyCode)
+                currencyCode: self.entry.tokenUsage?.currencyCode,
+                titleOverride: self.entry.tokenUsage?.chartTitle,
+                startDayKeyOverride: self.entry.tokenUsage?.chartStartDayKey,
+                endDayKeyOverride: self.entry.tokenUsage?.chartEndDayKey,
+                bucketDays: self.entry.tokenUsage?.chartBucketDays,
+                prefersCostMode: self.entry.tokenUsage?.chartPrefersCostMode)
                 .frame(minHeight: self.isLarge ? 110 : 58, maxHeight: .infinity)
             if let token = entry.tokenUsage {
                 VStack(alignment: .leading, spacing: 4) {
@@ -600,16 +605,24 @@ struct UsageHistoryChart: View {
     let points: [WidgetSnapshot.DailyUsagePoint]
     let color: Color
     let currencyCode: String?
+    var titleOverride: String?
+    var startDayKeyOverride: String?
+    var endDayKeyOverride: String?
+    var bucketDays: Int?
+    var prefersCostMode: Bool?
 
     var body: some View {
-        let isCostMode = UsageHistoryChartMode.isCostMode(self.points)
+        let isCostMode = self.prefersCostMode ?? UsageHistoryChartMode.isCostMode(self.points)
         let values = self.points.map { point -> Double in
             isCostMode ? (point.costUSD ?? 0) : Double(point.totalTokens ?? 0)
         }
         let scale = UsageChartScale(values: values)
+        let barSpacing: CGFloat = self.points.count > 35 ? 1 : 3
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
-                Text(UsageHistoryChartCopy.title(dayCount: self.points.count))
+                Text(UsageHistoryChartCopy.title(
+                    dayCount: self.points.count,
+                    explicitTitle: self.titleOverride))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -617,7 +630,8 @@ struct UsageHistoryChart: View {
                 if let peak = UsageHistoryChartCopy.peak(
                     maximum: scale.maximum,
                     isCostMode: isCostMode,
-                    currencyCode: self.currencyCode)
+                    currencyCode: self.currencyCode,
+                    bucketDays: self.bucketDays)
                 {
                     Text(peak)
                         .font(.caption2.weight(.semibold))
@@ -628,7 +642,7 @@ struct UsageHistoryChart: View {
                 }
             }
             GeometryReader { geometry in
-                HStack(alignment: .bottom, spacing: 3) {
+                HStack(alignment: .bottom, spacing: barSpacing) {
                     ForEach(values.indices, id: \.self) { index in
                         let fraction = scale.fraction(for: values[index])
                         RoundedRectangle(cornerRadius: 2.5, style: .continuous)
@@ -643,7 +657,11 @@ struct UsageHistoryChart: View {
             Rectangle()
                 .fill(Color.primary.opacity(WidgetLayout.separatorOpacity))
                 .frame(height: 1)
-            if let range = UsageHistoryChartCopy.range(points: self.points) {
+            if let range = UsageHistoryChartCopy.range(
+                points: self.points,
+                explicitStartDayKey: self.startDayKeyOverride,
+                explicitEndDayKey: self.endDayKeyOverride)
+            {
                 HStack(spacing: 4) {
                     Text(range.start)
                     Spacer(minLength: 4)
@@ -658,24 +676,43 @@ struct UsageHistoryChart: View {
 }
 
 enum UsageHistoryChartCopy {
-    static func title(dayCount: Int) -> String {
-        dayCount > 0 ? W("Last %d days", dayCount) : W("Daily usage")
+    static func title(dayCount: Int, explicitTitle: String? = nil) -> String {
+        if let explicitTitle, !explicitTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return W(explicitTitle)
+        }
+        return dayCount > 0 ? W("Last %d days", dayCount) : W("Daily usage")
     }
 
-    static func peak(maximum: Double, isCostMode: Bool, currencyCode: String?) -> String? {
+    static func peak(
+        maximum: Double,
+        isCostMode: Bool,
+        currencyCode: String?,
+        bucketDays: Int? = nil) -> String?
+    {
         guard maximum > 0 else { return nil }
+        let unitSuffix: String = if let bucketDays, bucketDays > 1 {
+            bucketDays == 7 ? "/wk" : "/\(bucketDays)d"
+        } else {
+            ""
+        }
         if isCostMode, let currencyCode {
-            return W(
-                "Peak %@",
-                String(describing: UsageFormatter.compactCurrencyString(maximum, currencyCode: currencyCode)))
+            let formatted = String(describing: UsageFormatter.compactCurrencyString(
+                maximum,
+                currencyCode: currencyCode))
+            return W("Peak %@", formatted + unitSuffix)
         }
         guard !isCostMode else { return nil }
-        return W("Peak %@", String(describing: UsageFormatter.tokenCountString(Int(maximum))))
+        let formatted = String(describing: UsageFormatter.tokenCountString(Int(maximum)))
+        return W("Peak %@", formatted + unitSuffix)
     }
 
-    static func range(points: [WidgetSnapshot.DailyUsagePoint]) -> (start: String, end: String)? {
-        guard let first = points.first?.dayKey,
-              let last = points.last?.dayKey,
+    static func range(
+        points: [WidgetSnapshot.DailyUsagePoint],
+        explicitStartDayKey: String? = nil,
+        explicitEndDayKey: String? = nil) -> (start: String, end: String)?
+    {
+        guard let first = explicitStartDayKey ?? points.first?.dayKey,
+              let last = explicitEndDayKey ?? points.last?.dayKey,
               let start = WidgetFormat.dayLabel(first),
               let end = WidgetFormat.dayLabel(last),
               start != end

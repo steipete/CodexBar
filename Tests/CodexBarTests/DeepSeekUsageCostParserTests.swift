@@ -872,9 +872,18 @@ extension DeepSeekUsageCostParserTests {
                     "PROMPT_CACHE_HIT_TOKEN": "100",
                     "PROMPT_CACHE_MISS_TOKEN": 50,
                     "RESPONSE_TOKEN": 25,
-                    "REQUEST": 2
+                    "REQUEST": 8675,
+                    "FUNCTION_CALL": 13
                   }
                 }]
+              }],
+              "function_series": [{
+                "model": "server-tool-search",
+                "buckets": [
+                  {"time": \(day - 86400), "usage": {"FUNCTION_CALL": 2}},
+                  {"time": \(day), "usage": {"FUNCTION_CALL": "3", "REQUEST": 3}},
+                  {"time": \(day - 30 * 86400), "usage": {"FUNCTION_CALL": 20}}
+                ]
               }]
             }
           }
@@ -904,12 +913,17 @@ extension DeepSeekUsageCostParserTests {
             calendar: self.fixtureCalendar)
         #expect(summary.todayTokens == 175)
         #expect(summary.todayCost == 0.12)
-        #expect(summary.currentMonthRequestCount == 2)
+        #expect(summary.requestCount == 8678)
+        #expect(summary.currentMonthRequestCount == 8680)
+        #expect(summary.currentMonthTokens == 175)
+        #expect(summary.currentMonthCost == 0.12)
         #expect(summary.apiKeyCount == 1)
         #expect(summary.topModel == "deepseek-chat")
-        #expect(summary.daily.count == 1)
-        #expect(summary.daily[0].totalTokens == 175)
-        #expect(summary.daily[0].cost == 0.12)
+        #expect(summary.daily.count == 2)
+        #expect(summary.daily.first?.requestCount == 2)
+        #expect(summary.daily.last?.totalTokens == 175)
+        #expect(summary.daily.last?.requestCount == 8678)
+        #expect(summary.daily.last?.cost == 0.12)
         #expect(summary.period == .last30Days)
     }
 
@@ -968,6 +982,350 @@ extension DeepSeekUsageCostParserTests {
             calendar: self.fixtureCalendar)
         #expect(summary.currency == "USD")
         #expect(summary.todayCost == 1)
+    }
+
+    @Test
+    func `by-api-key unknown response shape is rejected instead of reporting zero spend`() {
+        let unrecognized = Data(#"{"code":0,"data":{"biz_code":0,"biz_data":{"unrecognized":[]}}}"#.utf8)
+        #expect {
+            _ = try DeepSeekUsageCostParser.parseByAPIKey(
+                amountData: unrecognized,
+                costData: unrecognized,
+                now: self.fixtureNow,
+                calendar: self.fixtureCalendar)
+        } throws: { error in
+            guard case DeepSeekUsageError.parseFailed = error else { return false }
+            return true
+        }
+    }
+
+    @Test(arguments: [
+        #"{"code":0,"data":{"biz_code":0,"biz_data":{"series":[],"function_series":[]}}}"#,
+        #"{"code":0,"data":{"biz_code":0,"biz_data":{"series":[]}}}"#,
+    ])
+    func `by-api-key explicit empty arrays succeed as valid empty period`(amountRaw: String) throws {
+        let costRaw = #"{"code":0,"data":{"biz_code":0,"biz_data":{"data":[]}}}"#
+        let summary = try DeepSeekUsageCostParser.parseByAPIKey(
+            amountData: Data(amountRaw.utf8),
+            costData: Data(costRaw.utf8),
+            now: self.fixtureNow,
+            calendar: self.fixtureCalendar)
+        #expect(summary.coverage?.requestedDays == 30)
+        #expect(summary.coverage?.coveredDays == 30)
+        #expect(summary.coverage?.isComplete == true)
+        #expect(summary.currentMonthTokens == 0)
+        #expect(summary.currentMonthRequestCount == 0)
+        #expect(summary.currentMonthCost == 0.0)
+        #expect(summary.todayCost == nil)
+        #expect(summary.daily.isEmpty)
+    }
+
+    @Test(arguments: [
+        #"{"code":0,"data":{"biz_code":0,"biz_data":{"unrecognized":[]}}}"#,
+        #"{"code":0,"data":{"biz_code":0,"biz_data":{}}}"#,
+        #"{"code":0,"data":{"biz_code":0,"biz_data":{"series":null}}}"#,
+        #"{"code":0,"data":{"biz_code":0,"biz_data":{"function_series":[]}}}"#,
+        #"{"code":0,"data":{"biz_code":0,"biz_data":{"series":[{"unrecognized":1}]}}}"#,
+        #"{"code":0,"data":{"biz_code":0,"biz_data":{"series":[{"buckets":[{"time":1779796800}]}]}}}"#,
+        #"{"code":0,"data":{"biz_code":0,"biz_data":{"series":[],"function_series":"bad"}}}"#,
+    ])
+    func `by-api-key rejects unrecognized or malformed amount payload when cost is valid`(badAmount: String) {
+        let day = Int(self.fixtureNow.timeIntervalSince1970)
+        let validCost = """
+        {"code":0,"data":{"biz_code":0,"biz_data":{"data":[{"currency":"USD","series":[
+          {"api_key":"key-1","model":"deepseek-chat","buckets":[{"time":\(day),"cost":"1.25"}]}
+        ]}]}}}
+        """
+        #expect {
+            _ = try DeepSeekUsageCostParser.parseByAPIKey(
+                amountData: Data(badAmount.utf8),
+                costData: Data(validCost.utf8),
+                now: self.fixtureNow,
+                calendar: self.fixtureCalendar)
+        } throws: { error in
+            guard case DeepSeekUsageError.parseFailed = error else { return false }
+            return true
+        }
+    }
+
+    @Test(arguments: [
+        #"{"code":0,"data":{"biz_code":0,"biz_data":{"unrecognized":[]}}}"#,
+        #"{"code":0,"data":{"biz_code":0,"biz_data":{}}}"#,
+        #"{"code":0,"data":{"biz_code":0,"biz_data":{"data":null}}}"#,
+        #"{"code":0,"data":{"biz_code":0,"biz_data":{"data":[{"unrecognized":[]}]}}}"#,
+        #"{"code":0,"data":{"biz_code":0,"biz_data":{"data":[{"currency":"USD"}]}}}"#,
+        #"{"code":0,"data":{"biz_code":0,"biz_data":{"data":[{"currency":"  ","series":[]}]}}}"#,
+        #"{"code":0,"data":{"biz_code":0,"biz_data":{"data":[{"currency":"USD","series":[{"unrecognized":1}]}]}}}"#,
+        """
+        {"code":0,"data":{"biz_code":0,"biz_data":{"data":[
+          {"currency":"USD","series":[{"buckets":[{"time":1779796800,"fee":"1.0"}]}]}
+        ]}}}
+        """,
+    ])
+    func `by-api-key rejects unrecognized or malformed cost payload when amount is valid`(badCost: String) {
+        let day = Int(self.fixtureNow.timeIntervalSince1970)
+        let validAmount = """
+        {"code":0,"data":{"biz_code":0,"biz_data":{"series":[{"api_key":"key-1","model":"deepseek-chat",
+          "buckets":[{"time":\(day),"usage":{"RESPONSE_TOKEN":"100","REQUEST":"1"}}]}]}}}
+        """
+        #expect {
+            _ = try DeepSeekUsageCostParser.parseByAPIKey(
+                amountData: Data(validAmount.utf8),
+                costData: Data(badCost.utf8),
+                now: self.fixtureNow,
+                calendar: self.fixtureCalendar)
+        } throws: { error in
+            guard case DeepSeekUsageError.parseFailed = error else { return false }
+            return true
+        }
+    }
+
+    @Test(arguments: [
+        #"{"code":0,"data":{"biz_code":40002,"biz_data":{"unrecognized":[]}}}"#,
+        #"{"code":40003,"data":"unexpected"}"#,
+    ])
+    func `by-api-key auth error survives unexpected payload shape`(authErrorJSON: String) {
+        let validCost = #"{"code":0,"data":{"biz_code":0,"biz_data":{"data":[]}}}"#
+        #expect {
+            _ = try DeepSeekUsageCostParser.parseByAPIKey(
+                amountData: Data(authErrorJSON.utf8),
+                costData: Data(validCost.utf8),
+                now: self.fixtureNow,
+                calendar: self.fixtureCalendar)
+        } throws: { error in
+            error as? DeepSeekUsageError == .invalidPlatformToken
+        }
+    }
+
+    @Test
+    func `by-api-key merge with no covered chunks withholds period cost instead of fabricating zero`() {
+        let plan = DeepSeekHistoryPlan.make(
+            period: .rolling(days: 30),
+            now: self.fixtureNow,
+            calendar: self.fixtureCalendar)
+        let summary = DeepSeekUsageCostParser.mergeByAPIKeyChunks([], plan: plan)
+        #expect(summary.coverage?.coveredDays == 0)
+        #expect(summary.coverage?.isComplete == false)
+        #expect(summary.coverage?.isPartial == true)
+        #expect(summary.coverage?.coveredIntervals.isEmpty == true)
+        #expect(summary.currentMonthCost == nil)
+        #expect(summary.todayCost == nil)
+        let costSnapshot = summary.toCostUsageTokenSnapshot(calendar: self.fixtureCalendar)
+        #expect(costSnapshot.last30DaysCostUSD == nil)
+        #expect(costSnapshot.last30DaysTokens == nil)
+        #expect(costSnapshot.last30DaysRequests == nil)
+    }
+
+    @Test
+    func `by-api-key missing cost buckets withhold period and today cost instead of fabricating zero`() throws {
+        let day = Int(self.fixtureNow.timeIntervalSince1970)
+        let amountJSON = """
+        {"code":0,"data":{"biz_code":0,"biz_data":{"series":[{"api_key":"key-1","model":"deepseek-chat",
+          "buckets":[{"time":\(day),"usage":{"RESPONSE_TOKEN":"100","REQUEST":"1"}}]}]}}}
+        """
+        let costJSON = """
+        {"code":0,"data":{"biz_code":0,"biz_data":{"data":[
+          {"currency":"USD","series":[{"api_key":"key-1","model":"deepseek-chat"}]}
+        ]}}}
+        """
+        let summary = try DeepSeekUsageCostParser.parseByAPIKey(
+            amountData: Data(amountJSON.utf8),
+            costData: Data(costJSON.utf8),
+            now: self.fixtureNow,
+            calendar: self.fixtureCalendar)
+        #expect(summary.currentMonthTokens == 100)
+        #expect(summary.currentMonthCost == nil)
+        #expect(summary.todayCost == nil)
+        #expect(summary.daily.first?.cost == nil)
+        #expect(summary.modelCosts.isEmpty)
+    }
+
+    @Test
+    func `by-api-key accepts exact Int.max totals and preserves requests, function calls, and sibling categories`()
+        throws
+    {
+        let day = Int(self.fixtureNow.timeIntervalSince1970)
+        let amountJSON = """
+        {"code":0,"data":{"biz_code":0,"biz_data":{
+          "series":[{"api_key":"key-1","model":"deepseek-chat","buckets":[{"time":\(day),"usage":{
+            "PROMPT_CACHE_HIT_TOKEN":"\(Int.max - 15)","PROMPT_CACHE_MISS_TOKEN":10,
+            "RESPONSE_TOKEN":"5","REQUEST":"\(Int.max - 3)"}}]}],
+          "function_series":[{"buckets":[{"time":\(day),"usage":{"FUNCTION_CALL":3}}]}]
+        }}}
+        """
+        let costJSON = """
+        {"code":0,"data":{"biz_code":0,"biz_data":{"data":[{"currency":"USD","series":[
+          {"api_key":"key-1","model":"deepseek-chat","buckets":[{"time":\(day),"cost":"1.25"}]}]}]}}}
+        """
+        let summary = try DeepSeekUsageCostParser.parseByAPIKey(
+            amountData: Data(amountJSON.utf8),
+            costData: Data(costJSON.utf8),
+            now: self.fixtureNow,
+            calendar: self.fixtureCalendar)
+        #expect(summary.todayTokens == Int.max)
+        #expect(summary.currentMonthTokens == Int.max)
+        #expect(summary.requestCount == Int.max)
+        #expect(summary.currentMonthRequestCount == Int.max)
+        #expect(summary.topModel == "deepseek-chat")
+        #expect(summary.categoryBreakdown.first { $0.category == .promptCacheHitToken }?.tokens == Int.max - 15)
+        #expect(summary.categoryBreakdown.first { $0.category == .promptCacheMissToken }?.tokens == 10)
+        #expect(summary.categoryBreakdown.first { $0.category == .responseToken }?.tokens == 5)
+    }
+
+    @Test(arguments: [
+        "dayTokens", "siblingCategories", "requests", "functionCalls",
+        "requestPlusFunctionCall", "scalarBeyondIntMax",
+        "negToken", "negZeroToken", "fractionalToken", "nullToken", "negRequest", "negFunctionCall",
+    ])
+    func `by-api-key rejects within-window overflow and negative or non-integer counters`(scenario: String) {
+        let day = Int(self.fixtureNow.timeIntervalSince1970)
+        let prev = day - 86400
+        let maxMinus5 = Int.max - 5
+        func singleSeries(_ buckets: String) -> String {
+            #"{"series":[{"api_key":"k1","model":"deepseek-chat","buckets":[\#(buckets)]}]}"#
+        }
+        let bizData = switch scenario {
+        case "dayTokens":
+            singleSeries(
+                #"{"time":\#(day),"usage":{"RESPONSE_TOKEN":"\#(maxMinus5)"}},"#
+                    + #"{"time":\#(day),"usage":{"RESPONSE_TOKEN":"6"}}"#)
+        case "siblingCategories":
+            """
+            {"series":[
+              {"api_key":"k1","model":"deepseek-chat",
+               "buckets":[{"time":\(day),"usage":{"PROMPT_CACHE_HIT_TOKEN":"\(maxMinus5)"}}]},
+              {"api_key":"k2","model":"deepseek-reasoner",
+               "buckets":[{"time":\(prev),"usage":{"RESPONSE_TOKEN":"6"}}]}]}
+            """
+        case "requests":
+            singleSeries(
+                #"{"time":\#(day),"usage":{"REQUEST":"\#(maxMinus5)"}},"#
+                    + #"{"time":\#(prev),"usage":{"REQUEST":"6"}}"#)
+        case "functionCalls":
+            """
+            {"series":[],"function_series":[{"buckets":[
+              {"time":\(day),"usage":{"FUNCTION_CALL":"\(maxMinus5)"}},
+              {"time":\(day),"usage":{"FUNCTION_CALL":"6"}}]}]}
+            """
+        case "requestPlusFunctionCall":
+            """
+            {"series":[{"api_key":"k1","model":"deepseek-chat",
+              "buckets":[{"time":\(day),"usage":{"REQUEST":"\(Int.max - 2)"}}]}],
+             "function_series":[{"buckets":[{"time":\(day),"usage":{"FUNCTION_CALL":"3"}}]}]}
+            """
+        case "scalarBeyondIntMax":
+            singleSeries(#"{"time":\#(day),"usage":{"RESPONSE_TOKEN":"9223372036854775808"}}"#)
+        case "negToken":
+            singleSeries(
+                #"{"time":\#(day),"usage":{"RESPONSE_TOKEN":"100"}},"#
+                    + #"{"time":\#(day),"usage":{"RESPONSE_TOKEN":"-50"}}"#)
+        case "negZeroToken":
+            singleSeries(#"{"time":\#(day),"usage":{"RESPONSE_TOKEN":"-0"}}"#)
+        case "fractionalToken":
+            singleSeries(#"{"time":\#(day),"usage":{"RESPONSE_TOKEN":"12.5"}}"#)
+        case "nullToken":
+            singleSeries(#"{"time":\#(day),"usage":{"RESPONSE_TOKEN":null}}"#)
+        case "negRequest":
+            singleSeries(#"{"time":\#(day),"usage":{"REQUEST":-1}}"#)
+        default:
+            #"{"series":[],"function_series":[{"buckets":[{"time":\#(day),"usage":{"FUNCTION_CALL":"-2"}}]}]}"#
+        }
+        let amountJSON = #"{"code":0,"data":{"biz_code":0,"biz_data":\#(bizData)}}"#
+        let costJSON = #"{"code":0,"data":{"biz_code":0,"biz_data":{"data":[]}}}"#
+        #expect {
+            _ = try DeepSeekUsageCostParser.parseByAPIKey(
+                amountData: Data(amountJSON.utf8),
+                costData: Data(costJSON.utf8),
+                now: self.fixtureNow,
+                calendar: self.fixtureCalendar)
+        } throws: { error in
+            guard case DeepSeekUsageError.parseFailed = error else { return false }
+            return true
+        }
+    }
+
+    @Test
+    func `by-api-key and monthly parsers withhold negative costs and monthly enforces checked integer math`() throws {
+        let day = Int(self.fixtureNow.timeIntervalSince1970)
+        let byKeyAmount = """
+        {"code":0,"data":{"biz_code":0,"biz_data":{"series":[{"api_key":"k1","model":"deepseek-chat",
+          "buckets":[{"time":\(day),"usage":{"RESPONSE_TOKEN":"100","REQUEST":"1"}}]}]}}}
+        """
+        let byKeyNegCost = """
+        {"code":0,"data":{"biz_code":0,"biz_data":{"data":[{"currency":"USD","series":[{"api_key":"k1",
+          "model":"deepseek-chat","buckets":[{"time":\(day),"cost":"2.00"},{"time":\(day),"cost":"-1.50"}]}]}]}}}
+        """
+        let byKeySummary = try DeepSeekUsageCostParser.parseByAPIKey(
+            amountData: Data(byKeyAmount.utf8),
+            costData: Data(byKeyNegCost.utf8),
+            now: self.fixtureNow,
+            calendar: self.fixtureCalendar)
+        #expect(byKeySummary.todayTokens == 100)
+        #expect(byKeySummary.todayCost == nil)
+        #expect(byKeySummary.currentMonthCost == nil)
+        #expect(byKeySummary.daily.first?.cost == nil)
+        #expect(byKeySummary.modelCosts.isEmpty)
+
+        let emptyCost = """
+        {"code":0,"msg":"","data":{"biz_code":0,"biz_msg":"","biz_data":[{"total":[],"days":[],"currency":"USD"}]}}
+        """
+        let exactMaxAmount = """
+        {"code":0,"msg":"","data":{"biz_code":0,"biz_msg":"","biz_data":{
+          "total":[{"model":"deepseek-chat","usage":[
+            {"type":"PROMPT_CACHE_HIT_TOKEN","amount":"\(Int.max - 5)"},{"type":"RESPONSE_TOKEN","amount":"5"}]}],
+          "days":[
+            {"date":"2026-05-25","data":[{"model":"deepseek-chat","usage":[
+              {"type":"PROMPT_CACHE_HIT_TOKEN","amount":"\(Int.max - 5)"}]}]},
+            {"date":"2026-05-26","data":[{"model":"deepseek-chat","usage":[{"type":"RESPONSE_TOKEN","amount":"5"}]}]}]
+        }}}
+        """
+        let exactSummary = try DeepSeekUsageFetcher._parseUsageSummaryForTesting(
+            amountData: Data(exactMaxAmount.utf8),
+            costData: Data(emptyCost.utf8),
+            now: self.fixtureNow,
+            calendar: self.fixtureCalendar)
+        #expect(exactSummary.currentMonthTokens == Int.max)
+        #expect(exactSummary.todayTokens == 5)
+
+        for badMonthly in [
+            exactMaxAmount.replacingOccurrences(of: "\"5\"", with: "\"6\""),
+            exactMaxAmount.replacingOccurrences(of: "\"5\"", with: "\"-5\""),
+        ] {
+            #expect {
+                _ = try DeepSeekUsageFetcher._parseUsageSummaryForTesting(
+                    amountData: Data(badMonthly.utf8),
+                    costData: Data(emptyCost.utf8),
+                    now: self.fixtureNow,
+                    calendar: self.fixtureCalendar)
+            } throws: { error in
+                guard case DeepSeekUsageError.parseFailed = error else { return false }
+                return true
+            }
+        }
+
+        let validAmount = """
+        {"code":0,"msg":"","data":{"biz_code":0,"biz_msg":"","biz_data":{
+          "total":[{"model":"deepseek-chat","usage":[{"type":"RESPONSE_TOKEN","amount":"100"}]}],
+          "days":[{"date":"2026-05-26","data":[{"model":"deepseek-chat","usage":[
+            {"type":"RESPONSE_TOKEN","amount":"100"}]}]}]}}}
+        """
+        let negCost = """
+        {"code":0,"msg":"","data":{"biz_code":0,"biz_msg":"","biz_data":[{"currency":"USD",
+          "total":[{"model":"deepseek-chat","usage":[
+            {"type":"RESPONSE_TOKEN","amount":"2.0"},{"type":"RESPONSE_TOKEN","amount":"-1.0"}]}],
+          "days":[{"date":"2026-05-26","data":[{"model":"deepseek-chat","usage":[
+            {"type":"RESPONSE_TOKEN","amount":"2.0"},{"type":"RESPONSE_TOKEN","amount":"-1.0"}]}]}]}]}}
+        """
+        let summaryWithNegCost = try DeepSeekUsageFetcher._parseUsageSummaryForTesting(
+            amountData: Data(validAmount.utf8),
+            costData: Data(negCost.utf8),
+            now: self.fixtureNow,
+            calendar: self.fixtureCalendar)
+        #expect(summaryWithNegCost.todayTokens == 100)
+        #expect(summaryWithNegCost.todayCost == nil)
+        #expect(summaryWithNegCost.currentMonthCost == nil)
+        #expect(summaryWithNegCost.daily.first?.cost == nil)
+        #expect(summaryWithNegCost.categoryBreakdown.first { $0.category == .responseToken }?.cost == nil)
     }
 }
 

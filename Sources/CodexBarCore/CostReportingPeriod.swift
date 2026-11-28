@@ -95,6 +95,7 @@ extension CostUsageTokenSnapshot {
     /// Attach the selection only after a scan of the resolved window, never to a previous-period cache entry.
     public func reporting(_ period: CostReportingPeriod) -> Self {
         if case .rolling = period { return self }
+        if self.preservesSourceHistoryLabel { return self }
         var result = self
         result.reportingPeriod = period
         result.historyLabel = period.label
@@ -103,6 +104,7 @@ extension CostUsageTokenSnapshot {
 
     /// Daily-backed provider reports can cover a billing cycle wider than the selected calendar window.
     public func selecting(_ period: CostReportingPeriod, now: Date, calendar: Calendar) -> Self {
+        if self.preservesSourceHistoryLabel { return self }
         guard period == .monthToDate else { return self.reporting(period) }
         let bounds = period.bounds(now: now, calendar: calendar)
         let coverage = CostReportingPeriod.rolling(days: self.historyDays).bounds(

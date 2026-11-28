@@ -46,6 +46,8 @@ public struct ProviderFetchContext: Sendable {
     public let settingsWriter: SettingsWriter?
     public let providerManualTokenUpdater: ProviderManualTokenUpdater?
     public let costUsageHistoryDays: Int
+    public let costReportingPeriod: CostReportingPeriod
+    public let costUsageBucketTimeZoneIdentifier: String
     /// Restricts a Claude retry to the credential-owning CLI after an ambient account mismatch rejects OAuth.
     /// The original source mode remains intact so background interaction gates still apply.
     public let claudeOwnerCLIRecoveryOnly: Bool
@@ -82,6 +84,8 @@ public struct ProviderFetchContext: Sendable {
         providerManualTokenUpdater: ProviderManualTokenUpdater? = nil,
         settingsWriter: SettingsWriter? = nil,
         costUsageHistoryDays: Int = 30,
+        costReportingPeriod: CostReportingPeriod? = nil,
+        costUsageBucketTimeZoneIdentifier: String = "",
         claudeOwnerCLIRecoveryOnly: Bool = false,
         persistsCLISessions: Bool = false,
         persistentCLISessionIdleWindow: TimeInterval? = nil,
@@ -105,7 +109,10 @@ public struct ProviderFetchContext: Sendable {
         self.tokenAccountTokenUpdater = tokenAccountTokenUpdater
         self.providerManualTokenUpdater = providerManualTokenUpdater
         self.settingsWriter = settingsWriter
-        self.costUsageHistoryDays = max(1, min(365, costUsageHistoryDays))
+        let clampedHistoryDays = max(1, min(365, costUsageHistoryDays))
+        self.costUsageHistoryDays = clampedHistoryDays
+        self.costReportingPeriod = costReportingPeriod ?? .rolling(days: clampedHistoryDays)
+        self.costUsageBucketTimeZoneIdentifier = costUsageBucketTimeZoneIdentifier
         self.claudeOwnerCLIRecoveryOnly = claudeOwnerCLIRecoveryOnly
         self.persistsCLISessions = persistsCLISessions
         self.persistentCLISessionIdleWindow = persistentCLISessionIdleWindow
@@ -128,6 +135,12 @@ public struct ProviderFetchResult: Sendable {
     public let strategyKind: ProviderFetchKind
     /// Optional provider data that may complete after the primary usage result is published.
     public let supplementalUsageTask: Task<ProviderSupplementalUsageUpdate, Never>?
+    /// Live-only DeepSeek continuation bound to the already-selected session for wide history loading.
+    /// Never enters `UsageSnapshot`, persistence, CLI output, or widget state.
+    public let deepseekHistoryContinuation: DeepSeekWideHistoryContinuation?
+    /// Live-only DeepSeek refresh disposition when optional usage detail is omitted or unavailable.
+    /// Never enters `UsageSnapshot`, persistence, CLI output, or widget state.
+    public let deepseekHistoryRefreshDisposition: DeepSeekHistoryRefreshDisposition?
     /// True when the Codex OAuth strategy already attempted reset-credit enrichment with its
     /// winning in-memory credential snapshot. Generic enrichment must not reload auth.json after
     /// that attempt fails, or it could attach another account's credits to this usage result.
@@ -161,6 +174,8 @@ public struct ProviderFetchResult: Sendable {
         strategyID: String,
         strategyKind: ProviderFetchKind,
         supplementalUsageTask: Task<ProviderSupplementalUsageUpdate, Never>? = nil,
+        deepseekHistoryContinuation: DeepSeekWideHistoryContinuation? = nil,
+        deepseekHistoryRefreshDisposition: DeepSeekHistoryRefreshDisposition? = nil,
         codexResetCreditsAttempted: Bool = false,
         codexMonthlyLimitEnrichmentFailed: Bool = false,
         diagnostic: String? = nil,
@@ -178,6 +193,8 @@ public struct ProviderFetchResult: Sendable {
         self.strategyID = strategyID
         self.strategyKind = strategyKind
         self.supplementalUsageTask = supplementalUsageTask
+        self.deepseekHistoryContinuation = deepseekHistoryContinuation
+        self.deepseekHistoryRefreshDisposition = deepseekHistoryRefreshDisposition
         self.codexResetCreditsAttempted = codexResetCreditsAttempted
         self.codexMonthlyLimitEnrichmentFailed = codexMonthlyLimitEnrichmentFailed
         self.diagnostic = diagnostic
@@ -199,6 +216,8 @@ public struct ProviderFetchResult: Sendable {
             strategyID: self.strategyID,
             strategyKind: self.strategyKind,
             supplementalUsageTask: self.supplementalUsageTask,
+            deepseekHistoryContinuation: self.deepseekHistoryContinuation,
+            deepseekHistoryRefreshDisposition: self.deepseekHistoryRefreshDisposition,
             codexResetCreditsAttempted: self.codexResetCreditsAttempted,
             codexMonthlyLimitEnrichmentFailed: true,
             diagnostic: self.diagnostic,
@@ -220,6 +239,8 @@ public struct ProviderFetchResult: Sendable {
             strategyID: self.strategyID,
             strategyKind: self.strategyKind,
             supplementalUsageTask: self.supplementalUsageTask,
+            deepseekHistoryContinuation: self.deepseekHistoryContinuation,
+            deepseekHistoryRefreshDisposition: self.deepseekHistoryRefreshDisposition,
             codexResetCreditsAttempted: self.codexResetCreditsAttempted,
             codexMonthlyLimitEnrichmentFailed: self.codexMonthlyLimitEnrichmentFailed,
             diagnostic: diagnostic,
@@ -355,6 +376,8 @@ extension ProviderFetchStrategy {
         dashboard: OpenAIDashboardSnapshot? = nil,
         sourceLabel: String,
         supplementalUsageTask: Task<ProviderSupplementalUsageUpdate, Never>? = nil,
+        deepseekHistoryContinuation: DeepSeekWideHistoryContinuation? = nil,
+        deepseekHistoryRefreshDisposition: DeepSeekHistoryRefreshDisposition? = nil,
         diagnostic: String? = nil) -> ProviderFetchResult
     {
         ProviderFetchResult(
@@ -365,6 +388,8 @@ extension ProviderFetchStrategy {
             strategyID: self.id,
             strategyKind: self.kind,
             supplementalUsageTask: supplementalUsageTask,
+            deepseekHistoryContinuation: deepseekHistoryContinuation,
+            deepseekHistoryRefreshDisposition: deepseekHistoryRefreshDisposition,
             diagnostic: diagnostic)
     }
 }
