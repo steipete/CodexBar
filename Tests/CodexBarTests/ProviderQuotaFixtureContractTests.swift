@@ -46,7 +46,7 @@ struct ProviderQuotaFixtureContractTests {
         let body = try #require(String(data: data, encoding: .utf8))
         let limits = OpenAIDashboardParser.parseRateLimits(bodyText: body)
 
-        #expect(OpenAIDashboardParser.parsePlanFromHTML(html: body) == "Pro 5x")
+        #expect(OpenAIDashboardParser.parsePlanFromHTML(html: body) == "Pro Lite")
         #expect(limits.primary?.usedPercent == 28)
         #expect(limits.primary?.windowMinutes == 300)
         #expect(limits.primary?.resetDescription?.localizedCaseInsensitiveContains("resets") == true)

@@ -507,8 +507,8 @@ public enum OpenAIDashboardParser {
             return self.normalizePlanValue(str)
         }
         if let dict = value as? [String: Any] {
-            if let name = dict["name"] as? String, let plan = self.normalizePlanValue(name) { return plan }
             if let display = dict["displayName"] as? String, let plan = self.normalizePlanValue(display) { return plan }
+            if let name = dict["name"] as? String, let plan = self.normalizePlanValue(name) { return plan }
             if let tier = dict["tier"] as? String, let plan = self.normalizePlanValue(tier) { return plan }
         }
         return nil

@@ -892,8 +892,8 @@ extension CodexOAuthTests {
 
         #expect(observation.rawPlan == "pro")
         #expect(observation.source == .usageResponse)
-        // Only the provider's raw identifier is exposed; the "Pro 20x" display mapping is not.
-        #expect(observation.rawPlan != "Pro 20x")
+        // Observations preserve the raw identifier even when the display name is capitalized.
+        #expect(observation.rawPlan != "Pro")
         #expect(snapshot.loginMethod(for: .codex) == "pro")
     }
 

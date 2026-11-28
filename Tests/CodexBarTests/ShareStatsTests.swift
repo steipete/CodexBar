@@ -47,7 +47,7 @@ struct ShareStatsTests {
                 isPartial: true),
         ])
         #expect(payload.providers.map(\.providerName) == ["Claude", "Codex · #1", "Cursor"])
-        #expect(payload.providers.map(\.subscriptionName) == ["Max", "Pro 20x", "Cursor Pro"])
+        #expect(payload.providers.map(\.subscriptionName) == ["Max", "Pro", "Cursor Pro"])
         #expect(payload.providers.last?.estimatedCost == nil)
         #expect(payload.topModels.map(\.modelName).prefix(2) == ["Claude", "GPT"])
 
@@ -119,7 +119,8 @@ struct ShareStatsTests {
 
     @Test
     func `subscription labels require a plan tier provider contract`() {
-        #expect(Self.subscriptionName(provider: .codex, rawName: "pro")?.displayName == "Pro 20x")
+        #expect(Self.subscriptionName(provider: .codex, rawName: "pro")?.displayName == "Pro")
+        #expect(Self.subscriptionName(provider: .codex, rawName: "prolite")?.displayName == "Pro Lite")
         #expect(Self.subscriptionName(provider: .codex, rawName: "Plus Plan")?.displayName == "Plus")
         #expect(Self.subscriptionName(provider: .cursor, rawName: "Cursor Pro")?.displayName == "Cursor Pro")
         #expect(Self.subscriptionName(provider: .gemini, rawName: "Paid")?.displayName == "Paid")
@@ -146,7 +147,7 @@ struct ShareStatsTests {
         let name = ShareStatsSubscriptionName.first(
             from: [unidentified, fallback],
             provider: .codex)
-        #expect(name?.displayName == "Pro 20x")
+        #expect(name?.displayName == "Pro")
     }
 
     @Test

@@ -14,12 +14,18 @@ struct OpenAIDashboardScrapeScriptTests {
         #expect(openAIDashboardReadinessScript.contains("textContent"))
     }
 
-    @Test
-    func `scraper returns structured account fields without full html`() async throws {
+    @Test(arguments: [
+        (#"{"tier":"Codex Pro Lite"}"#, "Pro Lite"),
+        (#"{"name":"prolite","displayName":"Pro 10x"}"#, "Pro 10x"),
+    ])
+    func `scraper returns structured account fields without full html`(
+        subscriptionJSON: String,
+        expectedPlan: String) async throws
+    {
         if Self.shouldSkipOnCI() { return }
 
         let webView = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
-        _ = webView.loadHTMLString(Self.bootstrapAccountHTML, baseURL: nil)
+        _ = webView.loadHTMLString(Self.bootstrapAccountHTML(subscriptionJSON: subscriptionJSON), baseURL: nil)
         try await Self.waitForFixture(webView, elementID: "account-fixture")
 
         let any = try await webView.evaluateJavaScript(openAIDashboardScrapeScript)
@@ -28,7 +34,7 @@ struct OpenAIDashboardScrapeScriptTests {
         #expect(dict["bodyHTML"] == nil)
         #expect(dict["signedInEmail"] as? String == "user@example.com")
         #expect(dict["authStatus"] as? String == "logged_in")
-        #expect(dict["accountPlan"] as? String == "Pro 5x")
+        #expect(dict["accountPlan"] as? String == expectedPlan)
     }
 
     @Test
@@ -98,38 +104,38 @@ struct OpenAIDashboardScrapeScriptTests {
         }
     }
 
-    private static let bootstrapAccountHTML = """
-    <html>
-    <body>
-      <div id="account-fixture">Usage limits</div>
-      <script type="application/json" id="__NEXT_DATA__">
-      {
-        "props": {
-          "pageProps": {
-            "user": {
-              "email": "next@example.com"
-            }
+    private static func bootstrapAccountHTML(subscriptionJSON: String) -> String {
+        """
+        <html>
+        <body>
+          <div id="account-fixture">Usage limits</div>
+          <script type="application/json" id="__NEXT_DATA__">
+          {
+            "props": {
+              "pageProps": {
+                "user": {
+                  "email": "next@example.com"
+                }
+              }
+            },
+            "planType": "pro"
           }
-        },
-        "planType": "pro"
-      }
-      </script>
-      <script type="application/json" id="client-bootstrap">
-      {
-        "authStatus": "logged_in",
-        "session": {
-          "user": {
-            "email": "user@example.com"
+          </script>
+          <script type="application/json" id="client-bootstrap">
+          {
+            "authStatus": "logged_in",
+            "session": {
+              "user": {
+                "email": "user@example.com"
+              }
+            },
+            "subscription": \(subscriptionJSON)
           }
-        },
-        "subscription": {
-          "tier": "Codex Pro Lite"
-        }
-      }
-      </script>
-    </body>
-    </html>
-    """
+          </script>
+        </body>
+        </html>
+        """
+    }
 
     private static let multiChartHTML = """
     <html>

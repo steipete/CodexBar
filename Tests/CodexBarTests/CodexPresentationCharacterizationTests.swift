@@ -180,7 +180,7 @@ struct CodexPresentationCharacterizationTests {
     }
 
     @Test
-    func `Codex menu maps prolite plan to multiplier display name`() {
+    func `Codex menu maps prolite plan to its reported tier`() {
         let settings = self.makeSettingsStore(suite: "CodexPresentationCharacterizationTests-prolite")
         settings.statusChecksEnabled = false
 
@@ -211,8 +211,8 @@ struct CodexPresentationCharacterizationTests {
             includeContextualActions: false)
 
         let lines = self.textLines(from: descriptor)
-        #expect(lines.contains("Plan: Pro 5x"))
-        #expect(!lines.contains("Plan: Pro Lite"))
+        #expect(lines.contains("Plan: Pro Lite"))
+        #expect(!lines.contains("Plan: Pro 5x"))
         #expect(!lines.contains("Plan: Prolite"))
     }
 

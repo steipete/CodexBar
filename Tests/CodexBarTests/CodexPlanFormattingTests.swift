@@ -4,15 +4,15 @@ import Testing
 
 struct CodexPlanFormattingTests {
     @Test
-    func `maps Codex pro plans to usage multiplier names`() {
-        #expect(CodexPlanFormatting.displayName("pro") == "Pro 20x")
-        #expect(CodexPlanFormatting.displayName("Pro") == "Pro 20x")
-        #expect(CodexPlanFormatting.displayName("Codex Pro") == "Pro 20x")
-        #expect(CodexPlanFormatting.displayName("prolite") == "Pro 5x")
-        #expect(CodexPlanFormatting.displayName("pro_lite") == "Pro 5x")
-        #expect(CodexPlanFormatting.displayName("pro-lite") == "Pro 5x")
-        #expect(CodexPlanFormatting.displayName("Pro Lite") == "Pro 5x")
-        #expect(CodexPlanFormatting.displayName("Codex Pro Lite") == "Pro 5x")
+    func `formats Codex pro tiers without inferring an allowance`() {
+        #expect(CodexPlanFormatting.displayName("pro") == "Pro")
+        #expect(CodexPlanFormatting.displayName("Pro") == "Pro")
+        #expect(CodexPlanFormatting.displayName("Codex Pro") == "Pro")
+        #expect(CodexPlanFormatting.displayName("prolite") == "Pro Lite")
+        #expect(CodexPlanFormatting.displayName("pro_lite") == "Pro Lite")
+        #expect(CodexPlanFormatting.displayName("pro-lite") == "Pro Lite")
+        #expect(CodexPlanFormatting.displayName("Pro Lite") == "Pro Lite")
+        #expect(CodexPlanFormatting.displayName("Codex Pro Lite") == "Pro Lite")
     }
 
     @Test
@@ -35,6 +35,8 @@ struct CodexPlanFormattingTests {
 
     @Test
     func `preserves unrelated already readable plan text`() {
+        #expect(CodexPlanFormatting.displayName("Pro 5x") == "Pro 5x")
+        #expect(CodexPlanFormatting.displayName("Pro 10x") == "Pro 10x")
         #expect(CodexPlanFormatting.displayName("Enterprise") == "Enterprise")
     }
 }

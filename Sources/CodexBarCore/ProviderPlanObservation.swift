@@ -5,7 +5,7 @@ import Foundation
 /// CodexBar records observations, not inferences:
 ///
 /// - `rawPlan` is the provider's own identifier (for example `pro`). It is not a display label
-///   ("Pro 20x") and it does not establish an allowance multiplier or baseline.
+///   ("Pro") and it does not establish an allowance multiplier or baseline.
 /// - `observedAt` is when the fetch observed the value, not when the plan took effect. Hooks are
 ///   sampled, so an observation is not a complete transition history.
 /// - `source` names the exact provider surface that reported the identifier.
