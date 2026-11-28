@@ -119,6 +119,29 @@ struct MistralPartialBillingTests {
         return (Data(body.utf8), response)
     }
 
+    @Test
+    func `allowance-only snapshots are marked unavailable for spend analytics`() {
+        let now = Date()
+        let allowanceOnly = UsageSnapshot(
+            primary: RateWindow(usedPercent: 40, windowMinutes: nil, resetsAt: nil, resetDescription: "$4 / $10"),
+            secondary: nil,
+            updatedAt: now)
+        #expect(MistralProviderDescriptor.descriptor.tokenCost.isUsageUnavailable(allowanceOnly))
+
+        let emptyBilling = MistralUsageSnapshot(
+            totalCost: 0,
+            currency: "EUR",
+            currencySymbol: "€",
+            totalInputTokens: 0,
+            totalOutputTokens: 0,
+            totalCachedTokens: 0,
+            modelCount: 0,
+            startDate: nil,
+            endDate: nil,
+            updatedAt: now).toUsageSnapshot()
+        #expect(MistralProviderDescriptor.descriptor.tokenCost.isUsageUnavailable(emptyBilling) == false)
+    }
+
     private static func context() -> ProviderFetchContext {
         let browser = BrowserDetection(cacheTTL: 0)
         return ProviderFetchContext(

@@ -218,14 +218,22 @@ struct StatusItemAnimationSignatureTests {
             statusBar: testStatusBar())
         defer { controller.releaseStatusItemsForTesting() }
 
+        let now = Date()
         let snapshot = UsageSnapshot(
-            primary: RateWindow(
-                usedPercent: 0,
-                windowMinutes: nil,
-                resetsAt: nil,
-                resetDescription: "$12.50"),
+            primary: RateWindow(usedPercent: 25, windowMinutes: nil, resetsAt: nil, resetDescription: "$12.50"),
             secondary: nil,
-            updatedAt: Date())
+            mistralUsage: MistralUsageSnapshot(
+                totalCost: 12.50,
+                currency: "USD",
+                currencySymbol: "$",
+                totalInputTokens: 1000,
+                totalOutputTokens: 200,
+                totalCachedTokens: 0,
+                modelCount: 1,
+                startDate: nil,
+                endDate: nil,
+                updatedAt: now),
+            updatedAt: now)
 
         let percents = controller.resolvedMenuBarIconPercents(
             provider: .mistral,
