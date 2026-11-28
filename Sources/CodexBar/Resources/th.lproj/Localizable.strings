@@ -5,6 +5,7 @@
 "+ %d more" = "+ อีก %d รายการ";
 "Conversations (%@)" = "บทสนทนา (%@)";
 "Fast" = "เร็ว";
+"Optional. Reads included API and Vibe allowances without browser cookies." = "ไม่บังคับ อ่านโควตา API และ Vibe ที่รวมอยู่โดยไม่ต้องใช้คุกกี้ของเบราว์เซอร์";
 "iCloud Sync" = "การซิงค์ iCloud";
 "Projects" = "โครงการ";
 "Session %@" = "เซสชัน %@";

@@ -5,6 +5,7 @@
 "+ %d more" = "+ %d مورد دیگر";
 "Conversations (%@)" = "گفتگوها (%@)";
 "Fast" = "سریع";
+"Optional. Reads included API and Vibe allowances without browser cookies." = "اختیاری. سهمیه‌های API و Vibe را بدون کوکی‌های مرورگر می‌خواند.";
 "iCloud Sync" = "iCloud Sync";
 "Projects" = "پروژه ها";
 "Session %@" = "نشست %@";

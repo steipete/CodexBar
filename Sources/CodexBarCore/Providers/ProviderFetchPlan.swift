@@ -426,10 +426,10 @@ public struct ProviderFetchPipeline: Sendable {
                     try await strategy.fetch(context)
                 }
                 try Task.checkCancellation()
-                if result.diagnostic == nil,
-                   let lastAvailableError,
-                   let diagnostic = strategy.diagnostic(forPriorFailure: lastAvailableError)
+                if let lastAvailableError,
+                   let priorDiagnostic = strategy.diagnostic(forPriorFailure: lastAvailableError)
                 {
+                    let diagnostic = result.diagnostic.map { "\(priorDiagnostic) \($0)" } ?? priorDiagnostic
                     result = result.withDiagnostic(diagnostic)
                 }
                 attempts.append(ProviderFetchAttempt(

@@ -5,6 +5,7 @@
 "+ %d more" = "+ %d més";
 "Conversations (%@)" = "Converses (%@)";
 "Fast" = "Ràpid";
+"Optional. Reads included API and Vibe allowances without browser cookies." = "Opcional. Llegeix les assignacions incloses d'API i Vibe sense galetes del navegador.";
 "iCloud Sync" = "Sincronització amb iCloud";
 
 "Independent chat" = "Xat independent";

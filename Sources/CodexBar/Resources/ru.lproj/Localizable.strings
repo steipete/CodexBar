@@ -5,6 +5,7 @@
 "+ %d more" = "Ещё %d";
 "Conversations (%@)" = "Диалоги (%@)";
 "Fast" = "Быстро";
+"Optional. Reads included API and Vibe allowances without browser cookies." = "Необязательно. Читает включённые лимиты API и Vibe без cookie браузера.";
 "iCloud Sync" = "Синхронизация с iCloud";
 "Projects" = "Проекты";
 "Session %@" = "Сессия %@";

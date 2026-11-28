@@ -5,6 +5,7 @@
 "+ %d more" = "+ %d till";
 "Conversations (%@)" = "Konversationer (%@)";
 "Fast" = "Snabbt";
+"Optional. Reads included API and Vibe allowances without browser cookies." = "Valfritt. Läser de inkluderade API- och Vibe-kvoterna utan webbläsarcookies.";
 "iCloud Sync" = "iCloud Sync";
 "Projects" = "Projekt";
 "Session %@" = "Session %@";

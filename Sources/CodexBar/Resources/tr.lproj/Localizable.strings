@@ -5,6 +5,7 @@
 "+ %d more" = "+ %d daha";
 "Conversations (%@)" = "Konuşmalar (%@)";
 "Fast" = "Hızlı";
+"Optional. Reads included API and Vibe allowances without browser cookies." = "İsteğe bağlı. Tarayıcı çerezleri olmadan dahil edilen API ve Vibe kotalarını okur.";
 "iCloud Sync" = "iCloud eşzamanlama";
 "Projects" = "Projeler";
 "Session %@" = "Oturum %@";

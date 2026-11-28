@@ -2,6 +2,15 @@
 
 ## 0.85.1 — Unreleased
 
+### Added
+
+- Mistral: read Included API and Vibe Monthly Plan allowances with an API key instead of browser cookies. Spend, credits, and token history still require a browser session.
+
+### Fixed
+
+- Mistral: keep available allowances and credits when browser billing fails, without showing missing spend or token history as zero.
+- Mistral: add a browser-cookie refresh in provider settings and report fallback failures without exposing response bodies or cookie values.
+
 ## 0.85.0 — 2026-11-21
 
 ### Highlights

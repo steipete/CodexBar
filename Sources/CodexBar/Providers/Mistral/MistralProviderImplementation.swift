@@ -6,7 +6,14 @@ struct MistralProviderImplementation: ProviderImplementation {
 
     @MainActor
     func presentation(context _: ProviderPresentationContext) -> ProviderPresentation {
-        ProviderPresentation { _ in "web" }
+        ProviderPresentation { $0.store.sourceLabel(for: self.id) }
+    }
+
+    @MainActor
+    func observeSettings(_ settings: SettingsStore) {
+        _ = settings.mistralCookieSource
+        _ = settings.mistralCookieHeader
+        _ = settings.mistralAPIKey
     }
 
     @MainActor
@@ -30,7 +37,7 @@ struct MistralProviderImplementation: ProviderImplementation {
                 id: "mistral-cookie-source",
                 context: context,
                 source: \.mistralCookieSource,
-                allowsOff: false,
+                allowsOff: true,
                 subtitles: {
                     .init(
                         auto: L("Automatic imports browser cookies from admin.mistral.ai."),
@@ -38,14 +45,38 @@ struct MistralProviderImplementation: ProviderImplementation {
                         off: L("%@ cookies are disabled.", "Mistral"))
                 },
                 trailingText: {
-                    ProviderCookieSourceUI.cachedTrailingText(provider: .mistral)
-                }),
+                    ProviderCookieRefreshAction.trailingText(
+                        provider: .mistral,
+                        cookieSource: context.settings.mistralCookieSource,
+                        context: context)
+                },
+                trailingActions: [
+                    ProviderCookieRefreshAction.descriptor(
+                        provider: .mistral,
+                        cookieSource: { context.settings.mistralCookieSource },
+                        browserOnly: true,
+                        context: context),
+                ]),
         ]
     }
 
     @MainActor
     func settingsFields(context: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
         [
+            ProviderSettingsFieldDescriptor(
+                id: "mistral-api-key",
+                title: "API key",
+                subtitle: "Optional. Reads included API and Vibe allowances without browser cookies.",
+                kind: .secure,
+                placeholder: "API key",
+                binding: context.binding(\.mistralAPIKey),
+                actions: [
+                    ProviderSettingsActionDescriptor.openURL(
+                        id: "mistral-open-api-keys",
+                        title: "Open API keys",
+                        url: URL(string: "https://console.mistral.ai/api-keys")),
+                ],
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "mistral-cookie-header",
                 title: "Cookie header",

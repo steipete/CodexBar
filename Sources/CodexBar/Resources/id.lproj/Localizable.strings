@@ -5,6 +5,7 @@
 "+ %d more" = "+ %d lainnya";
 "Conversations (%@)" = "Percakapan (%@)";
 "Fast" = "Cepat";
+"Optional. Reads included API and Vibe allowances without browser cookies." = "Opsional. Membaca kuota API dan Vibe yang disertakan tanpa cookie browser.";
 "iCloud Sync" = "Sinkronisasi iCloud";
 "Projects" = "Proyek";
 "Session %@" = "Sesi %@";

@@ -283,8 +283,8 @@ struct MistralVibeUsageTests {
                 timeout: 2,
                 transport: transport)
         } throws: { error in
-            guard case let MistralUsageError.apiError(message) = error else { return false }
-            return message.hasPrefix("HTTP 302")
+            if case MistralUsageError.httpStatus(302) = error { return true }
+            return false
         }
     }
 
@@ -350,12 +350,14 @@ struct MistralVibeUsageTests {
             throw URLError(.badURL)
         }
 
-        let snapshot = try await MistralWebFetchStrategy.fetchUsageWithVibe(
+        let report = try await MistralWebFetchStrategy.fetchUsageWithVibe(
             cookieHeader: "ory_session_test=abc; csrftoken=csrf",
             csrfToken: "csrf",
             timeout: 1,
             transport: transport)
 
+        let snapshot = report.snapshot
+        #expect(report.diagnostic == nil)
         let monthlyPlan = snapshot.extraRateWindows?.first { $0.id == "mistral-monthly-plan" }
         #expect(monthlyPlan?.window.usedPercent == 37)
         #expect(snapshot.mistralUsage?.credits == nil)
@@ -393,8 +395,10 @@ struct MistralVibeUsageTests {
             }
             return try (Data(body.utf8), Self.response(url: url, statusCode: 200))
         }
-        let snapshot = try await MistralWebFetchStrategy.fetchUsageWithVibe(
+        let report = try await MistralWebFetchStrategy.fetchUsageWithVibe(
             cookieHeader: "ory_session_test=abc; csrftoken=csrf", csrfToken: "csrf", timeout: 1, transport: transport)
+        let snapshot = report.snapshot
+        #expect(report.diagnostic == nil)
         #expect(snapshot.primary?.usedPercent == (validAPI ? 20 : nil))
         #expect(snapshot.extraRateWindows?.first { $0.id == "mistral-monthly-plan" }?.window.usedPercent == 37)
         #expect(snapshot.mistralUsage?.credits?.availableAmount == 35)

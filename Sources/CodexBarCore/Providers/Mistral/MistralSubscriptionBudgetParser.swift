@@ -18,23 +18,18 @@ struct MistralSubscriptionBudget: Hashable, Sendable {
     var remainingAmount: Double {
         max(self.limit - self.usedAmount, 0)
     }
+
+    /// React Server Components encode dates as `$D<iso8601>`; strip that marker before parsing.
+    fileprivate static func resetDate(_ raw: String?) -> Date? {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+        let candidate = trimmed.hasPrefix("$D") ? String(trimmed.dropFirst(2)) : trimmed
+        return ISO8601DateParser.parse(candidate)
+    }
 }
 
 enum MistralSubscriptionBudgetParser {
-    private struct RawBudget: Decodable {
-        let usagePercentage: Double
-        let initialBudget: Double
-        let currency: String
-        let resetAt: String?
-
-        enum CodingKeys: String, CodingKey {
-            case usagePercentage = "usage_percentage"
-            case initialBudget = "initial_budget"
-            case currency
-            case resetAt = "reset_at"
-        }
-    }
-
     enum ParseError: Error, Equatable {
         case budgetNotFound
         case ambiguousBudgets
@@ -184,18 +179,9 @@ enum MistralSubscriptionBudgetParser {
     private static func budget(from value: Any?) -> MistralSubscriptionBudget? {
         guard let dictionary = value as? [String: Any],
               let data = try? JSONSerialization.data(withJSONObject: dictionary),
-              let raw = try? JSONDecoder().decode(RawBudget.self, from: data)
+              let raw = try? JSONDecoder().decode(MistralBudgetPayload.self, from: data)
         else { return nil }
-        let currency = raw.currency.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        guard raw.usagePercentage.isFinite, raw.usagePercentage >= 0,
-              raw.initialBudget.isFinite, raw.initialBudget > 0, !currency.isEmpty
-        else { return nil }
-        let budget = MistralSubscriptionBudget(
-            usagePercentage: raw.usagePercentage,
-            limit: raw.initialBudget,
-            currencyCode: currency,
-            resetsAt: ISO8601DateParser.parse(raw.resetAt))
-        return budget.usedAmount.isFinite ? budget : nil
+        return raw.budget
     }
 
     private static func isHexDigit(_ byte: UInt8) -> Bool {
@@ -204,5 +190,32 @@ enum MistralSubscriptionBudgetParser {
 
     private static func isWhitespace(_ byte: UInt8) -> Bool {
         byte == 9 || byte == 10 || byte == 13 || byte == 32
+    }
+}
+
+struct MistralBudgetPayload: Decodable {
+    let usagePercentage: Double
+    let initialBudget: Double
+    let currency: String
+    let resetAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case currency
+        case usagePercentage = "usage_percentage"
+        case initialBudget = "initial_budget"
+        case resetAt = "reset_at"
+    }
+
+    var budget: MistralSubscriptionBudget? {
+        let code = self.currency.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        guard self.usagePercentage.isFinite, self.usagePercentage >= 0,
+              self.initialBudget.isFinite, self.initialBudget > 0, !code.isEmpty
+        else { return nil }
+        let budget = MistralSubscriptionBudget(
+            usagePercentage: self.usagePercentage,
+            limit: self.initialBudget,
+            currencyCode: code,
+            resetsAt: MistralSubscriptionBudget.resetDate(self.resetAt))
+        return budget.usedAmount.isFinite ? budget : nil
     }
 }

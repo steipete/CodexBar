@@ -5,6 +5,7 @@
 "+ %d more" = "+ %d개 더";
 "Conversations (%@)" = "대화 (%@)";
 "Fast" = "빠름";
+"Optional. Reads included API and Vibe allowances without browser cookies." = "선택 사항. 브라우저 쿠키 없이 포함된 API 및 Vibe 할당량을 읽습니다.";
 "iCloud Sync" = "아이클라우드 동기화";
 "Projects" = "프로젝트";
 "Session %@" = "세션 %@";

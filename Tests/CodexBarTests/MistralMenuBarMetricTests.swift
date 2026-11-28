@@ -6,6 +6,49 @@ import Testing
 @Suite(.serialized)
 @MainActor
 struct MistralMenuBarMetricTests {
+    @Test(arguments: [(true, true), (false, true), (false, false)])
+    func `Mistral automatic uses spend or the available allowance`(hasBillingHistory: Bool, hasAPIAllowance: Bool) {
+        let now = Date()
+        let billing = hasBillingHistory ? MistralUsageSnapshot(
+            totalCost: 0,
+            currency: "EUR",
+            currencySymbol: "€",
+            totalInputTokens: 0,
+            totalOutputTokens: 0,
+            totalCachedTokens: 0,
+            modelCount: 0,
+            startDate: nil,
+            endDate: nil,
+            updatedAt: now) : nil
+        let snapshot = UsageSnapshot(
+            primary: hasAPIAllowance
+                ? RateWindow(usedPercent: 2, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
+                : nil,
+            secondary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "mistral-monthly-plan",
+                    title: "Monthly Plan",
+                    window: RateWindow(usedPercent: 42, windowMinutes: nil, resetsAt: nil, resetDescription: nil)),
+            ],
+            mistralUsage: billing,
+            updatedAt: now)
+
+        let window = MenuBarMetricWindowResolver.rateWindow(
+            preference: .monthlyPlan,
+            provider: .mistral,
+            snapshot: snapshot,
+            supportsAverage: false)
+
+        #expect(window?.usedPercent == 42)
+        #expect(MenuBarMetricWindowResolver.rateWindow(
+            preference: .automatic, provider: .mistral, snapshot: snapshot, supportsAverage: false)?.usedPercent
+            == (hasBillingHistory ? nil : (hasAPIAllowance ? 2 : 42)))
+        #expect(MenuBarMetricWindowResolver.rateWindow(
+            preference: .primary, provider: .mistral, snapshot: snapshot, supportsAverage: false)?.usedPercent
+            == (hasAPIAllowance ? 2 : nil))
+    }
+
     @Test(arguments: [false, true])
     func `Mistral reset tokens show only real reset dates`(hasReset: Bool) {
         let now = Date(timeIntervalSince1970: 1_790_000_000)

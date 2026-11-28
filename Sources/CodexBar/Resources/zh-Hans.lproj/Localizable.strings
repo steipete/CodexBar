@@ -5,6 +5,7 @@
 "+ %d more" = "还有 %d 个";
 "Conversations (%@)" = "会话（%@）";
 "Fast" = "高速";
+"Optional. Reads included API and Vibe allowances without browser cookies." = "可选。无需浏览器 Cookie 即可读取包含的 API 与 Vibe 配额。";
 "iCloud Sync" = "iCloud 同步";
 "Projects" = "项目";
 "Session %@" = "会话 %@";
