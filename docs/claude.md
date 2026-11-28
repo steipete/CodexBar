@@ -478,7 +478,7 @@ The accepted multi-account design in
   [`cswap`](https://github.com/realiti4/claude-swap) executable (for example `~/.local/bin/cswap`) in the field
   directly beneath the enabled toggle. The path field and its help are hidden while the integration is off.
 - tcr source: [tcr](https://github.com/dhkts1/teamclaude-rs) prints the same list schema v1 from `tcr list --json`.
-  Pick "tcr" in the Source picker shown while the integration is on (config key `claudeSwapSource: "tcr"`) and set
+  Pick "tcr" in the Source picker above the executable field (config key `claudeSwapSource: "tcr"`) and set
   the path to the `tcr` executable. CodexBar then runs `tcr list --json` and `tcr --version` with the same bounds,
   parser and isolation rules; cards are labelled `tcr` and identity is `tcr:<slot>`. tcr pools its accounts and
   routes each request itself, so its list reports no active account and `supportsAccountSwitching: false`: no row

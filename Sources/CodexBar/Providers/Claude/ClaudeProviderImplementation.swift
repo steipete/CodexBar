@@ -100,6 +100,17 @@ struct ClaudeProviderImplementation: ProviderImplementation {
             binding: context.binding(\.claudeSwapExecutablePath),
             actions: [],
             isVisible: nil)
+        let claudeSwapSourcePicker = ProviderSettingsPickerDescriptor(
+            id: "claude-swap-source",
+            title: "Source",
+            subtitle: "",
+            binding: context.rawValueBinding(\.claudeSwapSource, fallback: .claudeSwap),
+            // Tool names, not prose: they stay untranslated in every locale.
+            options: ClaudeSwapAccountSource.allCases.map {
+                ProviderSettingsPickerOption(id: $0.rawValue, title: $0.label)
+            },
+            isVisible: { context.settings.claudeSwapEnabled },
+            onChange: nil)
 
         return [
             ProviderSettingsToggleDescriptor(
@@ -173,6 +184,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 statusText: { Self.claudeSwapStatusText(store: context.store, settings: context.settings) },
                 actions: [],
                 inlineFields: [claudeSwapExecutableField],
+                inlinePickers: [claudeSwapSourcePicker],
                 isVisible: nil,
                 isEnabled: nil,
                 onChange: nil,
@@ -264,17 +276,6 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 options: keychainPromptPolicyOptions,
                 isVisible: nil,
                 isEnabled: { !context.settings.debugDisableKeychainAccess },
-                onChange: nil),
-            ProviderSettingsPickerDescriptor(
-                id: "claude-swap-source",
-                title: "Source",
-                subtitle: "",
-                binding: context.rawValueBinding(\.claudeSwapSource, fallback: .claudeSwap),
-                // Tool names, not prose: they stay untranslated in every locale.
-                options: ClaudeSwapAccountSource.allCases.map {
-                    ProviderSettingsPickerOption(id: $0.rawValue, title: $0.label)
-                },
-                isVisible: { context.settings.claudeSwapEnabled },
                 onChange: nil),
             ProviderCookieSourceUI.picker(
                 id: "claude-cookie-source",
