@@ -63,20 +63,28 @@ extension ProviderSettingsDescriptorTests {
     }
 
     @Test
-    func `mistral selected cookie token account uses web even when source is api`() throws {
+    func `mistral api mode keeps saved cookie token account passive and auto resumes web`() throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-mistral-token-account-api")
         fixture.settings.mistralAPIKey = "synthetic-key"
-        fixture.settings.updateProviderConfig(provider: .mistral) { $0.source = .api }
         fixture.settings.addTokenAccount(
             provider: .mistral,
             label: "Work",
             token: "ory_session_test=account-cookie")
 
-        let fetch = fixture.store.makeFetchContext(provider: .mistral, override: nil)
-        #expect(fetch.sourceMode == .web)
-        #expect(fetch.env["MISTRAL_API_KEY"] == nil)
-        #expect(fetch.settings?.mistral?.cookieSource == .manual)
-        #expect(fetch.settings?.mistral?.manualCookieHeader == "ory_session_test=account-cookie")
+        fixture.settings.updateProviderConfig(provider: .mistral) { $0.source = .api }
+        #expect(fixture.settings.effectiveSelectedTokenAccount(for: .mistral) == nil)
+        let apiFetch = fixture.store.makeFetchContext(provider: .mistral, override: nil)
+        #expect(apiFetch.sourceMode == .api)
+        #expect(apiFetch.env["MISTRAL_API_KEY"] == "synthetic-key")
+        #expect(apiFetch.settings?.mistral?.manualCookieHeader != "ory_session_test=account-cookie")
+
+        fixture.settings.updateProviderConfig(provider: .mistral) { $0.source = .auto }
+        #expect(fixture.settings.effectiveSelectedTokenAccount(for: .mistral)?.label == "Work")
+        let autoFetch = fixture.store.makeFetchContext(provider: .mistral, override: nil)
+        #expect(autoFetch.sourceMode == .web)
+        #expect(autoFetch.env["MISTRAL_API_KEY"] == nil)
+        #expect(autoFetch.settings?.mistral?.cookieSource == .manual)
+        #expect(autoFetch.settings?.mistral?.manualCookieHeader == "ory_session_test=account-cookie")
     }
 
     @Test

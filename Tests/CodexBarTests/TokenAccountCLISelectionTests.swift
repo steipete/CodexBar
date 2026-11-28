@@ -216,6 +216,18 @@ struct TokenAccountCLISelectionTests {
         }
     }
 
+    @Test
+    func `Mistral API mode keeps sessions passive unless a CLI account is explicitly selected`() throws {
+        let passive = try Self.context(provider: .mistral, source: .api)
+        #expect(try passive.resolvedAccounts(for: .mistral).isEmpty)
+        #expect(passive.effectiveSourceMode(base: .api, provider: .mistral, account: nil) == .api)
+        for selection in Self.accountOverrides {
+            let context = try Self.context(provider: .mistral, source: .api, selection: selection)
+            let account = try #require(try context.resolvedAccounts(for: .mistral).first)
+            #expect(context.effectiveSourceMode(base: .api, provider: .mistral, account: account) == .web)
+        }
+    }
+
     private static var accountOverrides: [TokenAccountCLISelection] {
         [
             TokenAccountCLISelection(label: "Primary", index: nil, allAccounts: false),

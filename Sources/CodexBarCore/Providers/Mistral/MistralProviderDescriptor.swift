@@ -11,7 +11,8 @@ public enum MistralProviderDescriptor {
             placeholder: "Cookie: …",
             injection: .cookieHeader,
             requiresManualCookieSource: true,
-            cookieName: nil),
+            cookieName: nil,
+            passiveSourceModes: [.api]),
         authDetector: { env, _ in MistralBudgetFetchStrategy.apiKey(in: env) == nil ? [] : ["api"] },
         accountEnvironmentOverride: { env, _ in
             // An explicitly selected cookie account must not use another account's configured key.
