@@ -20,12 +20,20 @@ struct MistralProviderImplementation: ProviderImplementation {
 
     @MainActor
     func defaultSourceLabel(context: ProviderSourceLabelContext) -> String? {
-        context.settings.providerConfig(for: self.id)?.source?.rawValue
+        Self.normalizedSourceMode(context.settings.providerConfig(for: self.id)?.source).rawValue
     }
 
     @MainActor
     func sourceMode(context: ProviderSourceModeContext) -> ProviderSourceMode {
-        context.settings.providerConfig(for: self.id)?.source ?? .auto
+        Self.normalizedSourceMode(context.settings.providerConfig(for: self.id)?.source)
+    }
+
+    private static func normalizedSourceMode(_ source: ProviderSourceMode?) -> ProviderSourceMode {
+        switch source {
+        case .api: .api
+        case .web: .web
+        case .auto, .cli, .oauth, nil: .auto
+        }
     }
 
     @MainActor
@@ -50,9 +58,9 @@ struct MistralProviderImplementation: ProviderImplementation {
             subtitle: "Auto tries the API key first and falls back to browser cookies. "
                 + "Browser cookies are required for spend, credits, and token history.",
             binding: Binding(
-                get: { context.settings.providerConfig(for: self.id)?.source?.rawValue ?? "auto" },
+                get: { Self.normalizedSourceMode(context.settings.providerConfig(for: self.id)?.source).rawValue },
                 set: { raw in
-                    let mode = ProviderSourceMode(rawValue: raw) ?? .auto
+                    let mode = Self.normalizedSourceMode(ProviderSourceMode(rawValue: raw))
                     guard mode != (context.settings.providerConfig(for: self.id)?.source ?? .auto) else { return }
                     context.store.clearProviderState(self.id)
                     context.settings.updateProviderConfig(provider: self.id) { $0.source = mode }

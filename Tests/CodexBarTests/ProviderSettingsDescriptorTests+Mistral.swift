@@ -47,6 +47,39 @@ extension ProviderSettingsDescriptorTests {
     }
 
     @Test
+    func `mistral unsupported configured source normalizes to auto`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-mistral-unsupported-source")
+        let context = fixture.settingsContext(provider: .mistral)
+        let implementation = MistralProviderImplementation()
+        let picker = try #require(implementation.settingsPickers(context: context)
+            .first { $0.id == "mistral-usage-source" })
+
+        for unsupported in [ProviderSourceMode.cli, .oauth] {
+            fixture.settings.updateProviderConfig(provider: .mistral) { $0.source = unsupported }
+            #expect(fixture.store.makeFetchContext(provider: .mistral, override: nil).sourceMode == .auto)
+            #expect(picker.binding.wrappedValue == "auto")
+            #expect(fixture.store.sourceLabel(for: .mistral) == "auto")
+        }
+    }
+
+    @Test
+    func `mistral selected cookie token account uses web even when source is api`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-mistral-token-account-api")
+        fixture.settings.mistralAPIKey = "synthetic-key"
+        fixture.settings.updateProviderConfig(provider: .mistral) { $0.source = .api }
+        fixture.settings.addTokenAccount(
+            provider: .mistral,
+            label: "Work",
+            token: "ory_session_test=account-cookie")
+
+        let fetch = fixture.store.makeFetchContext(provider: .mistral, override: nil)
+        #expect(fetch.sourceMode == .web)
+        #expect(fetch.env["MISTRAL_API_KEY"] == nil)
+        #expect(fetch.settings?.mistral?.cookieSource == .manual)
+        #expect(fetch.settings?.mistral?.manualCookieHeader == "ory_session_test=account-cookie")
+    }
+
+    @Test
     func `mistral cookie refresh uses browser only for that request even with a key`() async throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-mistral-web-refresh")
         fixture.settings.mistralAPIKey = "synthetic-key"

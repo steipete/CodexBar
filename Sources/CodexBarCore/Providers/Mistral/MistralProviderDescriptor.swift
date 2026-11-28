@@ -16,7 +16,8 @@ public enum MistralProviderDescriptor {
         accountEnvironmentOverride: { env, _ in
             // An explicitly selected cookie account must not use another account's configured key.
             env.removeValue(forKey: MistralBudgetFetchStrategy.environmentKey)
-        })
+        },
+        selectedAccountSourceModeResolver: { base, account, _ in account == nil ? base : .web })
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
