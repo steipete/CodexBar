@@ -308,7 +308,7 @@ struct MenuCardModelCodexProjectionTests {
         #expect(model.metrics.isEmpty)
         #expect(model.subtitleStyle == .info)
         #expect(!model.subtitleText.contains("Found sessions"))
-        #expect(model.planText == "Pro 20x")
+        #expect(model.planText == "Pro")
     }
 
     @Test
@@ -349,7 +349,7 @@ struct MenuCardModelCodexProjectionTests {
         #expect(model.placeholder == nil)
         #expect(model.subtitleStyle == .error)
         #expect(model.subtitleText == "Codex connection failed: timed out.")
-        #expect(model.planText == "Pro 20x")
+        #expect(model.planText == "Pro")
     }
 
     @Test
@@ -380,7 +380,7 @@ struct MenuCardModelCodexProjectionTests {
         #expect(model.subtitleStyle == .info)
         #expect(!model.subtitleText.contains("Found sessions"))
         #expect(model.email == "user@example.com")
-        #expect(model.planText == "Pro 20x")
+        #expect(model.planText == "Pro")
     }
 
     @Test

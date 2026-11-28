@@ -41,7 +41,7 @@ struct CLICardsRendererTests {
 
         #expect(output.contains("Codex"))
         #expect(output.contains("[oauth]"))
-        #expect(output.contains("PLAN Pro 20x"))
+        #expect(output.contains("PLAN Pro"))
         #expect(output.contains("Session"))
         #expect(output.contains("88% left"))
         #expect(output.contains("[ "))
@@ -82,7 +82,7 @@ struct CLICardsRendererTests {
 
         #expect(joined.contains("@ user@example.com"))
         #expect(joined.contains("Session"))
-        #expect(!joined.contains("Plan: Pro 20x"))
+        #expect(!joined.contains("Plan: Pro"))
     }
 
     @Test

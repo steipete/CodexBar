@@ -128,7 +128,7 @@ omits `CODEXBAR_ACCOUNT` and the matching JSON field.
 report a raw identifier:
 
 - `plan` (`CODEXBAR_PLAN`): the provider's raw plan/tier identifier, for example `pro`. It is not the display label
-  (`Pro 20x`) and it does not establish an allowance multiplier, baseline, or quota window.
+  (`Pro`) and it does not establish an allowance multiplier, baseline, or quota window.
 - `planSource` (`CODEXBAR_PLAN_SOURCE`): the provider surface that reported it. Current values are `usage_response`
   (provider usage/rate-limit response), `oauth_claims` (OAuth ID-token claims), `pat_whoami` (token-auth whoami
   response), and `local_rpc` (local Codex app-server response).

@@ -2,11 +2,11 @@ import Foundation
 
 public enum CodexPlanFormatting {
     private static let exactDisplayNames: [String: String] = [
-        "pro": "Pro 20x",
-        "prolite": "Pro 5x",
-        "pro_lite": "Pro 5x",
-        "pro-lite": "Pro 5x",
-        "pro lite": "Pro 5x",
+        "pro": "Pro",
+        "prolite": "Pro Lite",
+        "pro_lite": "Pro Lite",
+        "pro-lite": "Pro Lite",
+        "pro lite": "Pro Lite",
     ]
 
     private static let uppercaseWords: Set<String> = [

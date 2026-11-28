@@ -186,11 +186,11 @@ let openAIDashboardScrapeScript = """
         if (!trimmed) return null;
         const lower = trimmed.toLowerCase();
         const exact = {
-          pro: 'Pro 20x',
-          prolite: 'Pro 5x',
-          'pro_lite': 'Pro 5x',
-          'pro-lite': 'Pro 5x',
-          'pro lite': 'Pro 5x'
+          pro: 'Pro',
+          prolite: 'Pro Lite',
+          'pro_lite': 'Pro Lite',
+          'pro-lite': 'Pro Lite',
+          'pro lite': 'Pro Lite'
         };
         if (exact[lower]) return exact[lower];
         const cleaned = cleanPlanName(trimmed);
@@ -231,8 +231,8 @@ let openAIDashboardScrapeScript = """
         if (!lower.includes('plan') && !lower.includes('tier') && !lower.includes('subscription')) return null;
         if (typeof value === 'string') return normalizePlanValue(value);
         if (value && typeof value === 'object' && !Array.isArray(value)) {
-          return normalizePlanValue(value.name) ||
-            normalizePlanValue(value.displayName) ||
+          return normalizePlanValue(value.displayName) ||
+            normalizePlanValue(value.name) ||
             normalizePlanValue(value.tier);
         }
         return null;

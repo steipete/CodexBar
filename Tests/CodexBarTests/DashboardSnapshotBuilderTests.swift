@@ -321,7 +321,7 @@ struct DashboardSnapshotBuilderTests {
         #expect(status["level"] as? String == "ok")
         #expect(status["label"] as? String == "Operational")
         #expect(identity["accountEmail"] as? String == "redacted@example.com")
-        #expect(identity["plan"] as? String == "Pro 20x")
+        #expect(identity["plan"] as? String == "Pro")
 
         #expect(windows.count == 2)
         #expect(windows[0]["kind"] as? String == "session")

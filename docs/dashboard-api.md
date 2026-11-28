@@ -260,7 +260,7 @@ The snapshot is a stable display contract, not a raw dump of provider internals.
       },
       "identity": {
         "accountEmail": "user@example.com",
-        "plan": "Pro 20x"
+        "plan": "Pro"
       },
       "windows": [
         {

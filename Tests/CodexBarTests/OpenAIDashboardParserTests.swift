@@ -120,7 +120,24 @@ struct OpenAIDashboardParserTests {
         </body>
         </html>
         """
-        #expect(OpenAIDashboardParser.parsePlanFromHTML(html: html) == "Pro 5x")
+        #expect(OpenAIDashboardParser.parsePlanFromHTML(html: html) == "Pro Lite")
+    }
+
+    @Test
+    func `prefers the reported plan display name to the tier identifier`() {
+        let html = """
+        <script type="application/json" id="client-bootstrap">
+        {"subscription":{"name":"prolite","displayName":"Pro 10x"}}
+        </script>
+        """
+        #expect(OpenAIDashboardParser.parsePlanFromHTML(html: html) == "Pro 10x")
+
+        let pro100HTML = """
+        <script type="application/json" id="client-bootstrap">
+        {"subscription":{"name":"prolite","displayName":"Pro 100"}}
+        </script>
+        """
+        #expect(OpenAIDashboardParser.parsePlanFromHTML(html: pro100HTML) == "Pro 100")
     }
 
     @Test
