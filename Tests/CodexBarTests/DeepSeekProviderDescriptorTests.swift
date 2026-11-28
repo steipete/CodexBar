@@ -463,6 +463,170 @@ struct DeepSeekProviderDescriptorTests {
         #expect(strategies.map(\.id) == ["deepseek.api"])
     }
 
+    private actor PeriodTimeZoneProbe {
+        struct Call: Equatable, Sendable {
+            let kind: String
+            let period: CostReportingPeriod
+            let timeZoneIdentifier: String
+            let includeOptionalUsage: Bool
+        }
+
+        private(set) var calls: [Call] = []
+
+        func record(
+            kind: String,
+            period: CostReportingPeriod,
+            timeZoneIdentifier: String,
+            includeOptionalUsage: Bool)
+        {
+            self.calls.append(Call(
+                kind: kind,
+                period: period,
+                timeZoneIdentifier: timeZoneIdentifier,
+                includeOptionalUsage: includeOptionalUsage))
+        }
+
+        func takeCalls() -> [Call] {
+            let result = self.calls
+            self.calls.removeAll()
+            return result
+        }
+    }
+
+    @Test
+    func `descriptor forwards cost reporting period and bucket timezone across all API and Platform paths`()
+        async throws
+    {
+        let probe = PeriodTimeZoneProbe()
+        let apiKey = "sk-forward-period-tz"
+        let sessionToken = "synthetic-forward-platform-token"
+        let validScope = try #require(DeepSeekSettingsReader.profileScope(selectedTokenAccountID: nil, apiKey: apiKey))
+        let scopedTokenEnv = [
+            DeepSeekSettingsReader.platformTokenEnvironmentKey: sessionToken,
+            DeepSeekSettingsReader.profileScopeEnvironmentKey: validScope,
+        ]
+
+        let operations = DeepSeekProviderDescriptor.FetchOperations(
+            fetchUsage: { _, _, includeOptional, period, timeZoneIdentifier in
+                await probe.record(
+                    kind: "fetchUsage",
+                    period: period,
+                    timeZoneIdentifier: timeZoneIdentifier,
+                    includeOptionalUsage: includeOptional)
+                return Self.balance
+            },
+            fetchPlatformUsage: { _, includeOptional, period, timeZoneIdentifier in
+                await probe.record(
+                    kind: "fetchPlatformUsage",
+                    period: period,
+                    timeZoneIdentifier: timeZoneIdentifier,
+                    includeOptionalUsage: includeOptional)
+                return Self.balance
+            },
+            resolveAutomaticSession: { request in
+                await probe.record(
+                    kind: request.includePlatformBalance ? "resolvePlatformAuto" : "resolveAPIAuto",
+                    period: request.period,
+                    timeZoneIdentifier: request.bucketTimeZoneIdentifier,
+                    includeOptionalUsage: request.includeOptionalUsage)
+                return DeepSeekPlatformTokenImporter.Resolution(
+                    profiles: [DeepSeekPlatformProfile(id: "chrome:Default", name: "Chrome")],
+                    selectedSummary: nil,
+                    selectedBalance: Self.balance,
+                    detailedUsageState: request.includeOptionalUsage ? .available : .notRequested)
+            })
+
+        // 1. loadUsage opt-out forwards period and timezone to fetchUsage.
+        _ = try await DeepSeekProviderDescriptor._loadUsageForTesting(
+            apiKey: apiKey,
+            context: Self.makeContext(
+                includeOptionalUsage: false,
+                costReportingPeriod: .rolling(days: 90),
+                costUsageBucketTimeZoneIdentifier: "Asia/Tokyo"),
+            optionalResolutionJoinGrace: .seconds(1),
+            operations: operations)
+        #expect(await probe.takeCalls() == [
+            .init(
+                kind: "fetchUsage",
+                period: .rolling(days: 90),
+                timeZoneIdentifier: "Asia/Tokyo",
+                includeOptionalUsage: false),
+        ])
+
+        // 2. loadUsage scoped token forwards period and timezone to fetchUsage.
+        _ = try await DeepSeekProviderDescriptor._loadUsageForTesting(
+            apiKey: apiKey,
+            context: Self.makeContext(
+                environment: scopedTokenEnv,
+                includeOptionalUsage: true,
+                costReportingPeriod: .allTime,
+                costUsageBucketTimeZoneIdentifier: "America/Los_Angeles"),
+            optionalResolutionJoinGrace: .seconds(1),
+            operations: operations)
+        #expect(await probe.takeCalls() == [
+            .init(
+                kind: "fetchUsage",
+                period: .allTime,
+                timeZoneIdentifier: "America/Los_Angeles",
+                includeOptionalUsage: true),
+        ])
+
+        // 3. loadUsage automatic mode forwards period and timezone to both fetchUsage and resolveAutomaticSession.
+        _ = try await DeepSeekProviderDescriptor._loadUsageForTesting(
+            apiKey: apiKey,
+            context: Self.makeContext(
+                includeOptionalUsage: true,
+                costReportingPeriod: .rolling(days: 365),
+                costUsageBucketTimeZoneIdentifier: "Europe/Berlin"),
+            optionalResolutionJoinGrace: .seconds(1),
+            operations: operations)
+        let autoAPICalls = await probe.takeCalls()
+        #expect(autoAPICalls.count == 2)
+        #expect(autoAPICalls.contains(.init(
+            kind: "fetchUsage",
+            period: .rolling(days: 365),
+            timeZoneIdentifier: "Europe/Berlin",
+            includeOptionalUsage: false)))
+        #expect(autoAPICalls.contains(.init(
+            kind: "resolveAPIAuto",
+            period: .rolling(days: 365),
+            timeZoneIdentifier: "Europe/Berlin",
+            includeOptionalUsage: true)))
+
+        // 4. loadPlatformUsage scoped token forwards period and timezone to fetchPlatformUsage.
+        _ = try await DeepSeekProviderDescriptor._loadPlatformUsageForTesting(
+            context: Self.makeContext(
+                environment: [DeepSeekSettingsReader.platformTokenEnvironmentKey: sessionToken],
+                sourceMode: .web,
+                includeOptionalUsage: true,
+                costReportingPeriod: .monthToDate,
+                costUsageBucketTimeZoneIdentifier: "UTC"),
+            operations: operations)
+        #expect(await probe.takeCalls() == [
+            .init(
+                kind: "fetchPlatformUsage",
+                period: .monthToDate,
+                timeZoneIdentifier: "UTC",
+                includeOptionalUsage: true),
+        ])
+
+        // 5. loadPlatformUsage automatic browser resolution forwards period and timezone to resolveAutomaticSession.
+        _ = try await DeepSeekProviderDescriptor._loadPlatformUsageForTesting(
+            context: Self.makeContext(
+                sourceMode: .web,
+                includeOptionalUsage: true,
+                costReportingPeriod: .rolling(days: 180),
+                costUsageBucketTimeZoneIdentifier: "Asia/Kolkata"),
+            operations: operations)
+        #expect(await probe.takeCalls() == [
+            .init(
+                kind: "resolvePlatformAuto",
+                period: .rolling(days: 180),
+                timeZoneIdentifier: "Asia/Kolkata",
+                includeOptionalUsage: true),
+        ])
+    }
+
     private static let balance = DeepSeekUsageSnapshot(
         isAvailable: true,
         currency: "USD",
@@ -480,7 +644,9 @@ struct DeepSeekProviderDescriptorTests {
         environment: [String: String] = [:],
         selectedTokenAccountID: UUID? = nil,
         sourceMode: ProviderSourceMode = .api,
-        includeOptionalUsage: Bool = true) -> ProviderFetchContext
+        includeOptionalUsage: Bool = true,
+        costReportingPeriod: CostReportingPeriod = .rolling(days: 30),
+        costUsageBucketTimeZoneIdentifier: String = "") -> ProviderFetchContext
     {
         let browserDetection = BrowserDetection(cacheTTL: 0)
         return ProviderFetchContext(
@@ -496,6 +662,8 @@ struct DeepSeekProviderDescriptorTests {
             fetcher: UsageFetcher(environment: [:]),
             claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection),
             browserDetection: browserDetection,
-            selectedTokenAccountID: selectedTokenAccountID)
+            selectedTokenAccountID: selectedTokenAccountID,
+            costReportingPeriod: costReportingPeriod,
+            costUsageBucketTimeZoneIdentifier: costUsageBucketTimeZoneIdentifier)
     }
 }

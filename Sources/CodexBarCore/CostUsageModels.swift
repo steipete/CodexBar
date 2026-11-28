@@ -16,6 +16,17 @@ package struct CostUsageTokenActivityCache: Sendable, Equatable {
     }
 }
 
+/// Inclusive civil-date interval (`yyyy-MM-dd`) attesting a verified contiguous slice of history.
+public struct CostUsageDayInterval: Sendable, Equatable, Hashable, Codable {
+    public let startDay: String
+    public let endDay: String
+
+    public init(startDay: String, endDay: String) {
+        self.startDay = startDay
+        self.endDay = endDay
+    }
+}
+
 package enum CostUsageIncompleteRequests {
     /// Reject malformed persisted counts at decode boundaries. Saturate combined reports so
     /// overflow cannot erase the incomplete marker or crash a consumer.
@@ -175,6 +186,12 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
     /// exhausted scan budget, or rows that failed to decode. The rows present are usable, but every
     /// total derived from them is a lower bound, so no surface may present them as complete.
     public let historyScanIsPartial: Bool
+    /// Explicit disjoint covered civil-day intervals for paginated sources that can have interior gaps.
+    /// `nil` means standard contiguous coverage from `historyDays` anchored at `updatedAt`.
+    public let coveredDayIntervals: [CostUsageDayInterval]?
+    /// `true` when the source already resolved exact period bounds and labels (for example DeepSeek
+    /// paginated queries or UTC monthly fallback) and must not be relabeled or resliced by `CostReportingPeriod`.
+    public let preservesSourceHistoryLabel: Bool
     public var historyLabel: String?
     public var reportingPeriod: CostReportingPeriod?
     /// Provider-metered spend over the same window as `last30DaysCostUSD` — what the plan
@@ -210,6 +227,8 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         historyDays: Int = 30,
         historyCoverageIsEstablished: Bool = true,
         historyScanIsPartial: Bool = false,
+        coveredDayIntervals: [CostUsageDayInterval]? = nil,
+        preservesSourceHistoryLabel: Bool = false,
         historyLabel: String? = nil,
         meteredCostUSD: Double? = nil,
         costProvenance: CostProvenance = .unknown,
@@ -233,6 +252,8 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         self.historyDays = historyDays
         self.historyCoverageIsEstablished = historyCoverageIsEstablished
         self.historyScanIsPartial = historyScanIsPartial
+        self.coveredDayIntervals = coveredDayIntervals
+        self.preservesSourceHistoryLabel = preservesSourceHistoryLabel
         self.historyLabel = historyLabel
         self.meteredCostUSD = meteredCostUSD
         self.costProvenance = costProvenance
@@ -1499,7 +1520,7 @@ enum CostUsageBucketInterval {
     }
 }
 
-enum CostUsageLocalDay {
+package enum CostUsageLocalDay {
     private static let cache = Cache()
 
     /// Only calendar arithmetic is shared: no account, provider, path, or usage data is retained.
@@ -1519,11 +1540,18 @@ enum CostUsageLocalDay {
         }
     }
 
-    static func gregorianCalendar(matching calendar: Calendar = .current) -> Calendar {
+    package static func gregorianCalendar(matching calendar: Calendar = .current) -> Calendar {
         self.cache.withMemo(calendar: calendar) { $0.calendar }
     }
 
-    static func key(from date: Date, calendar: Calendar = .current) -> String {
+    package static func fixedOffsetGregorianCalendar(secondsFromGMT: Int) -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        calendar.timeZone = TimeZone(secondsFromGMT: secondsFromGMT) ?? .gmt
+        return calendar
+    }
+
+    package static func key(from date: Date, calendar: Calendar = .current) -> String {
         self.cache.withMemo(calendar: calendar) { $0.key(for: date, calendar: calendar) }
     }
 
@@ -1544,7 +1572,7 @@ enum CostUsageLocalDay {
         return "\(padded(year, width: 4))-\(padded(month, width: 2))-\(padded(day, width: 2))"
     }
 
-    static func date(fromKey key: String, calendar: Calendar = .current) -> Date? {
+    package static func date(fromKey key: String, calendar: Calendar = .current) -> Date? {
         let parts = key.split(separator: "-")
         guard parts.count == 3,
               let year = Int(parts[0]),

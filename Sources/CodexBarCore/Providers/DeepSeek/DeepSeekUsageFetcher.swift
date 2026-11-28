@@ -125,6 +125,41 @@ public struct DeepSeekPlatformProfile: Sendable, Equatable {
     }
 }
 
+/// Non-secret metadata for an already-selected DeepSeek session eligible for wide history loading.
+public struct DeepSeekHistorySessionMetadata: Sendable, Equatable {
+    public let profileID: String?
+    public let ownerTokenDigest: String?
+    public let plan: DeepSeekHistoryPlan
+    public let recentFold: DeepSeekChunkFoldResult
+
+    public init(
+        profileID: String?,
+        ownerTokenDigest: String?,
+        plan: DeepSeekHistoryPlan,
+        recentFold: DeepSeekChunkFoldResult)
+    {
+        self.profileID = profileID
+        self.ownerTokenDigest = ownerTokenDigest
+        self.plan = plan
+        self.recentFold = recentFold
+    }
+}
+
+/// Live-only continuation bound to the already-selected DeepSeek session in process memory.
+/// The raw platform token stays captured inside the closure and never enters snapshots or persistence.
+public struct DeepSeekWideHistoryContinuation: Sendable {
+    public let metadata: DeepSeekHistorySessionMetadata
+    public let fetchChunk: @Sendable (DeepSeekUsageWindow) async throws -> DeepSeekChunkFoldResult
+
+    public init(
+        metadata: DeepSeekHistorySessionMetadata,
+        fetchChunk: @escaping @Sendable (DeepSeekUsageWindow) async throws -> DeepSeekChunkFoldResult)
+    {
+        self.metadata = metadata
+        self.fetchChunk = fetchChunk
+    }
+}
+
 public struct DeepSeekUsageSnapshot: Sendable {
     public let hasBalance: Bool
     public let isAvailable: Bool
@@ -136,6 +171,7 @@ public struct DeepSeekUsageSnapshot: Sendable {
     public let detailedUsageState: DeepSeekDetailedUsageState
     public let platformProfiles: [DeepSeekPlatformProfile]
     public let platformBalanceOwner: DeepSeekPlatformBalanceOwner?
+    public let historyContinuation: DeepSeekWideHistoryContinuation?
     public let updatedAt: Date
 
     public init(
@@ -149,6 +185,7 @@ public struct DeepSeekUsageSnapshot: Sendable {
         detailedUsageState: DeepSeekDetailedUsageState? = nil,
         platformProfiles: [DeepSeekPlatformProfile] = [],
         platformBalanceOwner: DeepSeekPlatformBalanceOwner? = nil,
+        historyContinuation: DeepSeekWideHistoryContinuation? = nil,
         updatedAt: Date)
     {
         self.hasBalance = hasBalance
@@ -161,6 +198,7 @@ public struct DeepSeekUsageSnapshot: Sendable {
         self.detailedUsageState = detailedUsageState ?? (usageSummary == nil ? .notRequested : .available)
         self.platformProfiles = platformProfiles
         self.platformBalanceOwner = platformBalanceOwner
+        self.historyContinuation = historyContinuation
         self.updatedAt = updatedAt
     }
 
@@ -198,7 +236,9 @@ public struct DeepSeekUsageSnapshot: Sendable {
             nil
         }
 
-        let details = self.usageSummary.map(Self.detailSections) ?? []
+        let details = self.usageSummary.map {
+            Self.detailSections(for: $0, referenceDate: self.updatedAt)
+        } ?? []
         return UsageSnapshot(
             primary: balanceWindow,
             secondary: nil,
@@ -225,23 +265,31 @@ public struct DeepSeekUsageSnapshot: Sendable {
             detailedUsageState: self.detailedUsageState,
             platformProfiles: self.platformProfiles,
             platformBalanceOwner: self.hasBalance ? owner : nil,
+            historyContinuation: self.historyContinuation,
             updatedAt: self.updatedAt)
     }
 
-    private static func detailSections(_ usage: DeepSeekUsageSummary) -> [ProviderDetailSection] {
+    public static func detailSections(
+        for usage: DeepSeekUsageSummary,
+        referenceDate: Date? = nil) -> [ProviderDetailSection]
+    {
         let symbol = usage.currency == "CNY" ? "¥" : "$"
         let cost: (Double?) -> String = { value in
             value.map { "\(symbol)\(String(format: "%.4f", max(0, $0)))" } ?? "—"
         }
+        let dayRowLabel = Self.singleDayRowLabel(for: usage, referenceDate: referenceDate)
         var rows: [ProviderDetailSection.Row] = [
             .makeRow(
-                label: "Today",
+                label: dayRowLabel,
                 value: "\(cost(usage.todayCost)) · \(usage.todayTokens.formatted()) tokens"),
-            .makeRow(
-                label: usage.period == .last30Days ? "Last 30 days" : "This month",
-                value: "\(cost(usage.currentMonthCost)) · \(usage.currentMonthTokens.formatted()) tokens"),
-            .makeRow(label: "Requests", value: "\(usage.currentMonthRequestCount)"),
         ]
+        let periodLabel = usage.periodLabel
+        if periodLabel != "Today" {
+            rows.append(.makeRow(
+                label: periodLabel,
+                value: "\(cost(usage.currentMonthCost)) · \(usage.currentMonthTokens.formatted()) tokens"))
+        }
+        rows.append(.makeRow(label: "Requests", value: "\(usage.currentMonthRequestCount)"))
         if usage.apiKeyCount > 0 {
             rows.append(.makeRow(label: "API keys", value: "\(usage.apiKeyCount)"))
         }
@@ -254,8 +302,8 @@ public struct DeepSeekUsageSnapshot: Sendable {
             points: usage.daily.map { ($0.date, Double($0.totalTokens)) })
         var sections = [ProviderDetailSection.makeSection(title: "Usage", rows: rows, chart: tokenChart)]
         let costPoints = usage.daily.compactMap { day -> (label: String, value: Double)? in
-            guard let value = day.cost, value > 0 else { return (day.date, 0) }
-            return (day.date, value)
+            guard let value = day.cost else { return nil }
+            return (day.date, max(0, value))
         }
         let modelRows = usage.modelCosts.map { ProviderDetailSection.makeRow(label: $0.model, value: cost($0.cost)) }
         let hasCostChart = costPoints.contains { $0.value > 0 }
@@ -267,6 +315,24 @@ public struct DeepSeekUsageSnapshot: Sendable {
         }
         return sections
     }
+
+    private static func singleDayRowLabel(for usage: DeepSeekUsageSummary, referenceDate: Date?) -> String {
+        guard let referenceDate else { return "Today" }
+        let calendar = Self.detailCalendar(for: usage)
+        let summaryDayKey = CostUsageLocalDay.key(from: usage.updatedAt, calendar: calendar)
+        let referenceDayKey = CostUsageLocalDay.key(from: referenceDate, calendar: calendar)
+        return summaryDayKey == referenceDayKey ? "Today" : summaryDayKey
+    }
+
+    private static func detailCalendar(for usage: DeepSeekUsageSummary) -> Calendar {
+        if usage.period == .currentMonth {
+            return CostUsageBucketTimeZone.calendar(identifier: "UTC")
+        }
+        if let offset = usage.timeZoneSeconds, TimeZone(secondsFromGMT: offset) != nil {
+            return CostUsageLocalDay.fixedOffsetGregorianCalendar(secondsFromGMT: offset)
+        }
+        return CostUsageLocalDay.gregorianCalendar(matching: .current)
+    }
 }
 
 // MARK: - Errors
@@ -274,6 +340,7 @@ public struct DeepSeekUsageSnapshot: Sendable {
 public enum DeepSeekUsageError: LocalizedError, Sendable, Equatable {
     case missingCredentials
     case invalidPlatformToken
+    case rateLimited
     case networkError(String)
     case apiError(String)
     case parseFailed(String)
@@ -284,6 +351,8 @@ public enum DeepSeekUsageError: LocalizedError, Sendable, Equatable {
             "Missing DeepSeek API key."
         case .invalidPlatformToken:
             "DeepSeek Platform session is missing or expired."
+        case .rateLimited:
+            "DeepSeek API rate limit exceeded."
         case let .networkError(message):
             "DeepSeek network error: \(message)"
         case let .apiError(message):
@@ -315,10 +384,7 @@ public struct DeepSeekUsageFetcher: Sendable {
     private static let timeoutSeconds: TimeInterval = 15
     private static let optionalSummaryJoinGrace: Duration = .seconds(5)
     private static var apiCalendar: Calendar {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.locale = Locale(identifier: "en_US_POSIX")
-        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
-        return calendar
+        CostUsageLocalDay.fixedOffsetGregorianCalendar(secondsFromGMT: 0)
     }
 
     private static var localGregorianCalendar: Calendar {
@@ -328,12 +394,26 @@ public struct DeepSeekUsageFetcher: Sendable {
         return calendar
     }
 
+    struct RecentUsageFetchResult: Sendable {
+        let summary: DeepSeekUsageSummary
+        let continuation: DeepSeekWideHistoryContinuation?
+    }
+
+    static func resolvedCalendar(bucketTimeZoneIdentifier: String) -> Calendar {
+        let trimmed = bucketTimeZoneIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return self.localGregorianCalendar }
+        return CostUsageBucketTimeZone.calendar(identifier: trimmed)
+    }
+
     public static func fetchUsage(
         apiKey: String,
         platformToken: String? = nil,
-        includeOptionalUsage: Bool = true) async throws -> DeepSeekUsageSnapshot
+        includeOptionalUsage: Bool = true,
+        period: CostReportingPeriod = .rolling(days: 30),
+        bucketTimeZoneIdentifier: String = "") async throws -> DeepSeekUsageSnapshot
     {
-        try await self.fetchUsage(
+        let calendar = self.resolvedCalendar(bucketTimeZoneIdentifier: bucketTimeZoneIdentifier)
+        return try await self.fetchUsage(
             apiKey: apiKey,
             platformToken: platformToken,
             includeOptionalUsage: includeOptionalUsage,
@@ -343,7 +423,13 @@ public struct DeepSeekUsageFetcher: Sendable {
                     try await self.fetchBalanceData(apiKey: key)
                 },
                 fetchSummary: { token in
-                    try await self.fetchUsageSummary(platformToken: token)
+                    try await self.fetchRecentUsageSummary(
+                        platformToken: token,
+                        profileID: nil,
+                        period: period,
+                        now: Date(),
+                        localCalendar: calendar,
+                        transport: ProviderHTTPClient.shared)
                 }))
     }
 
@@ -363,12 +449,14 @@ public struct DeepSeekUsageFetcher: Sendable {
             optionalSummaryJoinGrace: optionalSummaryJoinGrace,
             operations: FetchOperations(
                 fetchBalanceData: fetchBalanceData,
-                fetchSummary: fetchSummary))
+                fetchSummary: { token in
+                    try await RecentUsageFetchResult(summary: fetchSummary(token), continuation: nil)
+                }))
     }
 
     private struct FetchOperations: Sendable {
         let fetchBalanceData: @Sendable (String) async throws -> Data
-        let fetchSummary: @Sendable (String) async throws -> DeepSeekUsageSummary
+        let fetchSummary: @Sendable (String) async throws -> RecentUsageFetchResult
     }
 
     private static func fetchUsage(
@@ -385,7 +473,7 @@ public struct DeepSeekUsageFetcher: Sendable {
 
         let normalizedPlatformToken = platformToken?.trimmingCharacters(in: .whitespacesAndNewlines)
         let usablePlatformToken = normalizedPlatformToken?.isEmpty == false ? normalizedPlatformToken : nil
-        let summaryTask: Task<DeepSeekUsageSummary, Error>? = if includeOptionalUsage, let usablePlatformToken {
+        let summaryTask: Task<RecentUsageFetchResult, Error>? = if includeOptionalUsage, let usablePlatformToken {
             Task {
                 try await operations.fetchSummary(usablePlatformToken)
             }
@@ -443,6 +531,7 @@ public struct DeepSeekUsageFetcher: Sendable {
                 usageSummary: completion.summary,
                 detailedUsageState: completion.state,
                 platformProfiles: snapshot.platformProfiles,
+                historyContinuation: completion.continuation,
                 updatedAt: snapshot.updatedAt)
         }
 
@@ -467,19 +556,22 @@ public struct DeepSeekUsageFetcher: Sendable {
     }
 
     private static func completedOptionalUsageSummary(
-        from task: Task<DeepSeekUsageSummary, Error>,
+        from task: Task<RecentUsageFetchResult, Error>,
         joinGrace: Duration) async throws
-        -> (summary: DeepSeekUsageSummary?, state: DeepSeekDetailedUsageState)
+        -> (
+            summary: DeepSeekUsageSummary?,
+            continuation: DeepSeekWideHistoryContinuation?,
+            state: DeepSeekDetailedUsageState)
     {
         let race = BoundedTaskJoin(sourceTask: task)
         switch await race.value(joinGrace: joinGrace) {
-        case let .value(summary):
+        case let .value(result):
             try Task.checkCancellation()
-            return (summary, .available)
+            return (result.summary, result.continuation, .available)
         case .timedOut:
             try Task.checkCancellation()
             Self.log.warning("DeepSeek detailed usage unavailable", metadata: ["reason": "timeout"])
-            return (nil, .unavailable)
+            return (nil, nil, .unavailable)
         case let .failure(error):
             task.cancel()
             if Task.isCancelled {
@@ -488,7 +580,7 @@ public struct DeepSeekUsageFetcher: Sendable {
             Self.log.warning(
                 "DeepSeek detailed usage unavailable",
                 metadata: ["reason": self.optionalSummaryFailureReason(error)])
-            return (nil, error is DeepSeekUsageError ? self.optionalSummaryFailureState(error) : .unavailable)
+            return (nil, nil, error is DeepSeekUsageError ? self.optionalSummaryFailureState(error) : .unavailable)
         }
     }
 
@@ -505,6 +597,7 @@ public struct DeepSeekUsageFetcher: Sendable {
         switch error {
         case .missingCredentials: return "missing_credentials"
         case .invalidPlatformToken: return "platform_auth"
+        case .rateLimited: return "rate_limited"
         case .networkError: return "network"
         case .apiError: return "api"
         case .parseFailed: return "parse"
@@ -517,11 +610,13 @@ public struct DeepSeekUsageFetcher: Sendable {
 
     public static func fetchUsageSummary(
         platformToken: String,
+        period: CostReportingPeriod = .rolling(days: 30),
         now: Date = Date(),
         calendar: Calendar? = nil) async throws -> DeepSeekUsageSummary
     {
         try await self.fetchUsageSummary(
             platformToken: platformToken,
+            period: period,
             now: now,
             calendar: calendar,
             transport: ProviderHTTPClient.shared)
@@ -529,76 +624,178 @@ public struct DeepSeekUsageFetcher: Sendable {
 
     static func fetchUsageSummary(
         platformToken: String,
+        period: CostReportingPeriod = .rolling(days: 30),
         now: Date,
         calendar: Calendar? = nil,
         localCalendar: Calendar? = nil,
-        transport: any ProviderHTTPTransport) async throws -> DeepSeekUsageSummary
+        transport: any ProviderHTTPTransport,
+        shouldContinue: (@Sendable () async -> Bool)? = nil) async throws -> DeepSeekUsageSummary
     {
-        var dailyCalendar = calendar ?? localCalendar ?? self.localGregorianCalendar
-        // The endpoint accepts one offset for the entire range, rather than a named time zone.
-        dailyCalendar.timeZone = TimeZone(secondsFromGMT: dailyCalendar.timeZone.secondsFromGMT(for: now))!
+        let recent = try await self.fetchRecentUsageSummary(
+            platformToken: platformToken,
+            profileID: nil,
+            period: period,
+            now: now,
+            calendar: calendar,
+            localCalendar: localCalendar,
+            transport: transport)
+        guard let continuation = recent.continuation,
+              continuation.metadata.plan.isWide
+        else {
+            return recent.summary
+        }
+
+        let plan = continuation.metadata.plan
+        let olderWindows = Array(plan.chunks.dropFirst())
+        let olderFolds: [DeepSeekUsageWindow: DeepSeekChunkFoldResult]
+        let failedChunkCount: Int
+        switch await Self.paginateOlderChunks(
+            olderWindows: olderWindows,
+            fetchChunk: continuation.fetchChunk,
+            isStillValid: shouldContinue)
+        {
+        case .cancelled:
+            throw CancellationError()
+        case let .completed(folds, failures), let .invalidated(folds, failures):
+            olderFolds = folds
+            failedChunkCount = failures
+        }
+
+        let orderedFolds = [continuation.metadata.recentFold] + olderWindows.compactMap { olderFolds[$0] }
+        return DeepSeekUsageCostParser.mergeByAPIKeyChunks(
+            orderedFolds,
+            plan: plan,
+            failedChunkCount: failedChunkCount)
+    }
+
+    static func fetchRecentUsageSummary(
+        platformToken: String,
+        profileID: String?,
+        period: CostReportingPeriod = .rolling(days: 30),
+        now: Date = Date(),
+        calendar: Calendar? = nil,
+        localCalendar: Calendar? = nil,
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> RecentUsageFetchResult
+    {
+        let baseCalendar = calendar ?? localCalendar ?? self.localGregorianCalendar
+        let plan = DeepSeekHistoryPlan.make(period: period, now: now, calendar: baseCalendar)
         let monthlyCalendar = calendar ?? self.apiCalendar
-        let window = self.usageWindow(now: now, calendar: dailyCalendar)
         do {
-            let payloads = try await self.fetchUsagePayloads(
-                fetchAmount: {
-                    try await self.fetchByAPIKey(
-                        url: self.usageAmountByAPIKeyURL,
-                        platformToken: platformToken,
-                        window: window,
-                        transport: transport)
-                },
-                fetchCost: {
-                    try await self.fetchByAPIKey(
-                        url: self.usageCostByAPIKeyURL,
-                        platformToken: platformToken,
-                        window: window,
-                        transport: transport)
-                })
-            return try DeepSeekUsageCostParser.parseByAPIKey(
-                amountData: payloads.amount,
-                costData: payloads.cost,
-                now: now,
-                calendar: dailyCalendar,
-                rangeStart: window.start,
-                rangeEnd: window.end)
+            let recentFold = try await self.fetchByAPIKeyChunk(
+                platformToken: platformToken,
+                window: plan.recentChunk,
+                calendar: plan.fixedOffsetCalendar,
+                transport: transport)
+            let summary = DeepSeekUsageCostParser.mergeByAPIKeyChunks([recentFold], plan: plan)
+            let continuation = self.makeWideHistoryContinuation(
+                platformToken: platformToken,
+                profileID: profileID,
+                plan: plan,
+                recentFold: recentFold,
+                transport: transport)
+            return RecentUsageFetchResult(summary: summary, continuation: continuation)
         } catch {
             if error is CancellationError || (error as? URLError)?.code == .cancelled {
                 throw error
+            }
+            if let deepSeekError = error as? DeepSeekUsageError,
+               deepSeekError == .invalidPlatformToken || deepSeekError == .rateLimited
+            {
+                throw deepSeekError
             }
             try Task.checkCancellation()
             Self.log.warning(
                 "DeepSeek by-key usage unavailable, falling back to monthly totals",
                 metadata: ["reason": self.optionalSummaryFailureReason(error)])
-            let period = try self.usagePeriod(now: now, calendar: monthlyCalendar)
+            let monthPeriod = try self.usagePeriod(now: now, calendar: monthlyCalendar)
             let payloads = try await self.fetchUsagePayloads(
                 fetchAmount: {
                     try await self.fetchAmount(
                         platformToken: platformToken,
-                        month: period.month,
-                        year: period.year,
+                        month: monthPeriod.month,
+                        year: monthPeriod.year,
                         transport: transport)
                 },
                 fetchCost: {
                     try await self.fetchCost(
                         platformToken: platformToken,
-                        month: period.month,
-                        year: period.year,
+                        month: monthPeriod.month,
+                        year: monthPeriod.year,
                         transport: transport)
                 })
-            return try DeepSeekUsageCostParser.parse(
+            let monthlySummary = try DeepSeekUsageCostParser.parse(
                 amountData: payloads.amount,
                 costData: payloads.cost,
                 now: now,
                 calendar: monthlyCalendar)
+            return RecentUsageFetchResult(summary: monthlySummary, continuation: nil)
         }
+    }
+
+    static func fetchByAPIKeyChunk(
+        platformToken: String,
+        window: DeepSeekUsageWindow,
+        calendar: Calendar,
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> DeepSeekChunkFoldResult
+    {
+        try Task.checkCancellation()
+        let payloads = try await self.fetchUsagePayloads(
+            fetchAmount: {
+                try await self.fetchByAPIKey(
+                    url: self.usageAmountByAPIKeyURL,
+                    platformToken: platformToken,
+                    window: window,
+                    transport: transport)
+            },
+            fetchCost: {
+                try await self.fetchByAPIKey(
+                    url: self.usageCostByAPIKeyURL,
+                    platformToken: platformToken,
+                    window: window,
+                    transport: transport)
+            })
+        return try DeepSeekUsageCostParser.foldByAPIKeyChunk(
+            amountData: payloads.amount,
+            costData: payloads.cost,
+            window: window,
+            calendar: calendar)
+    }
+
+    static func makeWideHistoryContinuation(
+        platformToken: String,
+        profileID: String?,
+        plan: DeepSeekHistoryPlan,
+        recentFold: DeepSeekChunkFoldResult,
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) -> DeepSeekWideHistoryContinuation
+    {
+        let ownerDigest = DeepSeekPlatformBalanceOwner(
+            profileID: profileID ?? "explicit",
+            token: platformToken)?.tokenDigest
+        let fixedCalendar = plan.fixedOffsetCalendar
+        return DeepSeekWideHistoryContinuation(
+            metadata: DeepSeekHistorySessionMetadata(
+                profileID: profileID,
+                ownerTokenDigest: ownerDigest,
+                plan: plan,
+                recentFold: recentFold),
+            fetchChunk: { window in
+                try await self.fetchByAPIKeyChunk(
+                    platformToken: platformToken,
+                    window: window,
+                    calendar: fixedCalendar,
+                    transport: transport)
+            })
     }
 
     public static func fetchPlatformUsage(
         platformToken: String,
-        includeOptionalUsage: Bool = true) async throws -> DeepSeekUsageSnapshot
+        includeOptionalUsage: Bool = true,
+        period: CostReportingPeriod = .rolling(days: 30),
+        bucketTimeZoneIdentifier: String = "",
+        profileID: String? = nil) async throws -> DeepSeekUsageSnapshot
     {
-        try await self.fetchPlatformUsage(
+        let calendar = self.resolvedCalendar(bucketTimeZoneIdentifier: bucketTimeZoneIdentifier)
+        return try await self.fetchPlatformUsage(
             platformToken: platformToken,
             includeOptionalUsage: includeOptionalUsage,
             optionalSummaryJoinGrace: self.optionalSummaryJoinGrace,
@@ -607,7 +804,13 @@ public struct DeepSeekUsageFetcher: Sendable {
                     try await self.fetchPlatformBalance(platformToken: token)
                 },
                 fetchSummary: { token in
-                    try await self.fetchUsageSummary(platformToken: token)
+                    try await self.fetchRecentUsageSummary(
+                        platformToken: token,
+                        profileID: profileID,
+                        period: period,
+                        now: Date(),
+                        localCalendar: calendar,
+                        transport: ProviderHTTPClient.shared)
                 }))
     }
 
@@ -624,12 +827,12 @@ public struct DeepSeekUsageFetcher: Sendable {
             optionalSummaryJoinGrace: optionalSummaryJoinGrace,
             operations: PlatformFetchOperations(
                 fetchBalance: { _ in try await fetchBalance() },
-                fetchSummary: { _ in try await fetchSummary() }))
+                fetchSummary: { _ in try await RecentUsageFetchResult(summary: fetchSummary(), continuation: nil) }))
     }
 
     private struct PlatformFetchOperations: Sendable {
         let fetchBalance: @Sendable (String) async throws -> DeepSeekUsageSnapshot
-        let fetchSummary: @Sendable (String) async throws -> DeepSeekUsageSummary
+        let fetchSummary: @Sendable (String) async throws -> RecentUsageFetchResult
     }
 
     private static func fetchPlatformUsage(
@@ -641,7 +844,7 @@ public struct DeepSeekUsageFetcher: Sendable {
         let token = platformToken.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !token.isEmpty else { throw DeepSeekUsageError.invalidPlatformToken }
 
-        let summaryTask: Task<DeepSeekUsageSummary, Error>? = if includeOptionalUsage {
+        let summaryTask: Task<RecentUsageFetchResult, Error>? = if includeOptionalUsage {
             Task {
                 try await operations.fetchSummary(token)
             }
@@ -681,6 +884,7 @@ public struct DeepSeekUsageFetcher: Sendable {
                 toppedUpBalance: balance.toppedUpBalance,
                 usageSummary: completion.summary,
                 detailedUsageState: completion.state,
+                historyContinuation: completion.continuation,
                 updatedAt: balance.updatedAt)
         }
         return snapshot
@@ -725,13 +929,6 @@ public struct DeepSeekUsageFetcher: Sendable {
         try self.usagePeriod(now: now, calendar: calendar ?? self.apiCalendar)
     }
 
-    private static func usageWindow(now: Date, calendar: Calendar) -> (start: Date, end: Date, timeZoneSeconds: Int) {
-        let today = calendar.startOfDay(for: now)
-        let start = calendar.date(byAdding: .day, value: -29, to: today) ?? today
-        let end = calendar.date(byAdding: .day, value: 1, to: today) ?? now
-        return (start: start, end: end, timeZoneSeconds: calendar.timeZone.secondsFromGMT(for: now))
-    }
-
     private static func applyPlatformHeaders(_ request: inout URLRequest, platformToken: String) {
         request.setValue("Bearer \(platformToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -742,15 +939,15 @@ public struct DeepSeekUsageFetcher: Sendable {
     private static func fetchByAPIKey(
         url: URL,
         platformToken: String,
-        window: (start: Date, end: Date, timeZoneSeconds: Int),
+        window: DeepSeekUsageWindow,
         transport: any ProviderHTTPTransport) async throws -> Data
     {
         guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
             throw DeepSeekUsageError.networkError("Invalid URL")
         }
         components.queryItems = [
-            URLQueryItem(name: "start", value: String(Int(window.start.timeIntervalSince1970))),
-            URLQueryItem(name: "end", value: String(Int(window.end.timeIntervalSince1970))),
+            URLQueryItem(name: "start", value: String(window.startSeconds)),
+            URLQueryItem(name: "end", value: String(window.endSeconds)),
             URLQueryItem(name: "tz", value: String(window.timeZoneSeconds)),
         ]
         guard let requestURL = components.url else {
@@ -763,6 +960,9 @@ public struct DeepSeekUsageFetcher: Sendable {
         guard response.statusCode == 200 else {
             if response.statusCode == 401 || response.statusCode == 403 {
                 throw DeepSeekUsageError.invalidPlatformToken
+            }
+            if response.statusCode == 429 {
+                throw DeepSeekUsageError.rateLimited
             }
             throw DeepSeekUsageError.apiError("HTTP \(response.statusCode)")
         }
@@ -990,5 +1190,60 @@ public struct DeepSeekUsageFetcher: Sendable {
             totalBalance: total,
             grantedBalance: granted,
             toppedUpBalance: toppedUp)
+    }
+}
+
+package enum DeepSeekOlderChunkPaginationResult: Sendable {
+    case completed(olderFolds: [DeepSeekUsageWindow: DeepSeekChunkFoldResult], failedChunkCount: Int)
+    case invalidated(olderFolds: [DeepSeekUsageWindow: DeepSeekChunkFoldResult], failedChunkCount: Int)
+    case cancelled
+}
+
+extension DeepSeekUsageFetcher {
+    package static func paginateOlderChunks(
+        olderWindows: [DeepSeekUsageWindow],
+        reusableChunks: [DeepSeekUsageWindow: DeepSeekChunkFoldResult] = [:],
+        fetchChunk: @Sendable (DeepSeekUsageWindow) async throws -> DeepSeekChunkFoldResult,
+        isStillValid: (@Sendable () async -> Bool)? = nil) async -> DeepSeekOlderChunkPaginationResult
+    {
+        var olderFolds: [DeepSeekUsageWindow: DeepSeekChunkFoldResult] = [:]
+        var failedChunkCount = 0
+
+        for window in olderWindows {
+            if Task.isCancelled { return .cancelled }
+            if let isStillValid, await !isStillValid() {
+                if Task.isCancelled { return .cancelled }
+                return .invalidated(olderFolds: olderFolds, failedChunkCount: failedChunkCount)
+            }
+            if Task.isCancelled { return .cancelled }
+            if let cached = reusableChunks[window] {
+                olderFolds[window] = cached
+                continue
+            }
+            do {
+                let fold = try await fetchChunk(window)
+                if Task.isCancelled { return .cancelled }
+                olderFolds[window] = fold
+            } catch {
+                if Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled {
+                    return .cancelled
+                }
+                if let deepSeekError = error as? DeepSeekUsageError,
+                   deepSeekError == .invalidPlatformToken || deepSeekError == .rateLimited
+                {
+                    Self.log.warning(
+                        "DeepSeek wide history stopped",
+                        metadata: ["reason": self.optionalSummaryFailureReason(deepSeekError)])
+                    break
+                }
+                failedChunkCount += 1
+                Self.log.warning(
+                    "DeepSeek older usage window unavailable",
+                    metadata: ["reason": self.optionalSummaryFailureReason(error)])
+            }
+        }
+
+        if Task.isCancelled { return .cancelled }
+        return .completed(olderFolds: olderFolds, failedChunkCount: failedChunkCount)
     }
 }
