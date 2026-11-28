@@ -432,6 +432,14 @@ final class UsageStore {
     /// plan-utilization history may safely supply a stale presentation snapshot for the same profile.
     @ObservationIgnored var claudeHistoryFallbackEligible = false
     @ObservationIgnored var deepseekProfileTransition: DeepSeekProfileTransition?
+    @ObservationIgnored var deepseekHistoryTask: Task<Void, Never>?
+    @ObservationIgnored var deepseekHeadProjectionTask: Task<Void, Never>?
+    @ObservationIgnored var deepseekHistoryGeneration: UInt64 = 0
+    @ObservationIgnored var deepseekHistoryState: DeepSeekHistoryRuntimeState?
+    #if DEBUG
+    @ObservationIgnored var _test_deepseekNowProvider: (@Sendable () -> Date)?
+    @ObservationIgnored var _test_deepseekProjectionObserver: (@Sendable (_ isMainThread: Bool) async -> Void)?
+    #endif
     @ObservationIgnored var sessionQuotaTransitionStates: [ProviderInstanceID: SessionQuotaTransitionState] = [:]
     @ObservationIgnored var codexSessionQuotaBaselineRequirement: CodexSessionQuotaBaselineRequirement?
     var codexSessionQuotaBaselineRequired: Bool {
@@ -985,6 +993,8 @@ final class UsageStore {
         self.codexPlanHistoryBackfillTask?.cancel()
         self.resetBoundaryRefreshTask?.cancel()
         self.planUtilizationHistoryLoadTask?.cancel()
+        self.deepseekHistoryTask?.cancel()
+        self.deepseekHeadProjectionTask?.cancel()
     }
 
     enum SessionQuotaWindowSource: String {
@@ -1436,6 +1446,9 @@ extension UsageStore {
         }
 
         if Self.tokenCostRequiresProviderSnapshot(provider) {
+            if provider == .deepseek {
+                self.reconcileDeepSeekHistoryScopeIfInvalid()
+            }
             if self.tokenSnapshotPublicationForCurrentProviderConfig(for: provider) != nil {
                 self.tokenErrors[provider.instanceID] = nil
                 self.tokenFailureGates[provider.instanceID]?.recordSuccess()

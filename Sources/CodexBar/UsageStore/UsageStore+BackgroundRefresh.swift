@@ -34,6 +34,7 @@ extension UsageStore {
         self.diagnostics[provider.instanceID] = nil
         // Provider-specific by design: disabling clears each provider's app-owned transient account/session state.
         if provider == .deepseek {
+            self.cancelDeepSeekWideHistory()
             self.clearDeepSeekProfileTransition()
         }
         if provider == .gemini {

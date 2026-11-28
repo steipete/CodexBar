@@ -4,6 +4,7 @@ import Foundation
 extension UsageStore {
     func activateCachedTokenAccountSnapshot(provider: UsageProvider, accountID: UUID) {
         guard self.settings.effectiveSelectedTokenAccount(for: provider)?.id == accountID else { return }
+        self.reconcileDeepSeekHistoryScopeIfInvalid(for: provider)
         self.invalidateGenericWidgetUsage(for: provider)
         self.tokenAccountLiveStateProviders.insert(provider.instanceID)
         guard let account = self.uniqueTokenAccount(provider: provider, accountID: accountID),
@@ -964,6 +965,8 @@ extension UsageStore {
                     originalConfigRevision: contextConfigRevision)
             },
             costUsageHistoryDays: self.settings.costUsageHistoryDays,
+            costReportingPeriod: self.settings.costReportingPeriod,
+            costUsageBucketTimeZoneIdentifier: self.settings.costUsageBucketTimeZoneIdentifier,
             claudeOwnerCLIRecoveryOnly: claudeOwnerCLIRecoveryOnly,
             persistsCLISessions: true,
             persistentCLISessionIdleWindow: ProviderRegistry.persistentCLISessionIdleWindow(
@@ -1293,6 +1296,7 @@ extension UsageStore {
         if shouldSurface, snapshot == nil {
             self.invalidateGenericWidgetUsage(for: provider)
             self.snapshots.removeValue(forKey: provider.instanceID)
+            self.cancelDeepSeekWideHistoryIfNeeded(for: provider)
             self.clearProviderDerivedTokenSnapshot(for: provider)
         }
     }
@@ -1494,13 +1498,9 @@ extension UsageStore {
                 } else {
                     current
                 }
-            let profileStable =
-                provider == .deepseek
-                    ? labeled.preservingDeepSeekPlatformProfiles(
-                        from: self.presentationSnapshot(for: .deepseek))
-                    : labeled
-            let backfilled = profileStable.backfillingResetTimes(
-                from: self.lastKnownResetSnapshots[provider.instanceID])
+            let backfilled = provider == .deepseek
+                ? self.prepareDeepSeekSelectedAccountSnapshot(labeled, result: result, account: account)
+                : labeled.backfillingResetTimes(from: self.lastKnownResetSnapshots[provider.instanceID])
             let warningAccountDiscriminator = Self.warningTokenAccountDiscriminator(account)
             self.handleQuotaWarningTransitions(
                 provider: provider,
@@ -1520,9 +1520,10 @@ extension UsageStore {
             self.snapshots[provider.instanceID] = backfilled
             self.widgetUsagePreservationBlockedProviders.remove(provider.instanceID)
             if provider == .deepseek {
-                self.clearDeepSeekProfileTransition()
+                self.finalizeDeepSeekSelectedAccountPublication(snapshot: backfilled, result: result, account: account)
+            } else {
+                self.publishProviderDerivedTokenSnapshot(from: backfilled, for: provider)
             }
-            self.publishProviderDerivedTokenSnapshot(from: backfilled, for: provider)
             self.lastSourceLabels[provider.instanceID] = result.sourceLabel
             self.errors[provider.instanceID] = nil
             self.knownLimitsAvailabilityByProvider.removeValue(forKey: provider.instanceID)
