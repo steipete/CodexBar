@@ -5,6 +5,8 @@
 "+ %d more" = "+ %d nữa";
 "Conversations (%@)" = "Cuộc trò chuyện (%@)";
 "Fast" = "Nhanh";
+"Optional. Reads included API and Vibe allowances without browser cookies." = "Tùy chọn. Đọc hạn mức API và Vibe đi kèm mà không cần cookie trình duyệt.";
+"Auto tries the API key first and falls back to browser cookies. Browser cookies are required for spend, credits, and token history." = "Tự động thử khóa API trước, sau đó dùng cookie trình duyệt. Cần cookie trình duyệt cho chi tiêu, tín dụng và lịch sử token.";
 "iCloud Sync" = "Đồng bộ hóa iCloud";
 "Projects" = "Dự án";
 "Session %@" = "Phiên %@";

@@ -2,13 +2,24 @@ import Foundation
 
 public enum MistralProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
-    private static let credentials = ProviderCredentialAdapter(tokenAccountSupport: TokenAccountSupport(
-        title: "Session tokens",
-        subtitle: "Store multiple Mistral Cookie headers.",
-        placeholder: "Cookie: …",
-        injection: .cookieHeader,
-        requiresManualCookieSource: true,
-        cookieName: nil))
+    private static let credentials = ProviderCredentialAdapter(
+        supportsAPIKeyOverride: true,
+        environmentProjections: [.apiKey(MistralBudgetFetchStrategy.environmentKey)],
+        tokenAccountSupport: TokenAccountSupport(
+            title: "Session tokens",
+            subtitle: "Store multiple Mistral Cookie headers.",
+            placeholder: "Cookie: …",
+            injection: .cookieHeader,
+            requiresManualCookieSource: true,
+            cookieName: nil,
+            disabledCookiesSuppressAccount: true,
+            passiveSourceModes: [.api]),
+        authDetector: { env, _ in MistralBudgetFetchStrategy.apiKey(in: env) == nil ? [] : ["api"] },
+        accountEnvironmentOverride: { env, _ in
+            // An explicitly selected cookie account must not use another account's configured key.
+            env.removeValue(forKey: MistralBudgetFetchStrategy.environmentKey)
+        },
+        selectedAccountSourceModeResolver: { base, account, _ in account == nil ? base : .web })
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
@@ -47,6 +58,7 @@ public enum MistralProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
                 noDataMessage: { "Mistral cost history needs a billing web session." },
+                isUsageUnavailable: { $0.mistralUsage == nil },
                 menuHintLines: [.literal("Reported by Mistral billing usage.")],
                 showsCostMenuSection: false,
                 primaryValue: .latestDaily,
@@ -66,7 +78,10 @@ public enum MistralProviderDescriptor {
                 menuBarWindowResolver: { context in
                     switch context.metric {
                     case .automatic:
-                        .resolved(nil)
+                        .resolved(context.snapshot.mistralUsage == nil
+                            ? context.snapshot.primary ?? context.snapshot.extraRateWindows?
+                            .first(where: { $0.id == "mistral-monthly-plan" })?.window
+                            : nil)
                     case .monthlyPlan:
                         .resolved(context.snapshot.extraRateWindows?.first { $0.id == "mistral-monthly-plan" }?.window)
                     default:
@@ -85,10 +100,20 @@ public enum MistralProviderDescriptor {
                     showsPrimaryBalanceDescription: true,
                     hidesPrimaryResetWithoutDate: true,
                     extraRateWindowUsesResetDescriptionAsDetail: { $0.id == "mistral-monthly-plan" }),
-                menu: ProviderMenuDescriptorPresentation(primaryDescriptionIsDetail: { _ in true })),
+                menu: ProviderMenuDescriptorPresentation(primaryDescriptionIsDetail: { _ in true }),
+                optionalDetails: .init(hiddenTitlesWithoutOptionalUsage: [MistralWebFetchStrategy.creditDetailTitle])),
             fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .web],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [MistralWebFetchStrategy()] })),
+                sourceModes: [.auto, .web, .api],
+                pipeline: ProviderFetchPipeline(
+                    resolveStrategies: { context in
+                        switch context.sourceMode {
+                        case .api: [MistralBudgetFetchStrategy()]
+                        case .web: [MistralWebFetchStrategy()]
+                        case .auto: [MistralBudgetFetchStrategy(), MistralWebFetchStrategy()]
+                        case .cli, .oauth: []
+                        }
+                    },
+                    resolveFallbackError: self.resolveFallbackError)),
             cli: ProviderCLIConfig(
                 name: "mistral",
                 aliases: ["mistral-ai"],
@@ -98,6 +123,15 @@ public enum MistralProviderDescriptor {
                     settings?.mistral?.cookieSource == .manual &&
                         CookieHeaderNormalizer.normalize(settings?.mistral?.manualCookieHeader) != nil
                 }))
+    }
+
+    private static func resolveFallbackError(_ prior: (any Error)?, _ error: any Error) -> any Error {
+        guard let budgetError = prior as? MistralBudgetError else { return error }
+        if case MistralSettingsError.missingCookie = error { return budgetError }
+        #if os(macOS)
+        if case MistralCookieImportError.noCookies = error { return budgetError }
+        #endif
+        return error
     }
 
     private static func widgetRows(
@@ -118,8 +152,16 @@ public enum MistralProviderDescriptor {
 }
 
 struct MistralWebFetchStrategy: ProviderFetchStrategy {
+    struct BrowserUsage {
+        let snapshot: UsageSnapshot
+        let diagnostic: String?
+    }
+
+    static let creditDetailTitle = "Credits"
+    private static let logger = CodexBarLog.logger(LogCategories.provider(.mistral))
     let id: String = "mistral.web"
     let kind: ProviderFetchKind = .web
+    var transport: any ProviderHTTPTransport = ProviderHTTPClient.shared
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         context.settings?.mistral?.cookieSource != .off
@@ -132,10 +174,9 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
             let usage = try await Self.fetchUsageWithVibe(
                 cookieHeader: session.cookieHeader,
                 csrfToken: session.csrfToken,
-                timeout: context.webTimeout)
-            return self.makeResult(
-                usage: usage,
-                sourceLabel: "web")
+                timeout: context.webTimeout,
+                transport: self.transport)
+            return self.makeResult(usage: usage.snapshot, sourceLabel: "web", diagnostic: usage.diagnostic)
         } catch MistralUsageError.invalidCredentials where cookieSource != .manual {
             #if os(macOS)
             CookieHeaderCache.clear(provider: .mistral)
@@ -154,14 +195,13 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
             }
             let (usage, session) = try await Self.fetchUsageFromSessions(
                 sessions,
-                timeout: context.webTimeout)
+                timeout: context.webTimeout,
+                transport: self.transport)
             CookieHeaderCache.store(
                 provider: .mistral,
                 cookieHeader: session.cookieHeader,
                 sourceLabel: session.sourceLabel)
-            return self.makeResult(
-                usage: usage,
-                sourceLabel: "web")
+            return self.makeResult(usage: usage.snapshot, sourceLabel: "web", diagnostic: usage.diagnostic)
             #else
             throw MistralUsageError.invalidCredentials
             #endif
@@ -173,7 +213,7 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
         _ sessions: some Sequence<MistralCookieImporter.SessionInfo>,
         timeout: TimeInterval,
         transport: ProviderHTTPTransport = ProviderHTTPClient.shared) async throws
-        -> (usage: UsageSnapshot, session: MistralCookieImporter.SessionInfo)
+        -> (usage: BrowserUsage, session: MistralCookieImporter.SessionInfo)
     {
         for session in sessions {
             do {
@@ -195,51 +235,129 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
         cookieHeader: String,
         csrfToken: String?,
         timeout: TimeInterval,
-        transport: ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> UsageSnapshot
+        transport: ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> BrowserUsage
     {
-        let deadline = Date().addingTimeInterval(timeout)
-        let snapshot = try await MistralUsageFetcher.fetchUsage(
-            cookieHeader: cookieHeader,
-            csrfToken: csrfToken,
-            timeout: timeout,
-            transport: transport)
+        let now = Date()
+        let deadline = now.addingTimeInterval(timeout)
+        let billing: Result<MistralUsageSnapshot, MistralUsageError>
+        do {
+            billing = try await .success(MistralUsageFetcher.fetchUsage(
+                cookieHeader: cookieHeader,
+                csrfToken: csrfToken,
+                timeout: timeout,
+                transport: transport))
+        } catch let error as MistralUsageError where error.allowsPartialBilling {
+            billing = .failure(error)
+        }
+        // Authorization failures still leave through the existing alternate-session recovery path.
+        let snapshot = try? billing.get()
+        var sessionRejection: MistralUsageError?
         var remaining = deadline.timeIntervalSinceNow
-        let budgets: MistralSubscriptionBudgets? = if remaining > 0 {
-            try await Self.fetchOptionalSubscriptionBudgets(
-                cookieHeader: cookieHeader,
-                timeout: min(remaining, 4),
-                transport: transport)
+        let budgetTimeout = min(remaining, 4)
+        let budgetProbe = if remaining > 0 {
+            try await Self.runOptionalProbe("subscription allowance page") {
+                try await MistralUsageFetcher.fetchSubscriptionBudgets(
+                    cookieHeader: cookieHeader,
+                    timeout: budgetTimeout,
+                    transport: transport)
+            }
         } else {
-            nil
+            OptionalProbe<MistralSubscriptionBudgets>.skipped
         }
+        let budgets = budgetProbe.value
+        sessionRejection = budgetProbe.sessionRejection
         remaining = deadline.timeIntervalSinceNow
-        let vibeResult: MistralUsageFetcher.MistralVibeUsageResult? = if budgets?.vibe == nil,
-                                                                         let csrfToken,
-                                                                         remaining > 0
+        let vibeTimeout = min(remaining, 4)
+        // Require usable data from Admin before calling the separate console origin.
+        let vibeProbe = if budgets?.vibe == nil,
+                           snapshot != nil || budgets != nil,
+                           let csrfToken,
+                           remaining > 0
         {
-            try await Self.fetchOptionalVibeUsage(
-                csrfToken: csrfToken,
-                cookieHeader: cookieHeader,
-                timeout: min(remaining, 4),
-                transport: transport)
+            try await Self.runOptionalProbe("Vibe allowance") {
+                try await MistralUsageFetcher.fetchVibeUsage(
+                    csrfToken: csrfToken,
+                    cookieHeader: cookieHeader,
+                    timeout: vibeTimeout,
+                    transport: transport)
+            }
         } else {
-            nil
+            OptionalProbe<MistralUsageFetcher.MistralVibeUsageResult>.skipped
         }
+        let vibeResult = vibeProbe.value
+        sessionRejection = sessionRejection ?? vibeProbe.sessionRejection
         remaining = deadline.timeIntervalSinceNow
-        let credits: MistralCreditsSnapshot? = if remaining > 0 {
-            try await Self.fetchOptionalCredits(
-                cookieHeader: cookieHeader,
-                csrfToken: csrfToken,
-                timeout: min(remaining, 4),
-                transport: transport)
+        let creditTimeout = min(remaining, 4)
+        let creditProbe = if remaining > 0 {
+            try await Self.runOptionalProbe("credits") {
+                try await MistralUsageFetcher.fetchCredits(
+                    cookieHeader: cookieHeader,
+                    csrfToken: csrfToken,
+                    timeout: creditTimeout,
+                    transport: transport)
+            }
         } else {
-            nil
+            OptionalProbe<MistralCreditsSnapshot>.skipped
         }
-        var result = snapshot.with(credits: credits).toUsageSnapshot()
+        let credits = creditProbe.value
+        sessionRejection = sessionRejection ?? creditProbe.sessionRejection
+        var result: UsageSnapshot
+        let diagnostic: String?
+        switch billing {
+        case let .success(billed):
+            result = billed.with(credits: credits).toUsageSnapshot()
+            diagnostic = nil
+        case let .failure(error):
+            let details = credits.flatMap { Self.partialCreditDetail($0) }.map { [$0] } ?? []
+            guard budgets != nil || !details.isEmpty else {
+                // `fetch` only retries another browser session for `.invalidCredentials`. If the rejected
+                // session surfaced on a supplemental probe, rethrow that instead of the billing error so an
+                // expired cached session cannot hide a valid login in a later browser.
+                throw sessionRejection ?? error
+            }
+            result = UsageSnapshot(primary: nil, secondary: nil, details: details, updatedAt: now)
+            diagnostic = error.partialBillingDiagnostic
+        }
         if let budgets {
             result = Self.attachSubscriptionBudgets(to: result, budgets: budgets)
         }
-        return Self.attachVibeWindow(to: result, vibeResult: vibeResult)
+        return BrowserUsage(snapshot: Self.attachVibeWindow(to: result, vibeResult: vibeResult), diagnostic: diagnostic)
+    }
+
+    private static func partialCreditDetail(_ credits: MistralCreditsSnapshot) -> ProviderDetailSection? {
+        try? ProviderDetailSection(title: self.creditDetailTitle, rows: [
+            .init(label: "Balance", value: credits.formattedAvailableAmount, usageValue: credits.availableAmount),
+        ])
+    }
+
+    /// Result of a best-effort supplemental probe. The value is `nil` whenever the probe failed, so callers can
+    /// keep publishing whatever partial data they do have; `sessionRejection` records an authentication failure so
+    /// the fetch can still hand the session to alternate-session recovery when nothing usable came back.
+    private struct OptionalProbe<Value> {
+        let value: Value?
+        let sessionRejection: MistralUsageError?
+
+        static var skipped: Self {
+            Self(value: nil, sessionRejection: nil)
+        }
+    }
+
+    private static func runOptionalProbe<Value>(
+        _ label: String,
+        _ operation: () async throws -> Value) async throws -> OptionalProbe<Value>
+    {
+        do {
+            return try await OptionalProbe(value: operation(), sessionRejection: nil)
+        } catch let error as MistralUsageError where error.isSessionRejection {
+            self.logOptionalFailure(label, error: error)
+            return OptionalProbe(value: nil, sessionRejection: error)
+        } catch {
+            if error is CancellationError || (error as? URLError)?.code == .cancelled || Task.isCancelled {
+                throw CancellationError()
+            }
+            self.logOptionalFailure(label, error: error)
+            return OptionalProbe(value: nil, sessionRejection: nil)
+        }
     }
 
     static func fetchOptionalSubscriptionBudgets(
@@ -248,17 +366,12 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
         transport: ProviderHTTPTransport = ProviderHTTPClient.shared) async throws
         -> MistralSubscriptionBudgets?
     {
-        do {
-            return try await MistralUsageFetcher.fetchSubscriptionBudgets(
+        try await self.runOptionalProbe("subscription allowance page") {
+            try await MistralUsageFetcher.fetchSubscriptionBudgets(
                 cookieHeader: cookieHeader,
                 timeout: timeout,
                 transport: transport)
-        } catch {
-            if error is CancellationError || (error as? URLError)?.code == .cancelled || Task.isCancelled {
-                throw CancellationError()
-            }
-            return nil
-        }
+        }.value
     }
 
     static func fetchOptionalCredits(
@@ -268,18 +381,13 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
         transport: ProviderHTTPTransport = ProviderHTTPClient.shared) async throws
         -> MistralCreditsSnapshot?
     {
-        do {
-            return try await MistralUsageFetcher.fetchCredits(
+        try await self.runOptionalProbe("credits") {
+            try await MistralUsageFetcher.fetchCredits(
                 cookieHeader: cookieHeader,
                 csrfToken: csrfToken,
                 timeout: timeout,
                 transport: transport)
-        } catch {
-            if error is CancellationError || (error as? URLError)?.code == .cancelled || Task.isCancelled {
-                throw CancellationError()
-            }
-            return nil
-        }
+        }.value
     }
 
     static func fetchOptionalVibeUsage(
@@ -289,18 +397,13 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
         transport: ProviderHTTPTransport = ProviderHTTPClient.shared) async throws
         -> MistralUsageFetcher.MistralVibeUsageResult?
     {
-        do {
-            return try await MistralUsageFetcher.fetchVibeUsage(
+        try await self.runOptionalProbe("Vibe allowance") {
+            try await MistralUsageFetcher.fetchVibeUsage(
                 csrfToken: csrfToken,
                 cookieHeader: cookieHeader,
                 timeout: timeout,
                 transport: transport)
-        } catch {
-            if error is CancellationError || (error as? URLError)?.code == .cancelled || Task.isCancelled {
-                throw CancellationError()
-            }
-            return nil
-        }
+        }.value
     }
 
     static func attachSubscriptionBudgets(
@@ -355,6 +458,28 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
         false
+    }
+
+    func diagnostic(forPriorFailure error: Error) -> String? {
+        guard let error = error as? MistralBudgetError else { return nil }
+        return error.errorDescription
+    }
+
+    /// Auto can fail over from the API key to cookies, so report both causes instead of only the browser note.
+    func combinePriorFailureDiagnostic(_ priorDiagnostic: String, with existing: String?) -> String? {
+        existing.map { "\(priorDiagnostic) \($0)" } ?? priorDiagnostic
+    }
+
+    private static func logOptionalFailure(_ source: String, error: any Error) {
+        let reason = switch error {
+        case MistralUsageError.invalidCredentials: "session rejected"
+        case MistralUsageError.parseFailed: "no usable data in response"
+        case let MistralUsageError.httpStatus(status): "HTTP \(status)"
+        case let MistralUsageError.apiError(detail): detail
+        case let error as URLError: "network error (\(error.code.rawValue))"
+        default: "request failed"
+        }
+        self.logger.debug("Mistral optional source unavailable", metadata: ["source": source, "reason": reason])
     }
 
     private static func resolveCookieSession(context: ProviderFetchContext) throws

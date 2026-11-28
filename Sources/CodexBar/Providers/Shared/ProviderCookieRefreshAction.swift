@@ -3,6 +3,9 @@ import Foundation
 
 @MainActor
 enum ProviderCookieRefreshAction {
+    /// Inherited by this refresh's fetch task, without changing the persisted source or other providers.
+    @TaskLocal static var browserOnlyProvider: UsageProvider?
+
     enum Outcome: Equatable {
         case refreshed
         case failed
@@ -12,6 +15,7 @@ enum ProviderCookieRefreshAction {
         provider: UsageProvider,
         cookieSource: @escaping () -> ProviderCookieSource,
         additionalVisibility: @escaping () -> Bool = { true },
+        browserOnly: Bool = false,
         context: ProviderSettingsContext) -> ProviderSettingsActionDescriptor
     {
         ProviderSettingsActionDescriptor(
@@ -20,7 +24,9 @@ enum ProviderCookieRefreshAction {
             style: .bordered,
             isVisible: { cookieSource() == .auto && additionalVisibility() },
             perform: {
-                await self.perform(provider: provider, context: context)
+                await self.$browserOnlyProvider.withValue(browserOnly ? provider : nil) {
+                    await self.perform(provider: provider, context: context)
+                }
             })
     }
 

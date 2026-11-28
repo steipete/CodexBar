@@ -875,10 +875,11 @@ extension UsageStore {
             provider: provider,
             settings: self.settings,
             override: override)
-        let sourceMode = ProviderRegistry.resolvedSourceMode(
-            provider: provider,
-            settings: self.settings,
-            account: account)
+        let sourceMode: ProviderSourceMode = if ProviderCookieRefreshAction.browserOnlyProvider == provider {
+            .web
+        } else {
+            ProviderRegistry.resolvedSourceMode(provider: provider, settings: self.settings, account: account)
+        }
         let snapshot = ProviderRegistry.makeSettingsSnapshot(
             provider: provider,
             settings: self.settings,

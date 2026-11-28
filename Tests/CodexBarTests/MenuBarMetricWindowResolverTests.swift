@@ -714,32 +714,6 @@ struct MenuBarMetricWindowResolverTests {
     }
 
     @Test
-    func `monthly plan metric selects Mistral subscription window`() {
-        let snapshot = UsageSnapshot(
-            primary: RateWindow(usedPercent: 2, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
-            secondary: nil,
-            extraRateWindows: [
-                NamedRateWindow(
-                    id: "mistral-monthly-plan",
-                    title: "Monthly Plan",
-                    window: RateWindow(usedPercent: 42, windowMinutes: nil, resetsAt: nil, resetDescription: nil)),
-            ],
-            updatedAt: Date())
-
-        let window = MenuBarMetricWindowResolver.rateWindow(
-            preference: .monthlyPlan,
-            provider: .mistral,
-            snapshot: snapshot,
-            supportsAverage: false)
-
-        #expect(window?.usedPercent == 42)
-        #expect(MenuBarMetricWindowResolver.rateWindow(
-            preference: .automatic, provider: .mistral, snapshot: snapshot, supportsAverage: false) == nil)
-        #expect(MenuBarMetricWindowResolver.rateWindow(
-            preference: .primary, provider: .mistral, snapshot: snapshot, supportsAverage: false)?.usedPercent == 2)
-    }
-
-    @Test
     func `extra usage metric maps provider cost into a menu bar window`() {
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 12, windowMinutes: nil, resetsAt: nil, resetDescription: nil),

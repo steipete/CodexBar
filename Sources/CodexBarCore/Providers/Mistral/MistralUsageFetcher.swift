@@ -5,6 +5,7 @@ import FoundationNetworking
 
 public enum MistralUsageFetcher {
     private static let baseURL = URL(string: "https://admin.mistral.ai")!
+    private static let apiBaseURL = URL(string: "https://api.mistral.ai")!
     private static let loginHost = "auth.mistral.ai"
     private static let loginPath = "/self-service/login"
 
@@ -36,6 +37,8 @@ public enum MistralUsageFetcher {
         }
 
         var request = URLRequest(url: url, timeoutInterval: timeout)
+        // The cookie header is explicit; leaving storage handling on lets a stale stored session compete with it.
+        request.httpShouldHandleCookies = false
         request.setValue("*/*", forHTTPHeaderField: "Accept")
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
         request.setValue("https://admin.mistral.ai/organization/usage", forHTTPHeaderField: "Referer")
@@ -105,6 +108,35 @@ public enum MistralUsageFetcher {
         }
     }
 
+    /// Reads allowances without a browser session. This endpoint is not part of the documented Admin API.
+    static func fetchBudget(
+        apiKey: String,
+        timeout: TimeInterval = 4,
+        transport: ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> MistralSubscriptionBudgets
+    {
+        let url = self.apiBaseURL.appendingPathComponent("v1/billing/budget")
+        var request = URLRequest(url: url, timeoutInterval: timeout)
+        request.httpShouldHandleCookies = false
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        try request.setValue("Bearer \(Self.validatedAPIKey(apiKey))", forHTTPHeaderField: "Authorization")
+
+        let response: ProviderHTTPResponse
+        do {
+            response = try await transport.response(for: request)
+            try Task.checkCancellation()
+        } catch {
+            if error is CancellationError || (error as? URLError)?.code == .cancelled || Task.isCancelled {
+                throw CancellationError()
+            }
+            throw MistralBudgetError.network
+        }
+        switch response.statusCode {
+        case 200: return try Self.parseBudget(data: response.data)
+        case 401, 403: throw MistralBudgetError.rejectedKey
+        default: throw MistralBudgetError.http(response.statusCode)
+        }
+    }
+
     public static func fetchCredits(
         cookieHeader: String,
         csrfToken: String?,
@@ -113,6 +145,7 @@ public enum MistralUsageFetcher {
     {
         let url = self.baseURL.appendingPathComponent("/api/billing/credits")
         var request = URLRequest(url: url, timeoutInterval: timeout)
+        request.httpShouldHandleCookies = false
         request.setValue("*/*", forHTTPHeaderField: "Accept")
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
         request.setValue("https://admin.mistral.ai/organization/billing", forHTTPHeaderField: "Referer")
@@ -150,8 +183,7 @@ public enum MistralUsageFetcher {
         case 300...399 where self.isLoginRedirect(response.response):
             throw MistralUsageError.invalidCredentials
         default:
-            let body = String(data: response.data.prefix(200), encoding: .utf8) ?? ""
-            throw MistralUsageError.apiError("HTTP \(response.statusCode): \(body)")
+            throw MistralUsageError.httpStatus(response.statusCode)
         }
     }
 
@@ -194,6 +226,15 @@ public enum MistralUsageFetcher {
         return snapshot
     }
 
+    static func parseBudget(data: Data) throws -> MistralSubscriptionBudgets {
+        guard let payload = try? JSONDecoder().decode(MistralBudgetResponse.self, from: data) else {
+            throw MistralBudgetError.noBudget
+        }
+        let budgets = MistralSubscriptionBudgets(api: payload.api, vibe: payload.vibe)
+        guard budgets.api != nil || budgets.vibe != nil else { throw MistralBudgetError.noBudget }
+        return budgets
+    }
+
     static func vibeCookieHeader(csrfToken: String) throws -> String {
         try "csrftoken=\(self.validatedVibeCSRFToken(csrfToken))"
     }
@@ -209,6 +250,16 @@ public enum MistralUsageFetcher {
             pairs.append(contentsOf: sessionPairs)
         }
         return pairs.joined(separator: "; ")
+    }
+
+    private static func validatedAPIKey(_ apiKey: String) throws -> String {
+        let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let allowedPunctuation = Set("-._~+/=".utf8)
+        guard !key.isEmpty, key.utf8.allSatisfy({
+            (48...57).contains($0) || (65...90).contains($0) || (97...122).contains($0) || allowedPunctuation
+                .contains($0)
+        }) else { throw MistralBudgetError.invalidKey }
+        return key
     }
 
     private static func validatedVibeCSRFToken(_ csrfToken: String) throws -> String {
@@ -248,6 +299,10 @@ public enum MistralUsageFetcher {
             (billing.fineTuning?.training, false, false),
             (billing.fineTuning?.storage, false, false),
         ]
+        // An empty reported model set is legitimate, but an unrelated 200 JSON object is not zero usage.
+        guard categories.contains(where: { $0.models != nil }) ||
+            (billing.startDate != nil && billing.endDate != nil && billing.prices != nil)
+        else { throw MistralUsageError.parseFailed("Unrecognized billing report") }
         for category in categories {
             for (modelName, modelData) in category.models ?? [:] {
                 let aggregate = try Self.aggregateModel(modelData, prices: prices, countsTokens: category.monthTokens)
@@ -537,5 +592,26 @@ private struct MistralCreditsResponse: Decodable {
         case walletAmount = "wallet_amount"
         case creditNotesAmount = "credit_notes_amount"
         case ongoingUsageBalance = "ongoing_usage_balance"
+    }
+}
+
+private struct MistralBudgetResponse: Decodable {
+    let api: MistralSubscriptionBudget?
+    let vibe: MistralSubscriptionBudget?
+
+    enum CodingKeys: String, CodingKey {
+        case apiBudget = "api_budget"
+        case vibeBudget = "vibe_budget"
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        // Some responses expose the API allowance at the root instead of under api_budget.
+        if container.contains(.apiBudget) {
+            self.api = (try? container.decode(MistralBudgetPayload.self, forKey: .apiBudget))?.budget
+        } else {
+            self.api = (try? MistralBudgetPayload(from: decoder))?.budget
+        }
+        self.vibe = (try? container.decode(MistralBudgetPayload.self, forKey: .vibeBudget))?.budget
     }
 }

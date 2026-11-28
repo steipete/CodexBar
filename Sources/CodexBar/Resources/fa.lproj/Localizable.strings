@@ -5,6 +5,8 @@
 "+ %d more" = "+ %d مورد دیگر";
 "Conversations (%@)" = "گفتگوها (%@)";
 "Fast" = "سریع";
+"Optional. Reads included API and Vibe allowances without browser cookies." = "اختیاری. سهمیه‌های API و Vibe را بدون کوکی‌های مرورگر می‌خواند.";
+"Auto tries the API key first and falls back to browser cookies. Browser cookies are required for spend, credits, and token history." = "حالت خودکار ابتدا کلید API را امتحان می‌کند و سپس به کوکی‌های مرورگر بازمی‌گردد. برای هزینه، اعتبار و تاریخچهٔ توکن‌ها کوکی‌های مرورگر لازم است.";
 "iCloud Sync" = "iCloud Sync";
 "Projects" = "پروژه ها";
 "Session %@" = "نشست %@";

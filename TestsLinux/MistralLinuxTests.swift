@@ -4,6 +4,14 @@ import Testing
 @testable import CodexBarCore
 
 struct MistralLinuxTests {
+    @Test
+    func `Mistral API key bypasses browser support only for API and auto sources`() async {
+        let env = ["MISTRAL_API_KEY": "synthetic-key"]
+        #expect(await !CodexBarCLI.sourceModeRequiresWebSupport(.auto, provider: .mistral, environment: env))
+        #expect(await !CodexBarCLI.sourceModeRequiresWebSupport(.api, provider: .mistral, environment: env))
+        #expect(await CodexBarCLI.sourceModeRequiresWebSupport(.web, provider: .mistral, environment: env))
+    }
+
     @Test(arguments: [ProviderSourceMode.auto, .web])
     func `Mistral manual cookie header does not require browser support`(sourceMode: ProviderSourceMode) async {
         #expect(await !CodexBarCLI.sourceModeRequiresWebSupport(
@@ -64,8 +72,8 @@ struct MistralLinuxTests {
         let outcome = await MistralProviderDescriptor.descriptor.fetchPlan.fetchOutcome(
             context: context,
             provider: .mistral)
-        #expect(outcome.attempts.map(\.strategyID) == ["mistral.web"])
-        #expect(outcome.attempts.map(\.wasAvailable) == [true])
+        #expect(outcome.attempts.map(\.strategyID) == ["mistral.api", "mistral.web"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [false, true])
         switch outcome.result {
         case .success:
             Issue.record("Expected a manual header without an ory_session cookie to fail before network access")

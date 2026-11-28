@@ -5,6 +5,8 @@
 "+ %d more" = "+ %d máis";
 "Conversations (%@)" = "Conversas (%@)";
 "Fast" = "Rápido";
+"Optional. Reads included API and Vibe allowances without browser cookies." = "Opcional. Le as asignacións incluídas de API e Vibe sen cookies do navegador.";
+"Auto tries the API key first and falls back to browser cookies. Browser cookies are required for spend, credits, and token history." = "O modo automático proba primeiro a clave de API e recorre ás cookies do navegador. As cookies do navegador son necesarias para o gasto, os créditos e o historial de tokens.";
 "iCloud Sync" = "Sincronización iCloud";
 "Projects" = "Proxectos";
 "Session %@" = "Sesión %@";

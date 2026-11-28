@@ -216,6 +216,30 @@ struct TokenAccountCLISelectionTests {
         }
     }
 
+    @Test
+    func `Mistral API mode keeps sessions passive unless a CLI account is explicitly selected`() throws {
+        let passive = try Self.context(provider: .mistral, source: .api)
+        #expect(try passive.resolvedAccounts(for: .mistral).isEmpty)
+        #expect(passive.effectiveSourceMode(base: .api, provider: .mistral, account: nil) == .api)
+        for selection in Self.accountOverrides {
+            let context = try Self.context(provider: .mistral, source: .api, selection: selection)
+            let account = try #require(try context.resolvedAccounts(for: .mistral).first)
+            #expect(context.effectiveSourceMode(base: .api, provider: .mistral, account: account) == .web)
+        }
+    }
+
+    @Test
+    func `Mistral disabled cookies keep a saved session out of implicit CLI selection`() throws {
+        let context = try Self.context(provider: .mistral, source: .auto, cookieSource: .off)
+
+        // Settings report Mistral cookies as disabled, so the CLI must not pick the saved session on its own;
+        // doing so would remove the API key and force a browser source that Off rules out.
+        #expect(try context.resolvedAccounts(for: .mistral).isEmpty)
+        #expect(context.effectiveSourceMode(base: .auto, provider: .mistral, account: nil) == .auto)
+        #expect(try Self.context(provider: .mistral, source: .auto, cookieSource: .auto)
+            .resolvedAccounts(for: .mistral).count == 1)
+    }
+
     private static var accountOverrides: [TokenAccountCLISelection] {
         [
             TokenAccountCLISelection(label: "Primary", index: nil, allAccounts: false),
@@ -227,6 +251,7 @@ struct TokenAccountCLISelectionTests {
     private static func context(
         provider: UsageProvider,
         source: ProviderSourceMode,
+        cookieSource: ProviderCookieSource? = nil,
         selection: TokenAccountCLISelection = TokenAccountCLISelection(label: nil, index: nil, allAccounts: false))
         throws -> TokenAccountCLIContext
     {
@@ -235,6 +260,7 @@ struct TokenAccountCLISelectionTests {
         let config = CodexBarConfig(providers: [ProviderConfig(
             id: provider.instanceID,
             source: source,
+            cookieSource: cookieSource,
             tokenAccounts: ProviderTokenAccountData(version: 1, accounts: [account], activeIndex: 0))])
         return try TokenAccountCLIContext(
             selection: selection, config: config, verbose: false, baseEnvironment: [:])

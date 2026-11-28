@@ -569,9 +569,20 @@ extension StatusItemController {
                 primary: showUsed ? metricWindow.usedPercent : metricWindow.remainingPercent,
                 secondary: nil)
         }
-        // Provider-specific by design: Mistral's balance/spend text replaces percentage lanes in its icon.
+        // Provider-specific by design: Mistral uses spend/balance text for browser billing in
+        // Automatic mode, and falls back to its resolved quota window (Monthly Plan, explicit
+        // Included API, or automatic allowance when billing history is absent).
         if provider == .mistral {
-            return (primary: nil, secondary: nil)
+            guard let metricWindow = self.menuBarMetricWindowForIconOverride(
+                preference: preference,
+                provider: provider,
+                snapshot: snapshot)
+            else {
+                return (primary: nil, secondary: nil)
+            }
+            return (
+                primary: showUsed ? metricWindow.usedPercent : metricWindow.remainingPercent,
+                secondary: nil)
         }
         return IconRemainingResolver.resolvedPercents(
             snapshot: snapshot,

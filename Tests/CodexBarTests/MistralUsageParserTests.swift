@@ -224,7 +224,10 @@ struct MistralUsageParserTests {
         #expect(snapshot.currency == "EUR")
     }
 
-    @Test(arguments: ["{}", #"{"currency":"   ","currency_symbol":"  "}"#])
+    @Test(arguments: [
+        #"{"completion":{"models":{}}}"#,
+        #"{"currency":"   ","currency_symbol":"  ","completion":{"models":{}}}"#,
+    ])
     func `missing currency stays explicitly unknown`(json: String) throws {
         let snapshot = try MistralUsageFetcher.parseResponse(data: Data(json.utf8), updatedAt: Date())
 
@@ -1103,7 +1106,7 @@ struct MistralStrategyTests {
         #expect(descriptor.metadata.cliName == "mistral")
         #expect(descriptor.metadata.defaultEnabled == false)
         #expect(descriptor.cli.name == "mistral")
-        #expect(descriptor.fetchPlan.sourceModes == [.auto, .web])
+        #expect(descriptor.fetchPlan.sourceModes == [.auto, .web, .api])
         #expect(descriptor.branding.iconResourceName == "ProviderIcon-mistral")
         #expect(descriptor.tokenCost.supportsTokenCost)
     }

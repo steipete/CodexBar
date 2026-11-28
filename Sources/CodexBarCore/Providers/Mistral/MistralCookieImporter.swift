@@ -8,6 +8,7 @@ private let mistralCookieImportOrder: BrowserCookieImportOrder =
 
 public enum MistralCookieImporter {
     private static let cookieClient = BrowserCookieClient()
+    private static let diagnostics = CodexBarLog.logger(LogCategories.provider(.mistral))
     static let cookieDomains = ["mistral.ai", "admin.mistral.ai", "auth.mistral.ai", "console.mistral.ai"]
 
     public struct SessionInfo: Sendable {
@@ -55,13 +56,36 @@ public enum MistralCookieImporter {
         throws -> AnySequence<SessionInfo>
     {
         let log: (String) -> Void = { logger?("[mistral-cookie] \($0)") }
+        let candidates = self.resolvedImportOrder(preferredBrowsers).lazy.filter { browser in
+            let eligible = [browser].lazyCookieImportCandidates(using: browserDetection).contains { _ in true }
+            self.diagnostics.debug("Mistral browser eligibility", metadata: [
+                "browser": browser.displayName,
+                "eligible": eligible ? "yes" : "no",
+            ])
+            return eligible
+        }
         return try BrowserCookieImportSupport.collectSessions(
-            from: self.resolvedImportOrder(preferredBrowsers).lazyCookieImportCandidates(using: browserDetection),
+            from: candidates,
             missingError: MistralCookieImportError.noCookies,
             logger: log,
             load: { browser in
                 let query = self.cookieQuery()
-                return try loadRecords(browser, query, log).compactMap { source in
+                let sources: [BrowserCookieStoreRecords]
+                do {
+                    sources = try loadRecords(browser, query, log)
+                } catch {
+                    let reason = switch error {
+                    case BrowserCookieError.accessDenied: "access-denied"
+                    case BrowserCookieError.notFound: "not-found"
+                    default: "read-failed"
+                    }
+                    self.diagnostics.debug("Mistral browser read failed", metadata: [
+                        "browser": browser.displayName,
+                        "reason": reason,
+                    ])
+                    throw error
+                }
+                let sessions: [SessionInfo] = sources.compactMap { source in
                     guard !excludingSourceLabels.contains(source.label) else {
                         log("Skipping rejected cookie source \(source.label)")
                         return nil
@@ -74,6 +98,12 @@ public enum MistralCookieImporter {
                     log("Found \(cookies.count) Mistral cookies in \(source.label)")
                     return SessionInfo(cookies: cookies, sourceLabel: source.label)
                 }
+                self.diagnostics.debug("Mistral browser records read", metadata: [
+                    "browser": browser.displayName,
+                    "matchedProfiles": "\(sources.count)",
+                    "sessionCandidates": "\(sessions.count)",
+                ])
+                return sessions
             })
     }
 

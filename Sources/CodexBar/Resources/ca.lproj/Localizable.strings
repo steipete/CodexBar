@@ -5,6 +5,8 @@
 "+ %d more" = "+ %d més";
 "Conversations (%@)" = "Converses (%@)";
 "Fast" = "Ràpid";
+"Optional. Reads included API and Vibe allowances without browser cookies." = "Opcional. Llegeix les assignacions incloses d'API i Vibe sense galetes del navegador.";
+"Auto tries the API key first and falls back to browser cookies. Browser cookies are required for spend, credits, and token history." = "L'opció automàtica prova primer la clau API i recorre a les galetes del navegador. Les galetes del navegador són necessàries per a la despesa, els crèdits i l'historial de testimonis.";
 "iCloud Sync" = "Sincronització amb iCloud";
 
 "Independent chat" = "Xat independent";

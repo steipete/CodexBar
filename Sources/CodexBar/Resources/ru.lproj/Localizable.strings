@@ -5,6 +5,8 @@
 "+ %d more" = "Ещё %d";
 "Conversations (%@)" = "Диалоги (%@)";
 "Fast" = "Быстро";
+"Optional. Reads included API and Vibe allowances without browser cookies." = "Необязательно. Читает включённые лимиты API и Vibe без cookie браузера.";
+"Auto tries the API key first and falls back to browser cookies. Browser cookies are required for spend, credits, and token history." = "В автоматическом режиме сначала используется ключ API, затем файлы cookie браузера. Для расходов, кредитов и истории токенов нужны файлы cookie браузера.";
 "iCloud Sync" = "Синхронизация с iCloud";
 "Projects" = "Проекты";
 "Session %@" = "Сессия %@";
